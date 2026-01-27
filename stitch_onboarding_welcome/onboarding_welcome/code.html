@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#19e6c4",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#11211e",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#111817] dark:text-white transition-colors duration-300">
+<!-- Main Container for iOS Phone Form Factor -->
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+<!-- Top App Bar (iOS Status Bar Area) -->
+<div class="flex items-center bg-transparent p-4 pb-2 justify-end">
+<button class="text-sm font-medium text-[#111817] dark:text-white/70">Bỏ qua</button>
+</div>
+<!-- Hero Image Section -->
+<div class="@container px-6 py-4">
+<div class="relative bg-gradient-to-br from-primary/20 to-primary/5 dark:from-primary/10 dark:to-transparent rounded-xl flex flex-col items-center justify-center overflow-hidden min-h-[340px] shadow-sm">
+<!-- Abstract AI Illustration Representation -->
+<div class="relative w-full h-full flex items-center justify-center">
+<div class="absolute w-48 h-48 bg-primary rounded-full blur-3xl opacity-20"></div>
+<div class="z-10 flex flex-col items-center">
+<span class="material-symbols-outlined text-[120px] text-primary" data-icon="storefront">storefront</span>
+<div class="absolute -top-4 -right-4 size-20 bg-white dark:bg-background-dark rounded-xl shadow-lg flex items-center justify-center transform rotate-12">
+<span class="material-symbols-outlined text-primary text-3xl" data-icon="smart_toy">smart_toy</span>
+</div>
+<div class="absolute -bottom-2 -left-4 size-16 bg-white dark:bg-background-dark rounded-xl shadow-md flex items-center justify-center transform -rotate-12">
+<span class="material-symbols-outlined text-[#111817] dark:text-white text-2xl" data-icon="insights">insights</span>
+</div>
+</div>
+</div>
+<!-- Image data attribute for the visual representation -->
+<div class="hidden" data-alt="Friendly shop owner using smart POS tablet"></div>
+</div>
+</div>
+<!-- Headline Text -->
+<div class="px-6">
+<h1 class="text-[#111817] dark:text-white tracking-tight text-[32px] font-bold leading-tight text-center pt-8 pb-3">
+                Chào mừng bạn đến với AI POS
+            </h1>
+</div>
+<!-- Body Text -->
+<div class="px-8">
+<p class="text-[#111817]/70 dark:text-white/70 text-base font-normal leading-relaxed text-center pb-6">
+                Giải pháp POS tích hợp AI giúp bạn bán hàng nhanh hơn, quản lý kho hiệu quả và tối ưu doanh thu chỉ trong vài chạm.
+            </p>
+</div>
+<!-- Page Indicators -->
+<div class="flex w-full flex-row items-center justify-center gap-3 py-4">
+<div class="h-2 w-6 rounded-full bg-primary"></div>
+<div class="h-2 w-2 rounded-full bg-[#dce5e4] dark:bg-white/20"></div>
+<div class="h-2 w-2 rounded-full bg-[#dce5e4] dark:bg-white/20"></div>
+</div>
+<!-- Action Buttons Footer -->
+<div class="mt-auto px-6 pb-12 pt-4 flex flex-col gap-3">
+<button class="w-full bg-primary hover:bg-primary/90 text-[#11211e] font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary/20">
+                Bắt đầu ngay
+            </button>
+<button class="w-full bg-transparent text-[#111817] dark:text-white font-semibold py-4 rounded-xl border border-[#dce5e4] dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 transition-all">
+                Đăng nhập
+            </button>
+</div>
+<!-- iOS Home Indicator Spacing -->
+<div class="h-5 bg-transparent"></div>
+</div>
+</body></html>

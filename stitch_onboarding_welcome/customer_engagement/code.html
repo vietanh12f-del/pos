@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Customer Engagement</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#19e6c4",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#11211e",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full max-w-[480px] mx-auto flex-col bg-white dark:bg-slate-900 overflow-x-hidden shadow-xl">
+<!-- TopAppBar -->
+<div class="sticky top-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+<div class="flex items-center p-4 pb-2 justify-between">
+<div class="text-slate-900 dark:text-white flex size-12 shrink-0 items-center">
+<span class="material-symbols-outlined text-2xl">arrow_back_ios</span>
+</div>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Customers</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex size-12 cursor-pointer items-center justify-center rounded-full bg-primary/10 text-slate-900 dark:text-white">
+<span class="material-symbols-outlined text-2xl">person_add</span>
+</button>
+</div>
+</div>
+<!-- Tabs -->
+<div class="px-4">
+<div class="flex border-b border-slate-100 dark:border-slate-800 gap-8">
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-primary text-slate-900 dark:text-white pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">All</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-slate-400 pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">Loyal</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-slate-400 pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">New</p>
+</a>
+</div>
+</div>
+<!-- SearchBar -->
+<div class="px-4 py-3">
+<label class="flex flex-col min-w-40 h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-xl h-full bg-slate-100 dark:bg-slate-800">
+<div class="text-slate-400 flex items-center justify-center pl-4 rounded-l-xl" data-icon="MagnifyingGlass">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:outline-0 focus:ring-0 text-slate-900 dark:text-white placeholder:text-slate-400 px-4 pl-2 text-base font-normal leading-normal" placeholder="Search name or phone number" value=""/>
+</div>
+</label>
+</div>
+</div>
+<!-- Content List -->
+<div class="flex-1 flex flex-col pb-20">
+<!-- ListItem 1 -->
+<div class="border-b border-slate-50 dark:border-slate-800">
+<div class="flex gap-4 bg-white dark:bg-slate-900 px-4 py-4 justify-between items-center">
+<div class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14 ring-2 ring-primary/20" data-alt="Portrait of a female customer smiling" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCbnAtBrrbnUp_1TvmNqJbaEpJ9nO98GTssW_NN2B5nG-telxmWfpTXosjI1krRgYlmbQbzUQcg00s7yPSGzaeWPG10eAMqRtAiXBFqFG0pTrwokvu9GYY7nZLJm5eGFciuoXPxRBYTTenNh8aOLsw4Mct7j-Ojn1TY-bAolBoYSto9RgvtoL069flcuANkq-6sZGvRtIxSRqDp5FM_i-m41lBy-mevBsnk5iq3Ubv6BIqMeeVZRUISATRXuKWv8rNfznGoIsatDpE");'></div>
+<div class="flex flex-col">
+<p class="text-slate-900 dark:text-white text-base font-bold leading-tight">Jane Doe</p>
+<p class="text-slate-500 text-sm font-medium">+1 (555) 012-3456</p>
+</div>
+</div>
+<div class="shrink-0">
+<button class="flex items-center justify-center rounded-lg h-9 px-4 bg-primary text-slate-900 text-sm font-bold gap-2">
+<span class="material-symbols-outlined text-lg">send</span>
+<span>Promo</span>
+</button>
+</div>
+</div>
+<!-- Loyalty Progress (Integrated into list) -->
+<div class="px-4 pb-4">
+<div class="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+<div class="flex gap-6 justify-between items-center">
+<p class="text-slate-700 dark:text-slate-300 text-xs font-bold uppercase tracking-wider">Digital Stamps</p>
+<p class="text-slate-900 dark:text-white text-sm font-bold">8 / 10</p>
+</div>
+<div class="rounded-full bg-slate-200 dark:bg-slate-700 h-2 w-full overflow-hidden">
+<div class="h-full rounded-full bg-primary" style="width: 80%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- ListItem 2 -->
+<div class="border-b border-slate-50 dark:border-slate-800">
+<div class="flex gap-4 bg-white dark:bg-slate-900 px-4 py-4 justify-between items-center">
+<div class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14 ring-2 ring-primary/20" data-alt="Portrait of a male customer with glasses" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuABZhWeBJDDxKprpqdSUX3VNd97v7vbp5pT7eI9Qt0BPg9naMX0l2_-_xUzj-WN7-TL_hvzI9Dnu3nKx9bzCszowOr-_sHq8M8I7qAXy-dna7wesrxN5kbyLRFN_U4DtzG7YY8IK82A0RS6W6Kjb4UBOp4tFzpbDYROuW1eqkBD33WfrXNTnPEQEjRpbOazhXATM4zE4iCofeG0Lry6hbNgZsNEn-JYYOlq2ha6mogR-a5bs9PR12f4aDkT4cbSH9BnY41k99sgdyU");'></div>
+<div class="flex flex-col">
+<p class="text-slate-900 dark:text-white text-base font-bold leading-tight">Marcus Thompson</p>
+<p class="text-slate-500 text-sm font-medium">+1 (555) 098-7654</p>
+</div>
+</div>
+<div class="shrink-0">
+<button class="flex items-center justify-center rounded-lg h-9 px-4 bg-primary text-slate-900 text-sm font-bold gap-2">
+<span class="material-symbols-outlined text-lg">send</span>
+<span>Promo</span>
+</button>
+</div>
+</div>
+<div class="px-4 pb-4">
+<div class="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+<div class="flex gap-6 justify-between items-center">
+<p class="text-slate-700 dark:text-slate-300 text-xs font-bold uppercase tracking-wider">Digital Stamps</p>
+<p class="text-slate-900 dark:text-white text-sm font-bold">3 / 10</p>
+</div>
+<div class="rounded-full bg-slate-200 dark:bg-slate-700 h-2 w-full overflow-hidden">
+<div class="h-full rounded-full bg-primary" style="width: 30%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- ListItem 3 -->
+<div class="border-b border-slate-50 dark:border-slate-800">
+<div class="flex gap-4 bg-white dark:bg-slate-900 px-4 py-4 justify-between items-center">
+<div class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14 ring-2 ring-primary/20" data-alt="Portrait of an older woman" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBNcV6jc5BMD34oNbN3nDP5WX2Esm4iVg5fc1cEu_wLASQoTlpQIbk4T4BJT1QWv0BY3p0-rDp6afL2a9c0MfABqc72y6dYBP8z4cW-ojm_sC7UFdID-VH-GTn-O-3-IsXTtO_rpgNm23Xgpc6kZ2hX-KgrTHPDq7KpJ5ecrMaxxn9ddCggPMbQUt5cDY3hF6qpUwcRPyBdcggUrSYoBhbWTq6zaJYCRkBvxaNbI7IYvgbx0BCuaB-j7_TgSi-4GQEdWeW1PK1FMjw");'></div>
+<div class="flex flex-col">
+<p class="text-slate-900 dark:text-white text-base font-bold leading-tight">Sarah Wilson</p>
+<p class="text-slate-500 text-sm font-medium">+1 (555) 234-5678</p>
+</div>
+</div>
+<div class="shrink-0">
+<button class="flex items-center justify-center rounded-lg h-9 px-4 bg-primary text-slate-900 text-sm font-bold gap-2">
+<span class="material-symbols-outlined text-lg">send</span>
+<span>Promo</span>
+</button>
+</div>
+</div>
+<div class="px-4 pb-4">
+<div class="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+<div class="flex gap-6 justify-between items-center">
+<p class="text-slate-700 dark:text-slate-300 text-xs font-bold uppercase tracking-wider">Digital Stamps</p>
+<p class="text-slate-900 dark:text-white text-sm font-bold">10 / 10</p>
+</div>
+<div class="rounded-full bg-slate-200 dark:bg-slate-700 h-2 w-full overflow-hidden">
+<div class="h-full rounded-full bg-primary" style="width: 100%;"></div>
+</div>
+<p class="text-primary text-[10px] font-bold uppercase text-center mt-1">Reward Ready to Claim!</p>
+</div>
+</div>
+</div>
+<!-- ListItem 4 -->
+<div class="border-b border-slate-50 dark:border-slate-800 opacity-60">
+<div class="flex gap-4 bg-white dark:bg-slate-900 px-4 py-4 justify-between items-center">
+<div class="flex items-center gap-4">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14 ring-2 ring-slate-200" data-alt="Portrait of a young man" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDgCBOUKrbIWyxXD99_ZC36_FOIIDHiCduChGZlDjmXeoPvjyO1Syk2Q40ZeTzMupYIt_npCd1iG-pwPyRlD3GPb7cbhh3w2s_Yuh4XLKPz6raCxtIxYpdO8_nWvQIVgzcAGECkgvu4vjcCSKtswyL2Ae8jQ_jGr2v-HjHCbLs53nEfARF7vjs5N0NKGeoTZc5T2IjfLCM27c-VeP0JhoweuSwrEfGo1oDnb9xqVTo4sf30vrqSYhkE14nmWtTqbxgpQw38AytYfQk");'></div>
+<div class="flex flex-col">
+<p class="text-slate-900 dark:text-white text-base font-bold leading-tight">David Lee</p>
+<p class="text-slate-500 text-sm font-medium">+1 (555) 345-6789</p>
+</div>
+</div>
+<div class="shrink-0">
+<button class="flex items-center justify-center rounded-lg h-9 px-4 bg-primary text-slate-900 text-sm font-bold gap-2">
+<span class="material-symbols-outlined text-lg">send</span>
+<span>Promo</span>
+</button>
+</div>
+</div>
+<div class="px-4 pb-4">
+<div class="flex flex-col gap-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+<div class="flex gap-6 justify-between items-center">
+<p class="text-slate-700 dark:text-slate-300 text-xs font-bold uppercase tracking-wider">Digital Stamps</p>
+<p class="text-slate-900 dark:text-white text-sm font-bold">1 / 10</p>
+</div>
+<div class="rounded-full bg-slate-200 dark:bg-slate-700 h-2 w-full overflow-hidden">
+<div class="h-full rounded-full bg-primary" style="width: 10%;"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Action Button for Send Multi-Promotion -->
+<div class="fixed bottom-6 right-6 z-30 sm:relative sm:bottom-auto sm:right-auto sm:self-center sm:mb-6">
+<button class="flex items-center justify-center h-14 px-6 rounded-full bg-slate-900 dark:bg-primary text-white dark:text-slate-900 shadow-2xl gap-3 hover:scale-105 transition-transform active:scale-95">
+<span class="material-symbols-outlined font-bold">campaign</span>
+<span class="font-bold text-sm tracking-wide">Blast Promotion</span>
+</button>
+</div>
+<!-- Bottom Navigation Spacer -->
+<div class="h-20 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-around px-4">
+<div class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold mt-1">Home</span>
+</div>
+<div class="flex flex-col items-center text-primary">
+<span class="material-symbols-outlined fill-[1]">group</span>
+<span class="text-[10px] font-bold mt-1">Customers</span>
+</div>
+<div class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="text-[10px] font-bold mt-1">Orders</span>
+</div>
+<div class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold mt-1">Settings</span>
+</div>
+</div>
+</div>
+</body></html>

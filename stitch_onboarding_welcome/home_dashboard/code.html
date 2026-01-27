@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Home Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#19e6c4",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#11211e",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden max-w-[480px] mx-auto bg-white dark:bg-background-dark shadow-xl">
+<!-- TopAppBar -->
+<div class="flex items-center bg-white dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10">
+<div class="flex size-12 shrink-0 items-center">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border-2 border-primary/20" data-alt="Modern professional business owner profile portrait" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD2mlVUh2laYOC_43HKScUr2jBUcLzv-nucu0IwBvrTF_TNyL21b9x-334iWCirPYW-YcE6ws-kSvd73ZLmVh3mwajdhRHLkU9Yo06JqrP6AGH4TEEESsik01oJ9rcaAn58bqh6WD2VP7v5tF5s5q3zhM0qUReYyaINHceCYfWtxYpl-Jyo9BmDHEiB_nCmQH8O-CUFWXZqbYg6TM5R0liYQnhC4wwqDc8Ht6Yfb0Qk9kOjT1l4ckoCq2T7itfCGoOsZGLzrO2eZY8");'>
+</div>
+</div>
+<div class="flex flex-col flex-1 px-2">
+<h2 class="text-[#111817] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">Luxe Cafe</h2>
+<p class="text-[#638882] dark:text-[#638882] text-xs font-medium">Monday, Oct 24</p>
+</div>
+<div class="flex w-12 items-center justify-end">
+<button class="flex size-10 cursor-pointer items-center justify-center rounded-full bg-background-light dark:bg-white/10 text-[#111817] dark:text-white">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+</div>
+<!-- AI Insight ActionPanel -->
+<div class="p-4 pt-2">
+<div class="flex flex-col items-start justify-between gap-4 rounded-xl border border-primary/30 bg-primary/10 p-5 @[480px]:flex-row @[480px]:items-center">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-[#111817] text-xl">auto_awesome</span>
+<p class="text-[#111817] text-base font-bold leading-tight">Smart Insight</p>
+</div>
+<p class="text-[#111817]/80 text-sm font-medium leading-normal">Today is busier than usual! You might need extra staff by 4 PM to handle the rush.</p>
+</div>
+<a class="text-sm font-bold leading-normal tracking-[0.015em] flex items-center gap-1 text-[#111817] bg-white px-3 py-1.5 rounded-lg shadow-sm border border-[#dce5e4]" href="#">
+                    View why
+                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+</div>
+</div>
+<!-- Stats Section -->
+<div class="flex flex-wrap gap-4 px-4 py-2">
+<div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-xl p-5 bg-background-light dark:bg-white/5 border border-transparent dark:border-white/10">
+<p class="text-[#638882] text-sm font-semibold uppercase tracking-wider leading-normal">Revenue</p>
+<p class="text-[#111817] dark:text-white tracking-tight text-2xl font-extrabold leading-tight">$1,240.50</p>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[#078830] text-sm font-bold">trending_up</span>
+<p class="text-[#078830] text-sm font-bold leading-normal">+12%</p>
+</div>
+</div>
+<div class="flex min-w-[158px] flex-1 flex-col gap-2 rounded-xl p-5 bg-background-light dark:bg-white/5 border border-transparent dark:border-white/10">
+<p class="text-[#638882] text-sm font-semibold uppercase tracking-wider leading-normal">Orders</p>
+<p class="text-[#111817] dark:text-white tracking-tight text-2xl font-extrabold leading-tight">42</p>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[#078830] text-sm font-bold">trending_up</span>
+<p class="text-[#078830] text-sm font-bold leading-normal">+5%</p>
+</div>
+</div>
+</div>
+<!-- SectionHeader Quick Actions -->
+<h3 class="text-[#111817] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-2 pt-4">Quick Actions</h3>
+<!-- ButtonGroup -->
+<div class="px-4 py-2">
+<div class="grid grid-cols-3 gap-3">
+<button class="flex flex-col items-center justify-center rounded-xl py-4 px-2 bg-primary text-[#111817] shadow-sm active:scale-95 transition-transform">
+<span class="material-symbols-outlined mb-2 text-2xl">add_shopping_cart</span>
+<span class="text-xs font-bold leading-normal truncate">New Order</span>
+</button>
+<button class="flex flex-col items-center justify-center rounded-xl py-4 px-2 bg-background-light dark:bg-white/5 text-[#111817] dark:text-white border border-[#dce5e4] dark:border-white/10 active:scale-95 transition-transform">
+<span class="material-symbols-outlined mb-2 text-2xl">inventory_2</span>
+<span class="text-xs font-bold leading-normal truncate">Inventory</span>
+</button>
+<button class="flex flex-col items-center justify-center rounded-xl py-4 px-2 bg-background-light dark:bg-white/5 text-[#111817] dark:text-white border border-[#dce5e4] dark:border-white/10 active:scale-95 transition-transform">
+<span class="material-symbols-outlined mb-2 text-2xl">analytics</span>
+<span class="text-xs font-bold leading-normal truncate">Analytics</span>
+</button>
+</div>
+</div>
+<!-- Revenue Graph Section -->
+<div class="px-4 py-6">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-[#111817] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">Today's Revenue</h3>
+<span class="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded">Live</span>
+</div>
+<!-- Custom Graph Implementation -->
+<div class="relative h-48 w-full bg-background-light dark:bg-white/5 rounded-xl border border-[#dce5e4] dark:border-white/10 p-4 flex flex-col justify-end">
+<div class="absolute inset-x-4 top-4 flex justify-between">
+<div class="flex flex-col">
+<span class="text-[10px] text-[#638882] font-bold uppercase">Peak Hour</span>
+<span class="text-xs font-bold text-[#111817] dark:text-white">12:30 PM</span>
+</div>
+</div>
+<div class="flex items-end justify-between h-24 w-full gap-2 px-1">
+<div class="flex-1 bg-primary/20 rounded-t-sm h-[30%]"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-[45%]"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-[25%]"></div>
+<div class="flex-1 bg-primary/40 rounded-t-sm h-[60%]"></div>
+<div class="flex-1 bg-primary/40 rounded-t-sm h-[85%]"></div>
+<div class="flex-1 bg-primary rounded-t-sm h-[100%]"></div>
+<div class="flex-1 bg-primary/60 rounded-t-sm h-[70%]"></div>
+<div class="flex-1 bg-primary/30 rounded-t-sm h-[40%]"></div>
+<div class="flex-1 bg-primary/20 rounded-t-sm h-[35%]"></div>
+<div class="flex-1 bg-primary/10 rounded-t-sm h-[15%]"></div>
+</div>
+<div class="flex justify-between mt-4 border-t border-[#dce5e4] dark:border-white/10 pt-2 px-1">
+<span class="text-[10px] text-[#638882] font-medium">8am</span>
+<span class="text-[10px] text-[#638882] font-medium">12pm</span>
+<span class="text-[10px] text-[#638882] font-medium">4pm</span>
+<span class="text-[10px] text-[#638882] font-medium">8pm</span>
+</div>
+</div>
+</div>
+<!-- Footer Navigation Space -->
+<div class="h-20"></div>
+<!-- Navigation Bar (iOS Style) -->
+<div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white dark:bg-background-dark border-t border-[#dce5e4] dark:border-white/10 px-6 py-3 flex justify-between items-center z-50">
+<div class="flex flex-col items-center text-primary">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[10px] font-bold mt-1">Home</span>
+</div>
+<div class="flex flex-col items-center text-[#638882]">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="text-[10px] font-medium mt-1">Orders</span>
+</div>
+<div class="flex flex-col items-center text-[#638882]">
+<div class="size-12 rounded-full bg-primary flex items-center justify-center -mt-8 shadow-lg shadow-primary/40">
+<span class="material-symbols-outlined text-[#111817] text-3xl font-bold">add</span>
+</div>
+</div>
+<div class="flex flex-col items-center text-[#638882]">
+<span class="material-symbols-outlined">inventory</span>
+<span class="text-[10px] font-medium mt-1">Stock</span>
+</div>
+<div class="flex flex-col items-center text-[#638882]">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-medium mt-1">Setup</span>
+</div>
+</div>
+</div>
+</body></html>

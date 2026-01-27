@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Checkout &amp; Payment</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#19e6c4",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#11211e",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: "Plus Jakarta Sans", sans-serif;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+<div class="relative flex h-full min-h-screen w-full flex-col max-w-[480px] mx-auto bg-white dark:bg-background-dark overflow-x-hidden shadow-xl">
+<!-- TopAppBar -->
+<div class="flex items-center bg-white dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800">
+<div class="text-[#111817] dark:text-white flex size-12 shrink-0 items-center cursor-pointer">
+<span class="material-symbols-outlined">arrow_back_ios</span>
+</div>
+<h2 class="text-[#111817] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Checkout</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 bg-transparent text-[#111817] dark:text-white gap-2 text-base font-bold leading-normal tracking-[0.015em] min-w-0 p-0">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</div>
+<!-- Order Summary Section -->
+<div class="flex flex-col py-6 bg-white dark:bg-background-dark">
+<p class="text-gray-500 dark:text-gray-400 text-sm font-medium text-center uppercase tracking-widest">Total Amount</p>
+<h1 class="text-[#111817] dark:text-white tracking-tight text-[40px] font-bold leading-tight px-4 text-center">450,000 VND</h1>
+<p class="text-[#111817] dark:text-gray-400 text-base font-normal leading-normal px-4 text-center mt-1">3 Items • Order #2049</p>
+</div>
+<!-- Utility Bar: Loyalty & Split -->
+<div class="px-4 space-y-3 pb-4">
+<!-- Loyalty Shortcut -->
+<div class="flex items-center justify-between p-4 bg-primary/10 dark:bg-primary/5 rounded-xl border border-primary/20">
+<div class="flex items-center gap-3">
+<div class="bg-primary p-2 rounded-lg">
+<span class="material-symbols-outlined text-white">card_membership</span>
+</div>
+<div>
+<p class="text-[#111817] dark:text-white font-bold text-sm">Add Loyalty Points</p>
+<p class="text-gray-500 dark:text-gray-400 text-xs">Search by phone or scan member ID</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-gray-400">chevron_right</span>
+</div>
+<!-- Split Bill Toggle -->
+<div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-gray-600 dark:text-gray-400">call_split</span>
+<p class="text-[#111817] dark:text-white font-semibold">Split Bill</p>
+</div>
+<div class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+</div>
+</div>
+</div>
+<!-- Payment Method Section -->
+<h3 class="text-[#111817] dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] px-4 pb-4 pt-4">Select Payment Method</h3>
+<div class="grid grid-cols-2 gap-3 px-4 pb-8">
+<!-- Scan QR - Prominent for VN Market -->
+<div class="col-span-2 relative bg-white dark:bg-gray-800 border-2 border-primary rounded-xl p-4 flex items-center justify-between group cursor-pointer shadow-sm">
+<div class="flex items-center gap-4">
+<div class="bg-primary/20 dark:bg-primary/30 p-3 rounded-lg">
+<span class="material-symbols-outlined text-primary text-3xl font-bold">qr_code_scanner</span>
+</div>
+<div>
+<p class="text-[#111817] dark:text-white text-lg font-bold">Scan QR (VietQR)</p>
+<p class="text-gray-500 dark:text-gray-400 text-xs">Momo, ZaloPay, ShopeePay &amp; Apps</p>
+</div>
+</div>
+<div class="flex items-center">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+</div>
+</div>
+<!-- Cash -->
+<div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3 items-center justify-center cursor-pointer hover:border-primary transition-colors">
+<div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-full">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">payments</span>
+</div>
+<p class="text-[#111817] dark:text-white text-base font-bold">Cash</p>
+</div>
+<!-- Card -->
+<div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3 items-center justify-center cursor-pointer hover:border-primary transition-colors">
+<div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-full">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">credit_card</span>
+</div>
+<p class="text-[#111817] dark:text-white text-base font-bold">Credit Card</p>
+</div>
+<!-- E-Wallet -->
+<div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3 items-center justify-center cursor-pointer hover:border-primary transition-colors">
+<div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-full">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">account_balance_wallet</span>
+</div>
+<p class="text-[#111817] dark:text-white text-base font-bold">E-Wallet</p>
+</div>
+<!-- More -->
+<div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-col gap-3 items-center justify-center cursor-pointer hover:border-primary transition-colors">
+<div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-full">
+<span class="material-symbols-outlined text-gray-700 dark:text-gray-300">more_horiz</span>
+</div>
+<p class="text-[#111817] dark:text-white text-base font-bold">Others</p>
+</div>
+</div>
+<!-- Order Breakdown -->
+<div class="px-4 py-4 mt-auto border-t border-gray-100 dark:border-gray-800">
+<div class="flex justify-between py-1">
+<span class="text-gray-500 dark:text-gray-400 text-sm">Subtotal</span>
+<span class="text-[#111817] dark:text-white text-sm font-medium">416,667 VND</span>
+</div>
+<div class="flex justify-between py-1">
+<span class="text-gray-500 dark:text-gray-400 text-sm">VAT (8%)</span>
+<span class="text-[#111817] dark:text-white text-sm font-medium">33,333 VND</span>
+</div>
+<div class="flex justify-between py-1">
+<span class="text-gray-500 dark:text-gray-400 text-sm">Discount</span>
+<span class="text-red-500 text-sm font-medium">-0 VND</span>
+</div>
+</div>
+<!-- Sticky Confirmation Button -->
+<div class="p-4 bg-white dark:bg-background-dark sticky bottom-0">
+<button class="w-full bg-primary hover:bg-primary/90 text-white h-14 rounded-xl font-bold text-lg shadow-lg shadow-primary/20 flex items-center justify-center gap-2">
+<span>Confirm Payment</span>
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+<div class="h-6 bg-white dark:bg-background-dark"></div>
+</div>
+</body></html>

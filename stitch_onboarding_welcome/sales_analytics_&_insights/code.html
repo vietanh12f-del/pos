@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sales Analytics &amp; Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#19e6c4",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#11211e",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+<div class="max-w-[430px] mx-auto bg-white dark:bg-background-dark min-h-screen flex flex-col shadow-xl">
+<!-- TopAppBar -->
+<header class="sticky top-0 z-50 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
+<div class="flex items-center p-4 justify-between">
+<div class="text-gray-900 dark:text-white flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
+<span class="material-symbols-outlined">arrow_back_ios_new</span>
+</div>
+<h2 class="text-gray-900 dark:text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center">Sales Analytics</h2>
+<div class="flex w-10 items-center justify-end">
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-900 dark:text-white">
+<span class="material-symbols-outlined">calendar_today</span>
+</button>
+</div>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto pb-32">
+<!-- Summary Header -->
+<div class="px-4 pt-6">
+<div class="flex items-center gap-2 mb-1">
+<span class="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Revenue</span>
+<span class="material-symbols-outlined text-gray-400 text-sm">info</span>
+</div>
+<h1 class="text-gray-900 dark:text-white text-[36px] font-extrabold leading-tight">$1,240.00</h1>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[#078830] text-sm">trending_up</span>
+<p class="text-[#078830] text-sm font-bold leading-normal">+12.5% <span class="text-gray-500 dark:text-gray-400 font-normal">vs last week</span></p>
+</div>
+</div>
+<!-- Chips / Filters -->
+<div class="flex gap-3 p-4 overflow-x-auto hide-scrollbar">
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-xl bg-primary px-4 shadow-sm shadow-primary/20">
+<p class="text-gray-900 text-sm font-bold leading-normal">Revenue</p>
+<span class="material-symbols-outlined text-gray-900 text-sm">keyboard_arrow_down</span>
+</button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4">
+<p class="text-gray-700 dark:text-gray-300 text-sm font-medium leading-normal">Orders</p>
+<span class="material-symbols-outlined text-gray-400 text-sm">keyboard_arrow_down</span>
+</button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-x-2 rounded-xl bg-gray-100 dark:bg-gray-800 px-4">
+<p class="text-gray-700 dark:text-gray-300 text-sm font-medium leading-normal">Avg. Ticket</p>
+<span class="material-symbols-outlined text-gray-400 text-sm">keyboard_arrow_down</span>
+</button>
+</div>
+<!-- Charts Section -->
+<div class="px-4 py-2 space-y-6">
+<!-- Revenue Trend Card -->
+<div class="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+<div class="flex items-center justify-between mb-4">
+<p class="text-gray-900 dark:text-white text-base font-bold leading-normal">Revenue Trends</p>
+<span class="material-symbols-outlined text-gray-400">more_horiz</span>
+</div>
+<div class="flex min-h-[180px] flex-col gap-4">
+<svg fill="none" height="120" preserveaspectratio="none" viewbox="-3 0 478 150" width="100%" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 109C18.1538 109 18.1538 21 36.3077 21C54.4615 21 54.4615 41 72.6154 41C90.7692 41 90.7692 93 108.923 93C127.077 93 127.077 33 145.231 33C163.385 33 163.385 101 181.538 101C199.692 101 199.692 61 217.846 61C236 61 236 45 254.154 45C272.308 45 272.308 121 290.462 121C308.615 121 308.615 149 326.769 149C344.923 149 344.923 1 363.077 1C381.231 1 381.231 81 399.385 81C417.538 81 417.538 129 435.692 129C453.846 129 453.846 25 472 25V149H326.769H0V109Z" fill="url(#paint0_linear_1131_5935)"></path>
+<path d="M0 109C18.1538 109 18.1538 21 36.3077 21C54.4615 21 54.4615 41 72.6154 41C90.7692 41 90.7692 93 108.923 93C127.077 93 127.077 33 145.231 33C163.385 33 163.385 101 181.538 101C199.692 101 199.692 61 217.846 61C236 61 236 45 254.154 45C272.308 45 272.308 121 290.462 121C308.615 121 308.615 149 326.769 149C344.923 149 344.923 1 363.077 1C381.231 1 381.231 81 399.385 81C417.538 81 417.538 129 435.692 129C453.846 129 453.846 25 472 25" stroke="#19e6c4" stroke-linecap="round" stroke-width="4"></path>
+<defs>
+<lineargradient gradientunits="userSpaceOnUse" id="paint0_linear_1131_5935" x1="236" x2="236" y1="1" y2="149">
+<stop stop-color="#19e6c4" stop-opacity="0.3"></stop>
+<stop offset="1" stop-color="#19e6c4" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+</svg>
+<div class="flex justify-between px-2">
+<p class="text-gray-400 text-[11px] font-bold uppercase tracking-wider">Mon</p>
+<p class="text-gray-400 text-[11px] font-bold uppercase tracking-wider">Wed</p>
+<p class="text-gray-400 text-[11px] font-bold uppercase tracking-wider">Fri</p>
+<p class="text-gray-400 text-[11px] font-bold uppercase tracking-wider">Sun</p>
+</div>
+</div>
+</div>
+<!-- Peak Hours Card -->
+<div class="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-5 border border-gray-100 dark:border-gray-800">
+<p class="text-gray-900 dark:text-white text-base font-bold mb-1">Peak Hours</p>
+<p class="text-gray-500 dark:text-gray-400 text-xs font-medium mb-4">Most active: 14:00 - 16:00</p>
+<div class="grid gap-x-4 gap-y-4 grid-cols-[3rem_1fr] items-center">
+<p class="text-gray-400 text-[11px] font-bold uppercase">8 am</p>
+<div class="h-4 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 35%;"></div>
+</div>
+<p class="text-gray-400 text-[11px] font-bold uppercase">12 pm</p>
+<div class="h-4 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 85%;"></div>
+</div>
+<p class="text-gray-400 text-[11px] font-bold uppercase">4 pm</p>
+<div class="h-4 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 100%;"></div>
+</div>
+<p class="text-gray-400 text-[11px] font-bold uppercase">8 pm</p>
+<div class="h-4 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 60%;"></div>
+</div>
+</div>
+</div>
+<!-- Best Sellers -->
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="text-gray-900 dark:text-white text-lg font-bold">Best Sellers</h3>
+<button class="text-primary text-sm font-bold">View All</button>
+</div>
+<div class="flex flex-col gap-3">
+<!-- Item 1 -->
+<div class="flex items-center gap-3 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
+<div class="size-14 rounded-lg bg-gray-200 overflow-hidden shrink-0">
+<img alt="Classic Milk Tea" class="w-full h-full object-cover" data-alt="Classic milk tea with boba pearls" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWx6lpalpvtCa9nC1M9vAGrX8MO1wArZZlwYAbH5W2ASanvyomib9HKrIHhMiu_eQPc7ZvIgaOsZafslnLUIfATJcFta1gwjyK99wCdDoLkN1LNB_MmkksBZluE8HQZ5v9GRONCGMTAuaVBdgHGdpVktp0xn1feyLxwRqDyoXTcQ2D-Hr-ECNAPqWS6ZcMJmOGvLOiNdZrE_K8cCa6EcGyM1EeLtGcia5Kn4OrYbxgS8N7cK_MVZUANqZvLKe0hzjDiot-G9jiMgk"/>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-gray-900 dark:text-white text-sm font-bold truncate">Classic Milk Tea</p>
+<p class="text-gray-500 dark:text-gray-400 text-xs font-medium">120 units sold</p>
+</div>
+<div class="text-right">
+<p class="text-gray-900 dark:text-white text-sm font-bold">$600.00</p>
+<p class="text-[#078830] text-[10px] font-bold">+8%</p>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="flex items-center gap-3 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
+<div class="size-14 rounded-lg bg-gray-200 overflow-hidden shrink-0">
+<img alt="Brown Sugar Latte" class="w-full h-full object-cover" data-alt="Layered brown sugar latte drink" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5DS87-XOC3Mu2xLtMUck9udWdfcoDD26-13uTG249WfIrvWk9m4ZkoLqtTzKrv-WUsCBUKcvu4y8zbZhy4PErMrhJ-ActXS8UEn38Np-evvqQci-jCE0iWn2h982JB6fBFhV20auroiWlTa_R9wuysMpm0UCzbck0gmoVKrb1UQZ-RLqGlssP-XyUTxtpOw0hYwnhVBvbxnPyc66AOIw0ufaZuKfXtYmQlVurU_ZoVV7P9dtgCiHWHPWW7mOjkjcrUGuF-_SAzmw"/>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-gray-900 dark:text-white text-sm font-bold truncate">Brown Sugar Latte</p>
+<p class="text-gray-500 dark:text-gray-400 text-xs font-medium">95 units sold</p>
+</div>
+<div class="text-right">
+<p class="text-gray-900 dark:text-white text-sm font-bold">$570.00</p>
+<p class="text-[#078830] text-[10px] font-bold">+15%</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- AI Coach Floating Card -->
+<div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-[380px]">
+<div class="bg-gray-900 dark:bg-primary/10 backdrop-blur-xl border border-primary/30 p-4 rounded-2xl shadow-2xl flex gap-4 items-start relative overflow-hidden">
+<div class="absolute top-0 right-0 p-2 opacity-10">
+<span class="material-symbols-outlined text-primary text-6xl">smart_toy</span>
+</div>
+<div class="bg-primary size-10 rounded-full flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-gray-900">auto_awesome</span>
+</div>
+<div class="flex-1 relative z-10">
+<p class="text-primary text-[10px] font-extrabold uppercase tracking-widest mb-1">AI Coach Insights</p>
+<p class="text-white dark:text-white text-sm font-medium leading-relaxed">
+                        Your <span class="text-primary font-bold">Milk Tea</span> sales are up <span class="text-primary font-bold">20%</span> this week! 
+                        Consider a "Buy 1 Get 1" promo on Tuesdays to boost the afternoon slump.
+                    </p>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation (iOS Style) -->
+<nav class="fixed bottom-0 w-full max-w-[430px] bg-white/95 dark:bg-background-dark/95 border-t border-gray-100 dark:border-gray-800 px-6 py-3 flex justify-between items-center z-40 backdrop-blur-md">
+<div class="flex flex-col items-center gap-1 text-gray-400">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold">Overview</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined font-variation-fill">bar_chart</span>
+<span class="text-[10px] font-bold">Insights</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-gray-400">
+<div class="size-10 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-full flex items-center justify-center -mt-8 shadow-lg">
+<span class="material-symbols-outlined">add</span>
+</div>
+<span class="text-[10px] font-bold">Order</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-gray-400">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="text-[10px] font-bold">Inventory</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-gray-400">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold">Settings</span>
+</div>
+</nav>
+</div>
+</body></html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Smart Order Entry</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#19e6c4",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#11211e",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-[#111817] dark:text-white">
+<div class="relative flex h-screen w-full flex-col overflow-hidden">
+<!-- TopAppBar -->
+<header class="flex items-center bg-white dark:bg-background-dark p-4 pb-2 justify-between border-b dark:border-gray-800">
+<div class="text-[#111817] dark:text-white flex size-12 shrink-0 items-center justify-start">
+<span class="material-symbols-outlined text-2xl">account_circle</span>
+</div>
+<h2 class="text-[#111817] dark:text-white text-lg font-bold leading-tight tracking-tight flex-1 text-center">New Order</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex items-center justify-center rounded-lg h-10 w-10 bg-transparent text-[#111817] dark:text-white">
+<span class="material-symbols-outlined text-2xl">search</span>
+</button>
+</div>
+</header>
+<!-- Tabs / Categories -->
+<nav class="bg-white dark:bg-background-dark">
+<div class="flex border-b border-[#dce5e4] dark:border-gray-800 px-4 gap-6 overflow-x-auto hide-scrollbar">
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-primary text-[#111817] dark:text-white pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold tracking-wide">All Items</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-gray-500 dark:text-gray-400 pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold tracking-wide">Coffee</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-gray-500 dark:text-gray-400 pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold tracking-wide">Pastries</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-gray-500 dark:text-gray-400 pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold tracking-wide">Cold Brew</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-gray-500 dark:text-gray-400 pb-[13px] pt-4 whitespace-nowrap" href="#">
+<p class="text-sm font-bold tracking-wide">Merch</p>
+</a>
+</div>
+</nav>
+<!-- Main Content Area: Scrollable Image Grid -->
+<main class="flex-1 overflow-y-auto pb-48">
+<!-- Gesture Hint -->
+<div class="px-4 py-3">
+<div class="bg-primary/10 dark:bg-primary/5 rounded-xl py-2 px-4 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">info</span>
+<p class="text-[#111817] dark:text-gray-300 text-xs font-medium">Swipe right to add, left to remove items</p>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3 p-4">
+<!-- Product Items -->
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square relative group overflow-hidden" data-alt="Close up of a creamy latte with foam art" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 60%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuD5KiadTJq5ETcFo6QRSbdalx5rsmGftzSOYaeNnT3K2Pokrr4EDLgHrFdDaZ1VbANB-0lagBvysXHVm5PuIF0F87Se0z7trKp5icqwyPx33WS3U2mkDwNSQl0Y9WP5rFGFk-aj8fg-btIiLeaXCZz3xfbC5xgJ5Ya6VczEy7vkSetNpoV-5GH0HYFdqnz4Yq1Ule-2ehLfvc6BSSeCr1JdmUX7BMZrpcDcbIkxzbSUpWPLgqWZ4Mr6z0fgRWEOTmefHkZo4guHkTI");'>
+<div class="absolute top-2 right-2 bg-primary text-background-dark font-bold text-xs px-2 py-1 rounded-full">$4.50</div>
+<p class="text-white text-sm font-bold leading-tight">Iced Latte</p>
+</div>
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square relative group overflow-hidden" data-alt="Flaky golden brown butter croissant" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 60%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuCOfe8O4X8AVAy0GTvXPyiXJF8oIJrztRtgl1QQWI6YoizpEhLMxusLdYlc04vy55tTQ9T7n6cN6r9ALje5yl-JgH1vxZBePIuViBC_XGzJz95D1vod-Zxcbqbkh0Ku7qG_p8LQSE0oTLsVjvpq64KCnRmqMkBj-r1oUtV8mJ-zMxNVRjxwiwTMmX76YaQeqalQl4sXiFh3pjJeTGBB7rhZ_ezZNHHaSSt_ZRcu8-BjwAb0MVKgCpVxQ1n3cJLq8Poy2G_xM8albu4");'>
+<div class="absolute top-2 right-2 bg-primary text-background-dark font-bold text-xs px-2 py-1 rounded-full">$3.75</div>
+<p class="text-white text-sm font-bold leading-tight">Butter Croissant</p>
+</div>
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square relative group overflow-hidden" data-alt="Dark rich espresso in a small white cup" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 60%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuDymsFDserP0RHdLQRXMXrlWRJjqTEPn1fd9qMWES6VQDD9cWZqUoSGIudD83WsNmqEnFqNXjMQ5wHq932NRNYGYRYppzTPu9L6v9aUYlWfSHnJedM2TxI3dNOO7grY1QrmGGRoqvFJr5d5213JtP-e_TcwurHyky0daOcBCks8wTadMWUBY0ylfEpMjZGb3TnnjOGdUdlC4dM7I8cD-JoCP8yzPzk72NyyYfpwojk2MzKrkujCphI4rVwqMi_XyQtZ_kKDoNLfvlU");'>
+<div class="absolute top-2 right-2 bg-primary text-background-dark font-bold text-xs px-2 py-1 rounded-full">$3.00</div>
+<p class="text-white text-sm font-bold leading-tight">Espresso Shot</p>
+</div>
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square relative group overflow-hidden" data-alt="Blueberry muffin with sugar topping" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 60%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuAr_DTHglfpRvY6PhWIAa0O3wUizf6xMnroIZ7b7_zXA54gwePKHU_C9zwNZyA-jSCBed5RZQivokOOSdVRgSNuAHmo_fPHRBhvGkgWd1uBcudDxdQlahJsNEeSLmgliYRS56FdbH3OaQ8F-KHCnyvRGaZQcI4uOzN8FZXSOSZOfA3lY2xzldhmomcFgHuLYTUKFqqnpT9Qqp0cM15mZtE89BO1jpEoAxhFrQGrcluxTFk0cjqefIH9i75Q4JAyu-YKMOgjmAaADCk");'>
+<div class="absolute top-2 right-2 bg-primary text-background-dark font-bold text-xs px-2 py-1 rounded-full">$3.50</div>
+<p class="text-white text-sm font-bold leading-tight">Blueberry Muffin</p>
+</div>
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square relative group overflow-hidden" data-alt="Cold brew coffee with ice cubes in a glass" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 60%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuAETDyX2apfdjCeEw64ExBZx1jQ3yzJW87FxtoLXP430LBicmLUGpuToFaWsVYuBBz7dhDJ2DBuTiBORscAT-yzw3LwDt3XShN9V0TMRCXYTtKyFa-OKiSJcbu5Fms8iz6yTJEXL003pSFGoS2gqIYKgxLMsjnvjzJ_DcqwA9CYeujWkgxFfnqVKmI1qu7n1DkVIrrQorsk47EKdWaL1X_2F-Up8bE1CjetMa9EJAM1iqeeMCOava3rX51W6ZWfZlZu48HkAXqPyZw");'>
+<div class="absolute top-2 right-2 bg-primary text-background-dark font-bold text-xs px-2 py-1 rounded-full">$5.00</div>
+<p class="text-white text-sm font-bold leading-tight">Vanilla Cold Brew</p>
+</div>
+<div class="bg-cover bg-center flex flex-col gap-3 rounded-xl justify-end p-4 aspect-square relative group overflow-hidden" data-alt="Toasted bagel with cream cheese" style='background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0) 60%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuAI9inSJooGOVr9DtlX4vVpavz5sluapECkT_gYujigCu5RXz230SciO7ejme6K9wcfIOH6nv3TRJ9lagQKFcSrKwYXlz-MqhxD7IrlMBX9UGcQLVBSByK1_Uq3ARngOfDRLj0NXHmWVwcil1xzr-lSDnKMIwEa4mvmEPhqoX01y0pC6lz3Hr3nqKR20DGSSTrmJULJ-I3An15S7hAsZfMNI4k6K8o9GxhiYIjoO4K695KobTEUBR9OOA1sh2mxsuRd2iQVtmfBZPk");'>
+<div class="absolute top-2 right-2 bg-primary text-background-dark font-bold text-xs px-2 py-1 rounded-full">$4.00</div>
+<p class="text-white text-sm font-bold leading-tight">Everything Bagel</p>
+</div>
+</div>
+</main>
+<!-- Voice Assistant Fixed FAB -->
+<div class="absolute bottom-32 right-4 z-50">
+<button class="size-16 rounded-full bg-primary shadow-lg shadow-primary/40 flex items-center justify-center text-background-dark active:scale-95 transition-transform border-4 border-white dark:border-background-dark">
+<span class="material-symbols-outlined text-3xl font-bold">mic</span>
+</button>
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 bg-background-dark text-white text-[10px] px-2 py-1 rounded-full whitespace-nowrap animate-pulse">
+                "Add 2 Lattes"
+            </div>
+</div>
+<!-- Order Summary Bottom Sheet -->
+<div class="absolute bottom-0 left-0 w-full z-40">
+<div class="flex flex-col bg-white dark:bg-background-dark border-t border-gray-100 dark:border-gray-800 rounded-t-2xl shadow-2xl">
+<!-- Handle -->
+<button class="flex h-6 w-full items-center justify-center">
+<div class="h-1.5 w-12 rounded-full bg-gray-300 dark:bg-gray-700"></div>
+</button>
+<div class="px-6 py-4">
+<!-- Current Order Preview -->
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="bg-primary/20 text-primary font-bold text-sm h-8 w-8 rounded-lg flex items-center justify-center">3</div>
+<h3 class="font-bold text-lg">Order Summary</h3>
+</div>
+<p class="font-bold text-xl text-primary">$12.75</p>
+</div>
+<!-- List Preview (Compressed for mobile summary) -->
+<div class="flex gap-2 overflow-x-auto hide-scrollbar mb-6">
+<div class="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg gap-2 shrink-0">
+<span class="text-xs font-bold">2x</span>
+<span class="text-xs">Iced Latte</span>
+</div>
+<div class="flex items-center bg-gray-100 dark:bg-gray-800 px-3 py-2 rounded-lg gap-2 shrink-0">
+<span class="text-xs font-bold">1x</span>
+<span class="text-xs">Croissant</span>
+</div>
+</div>
+<!-- Primary Action -->
+<div class="flex gap-3">
+<button class="flex-1 bg-primary text-background-dark py-4 rounded-xl font-bold flex items-center justify-center gap-2 active:brightness-90">
+<span>Review &amp; Pay</span>
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- iOS Home Indicator Spacing -->
+<div class="h-8"></div>
+</div>
+</div>
+</div>
+</body></html>
