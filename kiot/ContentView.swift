@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreImage.CIFilterBuiltins
+import PhotosUI
 
 // MARK: - Theme Colors
 extension Color {
@@ -20,9 +21,7 @@ struct ContentView: View {
                 HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder)
                     .tag(0)
                 
-                Text("Orders History (Coming Soon)")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.themeBackgroundLight)
+                OrderHistoryView(viewModel: viewModel)
                     .tag(1)
                 
                 // Placeholder for FAB
@@ -44,42 +43,53 @@ struct ContentView: View {
             // Custom Tab Bar Overlay
             VStack {
                 Spacer()
-                HStack {
-                    TabItem(icon: "house", title: "Home", isSelected: selectedTab == 0) { selectedTab = 0 }
-                    Spacer()
-                    TabItem(icon: "receipt", title: "Orders", isSelected: selectedTab == 1) { selectedTab = 1 }
-                    Spacer()
+                
+                ZStack(alignment: .top) {
+                    // Tab Bar Background
+                    HStack {
+                        TabItem(icon: "house.fill", title: "Home", isSelected: selectedTab == 0) { selectedTab = 0 }
+                        Spacer()
+                        TabItem(icon: "list.clipboard.fill", title: "Orders", isSelected: selectedTab == 1) { selectedTab = 1 }
+                        
+                        Spacer()
+                            .frame(width: 60) // Space for FAB
+                        
+                        Spacer()
+                        TabItem(icon: "archivebox.fill", title: "Stock", isSelected: selectedTab == 3) { selectedTab = 3 }
+                        Spacer()
+                        TabItem(icon: "gearshape.fill", title: "Setup", isSelected: selectedTab == 4) { selectedTab = 4 }
+                    }
+                    .padding(.horizontal, 24)
+                    .frame(height: 72)
+                    .background(Color.white)
+                    .cornerRadius(36)
+                    .shadow(color: Color.black.opacity(0.1), radius: 15, x: 0, y: 5)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
                     
                     // FAB
                     Button(action: { showNewOrder = true }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.themePrimary)
-                                .frame(width: 56, height: 56)
-                                .shadow(color: Color.themePrimary.opacity(0.4), radius: 10, x: 0, y: 5)
-                            Image(systemName: "plus")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundStyle(Color.themeTextDark)
-                        }
+                        Circle()
+                            .fill(Color.themePrimary)
+                            .frame(width: 64, height: 64)
+                            .shadow(color: Color.themePrimary.opacity(0.4), radius: 10, x: 0, y: 5)
+                            .overlay(
+                                Image(systemName: "plus")
+                                    .font(.system(size: 28, weight: .bold))
+                                    .foregroundStyle(Color.themeTextDark)
+                            )
                     }
-                    .offset(y: -24)
-                    
-                    Spacer()
-                    TabItem(icon: "archivebox", title: "Stock", isSelected: selectedTab == 3) { selectedTab = 3 }
-                    Spacer()
-                    TabItem(icon: "gearshape", title: "Setup", isSelected: selectedTab == 4) { selectedTab = 4 }
+                    .offset(y: -28)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 10)
-                .frame(height: 80)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 0))
-                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: -5)
             }
-            .ignoresSafeArea()
         }
         .fullScreenCover(isPresented: $showNewOrder) {
             SmartOrderEntryView(viewModel: viewModel)
+        }
+        .onChange(of: viewModel.editingBill) { bill in
+            if bill != nil {
+                showNewOrder = true
+            }
         }
     }
 }
@@ -95,13 +105,20 @@ struct TabItem: View {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 24))
-                    .foregroundStyle(isSelected ? Color.themePrimary : Color.gray)
-                Text(title)
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundStyle(isSelected ? Color.themePrimary : Color.gray)
+                    .foregroundStyle(isSelected ? Color.themePrimary : Color.gray.opacity(0.5))
+                    .scaleEffect(isSelected ? 1.1 : 1.0)
+                    .animation(.spring(), value: isSelected)
+                
+                if isSelected {
+                    Text(title)
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
             .frame(width: 50)
+            .animation(.easeInOut(duration: 0.2), value: isSelected)
         }
     }
 }
@@ -110,6 +127,7 @@ struct TabItem: View {
 struct HomeDashboardView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Binding var showNewOrder: Bool
+    @State private var selectedDate = Date()
     
     var body: some View {
         ScrollView {
@@ -143,50 +161,56 @@ struct HomeDashboardView: View {
                 .padding(.horizontal)
                 .padding(.top)
                 
-                // AI Insight
-                HStack(alignment: .top, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "sparkles")
-                                .foregroundStyle(Color.themeTextDark)
-                            Text("Smart Insight")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
-                        }
-                        Text("Today is busier than usual! You might need extra staff by 4 PM to handle the rush.")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.themeTextDark.opacity(0.8))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer()
-                    Button(action: {}) {
-                        HStack(spacing: 4) {
-                            Text("View why")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                            Image(systemName: "arrow.right")
-                                .font(.caption)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                // Calendar Section
+                VStack(spacing: 16) {
+                    DatePicker("Select Date", selection: $selectedDate, displayedComponents: [.date])
+                        .datePickerStyle(.graphical)
+                        .padding()
                         .background(Color.white)
-                        .cornerRadius(8)
-                        .shadow(color: .black.opacity(0.05), radius: 2)
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+                    
+                    // Daily Stats
+                    HStack(spacing: 16) {
+                        StatCard(title: "Income", value: formatCurrency(viewModel.revenue(for: selectedDate)), trend: "", icon: "banknote.fill", isPositive: true)
+                        StatCard(title: "Orders", value: "\(viewModel.orders(for: selectedDate).count)", trend: "", icon: "bag.fill", isPositive: true)
                     }
-                    .foregroundStyle(Color.themeTextDark)
                 }
-                .padding()
-                .background(Color.themePrimary.opacity(0.1))
-                .cornerRadius(16)
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.themePrimary.opacity(0.3), lineWidth: 1))
                 .padding(.horizontal)
                 
-                // Stats
-                HStack(spacing: 16) {
-                    StatCard(title: "Revenue", value: formatCurrency(viewModel.revenue), trend: "+12%", icon: "arrow.up.right", isPositive: true)
-                    StatCard(title: "Orders", value: "\(viewModel.orderCount)", trend: "+5%", icon: "arrow.up.right", isPositive: true)
+                // Daily Orders List
+                if !viewModel.orders(for: selectedDate).isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Orders on \(formatDate(selectedDate))")
+                            .font(.headline)
+                            .padding(.horizontal)
+                        
+                        ForEach(viewModel.orders(for: selectedDate)) { bill in
+                            HStack {
+                                Text(formatTime(bill.createdAt))
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray)
+                                    .frame(width: 50, alignment: .leading)
+                                
+                                VStack(alignment: .leading) {
+                                    Text(billItemsSummary(bill))
+                                        .font(.subheadline)
+                                        .lineLimit(1)
+                                }
+                                
+                                Spacer()
+                                
+                                Text(formatCurrency(bill.total))
+                                    .fontWeight(.bold)
+                            }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 2)
+                            .padding(.horizontal)
+                        }
+                    }
                 }
-                .padding(.horizontal)
                 
                 // Quick Actions
                 VStack(alignment: .leading, spacing: 12) {
@@ -204,41 +228,6 @@ struct HomeDashboardView: View {
                     .padding(.horizontal)
                 }
                 
-                // Revenue Graph
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Today's Revenue")
-                            .font(.headline)
-                        Spacer()
-                        Text("Live")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.themePrimary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.themePrimary.opacity(0.1))
-                            .cornerRadius(4)
-                    }
-                    .padding(.horizontal)
-                    
-                    ZStack(alignment: .bottom) {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white)
-                            .shadow(color: .black.opacity(0.05), radius: 5)
-                        
-                        HStack(alignment: .bottom, spacing: 8) {
-                            ForEach(0..<10) { i in
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(i == 9 ? Color.themePrimary : Color.themePrimary.opacity(Double(i+2)/15.0))
-                                    .frame(height: CGFloat.random(in: 30...120))
-                            }
-                        }
-                        .padding()
-                    }
-                    .frame(height: 200)
-                    .padding(.horizontal)
-                }
-                
                 Spacer(minLength: 100)
             }
         }
@@ -249,6 +238,23 @@ struct HomeDashboardView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         return formatter.string(from: Date())
+    }
+    
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
+    }
+    
+    func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    func billItemsSummary(_ bill: Bill) -> String {
+        let names = bill.items.map { $0.name }
+        return names.joined(separator: ", ")
     }
 }
 
@@ -324,19 +330,27 @@ struct SmartOrderEntryView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Environment(\.dismiss) var dismiss
     @State private var showSummary = false
+    @State private var showManualInput = false
+    @State private var editingItem: OrderItem?
+    @State private var customizingProduct: Product?
     
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 // Header
                 HStack {
-                    Button(action: { dismiss() }) {
+                    Button(action: {
+                        if viewModel.editingBill != nil {
+                            viewModel.cancelEditing()
+                        }
+                        dismiss()
+                    }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 20))
                             .foregroundStyle(Color.themeTextDark)
                     }
                     Spacer()
-                    Text("New Order")
+                    Text(viewModel.editingBill != nil ? "Edit Order" : "New Order")
                         .font(.headline)
                         .foregroundStyle(Color.themeTextDark)
                     Spacer()
@@ -379,6 +393,12 @@ struct SmartOrderEntryView: View {
                             Button(action: { viewModel.addProduct(product) }) {
                                 ProductCard(product: product)
                             }
+                            .simultaneousGesture(
+                                LongPressGesture()
+                                    .onEnded { _ in
+                                        customizingProduct = product
+                                    }
+                            )
                         }
                     }
                     .padding()
@@ -403,7 +423,7 @@ struct SmartOrderEntryView: View {
                         )
                         .padding(.horizontal, 40)
                 }
-                .padding(.bottom, 240) // Position above FAB
+                .padding(.bottom, 340) // Position above FAB
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .animation(.spring(), value: viewModel.currentInput)
                 .zIndex(1) // Ensure it stays on top
@@ -413,9 +433,9 @@ struct SmartOrderEntryView: View {
             Button(action: { viewModel.toggleRecording() }) {
                 ZStack {
                     Circle()
-                        .fill(Color.themePrimary)
+                        .fill(Color.red)
                         .frame(width: 64, height: 64)
-                        .shadow(color: Color.themePrimary.opacity(0.4), radius: 10, x: 0, y: 5)
+                        .shadow(color: Color.red.opacity(0.4), radius: 10, x: 0, y: 5)
                         .overlay(
                             Circle()
                                 .stroke(Color.white, lineWidth: 4)
@@ -423,11 +443,11 @@ struct SmartOrderEntryView: View {
                     
                     Image(systemName: viewModel.speechRecognizer.isRecording ? "stop.fill" : "mic.fill")
                         .font(.title2)
-                        .foregroundStyle(Color.themeTextDark)
+                        .foregroundStyle(.white)
                         .symbolEffect(.pulse, isActive: viewModel.speechRecognizer.isRecording)
                 }
             }
-            .padding(.bottom, 160)
+            .padding(.bottom, 260)
             .padding(.trailing, 20)
             .frame(maxWidth: .infinity, alignment: .bottomTrailing)
             
@@ -463,29 +483,97 @@ struct SmartOrderEntryView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(viewModel.items) { item in
-                                HStack(spacing: 6) {
-                                    Text("\(item.quantity)x")
+                                HStack(spacing: 8) {
+                                    if let data = item.imageData, let uiImage = UIImage(data: data) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 32, height: 32)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                                    } else if let sysImage = item.systemImage {
+                                        Image(systemName: sysImage)
+                                            .font(.system(size: 16))
+                                            .foregroundStyle(Color.themePrimary)
+                                            .frame(width: 32, height: 32)
+                                            .background(Color.themePrimary.opacity(0.1))
+                                            .clipShape(Circle())
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.name)
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        Text("\(item.quantity)x")
+                                            .font(.caption2)
+                                            .foregroundStyle(Color.gray)
+                                    }
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 6)
+                                .background(Color.white)
+                                .cornerRadius(20)
+                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    editingItem = item
+                                }
+                                .contextMenu {
+                                    Button {
+                                        editingItem = item
+                                    } label: {
+                                        Label("Edit Details", systemImage: "pencil")
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    Button("+ Increase") {
+                                        viewModel.updateItem(item, newQuantity: item.quantity + 1)
+                                    }
+                                    
+                                    Button("- Decrease") {
+                                        viewModel.updateItem(item, newQuantity: item.quantity - 1)
+                                    }
+                                    
+                                    Button("Remove", role: .destructive) {
+                                        viewModel.removeItem(item)
+                                    }
+                                }
+                            }
+                            
+                            // Manual Add Button
+                            Button(action: { showManualInput = true }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus")
                                         .font(.caption)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(Color.themeTextDark)
-                                    Text(item.name)
+                                    Text("Add Item")
                                         .font(.caption)
-                                        .foregroundStyle(Color.themeTextDark)
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(Color.gray.opacity(0.1))
+                                .background(Color.themePrimary.opacity(0.2))
+                                .foregroundStyle(Color.themePrimary)
                                 .cornerRadius(8)
                             }
                         }
                     }
                     
                     Button(action: {
-                        viewModel.showPayment = true
+                        if viewModel.editingBill != nil {
+                            viewModel.saveEditedOrder()
+                            dismiss()
+                        } else {
+                            viewModel.showPayment = true
+                        }
                     }) {
                         HStack {
-                            Text("Review & Pay")
-                            Image(systemName: "arrow.right")
+                            Text(viewModel.editingBill != nil ? "Save Changes" : "Review & Pay")
+                            Image(systemName: viewModel.editingBill != nil ? "checkmark" : "arrow.right")
                         }
                         .fontWeight(.bold)
                         .frame(maxWidth: .infinity)
@@ -508,9 +596,249 @@ struct SmartOrderEntryView: View {
         .sheet(isPresented: $viewModel.showPayment) {
             PaymentView(viewModel: viewModel)
         }
+        .sheet(isPresented: $showManualInput) {
+            ManualItemView(viewModel: viewModel)
+        }
+        .sheet(item: $editingItem) { item in
+            ItemEditView(item: item, viewModel: viewModel)
+        }
+        .sheet(item: $customizingProduct) { product in
+            ProductCustomizeView(product: product, viewModel: viewModel)
+        }
         .onChange(of: viewModel.currentInput) { newValue in
             if !newValue.isEmpty && !viewModel.speechRecognizer.isRecording {
                 viewModel.processInput()
+            }
+        }
+    }
+}
+
+struct ProductCustomizeView: View {
+    let product: Product
+    @ObservedObject var viewModel: OrderViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var name: String
+    @State private var price: String
+    @State private var quantity: String = "1"
+    @State private var selectedItem: PhotosPickerItem?
+    @State private var selectedImageData: Data?
+    
+    init(product: Product, viewModel: OrderViewModel) {
+        self.product = product
+        self.viewModel = viewModel
+        _name = State(initialValue: product.name)
+        _price = State(initialValue: String(Int(product.price)))
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Customize Item")) {
+                    TextField("Name", text: $name)
+                    TextField("Price", text: $price)
+                        .keyboardType(.numberPad)
+                    TextField("Quantity", text: $quantity)
+                        .keyboardType(.numberPad)
+                    
+                    if let data = selectedImageData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 200)
+                            .cornerRadius(8)
+                            .frame(maxWidth: .infinity)
+                        
+                        Button("Remove Photo", role: .destructive) {
+                            selectedImageData = nil
+                        }
+                    } else {
+                        // Show placeholder or current system icon
+                        VStack {
+                            Image(systemName: product.imageName)
+                                .font(.system(size: 60))
+                                .foregroundStyle(Color.themePrimary)
+                            Text("Default Icon")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        .frame(height: 150)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                    PhotosPicker(selection: $selectedItem, matching: .images) {
+                        HStack {
+                            Image(systemName: "photo")
+                            Text(selectedImageData == nil ? "Select Photo" : "Change Photo")
+                        }
+                    }
+                    .onChange(of: selectedItem) { newItem in
+                        Task {
+                            if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                                await MainActor.run {
+                                    selectedImageData = data
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add to Order")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        if let priceVal = Double(price), let qtyVal = Int(quantity), !name.isEmpty {
+                            // Add logic
+                            viewModel.addItem(name, price: priceVal, quantity: qtyVal, imageData: selectedImageData)
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.isEmpty || price.isEmpty || quantity.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(500)])
+    }
+}
+
+struct ManualItemView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var name: String = ""
+    @State private var price: String = ""
+    @State private var quantity: String = "1"
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Item Details")) {
+                    TextField("Item Name", text: $name)
+                    TextField("Price", text: $price)
+                        .keyboardType(.numberPad)
+                    TextField("Quantity", text: $quantity)
+                        .keyboardType(.numberPad)
+                }
+            }
+            .navigationTitle("Add Manual Item")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        if let priceVal = Double(price), let qtyVal = Int(quantity), !name.isEmpty {
+                            viewModel.addItem(name, price: priceVal, quantity: qtyVal)
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.isEmpty || price.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(300)])
+    }
+}
+
+struct ItemEditView: View {
+    let item: OrderItem
+    @ObservedObject var viewModel: OrderViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var name: String
+    @State private var price: String
+    @State private var quantity: String
+    @State private var selectedItem: PhotosPickerItem?
+    @State private var selectedImageData: Data?
+    
+    init(item: OrderItem, viewModel: OrderViewModel) {
+        self.item = item
+        self.viewModel = viewModel
+        _name = State(initialValue: item.name)
+        _price = State(initialValue: String(Int(item.price)))
+        _quantity = State(initialValue: String(item.quantity))
+        _selectedImageData = State(initialValue: item.imageData)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Item Details")) {
+                    TextField("Name", text: $name)
+                    TextField("Price", text: $price)
+                        .keyboardType(.numberPad)
+                    TextField("Quantity", text: $quantity)
+                        .keyboardType(.numberPad)
+                    
+                    if let data = selectedImageData, let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 200)
+                            .cornerRadius(8)
+                            .frame(maxWidth: .infinity)
+                        
+                        Button("Remove Photo", role: .destructive) {
+                            selectedImageData = nil
+                        }
+                    } else {
+                        // Show placeholder or current system icon
+                        VStack {
+                            if let sysImage = item.systemImage {
+                                Image(systemName: sysImage)
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(Color.themePrimary)
+                            } else {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(Color.gray)
+                            }
+                            Text("No Photo Selected")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        .frame(height: 150)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                    PhotosPicker(selection: $selectedItem, matching: .images) {
+                        HStack {
+                            Image(systemName: "photo")
+                            Text(selectedImageData == nil ? "Select Photo" : "Change Photo")
+                        }
+                    }
+                    .onChange(of: selectedItem) { newItem in
+                        Task {
+                            if let data = try? await newItem?.loadTransferable(type: Data.self) {
+                                await MainActor.run {
+                                    selectedImageData = data
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Edit Item")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        if let priceVal = Double(price), let qtyVal = Int(quantity) {
+                            viewModel.updateItemFull(item, name: name, price: priceVal, quantity: qtyVal, imageData: selectedImageData)
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.isEmpty || price.isEmpty || quantity.isEmpty)
+                }
             }
         }
     }
@@ -564,6 +892,9 @@ struct ProductCard: View {
         case "blue": return .blue
         case "yellow": return .yellow
         case "green": return .green
+        case "red": return .red
+        case "pink": return .pink
+        case "gray": return .gray
         default: return .gray
         }
     }
@@ -882,6 +1213,171 @@ struct ActionButton: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+struct OrderHistoryView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    @State private var selectedBill: Bill?
+    
+    init(viewModel: OrderViewModel) {
+        self.viewModel = viewModel
+        // Customize Navigation Bar Title Appearance
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.black]
+        appearance.titleTextAttributes = [.foregroundColor: UIColor.black]
+        
+        UINavigationBar.appearance().standardAppearance = appearance
+        UINavigationBar.appearance().scrollEdgeAppearance = appearance
+    }
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.themeBackgroundLight.ignoresSafeArea()
+                
+                if viewModel.pastOrders.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 60))
+                            .foregroundStyle(Color.gray.opacity(0.3))
+                        Text("No orders yet")
+                            .font(.headline)
+                            .foregroundStyle(Color.gray)
+                    }
+                } else {
+                    List {
+                        ForEach(viewModel.pastOrders) { bill in
+                            Button(action: { selectedBill = bill }) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(formatDate(bill.createdAt))
+                                            .font(.caption)
+                                            .foregroundStyle(Color.gray)
+                                        
+                                        Text(billItemsSummary(bill))
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(Color.themeTextDark)
+                                            .lineLimit(1)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Text(formatCurrency(bill.total))
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                .padding(.vertical, 8)
+                            }
+                            .listRowBackground(Color.white) // Force white background for rows
+                            .contextMenu {
+                                Button(action: {
+                                    viewModel.startEditing(bill)
+                                }) {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                
+                                Button(role: .destructive, action: {
+                                    viewModel.deleteOrder(bill)
+                                }) {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                        }
+                        .onDelete(perform: viewModel.deleteOrder)
+                    }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden) // Hide default list background
+                    .background(Color.themeBackgroundLight) // Use light theme background
+                }
+            }
+            .navigationTitle("Order History")
+            .sheet(item: $selectedBill) { bill in
+                BillDetailView(bill: bill, viewModel: viewModel)
+            }
+        }
+    }
+    
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    func billItemsSummary(_ bill: Bill) -> String {
+        let names = bill.items.map { $0.name }
+        return names.joined(separator: ", ")
+    }
+}
+
+struct BillDetailView: View {
+    let bill: Bill
+    @ObservedObject var viewModel: OrderViewModel
+    @Environment(\.dismiss) var dismiss
+    @State private var showDeleteConfirmation = false
+    
+    var body: some View {
+        VStack {
+            HStack {
+                Button("Edit") {
+                    viewModel.startEditing(bill)
+                    dismiss()
+                }
+                .foregroundStyle(Color.blue)
+                
+                Spacer()
+                Button("Close") { dismiss() }
+            }
+            .padding()
+            
+            ScrollView {
+                BillReceiptView(
+                    items: bill.items,
+                    totalAmount: bill.total,
+                    dateString: formatDate(bill.createdAt),
+                    qrURL: nil, // History doesn't need fresh QR usually, or we could regenerate
+                    qrImage: nil,
+                    billPayload: nil,
+                    showButtons: false,
+                    onComplete: nil
+                )
+                .padding()
+                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+                
+                Button(action: {
+                    showDeleteConfirmation = true
+                }) {
+                    Text("Delete Order")
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.red)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal)
+                .padding(.top, 20)
+            }
+        }
+        .background(Color.themeBackgroundLight)
+        .alert("Delete Order?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                viewModel.deleteOrder(bill)
+                dismiss()
+            }
+        } message: {
+            Text("Are you sure you want to delete this order? This action cannot be undone.")
+        }
+    }
+    
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd/MM/yyyy HH:mm"
+        return formatter.string(from: date)
     }
 }
 
