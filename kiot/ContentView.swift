@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import CoreImage.CIFilterBuiltins
 import PhotosUI
 
@@ -18,7 +19,7 @@ struct ContentView: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
-                HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder)
+                HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab)
                     .tag(0)
                 
                 OrderHistoryView(viewModel: viewModel)
@@ -28,14 +29,10 @@ struct ContentView: View {
                 Color.clear
                     .tag(2)
                 
-                Text("Stock (Coming Soon)")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.themeBackgroundLight)
+                RestockHistoryView(viewModel: viewModel)
                     .tag(3)
                 
-                Text("Settings (Coming Soon)")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.themeBackgroundLight)
+                SettingsView(viewModel: viewModel)
                     .tag(4)
             }
             .accentColor(.themePrimary)
@@ -47,17 +44,17 @@ struct ContentView: View {
                 ZStack(alignment: .top) {
                     // Tab Bar Background
                     HStack {
-                        TabItem(icon: "house.fill", title: "Home", isSelected: selectedTab == 0) { selectedTab = 0 }
+                        TabItem(icon: "house.fill", title: "Trang chủ", isSelected: selectedTab == 0) { selectedTab = 0 }
                         Spacer()
-                        TabItem(icon: "list.clipboard.fill", title: "Orders", isSelected: selectedTab == 1) { selectedTab = 1 }
+                        TabItem(icon: "list.clipboard.fill", title: "Đơn hàng", isSelected: selectedTab == 1) { selectedTab = 1 }
                         
                         Spacer()
                             .frame(width: 60) // Space for FAB
                         
                         Spacer()
-                        TabItem(icon: "archivebox.fill", title: "Stock", isSelected: selectedTab == 3) { selectedTab = 3 }
+                        TabItem(icon: "archivebox.fill", title: "Kho", isSelected: selectedTab == 3) { selectedTab = 3 }
                         Spacer()
-                        TabItem(icon: "gearshape.fill", title: "Setup", isSelected: selectedTab == 4) { selectedTab = 4 }
+                        TabItem(icon: "gearshape.fill", title: "Cài đặt", isSelected: selectedTab == 4) { selectedTab = 4 }
                     }
                     .padding(.horizontal, 24)
                     .frame(height: 72)
@@ -101,7 +98,11 @@ struct TabItem: View {
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            let generator = UIImpactFeedbackGenerator(style: .medium)
+            generator.impactOccurred()
+            action()
+        }) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 24))
@@ -127,6 +128,7 @@ struct TabItem: View {
 struct HomeDashboardView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Binding var showNewOrder: Bool
+    @Binding var selectedTab: Int
     @State private var selectedDate = Date()
     
     var body: some View {
@@ -140,7 +142,7 @@ struct HomeDashboardView: View {
                         .overlay(Image(systemName: "person.fill").foregroundStyle(.gray))
                     
                     VStack(alignment: .leading) {
-                        Text("Luxe Cafe")
+                        Text("Kiot Hoa")
                             .font(.headline)
                             .foregroundStyle(Color.themeTextDark)
                         Text(currentDateString())
@@ -163,17 +165,42 @@ struct HomeDashboardView: View {
                 
                 // Calendar Section
                 VStack(spacing: 16) {
-                    DatePicker("Select Date", selection: $selectedDate, displayedComponents: [.date])
+                    DatePicker("Chọn ngày", selection: $selectedDate, displayedComponents: [.date])
                         .datePickerStyle(.graphical)
                         .padding()
                         .background(Color.white)
                         .cornerRadius(16)
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                     
-                    // Daily Stats
-                    HStack(spacing: 16) {
-                        StatCard(title: "Income", value: formatCurrency(viewModel.revenue(for: selectedDate)), trend: "", icon: "banknote.fill", isPositive: true)
-                        StatCard(title: "Orders", value: "\(viewModel.orders(for: selectedDate).count)", trend: "", icon: "bag.fill", isPositive: true)
+                    // Financial Summary
+                    VStack(spacing: 12) {
+                        HStack(spacing: 12) {
+                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: selectedDate)), trend: "", icon: "arrow.down.left", isPositive: true)
+                            StatCard(title: "Chi phí", value: formatCurrency(viewModel.restockCost(for: selectedDate)), trend: "", icon: "arrow.up.right", isPositive: false)
+                        }
+                        
+                        // Net Profit Highlight
+                        let profit = viewModel.profit(for: selectedDate)
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text("LỢI NHUẬN RÒNG")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white.opacity(0.8))
+                                Text(formatCurrency(profit))
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                            }
+                            Spacer()
+                            Image(systemName: profit >= 0 ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis")
+                                .font(.title)
+                                .foregroundStyle(.white)
+                        }
+                        .padding()
+                        .background(profit >= 0 ? Color.themePrimary : Color.red)
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
                     }
                 }
                 .padding(.horizontal)
@@ -181,8 +208,9 @@ struct HomeDashboardView: View {
                 // Daily Orders List
                 if !viewModel.orders(for: selectedDate).isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Orders on \(formatDate(selectedDate))")
+                        Text("Đơn hàng ngày \(formatDate(selectedDate))")
                             .font(.headline)
+                            .foregroundStyle(Color.themeTextDark)
                             .padding(.horizontal)
                         
                         ForEach(viewModel.orders(for: selectedDate)) { bill in
@@ -195,6 +223,7 @@ struct HomeDashboardView: View {
                                 VStack(alignment: .leading) {
                                     Text(billItemsSummary(bill))
                                         .font(.subheadline)
+                                        .foregroundStyle(Color.themeTextDark)
                                         .lineLimit(1)
                                 }
                                 
@@ -202,6 +231,7 @@ struct HomeDashboardView: View {
                                 
                                 Text(formatCurrency(bill.total))
                                     .fontWeight(.bold)
+                                    .foregroundStyle(Color.themeTextDark)
                             }
                             .padding()
                             .background(Color.white)
@@ -214,16 +244,23 @@ struct HomeDashboardView: View {
                 
                 // Quick Actions
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Quick Actions")
+                    Text("Tác vụ nhanh")
                         .font(.headline)
                         .padding(.horizontal)
                     
                     HStack(spacing: 12) {
-                        QuickActionButton(icon: "cart.badge.plus", title: "New Order", isPrimary: true) {
+                        QuickActionButton(icon: "cart.badge.plus", title: "Tạo đơn", isPrimary: true) {
                             showNewOrder = true
                         }
-                        QuickActionButton(icon: "archivebox", title: "Inventory", isPrimary: false) {}
-                        QuickActionButton(icon: "chart.bar", title: "Analytics", isPrimary: false) {}
+                        QuickActionButton(icon: "archivebox", title: "Kho hàng", isPrimary: false) {
+                            selectedTab = 3
+                        }
+                        QuickActionButton(icon: "chart.bar", title: "Thống kê", isPrimary: false) {
+                            // Already on dashboard, maybe scroll to top or do nothing
+                            withAnimation {
+                                selectedDate = Date() // Reset date to today
+                            }
+                        }
                     }
                     .padding(.horizontal)
                 }
@@ -236,18 +273,21 @@ struct HomeDashboardView: View {
     
     func currentDateString() -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "EEEE, d MMM"
         return formatter.string(from: Date())
     }
     
     func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "d MMM"
         return formatter.string(from: date)
     }
     
     func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
     }
@@ -333,6 +373,7 @@ struct SmartOrderEntryView: View {
     @State private var showManualInput = false
     @State private var editingItem: OrderItem?
     @State private var customizingProduct: Product?
+    @Namespace private var namespace
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -350,7 +391,7 @@ struct SmartOrderEntryView: View {
                             .foregroundStyle(Color.themeTextDark)
                     }
                     Spacer()
-                    Text(viewModel.editingBill != nil ? "Edit Order" : "New Order")
+                    Text(viewModel.editingBill != nil ? "Sửa đơn hàng" : "Tạo đơn mới")
                         .font(.headline)
                         .foregroundStyle(Color.themeTextDark)
                     Spacer()
@@ -365,37 +406,59 @@ struct SmartOrderEntryView: View {
                 
                 // Categories
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 24) {
+                    HStack(spacing: 12) {
                         ForEach(Category.allCases, id: \.self) { category in
-                            Button(action: { viewModel.selectedCategory = category }) {
-                                VStack(spacing: 12) {
-                                    Text(category.rawValue)
-                                        .font(.subheadline)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(viewModel.selectedCategory == category ? Color.themeTextDark : Color.gray)
-                                    
-                                    Rectangle()
-                                        .fill(viewModel.selectedCategory == category ? Color.themePrimary : Color.clear)
-                                        .frame(height: 3)
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    viewModel.selectedCategory = category
                                 }
+                                let generator = UIImpactFeedbackGenerator(style: .light)
+                                generator.impactOccurred()
+                            }) {
+                                Text(category.displayName)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        ZStack {
+                                            if viewModel.selectedCategory == category {
+                                                Capsule()
+                                                    .fill(Color.themePrimary)
+                                                    .matchedGeometryEffect(id: "catPill", in: namespace)
+                                                    .shadow(color: Color.themePrimary.opacity(0.3), radius: 4, x: 0, y: 2)
+                                            } else {
+                                                Capsule()
+                                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                            }
+                                        }
+                                    )
+                                    .foregroundStyle(viewModel.selectedCategory == category ? Color.themeTextDark : Color.gray)
                             }
                         }
                     }
                     .padding(.horizontal)
+                    .padding(.vertical, 8)
                 }
-                .padding(.top, 4)
                 .background(Color.white)
                 
                 // Grid
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         ForEach(viewModel.filteredProducts) { product in
-                            Button(action: { viewModel.addProduct(product) }) {
-                                ProductCard(product: product)
+                            Button(action: {
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                                viewModel.addProduct(product)
+                            }) {
+                                ProductCard(product: product, stockLevel: viewModel.stockLevel(for: product.name))
                             }
+                            .buttonStyle(ScaleButtonStyle())
                             .simultaneousGesture(
                                 LongPressGesture()
                                     .onEnded { _ in
+                                        let generator = UIImpactFeedbackGenerator(style: .heavy)
+                                        generator.impactOccurred()
                                         customizingProduct = product
                                     }
                             )
@@ -469,7 +532,7 @@ struct SmartOrderEntryView: View {
                                 .foregroundStyle(Color.themePrimary) // Should be darker
                                 .cornerRadius(8)
                             
-                            Text("Order Summary")
+                            Text("Tóm tắt đơn hàng")
                                 .font(.headline)
                         }
                         Spacer()
@@ -491,8 +554,8 @@ struct SmartOrderEntryView: View {
                                             .frame(width: 32, height: 32)
                                             .clipShape(Circle())
                                             .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
-                                    } else if let sysImage = item.systemImage {
-                                        Image(systemName: sysImage)
+                                    } else {
+                                        Image(systemName: item.systemImage ?? "cart.circle.fill")
                                             .font(.system(size: 16))
                                             .foregroundStyle(Color.themePrimary)
                                             .frame(width: 32, height: 32)
@@ -527,20 +590,20 @@ struct SmartOrderEntryView: View {
                                     Button {
                                         editingItem = item
                                     } label: {
-                                        Label("Edit Details", systemImage: "pencil")
+                                        Label("Sửa chi tiết", systemImage: "pencil")
                                     }
                                     
                                     Divider()
                                     
-                                    Button("+ Increase") {
+                                    Button("+ Tăng") {
                                         viewModel.updateItem(item, newQuantity: item.quantity + 1)
                                     }
                                     
-                                    Button("- Decrease") {
+                                    Button("- Giảm") {
                                         viewModel.updateItem(item, newQuantity: item.quantity - 1)
                                     }
                                     
-                                    Button("Remove", role: .destructive) {
+                                    Button("Xóa", role: .destructive) {
                                         viewModel.removeItem(item)
                                     }
                                 }
@@ -551,7 +614,7 @@ struct SmartOrderEntryView: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "plus")
                                         .font(.caption)
-                                    Text("Add Item")
+                                    Text("Thêm hàng")
                                         .font(.caption)
                                 }
                                 .padding(.horizontal, 12)
@@ -572,7 +635,7 @@ struct SmartOrderEntryView: View {
                         }
                     }) {
                         HStack {
-                            Text(viewModel.editingBill != nil ? "Save Changes" : "Review & Pay")
+                            Text(viewModel.editingBill != nil ? "Lưu thay đổi" : "Thanh toán")
                             Image(systemName: viewModel.editingBill != nil ? "checkmark" : "arrow.right")
                         }
                         .fontWeight(.bold)
@@ -634,11 +697,11 @@ struct ProductCustomizeView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Customize Item")) {
-                    TextField("Name", text: $name)
-                    TextField("Price", text: $price)
+                Section(header: Text("Tùy chỉnh")) {
+                    TextField("Tên", text: $name)
+                    TextField("Giá", text: $price)
                         .keyboardType(.numberPad)
-                    TextField("Quantity", text: $quantity)
+                    TextField("Số lượng", text: $quantity)
                         .keyboardType(.numberPad)
                     
                     if let data = selectedImageData, let uiImage = UIImage(data: data) {
@@ -649,7 +712,7 @@ struct ProductCustomizeView: View {
                             .cornerRadius(8)
                             .frame(maxWidth: .infinity)
                         
-                        Button("Remove Photo", role: .destructive) {
+                        Button("Xóa ảnh", role: .destructive) {
                             selectedImageData = nil
                         }
                     } else {
@@ -658,7 +721,7 @@ struct ProductCustomizeView: View {
                             Image(systemName: product.imageName)
                                 .font(.system(size: 60))
                                 .foregroundStyle(Color.themePrimary)
-                            Text("Default Icon")
+                            Text("Biểu tượng mặc định")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                         }
@@ -671,7 +734,7 @@ struct ProductCustomizeView: View {
                     PhotosPicker(selection: $selectedItem, matching: .images) {
                         HStack {
                             Image(systemName: "photo")
-                            Text(selectedImageData == nil ? "Select Photo" : "Change Photo")
+                            Text(selectedImageData == nil ? "Chọn ảnh" : "Đổi ảnh")
                         }
                     }
                     .onChange(of: selectedItem) { newItem in
@@ -685,13 +748,13 @@ struct ProductCustomizeView: View {
                     }
                 }
             }
-            .navigationTitle("Add to Order")
+            .navigationTitle("Thêm vào đơn")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Hủy") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button("Thêm") {
                         if let priceVal = Double(price), let qtyVal = Int(quantity), !name.isEmpty {
                             // Add logic
                             viewModel.addItem(name, price: priceVal, quantity: qtyVal, imageData: selectedImageData)
@@ -717,21 +780,21 @@ struct ManualItemView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Item Details")) {
-                    TextField("Item Name", text: $name)
-                    TextField("Price", text: $price)
+                Section(header: Text("Chi tiết mặt hàng")) {
+                    TextField("Tên mặt hàng", text: $name)
+                    TextField("Giá", text: $price)
                         .keyboardType(.numberPad)
-                    TextField("Quantity", text: $quantity)
+                    TextField("Số lượng", text: $quantity)
                         .keyboardType(.numberPad)
                 }
             }
-            .navigationTitle("Add Manual Item")
+            .navigationTitle("Thêm thủ công")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Hủy") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button("Thêm") {
                         if let priceVal = Double(price), let qtyVal = Int(quantity), !name.isEmpty {
                             viewModel.addItem(name, price: priceVal, quantity: qtyVal)
                             dismiss()
@@ -768,11 +831,11 @@ struct ItemEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Item Details")) {
-                    TextField("Name", text: $name)
-                    TextField("Price", text: $price)
+                Section(header: Text("Chi tiết")) {
+                    TextField("Tên", text: $name)
+                    TextField("Giá", text: $price)
                         .keyboardType(.numberPad)
-                    TextField("Quantity", text: $quantity)
+                    TextField("Số lượng", text: $quantity)
                         .keyboardType(.numberPad)
                     
                     if let data = selectedImageData, let uiImage = UIImage(data: data) {
@@ -783,7 +846,7 @@ struct ItemEditView: View {
                             .cornerRadius(8)
                             .frame(maxWidth: .infinity)
                         
-                        Button("Remove Photo", role: .destructive) {
+                        Button("Xóa ảnh", role: .destructive) {
                             selectedImageData = nil
                         }
                     } else {
@@ -798,7 +861,7 @@ struct ItemEditView: View {
                                     .font(.system(size: 60))
                                     .foregroundStyle(Color.gray)
                             }
-                            Text("No Photo Selected")
+                            Text("Chưa chọn ảnh")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                         }
@@ -811,7 +874,7 @@ struct ItemEditView: View {
                     PhotosPicker(selection: $selectedItem, matching: .images) {
                         HStack {
                             Image(systemName: "photo")
-                            Text(selectedImageData == nil ? "Select Photo" : "Change Photo")
+                            Text(selectedImageData == nil ? "Chọn ảnh" : "Đổi ảnh")
                         }
                     }
                     .onChange(of: selectedItem) { newItem in
@@ -825,13 +888,13 @@ struct ItemEditView: View {
                     }
                 }
             }
-            .navigationTitle("Edit Item")
+            .navigationTitle("Sửa mặt hàng")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Hủy") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("Lưu") {
                         if let priceVal = Double(price), let qtyVal = Int(quantity) {
                             viewModel.updateItemFull(item, name: name, price: priceVal, quantity: qtyVal, imageData: selectedImageData)
                             dismiss()
@@ -846,6 +909,7 @@ struct ItemEditView: View {
 
 struct ProductCard: View {
     let product: Product
+    let stockLevel: Int
     
     var body: some View {
         VStack {
@@ -873,30 +937,36 @@ struct ProductCard: View {
                     .padding(8)
             }
             
-            Text(product.name)
-                .font(.subheadline)
-                .fontWeight(.bold)
-                .foregroundStyle(Color.themeTextDark)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack {
+                Text(product.name)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themeTextDark)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                
+                Text("Tồn: \(stockLevel)")
+                    .font(.caption)
+                    .foregroundStyle(stockLevel > 0 ? .gray : .red)
+            }
         }
         .background(Color.white)
         .cornerRadius(16)
     }
-    
-    func colorForString(_ name: String) -> Color {
-        switch name {
-        case "brown": return .brown
-        case "orange": return .orange
-        case "black": return .black
-        case "purple": return .purple
-        case "blue": return .blue
-        case "yellow": return .yellow
-        case "green": return .green
-        case "red": return .red
-        case "pink": return .pink
-        case "gray": return .gray
-        default: return .gray
-        }
+}
+
+func colorForString(_ name: String) -> Color {
+    switch name {
+    case "brown": return .brown
+    case "orange": return .orange
+    case "black": return .black
+    case "purple": return .purple
+    case "blue": return .blue
+    case "yellow": return .yellow
+    case "green": return .green
+    case "red": return .red
+    case "pink": return .pink
+    case "gray": return .gray
+    default: return .gray
     }
 }
 
@@ -923,6 +993,7 @@ func formatCurrency(_ amount: Double) -> String {
     formatter.numberStyle = .currency
     formatter.currencyCode = "VND"
     formatter.maximumFractionDigits = 0
+    formatter.locale = Locale(identifier: "vi_VN")
     return formatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
 }
 
@@ -994,6 +1065,7 @@ struct PaymentView: View {
     
     func currentDateString() -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "dd/MM/yyyy HH:mm"
         return formatter.string(from: Date())
     }
@@ -1242,59 +1314,72 @@ struct OrderHistoryView: View {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 60))
                             .foregroundStyle(Color.gray.opacity(0.3))
-                        Text("No orders yet")
+                        Text("Chưa có đơn hàng nào")
                             .font(.headline)
                             .foregroundStyle(Color.gray)
                     }
                 } else {
                     List {
-                        ForEach(viewModel.pastOrders) { bill in
-                            Button(action: { selectedBill = bill }) {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(formatDate(bill.createdAt))
-                                            .font(.caption)
-                                            .foregroundStyle(Color.gray)
-                                        
-                                        Text(billItemsSummary(bill))
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(Color.themeTextDark)
-                                            .lineLimit(1)
+                        ForEach(sections, id: \.title) { section in
+                            Section(header: Text(section.title)
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.gray)
+                                .padding(.vertical, 4)) {
+                                ForEach(section.bills) { bill in
+                                    Button(action: { selectedBill = bill }) {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(formatTimeOnly(bill.createdAt))
+                                                    .font(.caption)
+                                                    .foregroundStyle(Color.gray)
+                                                
+                                                Text(billItemsSummary(bill))
+                                                    .font(.subheadline)
+                                                    .fontWeight(.medium)
+                                                    .foregroundStyle(Color.themeTextDark)
+                                                    .lineLimit(1)
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            Text(formatCurrency(bill.total))
+                                                .font(.headline)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(Color.themePrimary)
+                                        }
+                                        .padding(.vertical, 8)
                                     }
-                                    
-                                    Spacer()
-                                    
-                                    Text(formatCurrency(bill.total))
-                                        .font(.headline)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(Color.themePrimary)
+                                    .listRowBackground(Color.white)
+                                    .contextMenu {
+                                        Button(action: {
+                                            viewModel.startEditing(bill)
+                                        }) {
+                                            Label("Sửa", systemImage: "pencil")
+                                        }
+                                        
+                                        Button(role: .destructive, action: {
+                                            viewModel.deleteOrder(bill)
+                                        }) {
+                                            Label("Xóa", systemImage: "trash")
+                                        }
+                                    }
                                 }
-                                .padding(.vertical, 8)
-                            }
-                            .listRowBackground(Color.white) // Force white background for rows
-                            .contextMenu {
-                                Button(action: {
-                                    viewModel.startEditing(bill)
-                                }) {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                
-                                Button(role: .destructive, action: {
-                                    viewModel.deleteOrder(bill)
-                                }) {
-                                    Label("Delete", systemImage: "trash")
+                                .onDelete { indexSet in
+                                    for index in indexSet {
+                                        let bill = section.bills[index]
+                                        viewModel.deleteOrder(bill)
+                                    }
                                 }
                             }
                         }
-                        .onDelete(perform: viewModel.deleteOrder)
                     }
                     .listStyle(.insetGrouped)
                     .scrollContentBackground(.hidden) // Hide default list background
                     .background(Color.themeBackgroundLight) // Use light theme background
                 }
             }
-            .navigationTitle("Order History")
+            .navigationTitle("Lịch sử đơn hàng")
             .sheet(item: $selectedBill) { bill in
                 BillDetailView(bill: bill, viewModel: viewModel)
             }
@@ -1303,13 +1388,43 @@ struct OrderHistoryView: View {
     
     func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, HH:mm"
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM HH:mm"
         return formatter.string(from: date)
     }
     
     func billItemsSummary(_ bill: Bill) -> String {
         let names = bill.items.map { $0.name }
         return names.joined(separator: ", ")
+    }
+    
+    func formatTimeOnly(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    var sections: [(title: String, bills: [Bill])] {
+        let grouped = Dictionary(grouping: viewModel.pastOrders) { bill -> Date in
+            Calendar.current.startOfDay(for: bill.createdAt)
+        }
+        
+        return grouped.keys.sorted(by: >).map { date in
+            let title: String
+            if Calendar.current.isDateInToday(date) {
+                title = "Hôm nay"
+            } else if Calendar.current.isDateInYesterday(date) {
+                title = "Hôm qua"
+            } else {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "vi_VN")
+                formatter.dateFormat = "dd/MM/yyyy"
+                title = formatter.string(from: date)
+            }
+            let bills = grouped[date]?.sorted(by: { $0.createdAt > $1.createdAt }) ?? []
+            return (title: title, bills: bills)
+        }
     }
 }
 
@@ -1322,14 +1437,14 @@ struct BillDetailView: View {
     var body: some View {
         VStack {
             HStack {
-                Button("Edit") {
+                Button("Sửa") {
                     viewModel.startEditing(bill)
                     dismiss()
                 }
                 .foregroundStyle(Color.blue)
                 
                 Spacer()
-                Button("Close") { dismiss() }
+                Button("Đóng") { dismiss() }
             }
             .padding()
             
@@ -1350,7 +1465,7 @@ struct BillDetailView: View {
                 Button(action: {
                     showDeleteConfirmation = true
                 }) {
-                    Text("Delete Order")
+                    Text("Xóa đơn hàng")
                         .fontWeight(.bold)
                         .foregroundStyle(Color.red)
                         .padding()
@@ -1363,19 +1478,20 @@ struct BillDetailView: View {
             }
         }
         .background(Color.themeBackgroundLight)
-        .alert("Delete Order?", isPresented: $showDeleteConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
+        .alert("Xóa đơn hàng?", isPresented: $showDeleteConfirmation) {
+            Button("Hủy", role: .cancel) { }
+            Button("Xóa", role: .destructive) {
                 viewModel.deleteOrder(bill)
                 dismiss()
             }
         } message: {
-            Text("Are you sure you want to delete this order? This action cannot be undone.")
+            Text("Bạn có chắc muốn xóa đơn hàng này? Hành động này không thể hoàn tác.")
         }
     }
     
     func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "dd/MM/yyyy HH:mm"
         return formatter.string(from: date)
     }
@@ -1412,6 +1528,639 @@ struct QRCodeView: View {
             return UIImage(cgImage: cgImage)
         }
         return nil
+    }
+}
+
+// MARK: - Restock Views
+
+struct RestockHistoryView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    @State private var selectedTab: Int = 0 // 0: Inventory, 1: History
+    @State private var showNewRestock = false
+    @State private var editingProduct: Product?
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Segmented Control
+                Picker("Chế độ xem", selection: $selectedTab) {
+                    Text("Tồn kho").tag(0)
+                    Text("Lịch sử nhập").tag(1)
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding()
+                
+                if selectedTab == 0 {
+                    // Inventory View
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                            ForEach(viewModel.products) { product in
+                                let stock = viewModel.stockLevel(for: product.name)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(colorForString(product.color).opacity(0.1))
+                                                .frame(width: 40, height: 40)
+                                            Image(systemName: product.imageName)
+                                                .foregroundStyle(colorForString(product.color))
+                                        }
+                                        Spacer()
+                                        if stock <= 5 {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .foregroundStyle(.orange)
+                                                .font(.caption)
+                                        }
+                                    }
+                                    
+                                    Text(product.name)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.themeTextDark)
+                                        .lineLimit(1)
+                                    
+                                    HStack {
+                                        Text("Tồn:")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        Spacer()
+                                        Text("\(stock)")
+                                            .font(.headline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(stock == 0 ? .red : (stock <= 5 ? .orange : .green))
+                                    }
+                                    
+                                    Text(formatCurrency(product.price))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .shadow(color: .black.opacity(0.05), radius: 2)
+                                .onTapGesture {
+                                    editingProduct = product
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                    .background(Color.themeBackgroundLight)
+                } else {
+                    // History View
+                    ZStack(alignment: .bottomTrailing) {
+                        List {
+                            if viewModel.restockHistory.isEmpty {
+                                Text("Chưa có lịch sử nhập hàng")
+                                    .foregroundStyle(.gray)
+                                    .padding()
+                            } else {
+                                ForEach(viewModel.restockHistory) { bill in
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Text(formatDate(bill.createdAt))
+                                                .font(.headline)
+                                                .foregroundStyle(Color.themeTextDark)
+                                            Spacer()
+                                            Text(formatCurrency(bill.totalCost))
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(.red)
+                                        }
+                                        
+                                        Text("\(bill.items.count) mặt hàng")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        
+                                        // Preview first few items
+                                        Text(bill.items.prefix(3).map { "\($0.quantity)x \($0.name)" }.joined(separator: ", "))
+                                            .font(.caption)
+                                            .lineLimit(1)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.vertical, 4)
+                                    .contextMenu {
+                                        Button(action: {
+                                            viewModel.editRestockBill(bill)
+                                            showNewRestock = true
+                                        }) {
+                                            Label("Sửa", systemImage: "pencil")
+                                        }
+                                        
+                                        Button(role: .destructive, action: {
+                                            viewModel.deleteRestockBill(bill)
+                                        }) {
+                                            Label("Xóa", systemImage: "trash")
+                                        }
+                                    }
+                                }
+                                .onDelete(perform: { indexSet in
+                                    for index in indexSet {
+                                        viewModel.deleteRestockBill(viewModel.restockHistory[index])
+                                    }
+                                })
+                            }
+                        }
+                        .listStyle(.insetGrouped)
+                        
+                        // FAB for New Restock
+                        Button(action: { showNewRestock = true }) {
+                            Circle()
+                            .fill(Color.themePrimary)
+                            .frame(width: 56, height: 56)
+                            .shadow(radius: 4)
+                            .overlay(
+                                Image(systemName: "plus")
+                                    .font(.title2)
+                                    .foregroundStyle(Color.themeTextDark)
+                            )
+                        }
+                        .padding()
+                        .padding(.bottom, 80) // Above Tab Bar
+                    }
+                }
+            }
+            .navigationTitle("Kho")
+            .toolbar {
+                if selectedTab == 0 {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: { showNewRestock = true }) {
+                            Image(systemName: "plus")
+                        }
+                    }
+                }
+            }
+            .fullScreenCover(isPresented: $showNewRestock) {
+                RestockEntryView(viewModel: viewModel)
+            }
+            .sheet(item: $editingProduct) { product in
+                ProductEditView(viewModel: viewModel, mode: .edit(product))
+            }
+        }
+    }
+    
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}
+
+struct RestockEntryView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var showManualInput = false
+    
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .bottom) {
+                VStack(spacing: 0) {
+                    // List of Items
+                    List {
+                        if viewModel.restockItems.isEmpty {
+                            Text("Nhấn mic để nói hoặc thêm thủ công.")
+                                .foregroundStyle(.gray)
+                                .listRowBackground(Color.clear)
+                        } else {
+                            ForEach(viewModel.restockItems) { item in
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(item.name)
+                                            .font(.headline)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        Text("\(item.quantity) x \(formatCurrency(item.unitPrice))")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Text(formatCurrency(item.totalCost))
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(Color.themeTextDark)
+                                }
+                            }
+                            .onDelete(perform: viewModel.removeRestockItem)
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                    
+                    // Total & Action
+                    VStack(spacing: 16) {
+                        HStack {
+                            Text("Tổng chi phí")
+                                .font(.headline)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(viewModel.restockItems.reduce(0) { $0 + $1.totalCost }))
+                                .font(.title)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
+                        }
+                        .padding(.horizontal)
+                        
+                        Button(action: {
+                            viewModel.completeRestockSession()
+                            dismiss()
+                        }) {
+                            Text("Hoàn tất nhập hàng")
+                                .font(.headline)
+                                .foregroundStyle(Color.themeTextDark)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.themePrimary)
+                                .cornerRadius(16)
+                        }
+                        .disabled(viewModel.restockItems.isEmpty)
+                        .padding(.horizontal)
+                        .padding(.bottom)
+                    }
+                    .background(Color.white)
+                    .shadow(radius: 5)
+                }
+                
+                // Mic & Manual Input Controls
+                VStack {
+                    Spacer()
+                    HStack {
+                        // Manual Input Button
+                        Button(action: { showManualInput = true }) {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 50, height: 50)
+                                .shadow(radius: 3)
+                                .overlay(Image(systemName: "keyboard").foregroundStyle(Color.themeTextDark))
+                        }
+                        
+                        Spacer()
+                        
+                        // Mic Button
+                        Button(action: viewModel.toggleRecording) {
+                            Circle()
+                                .fill(viewModel.speechRecognizer.isRecording ? Color.red : Color.themeTextDark)
+                                .frame(width: 70, height: 70)
+                                .shadow(radius: 4)
+                                .overlay(
+                                    Image(systemName: viewModel.speechRecognizer.isRecording ? "stop.fill" : "mic.fill")
+                                        .font(.title)
+                                        .foregroundStyle(.white)
+                                )
+                        }
+                        
+                        Spacer()
+                        
+                        // Placeholder to balance layout
+                        Circle().fill(Color.clear).frame(width: 50, height: 50)
+                    }
+                    .padding(.bottom, 140) // Adjust based on Total section height
+                    .padding(.horizontal, 40)
+                }
+            }
+            .navigationTitle("Nhập hàng")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Hủy") { dismiss() }
+                }
+            }
+            .onAppear {
+                viewModel.isRestockMode = true
+            }
+            .onDisappear {
+                viewModel.isRestockMode = false
+            }
+            .sheet(isPresented: $showManualInput) {
+                ManualRestockItemView(viewModel: viewModel)
+            }
+        }
+    }
+}
+
+struct ManualRestockItemView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    @State private var name = ""
+    @State private var quantity = ""
+    @State private var price = ""
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Chi tiết hàng hóa")) {
+                    TextField("Tên hàng", text: $name)
+                    if !name.isEmpty {
+                        Text("Tồn hiện tại: \(viewModel.stockLevel(for: name))")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                    TextField("Số lượng", text: $quantity)
+                        .keyboardType(.numberPad)
+                    
+                    TextField("Đơn giá", text: $price)
+                        .keyboardType(.decimalPad)
+                        .onChange(of: price) { newValue in
+                            // Filter non-numeric characters first (allow comma and dot)
+                            let filtered = newValue.filter { "0123456789,.".contains($0) }
+                            if filtered != newValue {
+                                price = filtered
+                            }
+                        }
+                    
+                    if let p = parseDouble(price), let q = Int(quantity), q > 0 {
+                        HStack {
+                            Text("Tổng chi phí:")
+                            Spacer()
+                            Text(formatCurrency(p * Double(q)))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Thêm hàng nhập")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Hủy") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Thêm") {
+                        if let p = parseDouble(price), let q = Int(quantity), !name.isEmpty {
+                            viewModel.addRestockItem(name, unitPrice: p, quantity: q)
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.isEmpty || price.isEmpty || quantity.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(350)])
+    }
+    
+    func parseDouble(_ input: String) -> Double? {
+        // Handle "2,000" or "20,000" (Thousands separator)
+        // If input contains comma, remove it assuming it's a thousands separator for VND
+        // e.g. "2,000" -> "2000"
+        let clean = input.replacingOccurrences(of: ",", with: "")
+        
+        // Also handle "2.000" as 2000 if it looks like thousands separator (common in VN)
+        // Simple heuristic: if it has a dot and 3 digits after it, and no other dots/commas... 
+        // But let's stick to the user request: "unit input with comma like 2,000"
+        // So we strip comma.
+        
+        return Double(clean)
+    }
+}
+
+// MARK: - Settings View
+
+struct SettingsView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    @State private var showingAddProduct = false
+    @State private var editingProduct: Product?
+    @State private var searchText = ""
+    @State private var productToDelete: Product?
+    @State private var showDeleteConfirmation = false
+    
+    var filteredCategories: [Category] {
+        if searchText.isEmpty {
+            return Category.allCases.filter { $0 != .all }
+        } else {
+            // Find categories that contain matching products
+            return Category.allCases.filter { $0 != .all && hasMatchingProducts(in: $0) }
+        }
+    }
+    
+    func hasMatchingProducts(in category: Category) -> Bool {
+        return viewModel.products.contains { product in
+            product.category == category.rawValue &&
+            product.name.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+    
+    func filteredProducts(in category: Category) -> [Product] {
+        return viewModel.products.filter { product in
+            product.category == category.rawValue &&
+            (searchText.isEmpty || product.name.localizedCaseInsensitiveContains(searchText))
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(filteredCategories, id: \.self) { category in
+                    Section(header: Text(category.displayName)) {
+                        ForEach(filteredProducts(in: category)) { product in
+                            Button(action: { editingProduct = product }) {
+                                HStack {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(colorForString(product.color).opacity(0.1))
+                                            .frame(width: 40, height: 40)
+                                        Image(systemName: product.imageName)
+                                            .foregroundStyle(colorForString(product.color))
+                                    }
+                                    
+                                    VStack(alignment: .leading) {
+                                        Text(product.name)
+                                            .font(.body)
+                                            .foregroundColor(.primary)
+                                        Text(formatCurrency(product.price))
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                            }
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    productToDelete = product
+                                    showDeleteConfirmation = true
+                                } label: {
+                                    Label("Xóa", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Cài đặt")
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Tìm kiếm...")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { showingAddProduct = true }) {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAddProduct) {
+                ProductEditView(viewModel: viewModel, mode: .add)
+            }
+            .sheet(item: $editingProduct) { product in
+                ProductEditView(viewModel: viewModel, mode: .edit(product))
+            }
+            .alert("Xóa mặt hàng?", isPresented: $showDeleteConfirmation, presenting: productToDelete) { product in
+                Button("Xóa", role: .destructive) {
+                    viewModel.deleteProduct(product)
+                }
+                Button("Hủy", role: .cancel) {}
+            } message: { product in
+                Text("Bạn có chắc muốn xóa '\(product.name)'? Hành động này không thể hoàn tác.")
+            }
+        }
+    }
+}
+
+struct ProductEditView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    enum Mode {
+        case add
+        case edit(Product)
+    }
+    
+    let mode: Mode
+    
+    @State private var name: String = ""
+    @State private var price: String = ""
+    @State private var selectedCategory: Category = .others
+    @State private var selectedColor: String = "gray"
+    @State private var selectedIcon: String = "shippingbox.fill"
+    
+    let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
+    let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
+    
+    init(viewModel: OrderViewModel, mode: Mode) {
+        self.viewModel = viewModel
+        self.mode = mode
+        
+        switch mode {
+        case .add:
+            _name = State(initialValue: "")
+            _price = State(initialValue: "")
+            _selectedCategory = State(initialValue: .others)
+            _selectedColor = State(initialValue: "gray")
+            _selectedIcon = State(initialValue: "shippingbox.fill")
+        case .edit(let product):
+            _name = State(initialValue: product.name)
+            _price = State(initialValue: String(Int(product.price)))
+            _selectedCategory = State(initialValue: Category(rawValue: product.category) ?? .others)
+            _selectedColor = State(initialValue: product.color)
+            _selectedIcon = State(initialValue: product.imageName)
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Chi tiết")) {
+                    TextField("Tên", text: $name)
+                    TextField("Giá", text: $price)
+                        .keyboardType(.decimalPad)
+                }
+                
+                Section(header: Text("Danh mục")) {
+                    Picker("Danh mục", selection: $selectedCategory) {
+                        ForEach(Category.allCases.filter { $0 != .all }, id: \.self) { category in
+                            Text(category.displayName).tag(category)
+                        }
+                    }
+                }
+                
+                Section(header: Text("Giao diện")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Nhãn màu")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 40))], spacing: 12) {
+                            ForEach(colors, id: \.self) { color in
+                                Circle()
+                                    .fill(colorForString(color))
+                                    .frame(width: 40, height: 40)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.primary, lineWidth: selectedColor == color ? 3 : 0)
+                                            .padding(-2)
+                                    )
+                                    .onTapGesture {
+                                        selectedColor = color
+                                    }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Biểu tượng")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 45))], spacing: 12) {
+                            ForEach(icons, id: \.self) { icon in
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(selectedIcon == icon ? Color.themePrimary.opacity(0.2) : Color.gray.opacity(0.1))
+                                        .frame(width: 45, height: 45)
+                                    
+                                    Image(systemName: icon)
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(selectedIcon == icon ? Color.themePrimary : Color.gray)
+                                }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.themePrimary, lineWidth: selectedIcon == icon ? 2 : 0)
+                                )
+                                .onTapGesture {
+                                    selectedIcon = icon
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            .navigationTitle(title)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Hủy") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Lưu") {
+                        save()
+                    }
+                    .disabled(name.isEmpty || price.isEmpty)
+                }
+            }
+        }
+    }
+    
+    var title: String {
+        switch mode {
+        case .add: return "Thêm hàng mới"
+        case .edit: return "Sửa hàng hóa"
+        }
+    }
+    
+    func save() {
+        guard let priceValue = Double(price) else { return }
+        
+        switch mode {
+        case .add:
+            viewModel.createProduct(name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor)
+        case .edit(let product):
+            viewModel.updateProduct(product, name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor)
+        }
+        dismiss()
+    }
+}
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

@@ -8,9 +8,19 @@ class SmartParser {
     /// - "2 coffee 30k"
     /// - "coffee 30k 2"
     /// - "bún bò 2 tô 50000"
-    static func parse(text: String) -> (name: String, quantity: Int, price: Double)? {
+    static func parse(text: String) -> (name: String, quantity: Int, price: Double, isTotal: Bool?)? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        
+        // Detect price context keywords
+        let lowerText = trimmed.lowercased()
+        var isTotal: Bool? = nil
+        
+        if lowerText.contains("tổng") || lowerText.contains("hết") || lowerText.contains("thành tiền") || lowerText.contains("total") || lowerText.contains("sum") {
+            isTotal = true
+        } else if lowerText.contains("mỗi") || lowerText.contains("từng") || lowerText.contains("unit") || lowerText.contains("each") || lowerText.contains("/") || lowerText.contains("per") {
+            isTotal = false
+        }
         
         let tokenizer = NLTokenizer(unit: .word)
         tokenizer.string = trimmed
@@ -165,6 +175,6 @@ class SmartParser {
         let finalName = nameParts.joined(separator: " ")
         if finalName.isEmpty { return nil }
         
-        return (name: finalName, quantity: quantity ?? 1, price: price ?? 0)
+        return (name: finalName, quantity: quantity ?? 1, price: price ?? 0, isTotal: isTotal)
     }
 }

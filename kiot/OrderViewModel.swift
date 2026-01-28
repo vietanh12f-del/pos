@@ -8,23 +8,34 @@ class OrderViewModel: ObservableObject {
     @Published var showPayment: Bool = false
     
     @Published var priceHistory: [String: Double] = [:]
+    @Published var inventory: [String: Int] = [:]
     @Published var pastOrders: [Bill] = []
     
     // Dashboard Stats
-    @Published var revenue: Double = 2500000 // Demo starting value
-    @Published var orderCount: Int = 24       // Demo starting value
+    @Published var revenue: Double = 0
+    @Published var orderCount: Int = 0
+    @Published var totalRestockCost: Double = 0
+    
+    var netProfit: Double {
+        revenue - totalRestockCost
+    }
+    
+    // Restock
+    @Published var isRestockMode: Bool = false
+    @Published var restockItems: [RestockItem] = []
+    @Published var restockHistory: [RestockBill] = []
     
     // Catalog & Dashboard
     @Published var selectedCategory: Category = .all
     @Published var products: [Product] = [
-        Product(name: "Red Rose", price: 20000, category: "Flowers", imageName: "rosette", color: "red"),
-        Product(name: "Sunflower", price: 30000, category: "Flowers", imageName: "sun.max.fill", color: "yellow"),
-        Product(name: "Tulip", price: 25000, category: "Flowers", imageName: "camera.macro", color: "purple"),
-        Product(name: "Mixed Bouquet", price: 350000, category: "Bouquets", imageName: "gift.fill", color: "pink"),
-        Product(name: "Birthday Bouquet", price: 500000, category: "Bouquets", imageName: "birthday.cake.fill", color: "blue"),
-        Product(name: "Vase", price: 150000, category: "Accessories", imageName: "cylinder.split.1x2.fill", color: "gray"),
-        Product(name: "Ribbon", price: 10000, category: "Accessories", imageName: "scribble.variable", color: "red"),
-        Product(name: "Greeting Card", price: 15000, category: "Accessories", imageName: "envelope.fill", color: "orange")
+        Product(name: "Hoa hồng đỏ", price: 20000, category: "Hoa tươi", imageName: "rosette", color: "red"),
+        Product(name: "Hoa hướng dương", price: 30000, category: "Hoa tươi", imageName: "sun.max.fill", color: "yellow"),
+        Product(name: "Hoa tulip", price: 25000, category: "Hoa tươi", imageName: "camera.macro", color: "purple"),
+        Product(name: "Bó hoa hỗn hợp", price: 350000, category: "Bó hoa", imageName: "gift.fill", color: "pink"),
+        Product(name: "Bó hoa sinh nhật", price: 500000, category: "Bó hoa", imageName: "birthday.cake.fill", color: "blue"),
+        Product(name: "Bình hoa", price: 150000, category: "Phụ kiện", imageName: "cylinder.split.1x2.fill", color: "gray"),
+        Product(name: "Ruy băng", price: 10000, category: "Phụ kiện", imageName: "scribble.variable", color: "red"),
+        Product(name: "Thiệp chúc mừng", price: 15000, category: "Phụ kiện", imageName: "envelope.fill", color: "orange")
     ]
     
     var filteredProducts: [Product] {
@@ -51,13 +62,27 @@ class OrderViewModel: ObservableObject {
             priceHistory = saved
         }
         
+        if let savedInventory = UserDefaults.standard.dictionary(forKey: "Inventory") as? [String: Int] {
+            inventory = savedInventory
+        }
+        
+        if let savedProductsData = UserDefaults.standard.data(forKey: "Products"),
+           let decodedProducts = try? JSONDecoder().decode([Product].self, from: savedProductsData) {
+            products = decodedProducts
+        }
+        
         if let savedOrdersData = UserDefaults.standard.data(forKey: "PastOrders"),
            let decodedOrders = try? JSONDecoder().decode([Bill].self, from: savedOrdersData) {
             pastOrders = decodedOrders
-            // Recalculate stats based on history
-            revenue = pastOrders.reduce(0) { $0 + $1.total }
-            orderCount = pastOrders.count
         }
+        
+        if let savedRestockData = UserDefaults.standard.data(forKey: "RestockHistory"),
+           let decodedRestock = try? JSONDecoder().decode([RestockBill].self, from: savedRestockData) {
+            restockHistory = decodedRestock
+        }
+        
+        // Recalculate stats
+        recalculateStats()
         
         // Listen to transcript changes
         speechRecognizer.$transcript
@@ -107,6 +132,11 @@ class OrderViewModel: ObservableObject {
     }
     
     func processInput() {
+        if isRestockMode {
+            processRestockInput()
+            return
+        }
+        
         let rawText = currentInput
         let lines = rawText.components(separatedBy: CharacterSet(charactersIn: ",\n"))
         
@@ -124,8 +154,55 @@ class OrderViewModel: ObservableObject {
         currentInput = ""
     }
     
+    func processRestockInput() {
+        let rawText = currentInput
+        let lines = rawText.components(separatedBy: CharacterSet(charactersIn: ",\n"))
+        
+        for line in lines {
+            if let parsed = SmartParser.parse(text: line) {
+                var unitPrice: Double = 0
+                var quantity = parsed.quantity
+                let rawPrice = parsed.price
+                
+                if rawPrice > 0 {
+                    if let isTotal = parsed.isTotal {
+                        if isTotal {
+                            unitPrice = rawPrice / Double(quantity)
+                        } else {
+                            unitPrice = rawPrice
+                        }
+                    } else {
+                        // Heuristic fallback
+                        // If price is very large (e.g. > 500k), it's likely Total Cost.
+                        // UNLESS quantity is 1, then Unit = Total.
+                        if quantity == 1 {
+                             unitPrice = rawPrice
+                        } else if rawPrice > 500_000 {
+                            // Assume Total Cost
+                            unitPrice = rawPrice / Double(quantity)
+                        } else {
+                            // Assume Unit Price
+                            unitPrice = rawPrice
+                        }
+                    }
+                }
+                
+                restockItems.append(RestockItem(name: parsed.name, quantity: quantity, unitPrice: unitPrice))
+            }
+        }
+        currentInput = ""
+    }
+    
     private func saveHistory() {
         UserDefaults.standard.set(priceHistory, forKey: "PriceHistory")
+    }
+    
+    private func saveInventory() {
+        UserDefaults.standard.set(inventory, forKey: "Inventory")
+    }
+    
+    func stockLevel(for name: String) -> Int {
+        return inventory[name.lowercased()] ?? 0
     }
     
     private func parseItem(from text: String) -> OrderItem? {
@@ -155,6 +232,15 @@ class OrderViewModel: ObservableObject {
             pastOrders.insert(bill, at: 0) // Newest first
             saveOrders()
             
+            // Deduct from Inventory
+            for item in bill.items {
+                let key = item.name.lowercased()
+                if let current = inventory[key] {
+                    inventory[key] = max(0, current - item.quantity)
+                }
+            }
+            saveInventory()
+            
             // Update stats
             recalculateStats()
         }
@@ -166,6 +252,158 @@ class OrderViewModel: ObservableObject {
     func recalculateStats() {
         revenue = pastOrders.reduce(0) { $0 + $1.total }
         orderCount = pastOrders.count
+        totalRestockCost = restockHistory.reduce(0) { $0 + $1.totalCost }
+    }
+    
+    // MARK: - Restock Actions
+    
+    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int) {
+        restockItems.append(RestockItem(name: name, quantity: quantity, unitPrice: unitPrice))
+    }
+    
+    func removeRestockItem(at offsets: IndexSet) {
+        restockItems.remove(atOffsets: offsets)
+    }
+    
+    func completeRestockSession() {
+        guard !restockItems.isEmpty else { return }
+        
+        let total = restockItems.reduce(0) { $0 + $1.totalCost }
+        let bill = RestockBill(id: UUID(), createdAt: Date(), items: restockItems, totalCost: total)
+        
+        restockHistory.insert(bill, at: 0)
+        
+        // Update Inventory & Catalog
+        for item in restockItems {
+            let key = item.name.lowercased()
+            let current = inventory[key] ?? 0
+            inventory[key] = current + item.quantity
+            
+            // Auto-add to products if not exists OR update if needed
+            // Check case-insensitive
+            if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
+                // Product exists. Do we update anything?
+                // User asked: "update items in stock is not update in new order items"
+                // Maybe they want the price to update?
+                // But sales price != cost price.
+                // However, often users want to see the item "Available" or refreshed.
+                // If the inventory was 0 and now is > 0, it should just work via stockLevel check.
+                // But let's trigger a refresh by ensuring persistence.
+                
+                // OPTIONAL: If the sales price is 0 (placeholder), maybe update it?
+                // Let's NOT overwrite sales price with cost price unless explicitly requested, 
+                // as that ruins profit margins.
+                // BUT, we must ensure the product is "active".
+            } else {
+                // New Product
+                // Determine category? Default to Others or Flowers if name contains flower keywords
+                var cat: Category = .others
+                if key.contains("flower") || key.contains("hoa") || key.contains("hồng") {
+                    cat = .flowers
+                } else if key.contains("giấy") || key.contains("nơ") || key.contains("ribbon") {
+                    cat = .accessories
+                }
+                
+                let newProduct = Product(
+                    id: UUID(), // Explicit ID
+                    name: item.name, // Use original casing
+                    price: item.unitPrice * 1.3, // Suggest a markup? Or just use unitPrice? Let's use unitPrice for now as baseline.
+                    category: cat.rawValue,
+                    imageName: "shippingbox.fill", // Default icon
+                    color: "gray"
+                )
+                products.append(newProduct)
+            }
+        }
+        
+        saveRestockHistory()
+        saveInventory()
+        saveProducts()
+        recalculateStats()
+        
+        restockItems.removeAll()
+        isRestockMode = false
+    }
+    
+    // MARK: - Restock Editing/Deleting
+    func deleteRestockBill(_ bill: RestockBill) {
+        if let index = restockHistory.firstIndex(where: { $0.id == bill.id }) {
+            // Revert Inventory
+            for item in bill.items {
+                let key = item.name.lowercased()
+                if let current = inventory[key] {
+                    inventory[key] = max(0, current - item.quantity)
+                }
+            }
+            
+            restockHistory.remove(at: index)
+            saveRestockHistory()
+            saveInventory()
+            recalculateStats()
+        }
+    }
+    
+    func editRestockBill(_ bill: RestockBill) {
+        // Revert inventory and remove bill (similar to delete)
+        deleteRestockBill(bill)
+        
+        // Load items into current session
+        restockItems = bill.items
+        isRestockMode = true
+    }
+    
+    private func saveRestockHistory() {
+        if let encoded = try? JSONEncoder().encode(restockHistory) {
+            UserDefaults.standard.set(encoded, forKey: "RestockHistory")
+        }
+    }
+    
+    // MARK: - Product Catalog Management
+    
+    func createProduct(name: String, price: Double, category: Category, imageName: String, color: String) {
+        let newProduct = Product(
+            id: UUID(),
+            name: name,
+            price: price,
+            category: category.rawValue,
+            imageName: imageName,
+            color: color
+        )
+        products.append(newProduct)
+        saveProducts()
+    }
+    
+    func updateProduct(_ product: Product, name: String, price: Double, category: Category, imageName: String, color: String) {
+        if let index = products.firstIndex(where: { $0.id == product.id }) {
+            let updatedProduct = Product(
+                id: product.id,
+                name: name,
+                price: price,
+                category: category.rawValue,
+                imageName: imageName,
+                color: color
+            )
+            products[index] = updatedProduct
+            saveProducts()
+        }
+    }
+    
+    func deleteProduct(_ product: Product) {
+        if let index = products.firstIndex(where: { $0.id == product.id }) {
+            products.remove(at: index)
+            saveProducts()
+        }
+    }
+    
+    func deleteProducts(at offsets: IndexSet) {
+        products.remove(atOffsets: offsets)
+        saveProducts()
+    }
+
+    private func saveProducts() {
+        if let encoded = try? JSONEncoder().encode(products) {
+            UserDefaults.standard.set(encoded, forKey: "Products")
+        }
     }
     
     // MARK: - Order Editing
@@ -234,6 +472,17 @@ class OrderViewModel: ObservableObject {
         return pastOrders
             .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
             .reduce(0) { $0 + $1.total }
+    }
+    
+    func restockCost(for date: Date) -> Double {
+        let calendar = Calendar.current
+        return restockHistory
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .reduce(0) { $0 + $1.totalCost }
+    }
+    
+    func profit(for date: Date) -> Double {
+        revenue(for: date) - restockCost(for: date)
     }
     
     func orders(for date: Date) -> [Bill] {
