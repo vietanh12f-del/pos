@@ -86,6 +86,6 @@ jobs:
             🚀 Automated iOS **Simulator** build
             **Scheme:** ${{ env.SCHEME }}
             **Commit:** ${{ github.sha }}
-          files: build/Build/Products/*-simulator.zip
+          files: build/Build/Products/*-iphonesimulator/*.app
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
