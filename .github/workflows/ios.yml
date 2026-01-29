@@ -15,7 +15,7 @@ jobs:
 
     steps:
     # ---------------------------
-    # Checkout
+    # Checkout source
     # ---------------------------
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -27,13 +27,15 @@ jobs:
       run: sudo xcode-select -s /Applications/Xcode.app
 
     # ---------------------------
-    # Setup Keychain + Import Certificate
+    # Create keychain + import P12
     # ---------------------------
     - name: Import iOS Certificate
       env:
         P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
         KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
       run: |
+        set -e
+
         security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
         security set-keychain-settings -lut 21600 build.keychain
         security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
@@ -44,22 +46,39 @@ jobs:
           -T /usr/bin/codesign
 
         security list-keychains -d user -s build.keychain
-        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+        security set-key-partition-list \
+          -S apple-tool:,apple: \
+          -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
     # ---------------------------
-    # Install Provisioning Profile
+    # Install provisioning profile
     # ---------------------------
     - name: Install Provisioning Profile
       run: |
+        set -e
+
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        UUID=$(security cms -D -i ios.mobileprovision | \
+
+        UUID=$(security cms -D -i profile.mobileprovision | \
           /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
 
-        cp ios.mobileprovision \
+        cp profile.mobileprovision \
           ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
+        echo "Installed provisioning profile UUID: $UUID"
+
     # ---------------------------
-    # Detect workspace/project + scheme
+    # Debug provisioning profile (IMPORTANT)
+    # ---------------------------
+    - name: Debug provisioning profile
+      run: |
+        security cms -D -i profile.mobileprovision > profile.plist
+        /usr/libexec/PlistBuddy -c "Print :Name" profile.plist
+        /usr/libexec/PlistBuddy -c "Print :UUID" profile.plist
+        /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist
+
+    # ---------------------------
+    # Detect workspace / project + scheme
     # ---------------------------
     - name: Detect Xcode project and scheme
       run: |
@@ -76,15 +95,25 @@ jobs:
         SCHEME=$(xcodebuild -list -"$FILETYPE" "$FILE" | \
           sed -n '/Schemes:/,$p' | tail -n +2 | head -n 1 | sed 's/^ *//')
 
+        if [ -z "$SCHEME" ]; then
+          echo "❌ No shared scheme found"
+          exit 1
+        fi
+
         echo "FILETYPE=$FILETYPE" >> $GITHUB_ENV
         echo "FILE=$FILE" >> $GITHUB_ENV
         echo "SCHEME=$SCHEME" >> $GITHUB_ENV
 
     # ---------------------------
-    # Build Archive (REAL DEVICE)
+    # Build archive (REAL DEVICE)
     # ---------------------------
     - name: Build iOS Archive
+      env:
+        TEAM_ID: YOUR_TEAM_ID_HERE
+        PROFILE_NAME: YOUR_PROFILE_NAME_HERE
       run: |
+        set -e
+
         xcodebuild \
           -scheme "$SCHEME" \
           -"$FILETYPE" "$FILE" \
@@ -92,13 +121,18 @@ jobs:
           -destination "generic/platform=iOS" \
           -archivePath build/App.xcarchive \
           clean archive \
-          CODE_SIGN_STYLE=Manual
+          CODE_SIGN_STYLE=Manual \
+          CODE_SIGN_IDENTITY="Apple Distribution" \
+          PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+          DEVELOPMENT_TEAM="$TEAM_ID"
 
     # ---------------------------
     # Export IPA
     # ---------------------------
     - name: Export IPA
       run: |
+        set -e
+
         cat > exportOptions.plist <<EOF
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -109,10 +143,10 @@ jobs:
           <string>ad-hoc</string>
           <key>signingStyle</key>
           <string>manual</string>
-          <key>stripSwiftSymbols</key>
-          <true/>
           <key>compileBitcode</key>
           <false/>
+          <key>stripSwiftSymbols</key>
+          <true/>
         </dict>
         </plist>
         EOF
