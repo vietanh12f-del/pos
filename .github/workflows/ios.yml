@@ -70,7 +70,7 @@ jobs:
     - name: Install Provisioning Profile
       run: |
         set -e
-        cd /
+        cd $GITHUB_WORKSPACE
         ls -la
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
 
