@@ -12,111 +12,57 @@ jobs:
   build:
     runs-on: macos-latest
     name: Build iOS (Real Device) & Publish Release
-
+    
     steps:
-    # ---------------------------
-    # Checkout source
-    # ---------------------------
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # ---------------------------
-    # Select Xcode
-    # ---------------------------
     - name: Select Xcode
       run: sudo xcode-select -s /Applications/Xcode.app
 
     # ---------------------------
-    # Create keychain + import P12
+    # Decode Secrets & Setup Keychain
     # ---------------------------
-    - name: Import iOS Certificate
+    - name: Install Certificates and Profiles
       env:
+        P12_BASE64: ${{ secrets.P12_BASE64 }}
         P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        PROVISION_BASE64: ${{ secrets.PROVISION_BASE64 }}
         KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
       run: |
         set -e
+        # Create variables for paths
+        CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+        PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+        KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-        security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-        security set-keychain-settings -lut 21600 build.keychain
-        security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        # Import certificate and provisioning profile from secrets
+        echo -n "$P12_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+        echo -n "$PROVISION_BASE64" | base64 --decode -o $PP_PATH
 
-        security import ios.p12 \
-          -k build.keychain \
-          -P "1" \
-          -T /usr/bin/codesign
+        # Create temporary keychain
+        security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-        security list-keychains -d user -s build.keychain
-        security set-key-partition-list \
-          -S apple-tool:,apple: \
-          -s -k "$KEYCHAIN_PASSWORD" build.keychain
+        # Import certificate to keychain
+        security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+        security list-keychain -d user -s $KEYCHAIN_PATH
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-    # ---------------------------
-    # Install provisioning profile (ios.mobileprovision)
-    # ---------------------------
-    # - name: Install Provisioning Profile
-    #   run: |
-    #     set -e
-
-    #     mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-
-    #     UUID=$(security cms -D -i ios.mobileprovision | \
-    #       /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
-
-    #     cp ios.mobileprovision \
-    #       ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-
-    #     echo "Installed provisioning profile UUID: $UUID"
-    # ---------------------------
-    #- name: Install Provisioning Profile
-      #run: |
-        #set -e
-        #cd $GITHUB_WORKSPACE
-        #ls -la
-        #mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        #security cms -D -i ios.mobileprovision | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin
-
-        #UUID=$(security cms -D -i ios.mobileprovision | \
-         # /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
-
-        #cp ios.mobileprovision \
-          #~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-
-        #echo "Installed provisioning profile UUID: $UUID"
-    - name: Install Provisioning Profile
-      run: |
-        set -e
-        # 1. Create the directory if it doesn't exist
+        # Install provisioning profile
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        UUID=$(security cms -D -i $PP_PATH | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
+        cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
         
-        # 2. Extract UUID from the profile using PlistBuddy
-        # Note: Ensure ios.mobileprovision is in the root or provide the full path
-        UUID=$(security cms -D -i ios.mobileprovision | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
-        
-        # 3. Copy the profile to the destination using the UUID as the filename
-        cp ios.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-        
-        # 4. Success message
-        echo "Successfully installed profile: $UUID"
-        
-        # 5. Optional: Verify the file exists in the destination
-        ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
-
-    # Debug provisioning profile
-    # ---------------------------
-    - name: Debug provisioning profile
-      run: |
-        security cms -D -i ios.mobileprovision > profile.plist
-        /usr/libexec/PlistBuddy -c "Print :Name" profile.plist
-        /usr/libexec/PlistBuddy -c "Print :UUID" profile.plist
-        /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist
+        echo "PROVISIONING_UUID=$UUID" >> $GITHUB_ENV
 
     # ---------------------------
-    # Detect workspace / project + scheme
+    # Detect Project Metadata
     # ---------------------------
     - name: Detect Xcode project and scheme
       run: |
         set -e
-
         if find . -maxdepth 1 -name "*.xcworkspace" | grep -q .; then
           FILETYPE="workspace"
           FILE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -n 1)
@@ -124,29 +70,26 @@ jobs:
           FILETYPE="project"
           FILE=$(find . -maxdepth 1 -name "*.xcodeproj" | head -n 1)
         fi
-
-        SCHEME=$(xcodebuild -list -"$FILETYPE" "$FILE" | \
-          sed -n '/Schemes:/,$p' | tail -n +2 | head -n 1 | sed 's/^ *//')
-
-        if [ -z "$SCHEME" ]; then
-          echo "❌ No shared scheme found"
-          exit 1
-        fi
+        
+        # Get the first shared scheme
+        SCHEME=$(xcodebuild -list -"$FILETYPE" "$FILE" | sed -n '/Schemes:/,$p' | tail -n +2 | head -n 1 | sed 's/^ *//')
+        
+        # Get Bundle ID from the project
+        BUNDLE_ID=$(xcodebuild -showBuildSettings -"$FILETYPE" "$FILE" -scheme "$SCHEME" | grep PRODUCT_BUNDLE_IDENTIFIER | awk '{print $3}' | head -n 1)
 
         echo "FILETYPE=$FILETYPE" >> $GITHUB_ENV
         echo "FILE=$FILE" >> $GITHUB_ENV
         echo "SCHEME=$SCHEME" >> $GITHUB_ENV
+        echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
 
     # ---------------------------
-    # Build archive (REAL DEVICE)
+    # Build & Archive
     # ---------------------------
     - name: Build iOS Archive
       env:
         TEAM_ID: 68SXA5MV6R
-        PROFILE_NAME: MyforceUAT
+        PROFILE_NAME: MyforceUAT # Must match the "Name" inside the profile
       run: |
-        set -e
-
         xcodebuild \
           -scheme "$SCHEME" \
           -"$FILETYPE" "$FILE" \
@@ -163,19 +106,26 @@ jobs:
     # Export IPA
     # ---------------------------
     - name: Export IPA
+      env:
+        TEAM_ID: 68SXA5MV6R
+        PROFILE_NAME: MyforceUAT
       run: |
-        set -e
-
         cat > exportOptions.plist <<EOF
         <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
         <dict>
           <key>method</key>
           <string>ad-hoc</string>
           <key>signingStyle</key>
           <string>manual</string>
+          <key>teamID</key>
+          <string>$TEAM_ID</string>
+          <key>provisioningProfiles</key>
+          <dict>
+            <key>$BUNDLE_ID</key>
+            <string>$PROFILE_NAME</string>
+          </dict>
           <key>compileBitcode</key>
           <false/>
           <key>stripSwiftSymbols</key>
@@ -190,7 +140,7 @@ jobs:
           -exportOptionsPlist exportOptions.plist
 
     # ---------------------------
-    # Publish GitHub Release
+    # Publish Release
     # ---------------------------
     - name: Publish GitHub Release
       uses: softprops/action-gh-release@v2
