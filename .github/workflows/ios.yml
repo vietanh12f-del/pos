@@ -79,6 +79,7 @@ jobs:
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
             -destination "generic/platform=iOS" \
+            IPHONEOS_DEPLOYMENT_TARGET=14\
             -derivedDataPath build \
             clean build
 
