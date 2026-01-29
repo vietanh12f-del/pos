@@ -40,7 +40,7 @@ jobs:
 
         security import ios.p12 \
           -k build.keychain \
-          -P "$P12_PASSWORD" \
+          -P "1" \
           -T /usr/bin/codesign
 
         security list-keychains -d user -s build.keychain
