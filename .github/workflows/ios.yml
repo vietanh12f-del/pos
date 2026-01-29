@@ -27,7 +27,6 @@ jobs:
       # Detect workspace/project + shared scheme
       # ---------------------------
       - name: Detect Xcode project and scheme
-        id: detect
         run: |
           set -e
 
@@ -63,28 +62,25 @@ jobs:
           echo "SCHEME=$SCHEME" >> $GITHUB_ENV
 
       # ---------------------------
-      # Build app (Simulator build)
+      # Build app (CI-safe simulator)
       # ---------------------------
       - name: Build iOS app
         run: |
           set -e
 
-          DEVICE=$(xcrun xctrace list devices 2>&1 | \
-            grep -oE 'iPhone.*?[^\(]+' | head -n 1 | sed 's/ Simulator$//')
-
-          echo "Using simulator: $DEVICE"
+          echo "Building with Any iOS Simulator Device"
 
           mkdir -p build
 
           xcodebuild \
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
-            -destination "platform=iOS Simulator,name=$DEVICE" \
+            -destination "platform=iOS Simulator,name=Any iOS Simulator Device" \
             -derivedDataPath build \
             clean build
 
       # ---------------------------
-      # Package IPA (simulator-safe)
+      # Package IPA (simulator build)
       # ---------------------------
       - name: Package IPA
         run: |
@@ -103,7 +99,7 @@ jobs:
           zip -r ../../../App.ipa "$APP"
 
       # ---------------------------
-      # Create GitHub Release (PUBLIC LINK)
+      # Publish GitHub Release (PUBLIC LINK)
       # ---------------------------
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
