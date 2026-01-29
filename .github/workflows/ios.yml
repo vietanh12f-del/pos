@@ -1,7 +1,7 @@
-name: iOS Build & Release (Simulator)
+name: iOS Build & Release
 
 permissions:
-  contents: write  # for GitHub Releases
+  contents: write   # 🔥 REQUIRED for GitHub Releases
 
 on:
   push:
@@ -11,19 +11,29 @@ on:
 jobs:
   build:
     runs-on: macos-latest
-    name: Build iOS (Simulator) and Publish Release
+    name: Build iOS and Publish GitHub Release
 
     steps:
+      # ---------------------------
+      # Checkout source
+      # ---------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # If you need a specific Xcode version, pin it; otherwise macos-latest default is fine.
-      - name: Select Xcode 16.4 (optional)
+      # ---------------------------
+      # Select Xcode (Xcode 16 safe)
+      # ---------------------------
+      - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app
 
+      # ---------------------------
+      # Detect workspace/project + shared scheme
+      # ---------------------------
       - name: Detect Xcode project and scheme
         run: |
           set -e
+
+          # Detect workspace or project (pick ONE)
           if find . -maxdepth 1 -name "*.xcworkspace" | grep -q .; then
             FILETYPE="workspace"
             FILE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -n 1)
@@ -31,63 +41,79 @@ jobs:
             FILETYPE="project"
             FILE=$(find . -maxdepth 1 -name "*.xcodeproj" | head -n 1)
           fi
+
           echo "Using $FILETYPE: $FILE"
-          SCHEME=$(xcodebuild -list -"$FILETYPE" "$FILE" | sed -n '/Schemes:/,$p' | tail -n +2 | sed 's/^ *//' | grep -v '^$' | head -n 1)
+
+          # Detect shared scheme (CI-safe)
+          SCHEME=$(xcodebuild -list -"$FILETYPE" "$FILE" | \
+            sed -n '/Schemes:/,$p' | \
+            tail -n +2 | \
+            sed 's/^ *//' | \
+            grep -v '^$' | \
+            head -n 1)
+
           if [ -z "$SCHEME" ]; then
             echo "❌ No shared scheme found."
             echo "👉 Xcode → Product → Scheme → Manage Schemes → Share"
             exit 1
           fi
+
           echo "Detected scheme: $SCHEME"
+
           echo "FILETYPE=$FILETYPE" >> $GITHUB_ENV
           echo "FILE=$FILE" >> $GITHUB_ENV
           echo "SCHEME=$SCHEME" >> $GITHUB_ENV
 
-      - name: Build (Generic iOS Simulator, signing disabled)
+      # ---------------------------
+      # Build app (CI-safe simulator)
+      # ---------------------------
+      - name: Build iOS app
         run: |
           set -e
+
+          echo "Building with Any iOS Simulator Device"
+
           mkdir -p build
+
           xcodebuild \
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
             -destination "generic/platform=iOS Simulator" \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            clean build \
-            -derivedDataPath build
+            -derivedDataPath build \
+            clean build
 
-      - name: Package Simulator App (.zip)
+      # ---------------------------
+      # Package IPA (simulator build)
+      # ---------------------------
+      - name: Package IPA
         run: |
           set -e
+
           cd build/Build/Products
-          # Prefer Debug-iphonesimulator path
-          APP=$(find . -type d -path "*-iphonesimulator/*.app" | head -n 1)
-          if [ -z "$APP" ]; then
-            APP=$(find . -name "*.app" | head -n 1)
-          fi
+          APP=$(find . -name "*.app" | head -n 1)
+
           if [ -z "$APP" ]; then
             echo "❌ .app not found"
             exit 1
           fi
-          echo "Found app: $APP"
-          cd "$(dirname "$APP")"
-          APPNAME=$(basename "$APP")
-          zip -r "../../../${APPNAME%.app}-simulator.zip" "$APPNAME"
-          cd -
-          ls -lah ../../..
-          
-      - name: Publish GitHub Release (attach simulator app zip)
+
+          echo "Packaging $APP"
+
+          zip -r ../../../App.ipa "$APP"
+
+      # ---------------------------
+      # Publish GitHub Release (PUBLIC LINK)
+      # ---------------------------
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: iOS Simulator Build v1.0.${{ github.run_number }}
+          name: iOS Build v1.0.${{ github.run_number }}
           body: |
-            🚀 Automated iOS **Simulator** build
-            ⚠️ Simulator-only build (not installable on real devices)
+            🚀 Automated iOS build
+
             **Scheme:** ${{ env.SCHEME }}
             **Commit:** ${{ github.sha }}
-          files: "/Users/runner/work/pos/pos/build/Build/Products/Debug-iphonesimulator/kiot.app"
+          files: App.ipa
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
