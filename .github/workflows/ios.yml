@@ -78,8 +78,8 @@ jobs:
           xcodebuild \
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
-            -destination "generic/platform=iOS" \
-            IPHONEOS_DEPLOYMENT_TARGET=14\
+            -destination "generic/platform=iOS Simulator" \
+            IPHONEOS_DEPLOYMENT_TARGET=16\
             -derivedDataPath build \
             clean build
 
