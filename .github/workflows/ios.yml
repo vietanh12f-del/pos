@@ -72,21 +72,36 @@ jobs:
         file ios.mobileprovision
         head -c 200 ios.mobileprovision
 
-    - name: Install Provisioning Profile
+    # - name: Install Provisioning Profile
+    #   run: |
+    #     set -e
+    #     cd $GITHUB_WORKSPACE
+    #     ls -la
+    #     mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+    #     security cms -D -i ios.mobileprovision | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin
+
+    #     UUID=$(security cms -D -i ios.mobileprovision | \
+    #       /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
+
+    #     cp ios.mobileprovision \
+    #       ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+
+    #     echo "Installed provisioning profile UUID: $UUID"
+
+    - name: Install Provisioning Profile (fixed)
       run: |
         set -e
-        cd $GITHUB_WORKSPACE
-        ls -la
+    
+        security cms -D -i ios.mobileprovision -o profile.plist
+    
+        UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' profile.plist)
+    
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        security cms -D -i ios.mobileprovision | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin
-
-        UUID=$(security cms -D -i ios.mobileprovision | \
-          /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
-
         cp ios.mobileprovision \
           ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+    
+        echo "✅ Installed provisioning profile UUID: $UUID"
 
-        echo "Installed provisioning profile UUID: $UUID"
     # Debug provisioning profile
     # ---------------------------
     - name: Debug provisioning profile
