@@ -78,7 +78,7 @@ jobs:
           xcodebuild \
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
-            -destination "generic/platform=iOS Simulator" \
+            -destination "generic/platform=iOS" \
             -derivedDataPath build \
             clean build
 
