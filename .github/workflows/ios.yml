@@ -1,4 +1,7 @@
-name: iOS Build & Release
+3name: iOS Build & Release
+
+permissions:
+  contents: write   # 🔥 REQUIRED for GitHub Releases
 
 on:
   push:
