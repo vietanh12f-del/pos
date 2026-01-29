@@ -1,7 +1,7 @@
 name: iOS Build & Release
 
 permissions:
-  contents: write   # REQUIRED for GitHub Releases
+  contents: write
 
 on:
   push:
@@ -15,7 +15,7 @@ jobs:
 
     steps:
       # ---------------------------
-      # Checkout source
+      # Checkout
       # ---------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,28 +27,31 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode.app
 
       # ---------------------------
-      # Detect workspace/project + shared scheme (SAFE)
+      # Detect REAL Xcode project/workspace + shared scheme
       # ---------------------------
       - name: Detect Xcode project and scheme
         shell: bash
         run: |
           set -e
 
-          # Prefer workspace over project
-          if ls *.xcworkspace 1> /dev/null 2>&1; then
+          # Prefer workspace, only DIRECTORY bundles
+          WORKSPACE=$(find . -maxdepth 2 -type d -name "*.xcworkspace" | head -n 1)
+          PROJECT=$(find . -maxdepth 2 -type d -name "*.xcodeproj" | head -n 1)
+
+          if [ -n "$WORKSPACE" ]; then
             FILETYPE="workspace"
-            FILE=$(ls *.xcworkspace | head -n 1)
-          elif ls *.xcodeproj 1> /dev/null 2>&1; then
+            FILE="$WORKSPACE"
+          elif [ -n "$PROJECT" ]; then
             FILETYPE="project"
-            FILE=$(ls *.xcodeproj | head -n 1)
+            FILE="$PROJECT"
           else
-            echo "❌ No .xcworkspace or .xcodeproj found"
+            echo "❌ No .xcworkspace or .xcodeproj directory found"
             exit 1
           fi
 
           echo "Using $FILETYPE: $FILE"
 
-          # Detect shared scheme only
+          # Detect SHARED scheme only
           SCHEME=$(xcodebuild -list -"$FILETYPE" "$FILE" | \
             awk '/Schemes:/ {found=1; next} found && NF {print $1; exit}')
 
@@ -65,7 +68,7 @@ jobs:
           echo "SCHEME=$SCHEME" >> $GITHUB_ENV
 
       # ---------------------------
-      # Build iOS app (SIMULATOR-SAFE)
+      # Build (SIMULATOR-SAFE)
       # ---------------------------
       - name: Build iOS app
         shell: bash
@@ -84,14 +87,14 @@ jobs:
             clean build
 
       # ---------------------------
-      # Package IPA (simulator build)
+      # Package IPA (simulator)
       # ---------------------------
       - name: Package IPA
         shell: bash
         run: |
           set -e
 
-          APP=$(find build/Build/Products -name "*.app" | head -n 1)
+          APP=$(find build/Build/Products -type d -name "*.app" | head -n 1)
 
           if [ -z "$APP" ]; then
             echo "❌ .app not found"
@@ -102,7 +105,6 @@ jobs:
 
           mkdir -p output
           cd "$(dirname "$APP")"
-
           zip -r ../../../output/App.ipa "$(basename "$APP")"
 
       # ---------------------------
