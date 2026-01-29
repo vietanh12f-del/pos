@@ -72,7 +72,7 @@ jobs:
     # ---------------------------
     - name: Debug provisioning profile
       run: |
-        security cms -D -i profile.mobileprovision > profile.plist
+        security cms -D -i ios.mobileprovision > profile.plist
         /usr/libexec/PlistBuddy -c "Print :Name" profile.plist
         /usr/libexec/PlistBuddy -c "Print :UUID" profile.plist
         /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist
