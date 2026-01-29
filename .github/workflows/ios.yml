@@ -87,7 +87,7 @@ jobs:
             ⚠️ Simulator-only build (not installable on real devices)
             **Scheme:** ${{ env.SCHEME }}
             **Commit:** ${{ github.sha }}
-          files: "*-simulator.zip"
+          files: "/Users/runner/work/pos/pos/build/Build/Products/Debug-iphonesimulator/kiot.app"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
