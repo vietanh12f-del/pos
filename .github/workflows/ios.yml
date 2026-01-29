@@ -76,7 +76,7 @@ jobs:
           zip -r "../../../${APPNAME%.app}-simulator.zip" "$APPNAME"
           cd -
           ls -lah ../../..
-
+          
       - name: Publish GitHub Release (attach simulator app zip)
         uses: softprops/action-gh-release@v2
         with:
@@ -84,8 +84,10 @@ jobs:
           name: iOS Simulator Build v1.0.${{ github.run_number }}
           body: |
             🚀 Automated iOS **Simulator** build
+            ⚠️ Simulator-only build (not installable on real devices)
             **Scheme:** ${{ env.SCHEME }}
             **Commit:** ${{ github.sha }}
-          files: build/Build/Products/*-simulator.zip
+          files: "*-simulator.zip"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
