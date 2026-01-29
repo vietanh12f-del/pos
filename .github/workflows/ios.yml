@@ -67,21 +67,40 @@ jobs:
 
     #     echo "Installed provisioning profile UUID: $UUID"
     # ---------------------------
+    #- name: Install Provisioning Profile
+      #run: |
+        #set -e
+        #cd $GITHUB_WORKSPACE
+        #ls -la
+        #mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        #security cms -D -i ios.mobileprovision | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin
+
+        #UUID=$(security cms -D -i ios.mobileprovision | \
+         # /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
+
+        #cp ios.mobileprovision \
+          #~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+
+        #echo "Installed provisioning profile UUID: $UUID"
     - name: Install Provisioning Profile
       run: |
         set -e
-        cd $GITHUB_WORKSPACE
-        ls -la
+        # 1. Create the directory if it doesn't exist
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        security cms -D -i ios.mobileprovision | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin
+        
+        # 2. Extract UUID from the profile using PlistBuddy
+        # Note: Ensure ios.mobileprovision is in the root or provide the full path
+        UUID=$(security cms -D -i ios.mobileprovision | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
+        
+        # 3. Copy the profile to the destination using the UUID as the filename
+        cp ios.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+        
+        # 4. Success message
+        echo "Successfully installed profile: $UUID"
+        
+        # 5. Optional: Verify the file exists in the destination
+        ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
 
-        UUID=$(security cms -D -i ios.mobileprovision | \
-          /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
-
-        cp ios.mobileprovision \
-          ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-
-        echo "Installed provisioning profile UUID: $UUID"
     # Debug provisioning profile
     # ---------------------------
     - name: Debug provisioning profile
