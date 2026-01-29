@@ -50,7 +50,7 @@ jobs:
           xcodebuild \
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
-            -destination "generic/platform=iOS Simulator" \
+            -destination "generic/platform=iOS" \
             -configuration Debug \
             -sdk iphonesimulator \
             IPHONEOS_DEPLOYMENT_TARGET=16.0 \
