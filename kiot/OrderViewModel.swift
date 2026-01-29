@@ -15,6 +15,7 @@ class OrderViewModel: ObservableObject {
     @Published var revenue: Double = 0
     @Published var orderCount: Int = 0
     @Published var totalRestockCost: Double = 0
+    @Published var showOrderSuccessToast: Bool = false
     
     var netProfit: Double {
         revenue - totalRestockCost
@@ -69,6 +70,14 @@ class OrderViewModel: ObservableObject {
         if let savedProductsData = UserDefaults.standard.data(forKey: "Products"),
            let decodedProducts = try? JSONDecoder().decode([Product].self, from: savedProductsData) {
             products = decodedProducts
+        }
+        
+        // Ensure inventory keys exist for all products
+        for product in products {
+            let key = product.name.lowercased()
+            if inventory[key] == nil {
+                inventory[key] = 0
+            }
         }
         
         if let savedOrdersData = UserDefaults.standard.data(forKey: "PastOrders"),
@@ -160,6 +169,13 @@ class OrderViewModel: ObservableObject {
         
         for line in lines {
             if let parsed = SmartParser.parse(text: line) {
+                var finalName = parsed.name
+                
+                // Intelligent Mapping: Match with existing catalog to ensure inventory consistency
+                if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
+                    finalName = match.name
+                }
+                
                 var unitPrice: Double = 0
                 var quantity = parsed.quantity
                 let rawPrice = parsed.price
@@ -187,7 +203,7 @@ class OrderViewModel: ObservableObject {
                     }
                 }
                 
-                restockItems.append(RestockItem(name: parsed.name, quantity: quantity, unitPrice: unitPrice))
+                restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice))
             }
         }
         currentInput = ""
@@ -208,22 +224,47 @@ class OrderViewModel: ObservableObject {
     private func parseItem(from text: String) -> OrderItem? {
         // Use SmartParser for flexible "AI-like" parsing
         if let parsed = SmartParser.parse(text: text) {
+            var finalName = parsed.name
             var price = parsed.price
+            var systemImage: String? = nil
             
-            // Auto-fill price from history if missing
-            if price == 0 {
-                if let historyPrice = priceHistory[parsed.name.lowercased()] {
-                    price = historyPrice
+            // 1. Try to find matching product in catalog (Intelligent Mapping)
+            if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
+                finalName = match.name
+                systemImage = match.imageName
+                
+                // If price wasn't specified in speech, use catalog price
+                if price == 0 {
+                    price = match.price
+                }
+            } else {
+                // 2. Fallback to history if not found in catalog
+                if price == 0 {
+                    if let historyPrice = priceHistory[parsed.name.lowercased()] {
+                        price = historyPrice
+                    }
                 }
             }
             
-            return OrderItem(name: parsed.name, quantity: parsed.quantity, price: price)
+            return OrderItem(name: finalName, quantity: parsed.quantity, price: price, systemImage: systemImage)
         }
         return nil
     }
     
     func removeItem(at offsets: IndexSet) {
         items.remove(atOffsets: offsets)
+    }
+    
+    func checkStockWarnings() -> [String] {
+        var warnings: [String] = []
+        for item in items {
+            let key = item.name.lowercased()
+            let currentStock = inventory[key] ?? 0
+            if item.quantity > currentStock {
+                warnings.append("⚠️ \(item.name): Đặt \(item.quantity), Kho còn \(currentStock)")
+            }
+        }
+        return warnings
     }
     
     func completeOrder() {
@@ -242,10 +283,19 @@ class OrderViewModel: ObservableObject {
             saveInventory()
             
             // Update stats
-            recalculateStats()
-        }
-        
-        // Clear order
+                recalculateStats()
+                
+                // Show Success Toast
+                DispatchQueue.main.async {
+                    self.showOrderSuccessToast = true
+                    // Hide after 2 seconds
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        self.showOrderSuccessToast = false
+                    }
+                }
+            }
+            
+            // Clear order
         reset()
     }
     
@@ -360,7 +410,7 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Product Catalog Management
     
-    func createProduct(name: String, price: Double, category: Category, imageName: String, color: String) {
+    func createProduct(name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int) {
         let newProduct = Product(
             id: UUID(),
             name: name,
@@ -371,10 +421,26 @@ class OrderViewModel: ObservableObject {
         )
         products.append(newProduct)
         saveProducts()
+        
+        // Initialize inventory
+        inventory[name.lowercased()] = quantity
+        saveInventory()
     }
     
-    func updateProduct(_ product: Product, name: String, price: Double, category: Category, imageName: String, color: String) {
+    func updateProduct(_ product: Product, name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int) {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
+            // Handle Name Change for Inventory
+            let oldKey = product.name.lowercased()
+            let newKey = name.lowercased()
+            
+            if oldKey != newKey {
+                inventory.removeValue(forKey: oldKey)
+            }
+            
+            // Update Inventory
+            inventory[newKey] = quantity
+            saveInventory()
+            
             let updatedProduct = Product(
                 id: product.id,
                 name: name,
@@ -390,6 +456,10 @@ class OrderViewModel: ObservableObject {
     
     func deleteProduct(_ product: Product) {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
+            // Remove inventory
+            inventory.removeValue(forKey: product.name.lowercased())
+            saveInventory()
+            
             products.remove(at: index)
             saveProducts()
         }

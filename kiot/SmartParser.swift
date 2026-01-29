@@ -177,4 +177,75 @@ class SmartParser {
         
         return (name: finalName, quantity: quantity ?? 1, price: price ?? 0, isTotal: isTotal)
     }
+    
+    static func findBestMatch(name: String, in products: [Product]) -> Product? {
+        let normalizedInput = name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
+        
+        // 1. Exact match (insensitive)
+        if let exact = products.first(where: { $0.name.folding(options: .diacriticInsensitive, locale: .current).lowercased() == normalizedInput }) {
+            return exact
+        }
+        
+        // 2. Contains match
+        let containsMatches = products.filter { product in
+            let pName = product.name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
+            return pName.contains(normalizedInput) || normalizedInput.contains(pName)
+        }
+        
+        if !containsMatches.isEmpty {
+            // Pick the one with closest length
+            return containsMatches.min(by: { p1, p2 in
+                let p1Name = p1.name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
+                let p2Name = p2.name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
+                return abs(p1Name.count - normalizedInput.count) < abs(p2Name.count - normalizedInput.count)
+            })
+        }
+        
+        // 3. Fuzzy Match (Levenshtein)
+        var bestMatch: Product?
+        var minDistance = Int.max
+        
+        for product in products {
+            let pName = product.name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
+            let dist = normalizedInput.levenshtein(pName)
+            
+            // Threshold: Allow reasonable edits (approx 40% of length for short words)
+            let threshold = max(2, Int(Double(pName.count) * 0.4))
+            
+            if dist <= threshold && dist < minDistance {
+                minDistance = dist
+                bestMatch = product
+            }
+        }
+        
+        return bestMatch
+    }
+}
+
+extension String {
+    func levenshtein(_ other: String) -> Int {
+        let s1 = Array(self)
+        let s2 = Array(other)
+        let (m, n) = (s1.count, s2.count)
+        
+        if m == 0 { return n }
+        if n == 0 { return m }
+        
+        var d = Array(repeating: Array(repeating: 0, count: n + 1), count: m + 1)
+        
+        for i in 0...m { d[i][0] = i }
+        for j in 0...n { d[0][j] = j }
+        
+        for i in 1...m {
+            for j in 1...n {
+                let cost = s1[i - 1] == s2[j - 1] ? 0 : 1
+                d[i][j] = Swift.min(
+                    d[i - 1][j] + 1,      // deletion
+                    d[i][j - 1] + 1,      // insertion
+                    d[i - 1][j - 1] + cost // substitution
+                )
+            }
+        }
+        return d[m][n]
+    }
 }

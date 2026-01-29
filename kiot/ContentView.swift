@@ -54,7 +54,7 @@ struct ContentView: View {
                         Spacer()
                         TabItem(icon: "archivebox.fill", title: "Kho", isSelected: selectedTab == 3) { selectedTab = 3 }
                         Spacer()
-                        TabItem(icon: "gearshape.fill", title: "Cài đặt", isSelected: selectedTab == 4) { selectedTab = 4 }
+                        TabItem(icon: "cube.box.fill", title: "Hàng hóa", isSelected: selectedTab == 4) { selectedTab = 4 }
                     }
                     .padding(.horizontal, 24)
                     .frame(height: 72)
@@ -132,8 +132,9 @@ struct HomeDashboardView: View {
     @State private var selectedDate = Date()
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
+        ZStack(alignment: .top) {
+            ScrollView {
+                VStack(spacing: 24) {
                 // Top Bar
                 HStack {
                     Circle()
@@ -269,6 +270,24 @@ struct HomeDashboardView: View {
             }
         }
         .background(Color.themeBackgroundLight)
+            
+            if viewModel.showOrderSuccessToast {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                    Text("Đã trừ kho và lưu đơn hàng")
+                        .fontWeight(.medium)
+                }
+                .padding()
+                .background(Color.green)
+                .foregroundColor(.white)
+                .cornerRadius(20)
+                .shadow(radius: 10)
+                .padding(.top, 60) // Below header
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .zIndex(100)
+            }
+        }
     }
     
     func currentDateString() -> String {
@@ -297,7 +316,7 @@ struct HomeDashboardView: View {
         return names.joined(separator: ", ")
     }
 }
-
+// MARK: - Stat Card
 struct StatCard: View {
     let title: String
     let value: String
@@ -336,6 +355,7 @@ struct StatCard: View {
     }
 }
 
+
 struct QuickActionButton: View {
     let icon: String
     let title: String
@@ -373,6 +393,8 @@ struct SmartOrderEntryView: View {
     @State private var showManualInput = false
     @State private var editingItem: OrderItem?
     @State private var customizingProduct: Product?
+    @State private var showStockWarning = false
+    @State private var stockWarnings: [String] = []
     @Namespace private var namespace
     
     var body: some View {
@@ -631,7 +653,13 @@ struct SmartOrderEntryView: View {
                             viewModel.saveEditedOrder()
                             dismiss()
                         } else {
-                            viewModel.showPayment = true
+                            let warnings = viewModel.checkStockWarnings()
+                            if !warnings.isEmpty {
+                                stockWarnings = warnings
+                                showStockWarning = true
+                            } else {
+                                viewModel.showPayment = true
+                            }
                         }
                     }) {
                         HStack {
@@ -658,6 +686,14 @@ struct SmartOrderEntryView: View {
         .ignoresSafeArea(.all, edges: .bottom)
         .sheet(isPresented: $viewModel.showPayment) {
             PaymentView(viewModel: viewModel)
+        }
+        .alert("Cảnh báo tồn kho", isPresented: $showStockWarning) {
+            Button("Tiếp tục", role: .destructive) {
+                viewModel.showPayment = true
+            }
+            Button("Hủy", role: .cancel) { }
+        } message: {
+            Text(stockWarnings.joined(separator: "\n"))
         }
         .sheet(isPresented: $showManualInput) {
             ManualItemView(viewModel: viewModel)
@@ -1537,6 +1573,7 @@ struct RestockHistoryView: View {
     @ObservedObject var viewModel: OrderViewModel
     @State private var selectedTab: Int = 0 // 0: Inventory, 1: History
     @State private var showNewRestock = false
+    @State private var showScanner = false
     @State private var editingProduct: Product?
     
     var body: some View {
@@ -1683,14 +1720,22 @@ struct RestockHistoryView: View {
             .toolbar {
                 if selectedTab == 0 {
                     ToolbarItem(placement: .primaryAction) {
-                        Button(action: { showNewRestock = true }) {
-                            Image(systemName: "plus")
+                        HStack {
+                            Button(action: { showScanner = true }) {
+                                Image(systemName: "doc.text.viewfinder")
+                            }
+                            Button(action: { showNewRestock = true }) {
+                                Image(systemName: "plus")
+                            }
                         }
                     }
                 }
             }
             .fullScreenCover(isPresented: $showNewRestock) {
                 RestockEntryView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showScanner) {
+                InvoiceScannerView(viewModel: viewModel)
             }
             .sheet(item: $editingProduct) { product in
                 ProductEditView(viewModel: viewModel, mode: .edit(product))
@@ -1710,8 +1755,8 @@ struct RestockHistoryView: View {
 struct RestockEntryView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Environment(\.dismiss) var dismiss
-    
     @State private var showManualInput = false
+    @State private var showScanner = false
     
     var body: some View {
         NavigationStack {
@@ -1811,8 +1856,14 @@ struct RestockEntryView: View {
                         
                         Spacer()
                         
-                        // Placeholder to balance layout
-                        Circle().fill(Color.clear).frame(width: 50, height: 50)
+                        // Scanner Button
+                        Button(action: { showScanner = true }) {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 50, height: 50)
+                                .shadow(radius: 3)
+                                .overlay(Image(systemName: "doc.text.viewfinder").foregroundStyle(Color.themeTextDark))
+                        }
                     }
                     .padding(.bottom, 140) // Adjust based on Total section height
                     .padding(.horizontal, 40)
@@ -1832,6 +1883,9 @@ struct RestockEntryView: View {
             }
             .sheet(isPresented: $showManualInput) {
                 ManualRestockItemView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showScanner) {
+                InvoiceScannerView(viewModel: viewModel)
             }
         }
     }
@@ -1965,7 +2019,13 @@ struct SettingsView: View {
                                         Text(product.name)
                                             .font(.body)
                                             .foregroundColor(.primary)
-                                        Text(formatCurrency(product.price))
+                                        HStack {
+                                            Text(formatCurrency(product.price))
+                                            Text("•")
+                                            Text("Kho: \(viewModel.stockLevel(for: product.name))")
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(viewModel.stockLevel(for: product.name) > 0 ? Color.blue : Color.red)
+                                        }
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
@@ -1984,7 +2044,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .navigationTitle("Cài đặt")
+            .navigationTitle("Hàng hóa")
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Tìm kiếm...")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -2024,9 +2084,11 @@ struct ProductEditView: View {
     
     @State private var name: String = ""
     @State private var price: String = ""
+    @State private var quantity: String = "0"
     @State private var selectedCategory: Category = .others
     @State private var selectedColor: String = "gray"
     @State private var selectedIcon: String = "shippingbox.fill"
+    @State private var showDeleteConfirmation = false
     
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
     let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
@@ -2039,12 +2101,14 @@ struct ProductEditView: View {
         case .add:
             _name = State(initialValue: "")
             _price = State(initialValue: "")
+            _quantity = State(initialValue: "0")
             _selectedCategory = State(initialValue: .others)
             _selectedColor = State(initialValue: "gray")
             _selectedIcon = State(initialValue: "shippingbox.fill")
         case .edit(let product):
             _name = State(initialValue: product.name)
             _price = State(initialValue: String(Int(product.price)))
+            _quantity = State(initialValue: String(viewModel.stockLevel(for: product.name)))
             _selectedCategory = State(initialValue: Category(rawValue: product.category) ?? .others)
             _selectedColor = State(initialValue: product.color)
             _selectedIcon = State(initialValue: product.imageName)
@@ -2058,6 +2122,8 @@ struct ProductEditView: View {
                     TextField("Tên", text: $name)
                     TextField("Giá", text: $price)
                         .keyboardType(.decimalPad)
+                    TextField("Tồn kho", text: $quantity)
+                        .keyboardType(.numberPad)
                 }
                 
                 Section(header: Text("Danh mục")) {
@@ -2120,6 +2186,17 @@ struct ProductEditView: View {
                     }
                     .padding(.vertical, 8)
                 }
+                
+                if case .edit(let product) = mode {
+                    Section {
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Text("Xóa hàng hóa")
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
+                }
             }
             .navigationTitle(title)
             .toolbar {
@@ -2131,6 +2208,19 @@ struct ProductEditView: View {
                         save()
                     }
                     .disabled(name.isEmpty || price.isEmpty)
+                }
+            }
+            .alert("Xóa mặt hàng?", isPresented: $showDeleteConfirmation) {
+                Button("Xóa", role: .destructive) {
+                    if case .edit(let product) = mode {
+                        viewModel.deleteProduct(product)
+                        dismiss()
+                    }
+                }
+                Button("Hủy", role: .cancel) { }
+            } message: {
+                if case .edit(let product) = mode {
+                    Text("Bạn có chắc muốn xóa '\(product.name)'? Hành động này không thể hoàn tác.")
                 }
             }
         }
@@ -2145,12 +2235,13 @@ struct ProductEditView: View {
     
     func save() {
         guard let priceValue = Double(price) else { return }
+        let quantityValue = Int(quantity) ?? 0
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor)
+            viewModel.createProduct(name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue)
         case .edit(let product):
-            viewModel.updateProduct(product, name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor)
+            viewModel.updateProduct(product, name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue)
         }
         dismiss()
     }
