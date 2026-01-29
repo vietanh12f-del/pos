@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-latest
     name: Build iOS and Publish GitHub Release
 
     steps:
@@ -78,7 +78,7 @@ jobs:
           xcodebuild \
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
-            -destination "platform=iOS Simulator,name=iPhone 14" \
+            -destination "platform=iOS Simulator,name=iPhone 16" \
             -derivedDataPath build \
             clean build
 
