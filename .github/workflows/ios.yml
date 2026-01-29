@@ -1,7 +1,7 @@
 name: iOS Build & Release
 
 permissions:
-  contents: write   # 🔥 REQUIRED for GitHub Releases
+  contents: write   # REQUIRED for GitHub Releases
 
 on:
   push:
@@ -21,10 +21,12 @@ jobs:
         uses: actions/checkout@v4
 
       # ---------------------------
-      # Select Xcode (Xcode 16 safe)
+      # Select Xcode (safe)
       # ---------------------------
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.4.app || true
+          xcodebuild -version
 
       # ---------------------------
       # Detect workspace/project + shared scheme
@@ -33,28 +35,21 @@ jobs:
         run: |
           set -e
 
-          # Detect workspace or project (pick ONE)
-          if find . -maxdepth 1 -name "*.xcworkspace" | grep -q .; then
+          if ls *.xcworkspace 1> /dev/null 2>&1; then
             FILETYPE="workspace"
-            FILE=$(find . -maxdepth 1 -name "*.xcworkspace" | head -n 1)
+            FILE=$(ls *.xcworkspace | head -n 1)
           else
             FILETYPE="project"
-            FILE=$(find . -maxdepth 1 -name "*.xcodeproj" | head -n 1)
+            FILE=$(ls *.xcodeproj | head -n 1)
           fi
 
           echo "Using $FILETYPE: $FILE"
 
-          # Detect shared scheme (CI-safe)
           SCHEME=$(xcodebuild -list -"$FILETYPE" "$FILE" | \
-            sed -n '/Schemes:/,$p' | \
-            tail -n +2 | \
-            sed 's/^ *//' | \
-            grep -v '^$' | \
-            head -n 1)
+            sed -n '/Schemes:/,$p' | tail -n +2 | sed 's/^ *//' | head -n 1)
 
           if [ -z "$SCHEME" ]; then
-            echo "❌ No shared scheme found."
-            echo "👉 Xcode → Product → Scheme → Manage Schemes → Share"
+            echo "❌ No shared scheme found"
             exit 1
           fi
 
@@ -65,55 +60,53 @@ jobs:
           echo "SCHEME=$SCHEME" >> $GITHUB_ENV
 
       # ---------------------------
-      # Build app (CI-safe simulator)
+      # Build app (SIMULATOR)
       # ---------------------------
-      - name: Build iOS app
+      - name: Build iOS app (Simulator)
         run: |
           set -e
-
-          echo "Building with Any iOS Simulator Device"
 
           mkdir -p build
 
-          xcodebuild \
-            -scheme "$SCHEME" \
+          xcodebuild clean build \
             -"$FILETYPE" "$FILE" \
-            -destination "platform=iOS,name=iPhone 14" \
-            -derivedDataPath build \
-            clean build
+            -scheme "$SCHEME" \
+            -destination "platform=iOS Simulator,name=iPhone 14" \
+            -derivedDataPath build
 
       # ---------------------------
-      # Package IPA (simulator build)
+      # Package app (correct way)
       # ---------------------------
-      - name: Package IPA
+      - name: Package app
         run: |
           set -e
 
-          cd build/Build/Products
-          APP=$(find . -name "*.app" | head -n 1)
+          APP_PATH=$(find build -name "*.app" | head -n 1)
 
-          if [ -z "$APP" ]; then
+          if [ -z "$APP_PATH" ]; then
             echo "❌ .app not found"
             exit 1
           fi
 
-          echo "Packaging $APP"
+          mkdir -p output
+          ditto -c -k --sequesterRsrc --keepParent \
+            "$APP_PATH" output/App.app.zip
 
-          zip -r ../../../App.ipa "$APP"
+          echo "Packaged: output/App.app.zip"
 
       # ---------------------------
-      # Publish GitHub Release (PUBLIC LINK)
+      # Publish GitHub Release
       # ---------------------------
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: iOS Build v1.0.${{ github.run_number }}
+          name: iOS Simulator Build v1.0.${{ github.run_number }}
           body: |
-            🚀 Automated iOS build
+            🚀 Automated iOS Simulator Build
 
             **Scheme:** ${{ env.SCHEME }}
             **Commit:** ${{ github.sha }}
-          files: App.ipa
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            ⚠️ Simulator build (not installable on real devices)
+          files: output/App.app.zip
