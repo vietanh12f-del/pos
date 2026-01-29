@@ -32,9 +32,9 @@ jobs:
       run: |
         set -e
         # Create variables for paths
-        CERTIFICATE_PATH=$RUNNER_TEMP/ios.p12
-        PP_PATH=$RUNNER_TEMP/ios.mobileprovision
-        KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+        CERTIFICATE_PATH=$GITHUB_ENV/ios.p12
+        PP_PATH=$GITHUB_ENV/ios.mobileprovision
+        KEYCHAIN_PATH=$GITHUB_ENV/app-signing.keychain-db
 
         # Import certificate and provisioning profile from secrets
         echo -n "$P12_BASE64" | base64 --decode -o $CERTIFICATE_PATH
