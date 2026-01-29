@@ -42,7 +42,7 @@ jobs:
           echo "FILETYPE=$FILETYPE" >> $GITHUB_ENV
           echo "FILE=$FILE" >> $GITHUB_ENV
           echo "SCHEME=$SCHEME" >> $GITHUB_ENV
-      # Build (Generic iOS Simulator)
+
       - name: Build (Generic iOS Simulator, signing disabled)
         run: |
           set -e
@@ -50,20 +50,18 @@ jobs:
           xcodebuild \
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
-            -destination "generic/platform=iOS" \
+            -destination "generic/platform=iOS Simulator" \
             -configuration Debug \
             -sdk iphonesimulator \
-            IPHONEOS_DEPLOYMENT_TARGET=16.0 \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             clean build \
             -derivedDataPath build
-      
-      # Package Simulator App (.zip)
-      - name: Package Simulator App
+
+      - name: Package Simulator App (.zip)
         run: |
           set -e
           cd build/Build/Products
-          # Prefer Debug-iphonesimulator
+          # Prefer Debug-iphonesimulator path
           APP=$(find . -type d -path "*-iphonesimulator/*.app" | head -n 1)
           if [ -z "$APP" ]; then
             APP=$(find . -name "*.app" | head -n 1)
@@ -75,31 +73,19 @@ jobs:
           echo "Found app: $APP"
           cd "$(dirname "$APP")"
           APPNAME=$(basename "$APP")
-          ZIP_NAME="${APPNAME%.app}-simulator.zip"
-          zip -r "../../../$ZIP_NAME" "$APPNAME"
+          zip -r "../../../${APPNAME%.app}-simulator.zip" "$APPNAME"
           cd -
           ls -lah ../../..
-          echo "SIM_ZIP=build/Build/Products/$ZIP_NAME" >> $GITHUB_ENV
-      
-      # Upload as Actions artifact (handy for quick downloads)
-      - name: Upload simulator app artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: kiot-simulator
-          path: ${{ env.SIM_ZIP }}
-          if-no-files-found: error
-      
-      # Publish GitHub Release (attach simulator zip)
-      - name: Publish GitHub Release
+
+      - name: Publish GitHub Release (attach simulator app zip)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: iOS Simulator Build v1.0.${{ github.run_number }}
           body: |
             🚀 Automated iOS **Simulator** build
-      
             **Scheme:** ${{ env.SCHEME }}
             **Commit:** ${{ github.sha }}
-          files: ${{ env.SIM_ZIP }}
+          files: build/Build/Products/*-simulator.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
