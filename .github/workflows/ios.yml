@@ -109,8 +109,8 @@ jobs:
     # ---------------------------
     - name: Build iOS Archive
       env:
-        TEAM_ID: YOUR_TEAM_ID_HERE
-        PROFILE_NAME: YOUR_PROFILE_NAME_HERE
+        TEAM_ID: ABCD123456
+        PROFILE_NAME: Viatris_AdHoc_Profile
       run: |
         set -e
 
