@@ -52,10 +52,10 @@ jobs:
     - name: Install Provisioning Profile
       run: |
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        UUID=$(security cms -D -i profile.mobileprovision | \
+        UUID=$(security cms -D -i ios.mobileprovision | \
           /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
 
-        cp profile.mobileprovision \
+        cp ios.mobileprovision \
           ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
     # ---------------------------
