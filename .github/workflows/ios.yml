@@ -66,30 +66,20 @@ jobs:
     #       ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
     #     echo "Installed provisioning profile UUID: $UUID"
-    - name: Install Provisioning Profile (Base64 – SAFE)
-      env:
-        IOS_MOBILEPROVISION_BASE64: ${{ secrets.IOS_MOBILEPROVISION_BASE64 }}
+    # ---------------------------
+    - name: Install Provisioning Profile
       run: |
         set -e
-    
+        cd /
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-    
-        echo "$IOS_MOBILEPROVISION_BASE64" | base64 --decode > ios.mobileprovision
-    
-        file ios.mobileprovision
-        ls -lh ios.mobileprovision
-    
+
         UUID=$(security cms -D -i ios.mobileprovision | \
           /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
-    
+
         cp ios.mobileprovision \
           ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-    
-        echo "✅ Installed provisioning profile UUID: $UUID"
 
-
-
-    # ---------------------------
+        echo "Installed provisioning profile UUID: $UUID"
     # Debug provisioning profile
     # ---------------------------
     - name: Debug provisioning profile
