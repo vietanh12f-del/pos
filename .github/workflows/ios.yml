@@ -53,19 +53,19 @@ jobs:
     # ---------------------------
     # Install provisioning profile
     # ---------------------------
-    # - name: Install Provisioning Profile
-    #   run: |
-    #     set -e
+     - name: Install Provisioning Profile
+       run: |
+         set -e
 
-    #     mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
 
-    #     UUID=$(security cms -D -i ios.mobileprovision | \
-    #       /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
+         UUID=$(security cms -D -i ios.mobileprovision | \
+           /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
 
-    #     cp ios.mobileprovision \
-    #       ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+         cp ios.mobileprovision \
+           ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
-    #     echo "Installed provisioning profile UUID: $UUID"
+         echo "Installed provisioning profile UUID: $UUID"
 
     # ---------------------------
     # Debug provisioning profile (IMPORTANT)
@@ -109,11 +109,11 @@ jobs:
     # ---------------------------
     - name: Build iOS Archive
       env:
-        TEAM_ID: ABCD123456
-        PROFILE_NAME: Viatris_AdHoc_Profile
+        TEAM_ID: 68SXA5MV6R
+        PROFILE_NAME: MyforceUAT
       run: |
         set -e
-
+    
         xcodebuild \
           -scheme "$SCHEME" \
           -"$FILETYPE" "$FILE" \
@@ -122,10 +122,9 @@ jobs:
           -archivePath build/App.xcarchive \
           clean archive \
           CODE_SIGN_STYLE=Manual \
-          CODE_SIGN_IDENTITY="Apple Distribution" \
+          CODE_SIGN_IDENTITY="Apple Distribution: Viatris Inc" \
           PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
           DEVELOPMENT_TEAM="$TEAM_ID"
-
     # ---------------------------
     # Export IPA
     # ---------------------------
