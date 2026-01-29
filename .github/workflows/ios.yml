@@ -51,24 +51,24 @@ jobs:
           -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
     # ---------------------------
-    # Install provisioning profile
+    # Install provisioning profile (ios.mobileprovision)
     # ---------------------------
-     - name: Install Provisioning Profile
-       run: |
-         set -e
+    - name: Install Provisioning Profile
+      run: |
+        set -e
 
-         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
 
-         UUID=$(security cms -D -i ios.mobileprovision | \
-           /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
+        UUID=$(security cms -D -i ios.mobileprovision | \
+          /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
 
-         cp ios.mobileprovision \
-           ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+        cp ios.mobileprovision \
+          ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
-         echo "Installed provisioning profile UUID: $UUID"
+        echo "Installed provisioning profile UUID: $UUID"
 
     # ---------------------------
-    # Debug provisioning profile (IMPORTANT)
+    # Debug provisioning profile
     # ---------------------------
     - name: Debug provisioning profile
       run: |
@@ -113,7 +113,7 @@ jobs:
         PROFILE_NAME: MyforceUAT
       run: |
         set -e
-    
+
         xcodebuild \
           -scheme "$SCHEME" \
           -"$FILETYPE" "$FILE" \
@@ -125,6 +125,7 @@ jobs:
           CODE_SIGN_IDENTITY="Apple Distribution: Viatris Inc" \
           PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
           DEVELOPMENT_TEAM="$TEAM_ID"
+
     # ---------------------------
     # Export IPA
     # ---------------------------
