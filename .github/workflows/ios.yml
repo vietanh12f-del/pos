@@ -78,7 +78,7 @@ jobs:
           xcodebuild \
             -scheme "$SCHEME" \
             -"$FILETYPE" "$FILE" \
-            -destination "platform=iOS Simulator,name=iPhone 14" \
+            -destination "platform=iOS Simulator,name=iPhone SE" \
             -derivedDataPath build \
             clean build
 
