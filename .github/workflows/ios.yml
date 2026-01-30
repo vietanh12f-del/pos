@@ -74,6 +74,7 @@ jobs:
         /usr/libexec/PlistBuddy -c "Print :Name" profile.plist
         /usr/libexec/PlistBuddy -c "Print :UUID" profile.plist
         /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist
+        openssl pkcs12 -info -in ios.p12 -passin pass:1234
     - name: Validate provisioning profile
       run: |
         file ios.mobileprovision
