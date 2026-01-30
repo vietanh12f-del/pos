@@ -42,7 +42,7 @@ jobs:
 
         security import ios.p12 \
           -k build.keychain \
-          -P "1" \
+          -P "1234" \
           -T /usr/bin/codesign
 
         security list-keychains -d user -s build.keychain
