@@ -50,6 +50,8 @@ jobs:
         security set-key-partition-list \
           -S apple-tool:,apple: \
           -s -k "$KEYCHAIN_PASSWORD" build.keychain
+        security find-identity -p codesigning build.keychain
+
 
     # ---------------------------
     # Install provisioning profile (ios.mobileprovision)
