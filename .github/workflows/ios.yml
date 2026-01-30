@@ -31,7 +31,7 @@ jobs:
     # ---------------------------
     - name: Import iOS Certificate
       env:
-        P12_PASSWORD: hydrogen
+        P12_PASSWORD: 123456
         KEYCHAIN_PASSWORD: temp_pass
       run: |
         set -e
