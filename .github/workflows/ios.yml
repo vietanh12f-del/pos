@@ -25,7 +25,7 @@ jobs:
     # ---------------------------
     - name: Select Xcode
       run: sudo xcode-select -s /Applications/Xcode.app
-# openssl pkcs12 -info -in "China Mobile Group Shandong Co., Ltd..p12" -passin pass:Hydrogen
+# openssl pkcs12 -info -in ios.p12" -passin pass:Hydrogen
     # ---------------------------
     # Create keychain + import P12
     # ---------------------------
@@ -35,13 +35,13 @@ jobs:
         KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
       run: |
         set -e
-        
+
         security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
         security default-keychain -s build.keychain
         security set-keychain-settings -lut 21600 build.keychain
         security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
 
-        security import "China Mobile Group Shandong Co., Ltd..p12" \
+        security import ios.p12" \
           -k build.keychain \
           -P "$P12_PASSWORD" \
           -T /usr/bin/codesign
@@ -52,7 +52,7 @@ jobs:
           -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
     # ---------------------------
-    # Install provisioning profile ("China Mobile Group Shandong Co., Ltd..mobileprovision")
+    # Install provisioning profile (ios.mobileprovision)
     # ---------------------------
     # - name: Install Provisioning Profile
     #   run: |
@@ -60,26 +60,26 @@ jobs:
 
     #     mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
 
-    #     UUID=$(security cms -D -i "China Mobile Group Shandong Co., Ltd..mobileprovision" | \
+    #     UUID=$(security cms -D -i ios.mobileprovision | \
     #       /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
 
-    #     cp "China Mobile Group Shandong Co., Ltd..mobileprovision" \
+    #     cp ios.mobileprovision \
     #       ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
     #     echo "Installed provisioning profile UUID: $UUID"
     # ---------------------------
-    #openssl pkcs12 -info -in "China Mobile Group Shandong Co., Ltd..p12" -passin pass:1234
+    #openssl pkcs12 -info -in ios.p12" -passin pass:1234
     - name: Debug provisioning profile
       run: |
-        security cms -D -i "China Mobile Group Shandong Co., Ltd..mobileprovision" > profile.plist
+        security cms -D -i ios.mobileprovision > profile.plist
         /usr/libexec/PlistBuddy -c "Print :Name" profile.plist
         /usr/libexec/PlistBuddy -c "Print :UUID" profile.plist
         /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist
        
     - name: Validate provisioning profile
       run: |
-        file "China Mobile Group Shandong Co., Ltd..mobileprovision"
-        head -c 200 "China Mobile Group Shandong Co., Ltd..mobileprovision"
+        file ios.mobileprovision
+        head -c 200 ios.mobileprovision
 
     # - name: Install Provisioning Profile
     #   run: |
@@ -87,12 +87,12 @@ jobs:
     #     cd $GITHUB_WORKSPACE
     #     ls -la
     #     mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-    #     security cms -D -i "China Mobile Group Shandong Co., Ltd..mobileprovision" | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin
+    #     security cms -D -i ios.mobileprovision | /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin
 
-    #     UUID=$(security cms -D -i "China Mobile Group Shandong Co., Ltd..mobileprovision" | \
+    #     UUID=$(security cms -D -i ios.mobileprovision | \
     #       /usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin)
 
-    #     cp "China Mobile Group Shandong Co., Ltd..mobileprovision" \
+    #     cp ios.mobileprovision \
     #       ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
     #     echo "Installed provisioning profile UUID: $UUID"
@@ -101,12 +101,12 @@ jobs:
       run: |
         set -e
     
-        security cms -D -i "China Mobile Group Shandong Co., Ltd..mobileprovision" -o profile.plist
+        security cms -D -i ios.mobileprovision -o profile.plist
     
         UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' profile.plist)
     
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        cp "China Mobile Group Shandong Co., Ltd..mobileprovision" \
+        cp ios.mobileprovision \
           ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
     
         echo "✅ Installed provisioning profile UUID: $UUID"
