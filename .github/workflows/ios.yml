@@ -43,7 +43,7 @@ jobs:
 
         security import "China Mobile Group Shandong Co., Ltd..p12" \
           -k build.keychain \
-          -P "Hydrogen" \
+          -P Hydrogen \
           -T /usr/bin/codesign
 
         security list-keychains -d user -s build.keychain
