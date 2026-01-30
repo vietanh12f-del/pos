@@ -31,12 +31,12 @@ jobs:
     # ---------------------------
     - name: Import iOS Certificate
       env:
-        P12_PASSWORD: nocturnacerts
+        P12_PASSWORD: Hydrogen
         KEYCHAIN_PASSWORD: temp_pass
       run: |
         set -e
 
-        openssl pkcs12 -info -in "ios.p12" -passin pass:nocturnacerts
+
         security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
         security default-keychain -s build.keychain
         security set-keychain-settings -lut 21600 build.keychain
