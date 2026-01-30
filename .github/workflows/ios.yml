@@ -25,7 +25,7 @@ jobs:
     # ---------------------------
     - name: Select Xcode
       run: sudo xcode-select -s /Applications/Xcode.app
-# openssl pkcs12 -info -in ios.p12" -passin pass:Hydrogen
+# openssl pkcs12 -info -in "ios.p12" -passin pass:Hydrogen
     # ---------------------------
     # Create keychain + import P12
     # ---------------------------
@@ -36,7 +36,7 @@ jobs:
       run: |
         set -e
 
-        openssl pkcs12 -info -in ios.p12" -passin pass:nocturnacerts
+        openssl pkcs12 -info -in "ios.p12" -passin pass:nocturnacerts
         security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
         security default-keychain -s build.keychain
         security set-keychain-settings -lut 21600 build.keychain
