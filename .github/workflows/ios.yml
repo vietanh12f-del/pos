@@ -31,7 +31,7 @@ jobs:
     # ---------------------------
     - name: Import iOS Certificate
       env:
-        P12_PASSWORD: 123456
+        P12_PASSWORD: 123456789
         KEYCHAIN_PASSWORD: temp_pass
       run: |
         set -e
@@ -44,7 +44,7 @@ jobs:
 
         security import "ios.p12" \
           -k build.keychain \
-          -P "123456" \
+          -P "123456789" \
           -T /usr/bin/codesign
 
         security list-keychains -d user -s build.keychain
