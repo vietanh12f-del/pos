@@ -161,7 +161,7 @@ jobs:
           -archivePath build/App.xcarchive \
           clean archive \
           CODE_SIGN_STYLE=Manual \
-          CODE_SIGN_IDENTITY="China Continent Property & Casualty Insurance Company Ltd" \
+          CODE_SIGN_IDENTITY="iPhone Distribution: China Continent Property & Casualty Insurance Company Ltd." \
           PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
           DEVELOPMENT_TEAM="$TEAM_ID"
 
