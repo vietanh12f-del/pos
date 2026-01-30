@@ -67,6 +67,12 @@ jobs:
 
     #     echo "Installed provisioning profile UUID: $UUID"
     # ---------------------------
+    - name: Debug provisioning profile
+      run: |
+        security cms -D -i ios.mobileprovision > profile.plist
+        /usr/libexec/PlistBuddy -c "Print :Name" profile.plist
+        /usr/libexec/PlistBuddy -c "Print :UUID" profile.plist
+        /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist
     - name: Validate provisioning profile
       run: |
         file ios.mobileprovision
@@ -104,12 +110,6 @@ jobs:
 
     # Debug provisioning profile
     # ---------------------------
-    - name: Debug provisioning profile
-      run: |
-        security cms -D -i ios.mobileprovision > profile.plist
-        /usr/libexec/PlistBuddy -c "Print :Name" profile.plist
-        /usr/libexec/PlistBuddy -c "Print :UUID" profile.plist
-        /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist
 
     # ---------------------------
     # Detect workspace / project + scheme
