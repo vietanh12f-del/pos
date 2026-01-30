@@ -149,8 +149,8 @@ jobs:
     # ---------------------------
     - name: Build iOS Archive
       env:
-        TEAM_ID: 4UQW3F89X2
-        PROFILE_NAME: NewFKApp_Dis_20240613
+        TEAM_ID: 2M6M6BW775
+        PROFILE_NAME: a
       run: |
         set -e
 
@@ -212,8 +212,8 @@ jobs:
           <string>manual</string>
           <key>provisioningProfiles</key>
           <dict>
-            <key>com.stream.fmc.ccic.kiot</key>
-            <string>NewFKApp_Dis_20240613</string>
+            <key>a.export.kiot</key>
+            <string>a</string>
           </dict>
           <key>compileBitcode</key>
           <false/>
