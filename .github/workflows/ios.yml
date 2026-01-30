@@ -209,7 +209,7 @@ jobs:
           <string>manual</string>
           <key>provisioningProfiles</key>
           <dict>
-            <key>com.anaranar.YOUR_APP</key>
+            <key>com.anaranar.kiot</key>
             <string>export_anar</string>
           </dict>
           <key>compileBitcode</key>
