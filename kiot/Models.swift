@@ -53,6 +53,8 @@ struct Product: Identifiable, Hashable, Codable {
     let category: String
     let imageName: String
     let color: String
+    var imageData: Data?
+    var stockQuantity: Int = 0
 }
 
 enum Category: String, CaseIterable, Codable {
@@ -68,4 +70,29 @@ enum Category: String, CaseIterable, Codable {
     var displayName: String {
         return self.rawValue
     }
+}
+
+struct Employee: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var name: String
+    var phoneNumber: String
+    var avatar: String // URL or image name
+    var isOnline: Bool
+    var role: String
+}
+
+struct ChatMessage: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var senderId: UUID
+    var text: String
+    var timestamp: Date
+    var isRead: Bool
+}
+
+struct ChatConversation: Identifiable, Codable, Hashable {
+    var id = UUID()
+    var employeeId: UUID
+    var lastMessage: String
+    var lastMessageTime: Date
+    var unreadCount: Int
 }

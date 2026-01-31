@@ -1,6 +1,7 @@
 import SwiftUI
 import Vision
 import PhotosUI
+import UIKit
 
 struct InvoiceScannerView: View {
     @ObservedObject var viewModel: OrderViewModel
@@ -10,6 +11,8 @@ struct InvoiceScannerView: View {
     @State private var recognizedItems: [RestockItem] = []
     @State private var isScanning = false
     @State private var errorMessage: String?
+    @State private var showCamera = false
+    @State private var capturedImage: UIImage?
     
     var body: some View {
         NavigationStack {
@@ -29,17 +32,38 @@ struct InvoiceScannerView: View {
                             .foregroundStyle(.gray)
                             .padding(.horizontal)
                         
-                        PhotosPicker(selection: $selectedItem, matching: .images) {
-                            HStack {
-                                Image(systemName: "photo")
-                                Text("Chọn ảnh từ thư viện")
+                        HStack(spacing: 16) {
+                            Button(action: {
+                                showCamera = true
+                            }) {
+                                VStack {
+                                    Image(systemName: "camera.fill")
+                                        .font(.title)
+                                    Text("Chụp ảnh")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 80)
+                                .background(Color.themePrimary)
+                                .foregroundStyle(.white)
+                                .cornerRadius(12)
                             }
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.themePrimary)
-                            .cornerRadius(12)
+                            
+                            PhotosPicker(selection: $selectedItem, matching: .images) {
+                                VStack {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.title)
+                                    Text("Thư viện")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 80)
+                                .background(Color.gray.opacity(0.1))
+                                .foregroundStyle(Color.themePrimary)
+                                .cornerRadius(12)
+                            }
                         }
                         .padding(.horizontal)
                     }
@@ -97,6 +121,16 @@ struct InvoiceScannerView: View {
                 if let newItem {
                     scanImage(newItem)
                 }
+            }
+            .onChange(of: capturedImage) { newImage in
+                if let newImage {
+                    isScanning = true
+                    recognizeText(from: newImage)
+                }
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                ImagePicker(image: $capturedImage)
+                    .ignoresSafeArea()
             }
             .alert("Lỗi", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
                 Button("OK", role: .cancel) { }
@@ -244,5 +278,43 @@ struct InvoiceScannerView: View {
             viewModel.addRestockItem(item.name, unitPrice: item.unitPrice, quantity: item.quantity)
         }
         dismiss()
+    }
+}
+
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    var sourceType: UIImagePickerController.SourceType = .camera
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = sourceType
+        picker.delegate = context.coordinator
+        picker.allowsEditing = false
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let uiImage = info[.originalImage] as? UIImage {
+                parent.image = uiImage
+            }
+            picker.dismiss(animated: true)
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+        }
     }
 }

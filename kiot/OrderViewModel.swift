@@ -46,6 +46,18 @@ class OrderViewModel: ObservableObject {
         return products.filter { $0.category == selectedCategory.rawValue }
     }
     
+    // Smart Suggestion
+    @Published var searchText: String = ""
+    
+    var searchSuggestions: [Product] {
+        if searchText.isEmpty { return [] }
+        let lowerText = searchText.lowercased()
+        return products.filter { 
+            $0.name.lowercased().contains(lowerText) || 
+            $0.category.lowercased().contains(lowerText)
+        }
+    }
+    
     func addProduct(_ product: Product) {
         if let index = items.firstIndex(where: { $0.name == product.name && $0.price == product.price && $0.systemImage == product.imageName }) {
             items[index].quantity += 1
@@ -58,36 +70,17 @@ class OrderViewModel: ObservableObject {
     @Published var speechRecognizer = SpeechRecognizer()
     private var cancellables = Set<AnyCancellable>()
     
+    // Database Service
+    private let database: DatabaseService = SupabaseDatabaseService()
+    
+    // Connection Status
+    @Published var isDatabaseConnected: Bool = false
+    @Published var databaseError: String? = nil
+    
     init() {
-        if let saved = UserDefaults.standard.dictionary(forKey: "PriceHistory") as? [String: Double] {
-            priceHistory = saved
-        }
-        
-        if let savedInventory = UserDefaults.standard.dictionary(forKey: "Inventory") as? [String: Int] {
-            inventory = savedInventory
-        }
-        
-        if let savedProductsData = UserDefaults.standard.data(forKey: "Products"),
-           let decodedProducts = try? JSONDecoder().decode([Product].self, from: savedProductsData) {
-            products = decodedProducts
-        }
-        
-        // Ensure inventory keys exist for all products
-        for product in products {
-            let key = product.name.lowercased()
-            if inventory[key] == nil {
-                inventory[key] = 0
-            }
-        }
-        
-        if let savedOrdersData = UserDefaults.standard.data(forKey: "PastOrders"),
-           let decodedOrders = try? JSONDecoder().decode([Bill].self, from: savedOrdersData) {
-            pastOrders = decodedOrders
-        }
-        
-        if let savedRestockData = UserDefaults.standard.data(forKey: "RestockHistory"),
-           let decodedRestock = try? JSONDecoder().decode([RestockBill].self, from: savedRestockData) {
-            restockHistory = decodedRestock
+        // Load data from Database
+        Task {
+            await loadData()
         }
         
         // Recalculate stats
@@ -132,6 +125,44 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    @MainActor
+    func loadData() async {
+        do {
+            async let fetchedProducts = database.fetchProducts()
+            async let fetchedOrders = database.fetchOrders()
+            async let fetchedRestock = database.fetchRestockHistory()
+            async let fetchedPriceHistory = database.fetchPriceHistory()
+            
+            let (prods, orders, restocks, prices) = try await (fetchedProducts, fetchedOrders, fetchedRestock, fetchedPriceHistory)
+            
+            self.products = prods
+            self.pastOrders = orders
+            self.restockHistory = restocks
+            self.priceHistory = prices
+            
+            // Sync inventory dictionary from products
+            self.inventory = [:]
+            for product in prods {
+                self.inventory[product.name.lowercased()] = product.stockQuantity
+            }
+            
+            recalculateStats()
+            
+            if database.isMock {
+                print("⚠️ Running in Mock Mode (Supabase not installed)")
+                self.isDatabaseConnected = false
+                self.databaseError = "Chưa cài đặt Supabase Package"
+            } else {
+                self.isDatabaseConnected = true
+                self.databaseError = nil
+            }
+        } catch {
+            print("Error loading data: \(error)")
+            self.isDatabaseConnected = false
+            self.databaseError = error.localizedDescription
+        }
+    }
+    
     var suggestedItems: [String] {
         return priceHistory.keys.sorted()
     }
@@ -155,7 +186,14 @@ class OrderViewModel: ObservableObject {
                 // Update history if price is valid
                 if item.price > 0 {
                     priceHistory[item.name.lowercased()] = item.price
-                    saveHistory()
+                    
+                    Task {
+                    do {
+                        try await database.upsertPriceHistory(name: item.name.lowercased(), price: item.price)
+                    } catch {
+                        print("❌ Error updating price history: \(error)")
+                    }
+                }
                 }
             }
         }
@@ -207,14 +245,6 @@ class OrderViewModel: ObservableObject {
             }
         }
         currentInput = ""
-    }
-    
-    private func saveHistory() {
-        UserDefaults.standard.set(priceHistory, forKey: "PriceHistory")
-    }
-    
-    private func saveInventory() {
-        UserDefaults.standard.set(inventory, forKey: "Inventory")
     }
     
     func stockLevel(for name: String) -> Int {
@@ -271,16 +301,39 @@ class OrderViewModel: ObservableObject {
         // Create bill
         if let bill = makeBill() {
             pastOrders.insert(bill, at: 0) // Newest first
-            saveOrders()
+            
+            // Save Order to DB
+            Task {
+                do {
+                    try await database.saveOrder(bill)
+                } catch {
+                    print("❌ Error saving order: \(error)")
+                }
+            }
             
             // Deduct from Inventory
             for item in bill.items {
                 let key = item.name.lowercased()
                 if let current = inventory[key] {
-                    inventory[key] = max(0, current - item.quantity)
+                    let newQuantity = max(0, current - item.quantity)
+                    inventory[key] = newQuantity
+                    
+                    // Update Product in DB
+                    if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
+                        var product = products[index]
+                        product.stockQuantity = newQuantity
+                        products[index] = product
+                        
+                        Task {
+                            do {
+                                try await database.updateProduct(product)
+                            } catch {
+                                print("❌ Error updating product stock: \(error)")
+                            }
+                        }
+                    }
                 }
             }
-            saveInventory()
             
             // Update stats
                 recalculateStats()
@@ -323,27 +376,36 @@ class OrderViewModel: ObservableObject {
         
         restockHistory.insert(bill, at: 0)
         
+        Task {
+            do {
+                try await database.saveRestockBill(bill)
+            } catch {
+                print("❌ Error saving restock bill: \(error)")
+            }
+        }
+        
         // Update Inventory & Catalog
         for item in restockItems {
             let key = item.name.lowercased()
             let current = inventory[key] ?? 0
-            inventory[key] = current + item.quantity
+            let newQuantity = current + item.quantity
+            inventory[key] = newQuantity
             
             // Auto-add to products if not exists OR update if needed
             // Check case-insensitive
             if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
-                // Product exists. Do we update anything?
-                // User asked: "update items in stock is not update in new order items"
-                // Maybe they want the price to update?
-                // But sales price != cost price.
-                // However, often users want to see the item "Available" or refreshed.
-                // If the inventory was 0 and now is > 0, it should just work via stockLevel check.
-                // But let's trigger a refresh by ensuring persistence.
+                // Product exists. Update stock
+                var product = products[index]
+                product.stockQuantity = newQuantity
+                products[index] = product
                 
-                // OPTIONAL: If the sales price is 0 (placeholder), maybe update it?
-                // Let's NOT overwrite sales price with cost price unless explicitly requested, 
-                // as that ruins profit margins.
-                // BUT, we must ensure the product is "active".
+                Task {
+                    do {
+                        try await database.updateProduct(product)
+                    } catch {
+                        print("❌ Error updating product from restock: \(error)")
+                    }
+                }
             } else {
                 // New Product
                 // Determine category? Default to Others or Flowers if name contains flower keywords
@@ -360,15 +422,21 @@ class OrderViewModel: ObservableObject {
                     price: item.unitPrice * 1.3, // Suggest a markup? Or just use unitPrice? Let's use unitPrice for now as baseline.
                     category: cat.rawValue,
                     imageName: "shippingbox.fill", // Default icon
-                    color: "gray"
+                    color: "gray",
+                    stockQuantity: newQuantity
                 )
                 products.append(newProduct)
+                
+                Task {
+                    do {
+                        try await database.saveProduct(newProduct)
+                    } catch {
+                        print("❌ Error saving new product from restock: \(error)")
+                    }
+                }
             }
         }
         
-        saveRestockHistory()
-        saveInventory()
-        saveProducts()
         recalculateStats()
         
         restockItems.removeAll()
@@ -382,13 +450,31 @@ class OrderViewModel: ObservableObject {
             for item in bill.items {
                 let key = item.name.lowercased()
                 if let current = inventory[key] {
-                    inventory[key] = max(0, current - item.quantity)
+                    let newQuantity = max(0, current - item.quantity)
+                    inventory[key] = newQuantity
+                    
+                    // Update Product
+                    if let pIndex = products.firstIndex(where: { $0.name.lowercased() == key }) {
+                        var p = products[pIndex]
+                        p.stockQuantity = newQuantity
+                        products[pIndex] = p
+                        Task { 
+                            do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
+                        }
+                    }
                 }
             }
             
             restockHistory.remove(at: index)
-            saveRestockHistory()
-            saveInventory()
+            
+            Task {
+                do {
+                    try await database.deleteRestockBill(bill.id)
+                } catch {
+                    print("❌ Error deleting restock bill: \(error)")
+                }
+            }
+            
             recalculateStats()
         }
     }
@@ -402,32 +488,34 @@ class OrderViewModel: ObservableObject {
         isRestockMode = true
     }
     
-    private func saveRestockHistory() {
-        if let encoded = try? JSONEncoder().encode(restockHistory) {
-            UserDefaults.standard.set(encoded, forKey: "RestockHistory")
-        }
-    }
-    
     // MARK: - Product Catalog Management
     
-    func createProduct(name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int) {
+    func createProduct(name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil) {
         let newProduct = Product(
             id: UUID(),
             name: name,
             price: price,
             category: category.rawValue,
             imageName: imageName,
-            color: color
+            color: color,
+            imageData: imageData,
+            stockQuantity: quantity
         )
         products.append(newProduct)
-        saveProducts()
+        
+        Task {
+            do {
+                try await database.saveProduct(newProduct)
+            } catch {
+                print("❌ Error saving new product: \(error)")
+            }
+        }
         
         // Initialize inventory
         inventory[name.lowercased()] = quantity
-        saveInventory()
     }
     
-    func updateProduct(_ product: Product, name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int) {
+    func updateProduct(_ product: Product, name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil) {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             // Handle Name Change for Inventory
             let oldKey = product.name.lowercased()
@@ -439,7 +527,6 @@ class OrderViewModel: ObservableObject {
             
             // Update Inventory
             inventory[newKey] = quantity
-            saveInventory()
             
             let updatedProduct = Product(
                 id: product.id,
@@ -447,10 +534,19 @@ class OrderViewModel: ObservableObject {
                 price: price,
                 category: category.rawValue,
                 imageName: imageName,
-                color: color
+                color: color,
+                imageData: imageData,
+                stockQuantity: quantity
             )
             products[index] = updatedProduct
-            saveProducts()
+            
+            Task {
+                do {
+                    try await database.updateProduct(updatedProduct)
+                } catch {
+                    print("❌ Error updating product: \(error)")
+                }
+            }
         }
     }
     
@@ -458,21 +554,31 @@ class OrderViewModel: ObservableObject {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             // Remove inventory
             inventory.removeValue(forKey: product.name.lowercased())
-            saveInventory()
             
             products.remove(at: index)
-            saveProducts()
+            
+            Task {
+                do {
+                    try await database.deleteProduct(product.id)
+                } catch {
+                    print("❌ Error deleting product: \(error)")
+                }
+            }
         }
     }
     
     func deleteProducts(at offsets: IndexSet) {
+        let productsToDelete = offsets.map { products[$0] }
         products.remove(atOffsets: offsets)
-        saveProducts()
-    }
-
-    private func saveProducts() {
-        if let encoded = try? JSONEncoder().encode(products) {
-            UserDefaults.standard.set(encoded, forKey: "Products")
+        
+        Task {
+            for product in productsToDelete {
+                do {
+                    try await database.deleteProduct(product.id)
+                } catch {
+                    print("❌ Error deleting product batch: \(error)")
+                }
+            }
         }
     }
     
@@ -496,7 +602,17 @@ class OrderViewModel: ObservableObject {
         // Replace in history
         if let index = pastOrders.firstIndex(where: { $0.id == originalBill.id }) {
             pastOrders[index] = updatedBill
-            saveOrders()
+            
+            Task {
+                // Delete old and save new
+                do {
+                    try await database.deleteOrder(originalBill.id)
+                    try await database.saveOrder(updatedBill)
+                } catch {
+                    print("❌ Error saving edited order: \(error)")
+                }
+            }
+            
             recalculateStats()
         }
         
@@ -512,21 +628,26 @@ class OrderViewModel: ObservableObject {
     func deleteOrder(_ bill: Bill) {
         if let index = pastOrders.firstIndex(where: { $0.id == bill.id }) {
             pastOrders.remove(at: index)
-            saveOrders()
+            
+            Task {
+                try? await database.deleteOrder(bill.id)
+            }
+            
             recalculateStats()
         }
     }
     
     func deleteOrder(at offsets: IndexSet) {
+        let ordersToDelete = offsets.map { pastOrders[$0] }
         pastOrders.remove(atOffsets: offsets)
-        saveOrders()
-        recalculateStats()
-    }
-
-    private func saveOrders() {
-        if let encoded = try? JSONEncoder().encode(pastOrders) {
-            UserDefaults.standard.set(encoded, forKey: "PastOrders")
+        
+        Task {
+            for order in ordersToDelete {
+                try? await database.deleteOrder(order.id)
+            }
         }
+        
+        recalculateStats()
     }
     
     func reset() {

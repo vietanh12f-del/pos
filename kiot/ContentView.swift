@@ -13,8 +13,16 @@ extension Color {
 
 struct ContentView: View {
     @StateObject private var viewModel = OrderViewModel()
+    @StateObject private var tabBarManager = CustomTabBarManager()
     @State private var selectedTab: Int = 0
     @State private var showNewOrder: Bool = false
+    @State private var isTabBarVisible: Bool = true
+    @State private var showEditTabBar: Bool = false
+    
+    init() {
+        // Hide default TabBar
+        UITabBar.appearance().isHidden = true
+    }
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -34,54 +42,88 @@ struct ContentView: View {
                 
                 SettingsView(viewModel: viewModel)
                     .tag(4)
+                
+                ChatView(isTabBarVisible: $isTabBarVisible)
+                    .tag(5)
             }
             .accentColor(.themePrimary)
             
             // Custom Tab Bar Overlay
-            VStack {
-                Spacer()
-                
-                ZStack(alignment: .top) {
-                    // Tab Bar Background
-                    HStack {
-                        TabItem(icon: "house.fill", title: "Trang chủ", isSelected: selectedTab == 0) { selectedTab = 0 }
-                        Spacer()
-                        TabItem(icon: "list.clipboard.fill", title: "Đơn hàng", isSelected: selectedTab == 1) { selectedTab = 1 }
-                        
-                        Spacer()
-                            .frame(width: 60) // Space for FAB
-                        
-                        Spacer()
-                        TabItem(icon: "archivebox.fill", title: "Kho", isSelected: selectedTab == 3) { selectedTab = 3 }
-                        Spacer()
-                        TabItem(icon: "cube.box.fill", title: "Hàng hóa", isSelected: selectedTab == 4) { selectedTab = 4 }
-                    }
-                    .padding(.horizontal, 24)
-                    .frame(height: 72)
-                    .background(Color.white)
-                    .cornerRadius(36)
-                    .shadow(color: Color.black.opacity(0.1), radius: 15, x: 0, y: 5)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+            if isTabBarVisible {
+                VStack {
+                    Spacer()
                     
-                    // FAB
-                    Button(action: { showNewOrder = true }) {
-                        Circle()
-                            .fill(Color.themePrimary)
-                            .frame(width: 64, height: 64)
-                            .shadow(color: Color.themePrimary.opacity(0.4), radius: 10, x: 0, y: 5)
-                            .overlay(
-                                Image(systemName: "plus")
-                                    .font(.system(size: 28, weight: .bold))
-                                    .foregroundStyle(Color.themeTextDark)
-                            )
+                    ZStack(alignment: .top) {
+                        // Tab Bar Background
+                        HStack {
+                            let tabs = tabBarManager.activeTabs
+                            let mid = (tabs.count + 1) / 2
+                            let leftTabs = Array(tabs.prefix(mid))
+                            let rightTabs = Array(tabs.suffix(tabs.count - mid))
+                            
+                            // Left Side
+                            ForEach(Array(leftTabs.enumerated()), id: \.element.id) { index, tab in
+                                TabItem(icon: tab.type.icon, title: tab.type.rawValue, isSelected: selectedTab == tab.type.tagIndex) {
+                                    selectedTab = tab.type.tagIndex
+                                }
+                                if index < leftTabs.count - 1 {
+                                    Spacer()
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            // Space for FAB
+                            Color.clear.frame(width: 60)
+                            
+                            Spacer()
+                            
+                            // Right Side
+                            ForEach(Array(rightTabs.enumerated()), id: \.element.id) { index, tab in
+                                TabItem(icon: tab.type.icon, title: tab.type.rawValue, isSelected: selectedTab == tab.type.tagIndex) {
+                                    selectedTab = tab.type.tagIndex
+                                }
+                                if index < rightTabs.count - 1 {
+                                    Spacer()
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 12) // Reduced padding for better fit
+                        .frame(height: 72)
+                        .background(Color.white)
+                        .cornerRadius(36)
+                        .shadow(color: Color.black.opacity(0.1), radius: 15, x: 0, y: 5)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+                        .onLongPressGesture {
+                            let generator = UIImpactFeedbackGenerator(style: .heavy)
+                            generator.impactOccurred()
+                            showEditTabBar = true
+                        }
+                        
+                        // FAB
+                        Button(action: { showNewOrder = true }) {
+                            Circle()
+                                .fill(Color.themePrimary)
+                                .frame(width: 64, height: 64)
+                                .shadow(color: Color.themePrimary.opacity(0.4), radius: 10, x: 0, y: 5)
+                                .overlay(
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 28, weight: .bold))
+                                        .foregroundStyle(Color.themeTextDark)
+                                )
+                        }
+                        .offset(y: -28)
                     }
-                    .offset(y: -28)
                 }
+                .transition(.move(edge: .bottom))
             }
         }
         .fullScreenCover(isPresented: $showNewOrder) {
             SmartOrderEntryView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showEditTabBar) {
+            EditTabBarView(tabBarManager: tabBarManager)
         }
         .onChange(of: viewModel.editingBill) { bill in
             if bill != nil {
@@ -115,10 +157,12 @@ struct TabItem: View {
                         .font(.caption2)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.themePrimary)
+                        .lineLimit(1)
+                        .fixedSize()
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .frame(width: 50)
+            .frame(width: isSelected ? 70 : 50) // Expand width when selected
             .animation(.easeInOut(duration: 0.2), value: isSelected)
         }
     }
@@ -143,9 +187,23 @@ struct HomeDashboardView: View {
                         .overlay(Image(systemName: "person.fill").foregroundStyle(.gray))
                     
                     VStack(alignment: .leading) {
-                        Text("Kiot Hoa")
-                            .font(.headline)
-                            .foregroundStyle(Color.themeTextDark)
+                        HStack(spacing: 6) {
+                            Text("Kiot Hoa")
+                                .font(.headline)
+                                .foregroundStyle(Color.themeTextDark)
+                            
+                            // Database Status
+                            if viewModel.isDatabaseConnected {
+                                Image(systemName: "icloud.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.green)
+                            } else {
+                                Image(systemName: "exclamationmark.icloud.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                        
                         Text(currentDateString())
                             .font(.caption)
                             .foregroundStyle(.gray)
@@ -395,36 +453,115 @@ struct SmartOrderEntryView: View {
     @State private var customizingProduct: Product?
     @State private var showStockWarning = false
     @State private var stockWarnings: [String] = []
+    @State private var showSearch = false
     @Namespace private var namespace
     
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 // Header
-                HStack {
-                    Button(action: {
-                        if viewModel.editingBill != nil {
-                            viewModel.cancelEditing()
+                VStack(spacing: 0) {
+                    HStack {
+                        Button(action: {
+                            if viewModel.editingBill != nil {
+                                viewModel.cancelEditing()
+                            }
+                            dismiss()
+                        }) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 20))
+                                .foregroundStyle(Color.themeTextDark)
                         }
-                        dismiss()
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 20))
+                        Spacer()
+                        Text(viewModel.editingBill != nil ? "Sửa đơn hàng" : "Tạo đơn mới")
+                            .font(.headline)
                             .foregroundStyle(Color.themeTextDark)
+                        Spacer()
+                        Button(action: { 
+                            withAnimation { showSearch.toggle() }
+                            if !showSearch {
+                                viewModel.searchText = ""
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            }
+                        }) {
+                            Image(systemName: showSearch ? "chevron.up" : "magnifyingglass")
+                                .font(.system(size: 20))
+                                .foregroundStyle(Color.themeTextDark)
+                        }
                     }
-                    Spacer()
-                    Text(viewModel.editingBill != nil ? "Sửa đơn hàng" : "Tạo đơn mới")
-                        .font(.headline)
-                        .foregroundStyle(Color.themeTextDark)
-                    Spacer()
-                    Button(action: {}) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 20))
-                            .foregroundStyle(Color.themeTextDark)
+                    .padding()
+                    
+                    if showSearch {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.gray)
+                            TextField("Tìm kiếm sản phẩm...", text: $viewModel.searchText)
+                                .textFieldStyle(.plain)
+                            if !viewModel.searchText.isEmpty {
+                                Button(action: { viewModel.searchText = "" }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        .padding(.bottom, 10)
                     }
                 }
-                .padding()
                 .background(Color.white)
+                
+                if !viewModel.searchText.isEmpty {
+                    List {
+                        ForEach(viewModel.searchSuggestions) { product in
+                            Button(action: {
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                                viewModel.addProduct(product)
+                                viewModel.searchText = ""
+                            }) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: product.imageName)
+                                        .font(.title2)
+                                        .foregroundStyle(Color.themePrimary)
+                                        .frame(width: 40, height: 40)
+                                        .background(Color.themePrimary.opacity(0.1))
+                                        .clipShape(Circle())
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(product.name)
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        
+                                        Text(product.category)
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text(formatCurrency(product.price))
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.themePrimary)
+                                        
+                                        let stock = viewModel.stockLevel(for: product.name)
+                                        Text("Kho: \(stock)")
+                                            .font(.caption)
+                                            .foregroundStyle(stock > 0 ? .gray : .red)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .background(Color.white)
+                } else {
                 
                 // Categories
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -490,6 +627,7 @@ struct SmartOrderEntryView: View {
                     .padding(.bottom, 100) // Space for bottom sheet
                 }
                 .background(Color.themeBackgroundLight)
+                }
             }
             
             // Voice Transcript Overlay
@@ -2008,11 +2146,19 @@ struct SettingsView: View {
                             Button(action: { editingProduct = product }) {
                                 HStack {
                                     ZStack {
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(colorForString(product.color).opacity(0.1))
-                                            .frame(width: 40, height: 40)
-                                        Image(systemName: product.imageName)
-                                            .foregroundStyle(colorForString(product.color))
+                                        if let data = product.imageData, let uiImage = UIImage(data: data) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 40, height: 40)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        } else {
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(colorForString(product.color).opacity(0.1))
+                                                .frame(width: 40, height: 40)
+                                            Image(systemName: product.imageName)
+                                                .foregroundStyle(colorForString(product.color))
+                                        }
                                     }
                                     
                                     VStack(alignment: .leading) {
@@ -2047,6 +2193,17 @@ struct SettingsView: View {
             .navigationTitle("Hàng hóa")
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Tìm kiếm...")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(viewModel.isDatabaseConnected ? Color.green : Color.red)
+                            .frame(width: 8, height: 8)
+                        Text(viewModel.isDatabaseConnected ? "Online" : "Offline")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showingAddProduct = true }) {
                         Image(systemName: "plus")
@@ -2088,6 +2245,9 @@ struct ProductEditView: View {
     @State private var selectedCategory: Category = .others
     @State private var selectedColor: String = "gray"
     @State private var selectedIcon: String = "shippingbox.fill"
+    @State private var selectedImageData: Data?
+    @State private var showCamera = false
+    @State private var capturedImage: UIImage?
     @State private var showDeleteConfirmation = false
     
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
@@ -2112,6 +2272,10 @@ struct ProductEditView: View {
             _selectedCategory = State(initialValue: Category(rawValue: product.category) ?? .others)
             _selectedColor = State(initialValue: product.color)
             _selectedIcon = State(initialValue: product.imageName)
+            _selectedImageData = State(initialValue: product.imageData)
+            if let data = product.imageData, let uiImage = UIImage(data: data) {
+                _capturedImage = State(initialValue: uiImage)
+            }
         }
     }
     
@@ -2163,23 +2327,70 @@ struct ProductEditView: View {
                             .font(.caption)
                             .foregroundStyle(.gray)
                         
+                        if let capturedImage {
+                             HStack {
+                                 Spacer()
+                                 ZStack(alignment: .topTrailing) {
+                                     Image(uiImage: capturedImage)
+                                         .resizable()
+                                         .scaledToFill()
+                                         .frame(width: 100, height: 100)
+                                         .clipShape(RoundedRectangle(cornerRadius: 12))
+                                         .overlay(
+                                             RoundedRectangle(cornerRadius: 12)
+                                                 .stroke(Color.themePrimary, lineWidth: 3)
+                                         )
+                                     
+                                     Button(action: {
+                                         self.capturedImage = nil
+                                         self.selectedImageData = nil
+                                     }) {
+                                         Image(systemName: "xmark.circle.fill")
+                                             .font(.title2)
+                                             .foregroundStyle(.red)
+                                             .background(Color.white.clipShape(Circle()))
+                                     }
+                                     .offset(x: 10, y: -10)
+                                 }
+                                 Spacer()
+                             }
+                             .padding(.bottom, 8)
+                        }
+                        
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 45))], spacing: 12) {
+                            Button(action: { showCamera = true }) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.gray.opacity(0.1))
+                                        .frame(width: 45, height: 45)
+                                    
+                                    Image(systemName: "camera.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                            }
+                            
                             ForEach(icons, id: \.self) { icon in
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedIcon == icon ? Color.themePrimary.opacity(0.2) : Color.gray.opacity(0.1))
+                                        .fill(selectedIcon == icon && selectedImageData == nil ? Color.themePrimary.opacity(0.2) : Color.gray.opacity(0.1))
                                         .frame(width: 45, height: 45)
                                     
                                     Image(systemName: icon)
                                         .font(.system(size: 24))
-                                        .foregroundStyle(selectedIcon == icon ? Color.themePrimary : Color.gray)
+                                        .foregroundStyle(selectedIcon == icon && selectedImageData == nil ? Color.themePrimary : Color.gray)
                                 }
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.themePrimary, lineWidth: selectedIcon == icon ? 2 : 0)
+                                        .stroke(Color.themePrimary, lineWidth: selectedIcon == icon && selectedImageData == nil ? 2 : 0)
                                 )
                                 .onTapGesture {
                                     selectedIcon = icon
+                                    // If we select an icon, maybe we should clear the image?
+                                    // Or let the user clear it manually.
+                                    // Let's clear the image to be clear about intent.
+                                    capturedImage = nil
+                                    selectedImageData = nil
                                 }
                             }
                         }
@@ -2223,6 +2434,15 @@ struct ProductEditView: View {
                     Text("Bạn có chắc muốn xóa '\(product.name)'? Hành động này không thể hoàn tác.")
                 }
             }
+            .fullScreenCover(isPresented: $showCamera) {
+                ImagePicker(image: $capturedImage, sourceType: .camera)
+                    .ignoresSafeArea()
+            }
+            .onChange(of: capturedImage) { newImage in
+                if let newImage {
+                     selectedImageData = newImage.jpegData(compressionQuality: 0.8)
+                }
+            }
         }
     }
     
@@ -2239,9 +2459,9 @@ struct ProductEditView: View {
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue)
+            viewModel.createProduct(name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
         case .edit(let product):
-            viewModel.updateProduct(product, name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue)
+            viewModel.updateProduct(product, name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
         }
         dismiss()
     }
