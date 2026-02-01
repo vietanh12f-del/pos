@@ -1,7 +1,6 @@
 import Foundation
 import Supabase
 
-
 // MARK: - Database Service Interface
 protocol DatabaseService {
     var isMock: Bool { get }
@@ -21,6 +20,9 @@ protocol DatabaseService {
     
     func fetchPriceHistory() async throws -> [String: Double]
     func upsertPriceHistory(name: String, price: Double) async throws
+    
+    func fetchProfile(id: UUID) async throws -> UserProfile?
+    func saveProfile(_ profile: UserProfile) async throws
 }
 
 // MARK: - Supabase Implementation
@@ -32,7 +34,7 @@ class SupabaseDatabaseService: DatabaseService {
     let client: SupabaseClient
     
     init() {
-        self.client = SupabaseClient(supabaseURL: SupabaseConfig.url, supabaseKey: SupabaseConfig.key)
+        self.client = SupabaseConfig.client
     }
     
     // MARK: - Products
@@ -149,6 +151,25 @@ class SupabaseDatabaseService: DatabaseService {
             .upsert(dto)
             .execute()
     }
+    
+    // MARK: - Profiles
+    func fetchProfile(id: UUID) async throws -> UserProfile? {
+        let response: [UserProfile] = try await client.database
+            .from("profiles")
+            .select()
+            .eq("id", value: id)
+            .execute()
+            .value
+        
+        return response.first
+    }
+    
+    func saveProfile(_ profile: UserProfile) async throws {
+        try await client.database
+            .from("profiles")
+            .upsert(profile)
+            .execute()
+    }
 }
 #else
 // Mock implementation when Supabase is not available
@@ -177,6 +198,9 @@ class SupabaseDatabaseService: DatabaseService {
     
     func fetchPriceHistory() async throws -> [String: Double] { return [:] }
     func upsertPriceHistory(name: String, price: Double) async throws { print("⚠️ upsertPriceHistory: Mocked success") }
+    
+    func fetchProfile(id: UUID) async throws -> UserProfile? { return nil }
+    func saveProfile(_ profile: UserProfile) async throws { print("⚠️ saveProfile: Mocked success") }
 }
 #endif
 

@@ -52,3 +52,30 @@ CREATE TABLE price_history (
     product_name TEXT PRIMARY KEY,
     price NUMERIC NOT NULL
 );
+
+-- 7. User Profiles Table (Linked to auth.users)
+CREATE TABLE profiles (
+    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+    full_name TEXT,
+    email TEXT,
+    phone_number TEXT,
+    address TEXT,
+    avatar_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable Row Level Security for Profiles
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can view their own profile
+CREATE POLICY "Users can view own profile" ON profiles
+    FOR SELECT USING (auth.uid() = id);
+
+-- Policy: Users can insert their own profile
+CREATE POLICY "Users can insert own profile" ON profiles
+    FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- Policy: Users can update their own profile
+CREATE POLICY "Users can update own profile" ON profiles
+    FOR UPDATE USING (auth.uid() = id);
+

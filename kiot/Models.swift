@@ -96,3 +96,23 @@ struct ChatConversation: Identifiable, Codable, Hashable {
     var lastMessageTime: Date
     var unreadCount: Int
 }
+
+struct UserProfile: Identifiable, Codable {
+    var id: UUID // Matches auth.users.id
+    var fullName: String
+    var email: String?
+    var phoneNumber: String?
+    var address: String?
+    var avatarUrl: String?
+    var createdAt: Date?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case fullName = "full_name"
+        case email
+        case phoneNumber = "phone_number"
+        case address
+        case avatarUrl = "avatar_url"
+        case createdAt = "created_at"
+    }
+}

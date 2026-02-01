@@ -7,7 +7,7 @@ struct EditTabBarView: View {
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("Đang hiển thị (Tối đa 4)")) {
+                Section(header: Text("Đang hiển thị (Tối đa 6)")) {
                     ForEach(tabBarManager.activeTabs) { tab in
                         HStack {
                             Image(systemName: tab.type.icon)

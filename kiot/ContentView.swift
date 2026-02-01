@@ -3,15 +3,11 @@ import UIKit
 import CoreImage.CIFilterBuiltins
 import PhotosUI
 
-// MARK: - Theme Colors
-extension Color {
-    static let themePrimary = Color(red: 25/255, green: 230/255, blue: 196/255)
-    static let themeBackgroundLight = Color(red: 246/255, green: 248/255, blue: 248/255)
-    static let themeBackgroundDark = Color(red: 17/255, green: 33/255, blue: 30/255)
-    static let themeTextDark = Color(red: 17/255, green: 24/255, blue: 23/255)
-}
+// MARK: - Theme Colors (Moved to Components.swift)
+
 
 struct ContentView: View {
+    @StateObject private var authManager = AuthManager.shared
     @StateObject private var viewModel = OrderViewModel()
     @StateObject private var tabBarManager = CustomTabBarManager()
     @State private var selectedTab: Int = 0
@@ -25,8 +21,13 @@ struct ContentView: View {
     }
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
+        if !authManager.isAuthenticated {
+            AuthenticationView()
+        } else if authManager.needsProfileCreation {
+            ProfileCreationView()
+        } else {
+            ZStack(alignment: .bottom) {
+                TabView(selection: $selectedTab) {
                 HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab)
                     .tag(0)
                 
@@ -40,82 +41,26 @@ struct ContentView: View {
                 RestockHistoryView(viewModel: viewModel)
                     .tag(3)
                 
-                SettingsView(viewModel: viewModel)
+                GoodsView(viewModel: viewModel)
                     .tag(4)
                 
                 ChatView(isTabBarVisible: $isTabBarVisible)
                     .tag(5)
+                
+                SettingsView()
+                    .tag(6)
             }
             .accentColor(.themePrimary)
+            .padding(.bottom, isTabBarVisible ? 130 : 0) // Add padding for custom tab bar
             
             // Custom Tab Bar Overlay
             if isTabBarVisible {
-                VStack {
-                    Spacer()
-                    
-                    ZStack(alignment: .top) {
-                        // Tab Bar Background
-                        HStack {
-                            let tabs = tabBarManager.activeTabs
-                            let mid = (tabs.count + 1) / 2
-                            let leftTabs = Array(tabs.prefix(mid))
-                            let rightTabs = Array(tabs.suffix(tabs.count - mid))
-                            
-                            // Left Side
-                            ForEach(Array(leftTabs.enumerated()), id: \.element.id) { index, tab in
-                                TabItem(icon: tab.type.icon, title: tab.type.rawValue, isSelected: selectedTab == tab.type.tagIndex) {
-                                    selectedTab = tab.type.tagIndex
-                                }
-                                if index < leftTabs.count - 1 {
-                                    Spacer()
-                                }
-                            }
-                            
-                            Spacer()
-                            
-                            // Space for FAB
-                            Color.clear.frame(width: 60)
-                            
-                            Spacer()
-                            
-                            // Right Side
-                            ForEach(Array(rightTabs.enumerated()), id: \.element.id) { index, tab in
-                                TabItem(icon: tab.type.icon, title: tab.type.rawValue, isSelected: selectedTab == tab.type.tagIndex) {
-                                    selectedTab = tab.type.tagIndex
-                                }
-                                if index < rightTabs.count - 1 {
-                                    Spacer()
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 12) // Reduced padding for better fit
-                        .frame(height: 72)
-                        .background(Color.white)
-                        .cornerRadius(36)
-                        .shadow(color: Color.black.opacity(0.1), radius: 15, x: 0, y: 5)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
-                        .onLongPressGesture {
-                            let generator = UIImpactFeedbackGenerator(style: .heavy)
-                            generator.impactOccurred()
-                            showEditTabBar = true
-                        }
-                        
-                        // FAB
-                        Button(action: { showNewOrder = true }) {
-                            Circle()
-                                .fill(Color.themePrimary)
-                                .frame(width: 64, height: 64)
-                                .shadow(color: Color.themePrimary.opacity(0.4), radius: 10, x: 0, y: 5)
-                                .overlay(
-                                    Image(systemName: "plus")
-                                        .font(.system(size: 28, weight: .bold))
-                                        .foregroundStyle(Color.themeTextDark)
-                                )
-                        }
-                        .offset(y: -28)
-                    }
-                }
+                WheelTabBarView(
+                    tabBarManager: tabBarManager,
+                    selectedTab: $selectedTab,
+                    showNewOrder: $showNewOrder,
+                    showEditTabBar: $showEditTabBar
+                )
                 .transition(.move(edge: .bottom))
             }
         }
@@ -130,43 +75,11 @@ struct ContentView: View {
                 showNewOrder = true
             }
         }
-    }
-}
-
-struct TabItem: View {
-    let icon: String
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            action()
-        }) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundStyle(isSelected ? Color.themePrimary : Color.gray.opacity(0.5))
-                    .scaleEffect(isSelected ? 1.1 : 1.0)
-                    .animation(.spring(), value: isSelected)
-                
-                if isSelected {
-                    Text(title)
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .frame(width: isSelected ? 70 : 50) // Expand width when selected
-            .animation(.easeInOut(duration: 0.2), value: isSelected)
         }
     }
 }
+
+
 
 // MARK: - Home Dashboard
 struct HomeDashboardView: View {
@@ -234,8 +147,8 @@ struct HomeDashboardView: View {
                     // Financial Summary
                     VStack(spacing: 12) {
                         HStack(spacing: 12) {
-                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: selectedDate)), trend: "", icon: "arrow.down.left", isPositive: true)
-                            StatCard(title: "Chi phí", value: formatCurrency(viewModel.restockCost(for: selectedDate)), trend: "", icon: "arrow.up.right", isPositive: false)
+                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: selectedDate)), icon: "arrow.down.left", trend: "", isPositive: true)
+                            StatCard(title: "Chi phí", value: formatCurrency(viewModel.restockCost(for: selectedDate)), icon: "arrow.up.right", trend: "", isPositive: false)
                         }
                         
                         // Net Profit Highlight
@@ -273,30 +186,8 @@ struct HomeDashboardView: View {
                             .padding(.horizontal)
                         
                         ForEach(viewModel.orders(for: selectedDate)) { bill in
-                            HStack {
-                                Text(formatTime(bill.createdAt))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.gray)
-                                    .frame(width: 50, alignment: .leading)
-                                
-                                VStack(alignment: .leading) {
-                                    Text(billItemsSummary(bill))
-                                        .font(.subheadline)
-                                        .foregroundStyle(Color.themeTextDark)
-                                        .lineLimit(1)
-                                }
-                                
-                                Spacer()
-                                
-                                Text(formatCurrency(bill.total))
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(Color.themeTextDark)
-                            }
-                            .padding()
-                            .background(Color.white)
-                            .cornerRadius(12)
-                            .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 2)
-                            .padding(.horizontal)
+                            OrderRow(bill: bill)
+                                .padding(.horizontal)
                         }
                     }
                 }
@@ -307,17 +198,38 @@ struct HomeDashboardView: View {
                         .font(.headline)
                         .padding(.horizontal)
                     
-                    HStack(spacing: 12) {
+                    LazyVGrid(columns: [
+                        GridItem(.flexible()),
+                        GridItem(.flexible()),
+                        GridItem(.flexible())
+                    ], spacing: 12) {
                         QuickActionButton(icon: "cart.badge.plus", title: "Tạo đơn", isPrimary: true) {
                             showNewOrder = true
                         }
+                        
+                        QuickActionButton(icon: "clock", title: "Lịch sử", isPrimary: false) {
+                            selectedTab = 1
+                        }
+                        
                         QuickActionButton(icon: "archivebox", title: "Kho hàng", isPrimary: false) {
                             selectedTab = 3
                         }
+                        
+                        QuickActionButton(icon: "cube.box", title: "Hàng hóa", isPrimary: false) {
+                            selectedTab = 4
+                        }
+                        
+                        QuickActionButton(icon: "message", title: "Tin nhắn", isPrimary: false) {
+                            selectedTab = 5
+                        }
+                        
+                        QuickActionButton(icon: "gearshape", title: "Cài đặt", isPrimary: false) {
+                            selectedTab = 6
+                        }
+                        
                         QuickActionButton(icon: "chart.bar", title: "Thống kê", isPrimary: false) {
-                            // Already on dashboard, maybe scroll to top or do nothing
                             withAnimation {
-                                selectedDate = Date() // Reset date to today
+                                selectedDate = Date()
                             }
                         }
                     }
@@ -362,86 +274,9 @@ struct HomeDashboardView: View {
         return formatter.string(from: date)
     }
     
-    func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
-    }
-    
-    func billItemsSummary(_ bill: Bill) -> String {
-        let names = bill.items.map { $0.name }
-        return names.joined(separator: ", ")
-    }
-}
-// MARK: - Stat Card
-struct StatCard: View {
-    let title: String
-    let value: String
-    let trend: String
-    let icon: String
-    let isPositive: Bool
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.caption)
-                .fontWeight(.bold)
-                .foregroundStyle(.gray)
-                .textCase(.uppercase)
-            
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundStyle(Color.themeTextDark)
-            
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.caption)
-                    .fontWeight(.bold)
-                Text(trend)
-                    .font(.caption)
-                    .fontWeight(.bold)
-            }
-            .foregroundStyle(isPositive ? Color.green : Color.red)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.05), radius: 5)
-    }
+
 }
 
-
-struct QuickActionButton: View {
-    let icon: String
-    let title: String
-    let isPrimary: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.title2)
-                Text(title)
-                    .font(.caption)
-                    .fontWeight(.bold)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(isPrimary ? Color.themePrimary : Color.white)
-            .foregroundStyle(Color.themeTextDark)
-            .cornerRadius(16)
-            .shadow(color: .black.opacity(0.05), radius: 5)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.gray.opacity(0.2), lineWidth: isPrimary ? 0 : 1)
-            )
-        }
-    }
-}
 
 // MARK: - Smart Order Entry
 struct SmartOrderEntryView: View {
@@ -1128,21 +963,7 @@ struct ProductCard: View {
     }
 }
 
-func colorForString(_ name: String) -> Color {
-    switch name {
-    case "brown": return .brown
-    case "orange": return .orange
-    case "black": return .black
-    case "purple": return .purple
-    case "blue": return .blue
-    case "yellow": return .yellow
-    case "green": return .green
-    case "red": return .red
-    case "pink": return .pink
-    case "gray": return .gray
-    default: return .gray
-    }
-}
+
 
 // Extension for partial corner radius
 extension View {
@@ -1161,15 +982,8 @@ struct RoundedCorner: Shape {
     }
 }
 
-// Helpers
-func formatCurrency(_ amount: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .currency
-    formatter.currencyCode = "VND"
-    formatter.maximumFractionDigits = 0
-    formatter.locale = Locale(identifier: "vi_VN")
-    return formatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
-}
+// Helpers (Moved to Components.swift)
+
 
 // Payment View (Preserved and cleaned up)
 struct PaymentView: View {
@@ -1504,7 +1318,7 @@ struct OrderHistoryView: View {
                                     Button(action: { selectedBill = bill }) {
                                         HStack {
                                             VStack(alignment: .leading, spacing: 4) {
-                                                Text(formatTimeOnly(bill.createdAt))
+                                                Text(formatTime(bill.createdAt))
                                                     .font(.caption)
                                                     .foregroundStyle(Color.gray)
                                                 
@@ -1567,17 +1381,7 @@ struct OrderHistoryView: View {
         return formatter.string(from: date)
     }
     
-    func billItemsSummary(_ bill: Bill) -> String {
-        let names = bill.items.map { $0.name }
-        return names.joined(separator: ", ")
-    }
-    
-    func formatTimeOnly(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
-    }
+
     
     var sections: [(title: String, bills: [Bill])] {
         let grouped = Dictionary(grouping: viewModel.pastOrders) { bill -> Date in
@@ -2104,376 +1908,6 @@ struct ManualRestockItemView: View {
     }
 }
 
-// MARK: - Settings View
-
-struct SettingsView: View {
-    @ObservedObject var viewModel: OrderViewModel
-    @State private var showingAddProduct = false
-    @State private var editingProduct: Product?
-    @State private var searchText = ""
-    @State private var productToDelete: Product?
-    @State private var showDeleteConfirmation = false
-    
-    var filteredCategories: [Category] {
-        if searchText.isEmpty {
-            return Category.allCases.filter { $0 != .all }
-        } else {
-            // Find categories that contain matching products
-            return Category.allCases.filter { $0 != .all && hasMatchingProducts(in: $0) }
-        }
-    }
-    
-    func hasMatchingProducts(in category: Category) -> Bool {
-        return viewModel.products.contains { product in
-            product.category == category.rawValue &&
-            product.name.localizedCaseInsensitiveContains(searchText)
-        }
-    }
-    
-    func filteredProducts(in category: Category) -> [Product] {
-        return viewModel.products.filter { product in
-            product.category == category.rawValue &&
-            (searchText.isEmpty || product.name.localizedCaseInsensitiveContains(searchText))
-        }
-    }
-    
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(filteredCategories, id: \.self) { category in
-                    Section(header: Text(category.displayName)) {
-                        ForEach(filteredProducts(in: category)) { product in
-                            Button(action: { editingProduct = product }) {
-                                HStack {
-                                    ZStack {
-                                        if let data = product.imageData, let uiImage = UIImage(data: data) {
-                                            Image(uiImage: uiImage)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 40, height: 40)
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                        } else {
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(colorForString(product.color).opacity(0.1))
-                                                .frame(width: 40, height: 40)
-                                            Image(systemName: product.imageName)
-                                                .foregroundStyle(colorForString(product.color))
-                                        }
-                                    }
-                                    
-                                    VStack(alignment: .leading) {
-                                        Text(product.name)
-                                            .font(.body)
-                                            .foregroundColor(.primary)
-                                        HStack {
-                                            Text(formatCurrency(product.price))
-                                            Text("•")
-                                            Text("Kho: \(viewModel.stockLevel(for: product.name))")
-                                                .fontWeight(.medium)
-                                                .foregroundStyle(viewModel.stockLevel(for: product.name) > 0 ? Color.blue : Color.red)
-                                        }
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    Spacer()
-                                }
-                            }
-                            .swipeActions {
-                                Button(role: .destructive) {
-                                    productToDelete = product
-                                    showDeleteConfirmation = true
-                                } label: {
-                                    Label("Xóa", systemImage: "trash")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Hàng hóa")
-            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Tìm kiếm...")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(viewModel.isDatabaseConnected ? Color.green : Color.red)
-                            .frame(width: 8, height: 8)
-                        Text(viewModel.isDatabaseConnected ? "Online" : "Offline")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { showingAddProduct = true }) {
-                        Image(systemName: "plus")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingAddProduct) {
-                ProductEditView(viewModel: viewModel, mode: .add)
-            }
-            .sheet(item: $editingProduct) { product in
-                ProductEditView(viewModel: viewModel, mode: .edit(product))
-            }
-            .alert("Xóa mặt hàng?", isPresented: $showDeleteConfirmation, presenting: productToDelete) { product in
-                Button("Xóa", role: .destructive) {
-                    viewModel.deleteProduct(product)
-                }
-                Button("Hủy", role: .cancel) {}
-            } message: { product in
-                Text("Bạn có chắc muốn xóa '\(product.name)'? Hành động này không thể hoàn tác.")
-            }
-        }
-    }
-}
-
-struct ProductEditView: View {
-    @ObservedObject var viewModel: OrderViewModel
-    @Environment(\.dismiss) var dismiss
-    
-    enum Mode {
-        case add
-        case edit(Product)
-    }
-    
-    let mode: Mode
-    
-    @State private var name: String = ""
-    @State private var price: String = ""
-    @State private var quantity: String = "0"
-    @State private var selectedCategory: Category = .others
-    @State private var selectedColor: String = "gray"
-    @State private var selectedIcon: String = "shippingbox.fill"
-    @State private var selectedImageData: Data?
-    @State private var showCamera = false
-    @State private var capturedImage: UIImage?
-    @State private var showDeleteConfirmation = false
-    
-    let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
-    let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
-    
-    init(viewModel: OrderViewModel, mode: Mode) {
-        self.viewModel = viewModel
-        self.mode = mode
-        
-        switch mode {
-        case .add:
-            _name = State(initialValue: "")
-            _price = State(initialValue: "")
-            _quantity = State(initialValue: "0")
-            _selectedCategory = State(initialValue: .others)
-            _selectedColor = State(initialValue: "gray")
-            _selectedIcon = State(initialValue: "shippingbox.fill")
-        case .edit(let product):
-            _name = State(initialValue: product.name)
-            _price = State(initialValue: String(Int(product.price)))
-            _quantity = State(initialValue: String(viewModel.stockLevel(for: product.name)))
-            _selectedCategory = State(initialValue: Category(rawValue: product.category) ?? .others)
-            _selectedColor = State(initialValue: product.color)
-            _selectedIcon = State(initialValue: product.imageName)
-            _selectedImageData = State(initialValue: product.imageData)
-            if let data = product.imageData, let uiImage = UIImage(data: data) {
-                _capturedImage = State(initialValue: uiImage)
-            }
-        }
-    }
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("Chi tiết")) {
-                    TextField("Tên", text: $name)
-                    TextField("Giá", text: $price)
-                        .keyboardType(.decimalPad)
-                    TextField("Tồn kho", text: $quantity)
-                        .keyboardType(.numberPad)
-                }
-                
-                Section(header: Text("Danh mục")) {
-                    Picker("Danh mục", selection: $selectedCategory) {
-                        ForEach(Category.allCases.filter { $0 != .all }, id: \.self) { category in
-                            Text(category.displayName).tag(category)
-                        }
-                    }
-                }
-                
-                Section(header: Text("Giao diện")) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Nhãn màu")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 40))], spacing: 12) {
-                            ForEach(colors, id: \.self) { color in
-                                Circle()
-                                    .fill(colorForString(color))
-                                    .frame(width: 40, height: 40)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.primary, lineWidth: selectedColor == color ? 3 : 0)
-                                            .padding(-2)
-                                    )
-                                    .onTapGesture {
-                                        selectedColor = color
-                                    }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 8)
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Biểu tượng")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        
-                        if let capturedImage {
-                             HStack {
-                                 Spacer()
-                                 ZStack(alignment: .topTrailing) {
-                                     Image(uiImage: capturedImage)
-                                         .resizable()
-                                         .scaledToFill()
-                                         .frame(width: 100, height: 100)
-                                         .clipShape(RoundedRectangle(cornerRadius: 12))
-                                         .overlay(
-                                             RoundedRectangle(cornerRadius: 12)
-                                                 .stroke(Color.themePrimary, lineWidth: 3)
-                                         )
-                                     
-                                     Button(action: {
-                                         self.capturedImage = nil
-                                         self.selectedImageData = nil
-                                     }) {
-                                         Image(systemName: "xmark.circle.fill")
-                                             .font(.title2)
-                                             .foregroundStyle(.red)
-                                             .background(Color.white.clipShape(Circle()))
-                                     }
-                                     .offset(x: 10, y: -10)
-                                 }
-                                 Spacer()
-                             }
-                             .padding(.bottom, 8)
-                        }
-                        
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 45))], spacing: 12) {
-                            Button(action: { showCamera = true }) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.gray.opacity(0.1))
-                                        .frame(width: 45, height: 45)
-                                    
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundStyle(Color.themePrimary)
-                                }
-                            }
-                            
-                            ForEach(icons, id: \.self) { icon in
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedIcon == icon && selectedImageData == nil ? Color.themePrimary.opacity(0.2) : Color.gray.opacity(0.1))
-                                        .frame(width: 45, height: 45)
-                                    
-                                    Image(systemName: icon)
-                                        .font(.system(size: 24))
-                                        .foregroundStyle(selectedIcon == icon && selectedImageData == nil ? Color.themePrimary : Color.gray)
-                                }
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.themePrimary, lineWidth: selectedIcon == icon && selectedImageData == nil ? 2 : 0)
-                                )
-                                .onTapGesture {
-                                    selectedIcon = icon
-                                    // If we select an icon, maybe we should clear the image?
-                                    // Or let the user clear it manually.
-                                    // Let's clear the image to be clear about intent.
-                                    capturedImage = nil
-                                    selectedImageData = nil
-                                }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 8)
-                }
-                
-                if case .edit(let product) = mode {
-                    Section {
-                        Button(role: .destructive) {
-                            showDeleteConfirmation = true
-                        } label: {
-                            Text("Xóa hàng hóa")
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        }
-                    }
-                }
-            }
-            .navigationTitle(title)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Hủy") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Lưu") {
-                        save()
-                    }
-                    .disabled(name.isEmpty || price.isEmpty)
-                }
-            }
-            .alert("Xóa mặt hàng?", isPresented: $showDeleteConfirmation) {
-                Button("Xóa", role: .destructive) {
-                    if case .edit(let product) = mode {
-                        viewModel.deleteProduct(product)
-                        dismiss()
-                    }
-                }
-                Button("Hủy", role: .cancel) { }
-            } message: {
-                if case .edit(let product) = mode {
-                    Text("Bạn có chắc muốn xóa '\(product.name)'? Hành động này không thể hoàn tác.")
-                }
-            }
-            .fullScreenCover(isPresented: $showCamera) {
-                ImagePicker(image: $capturedImage, sourceType: .camera)
-                    .ignoresSafeArea()
-            }
-            .onChange(of: capturedImage) { newImage in
-                if let newImage {
-                     selectedImageData = newImage.jpegData(compressionQuality: 0.8)
-                }
-            }
-        }
-    }
-    
-    var title: String {
-        switch mode {
-        case .add: return "Thêm hàng mới"
-        case .edit: return "Sửa hàng hóa"
-        }
-    }
-    
-    func save() {
-        guard let priceValue = Double(price) else { return }
-        let quantityValue = Int(quantity) ?? 0
-        
-        switch mode {
-        case .add:
-            viewModel.createProduct(name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
-        case .edit(let product):
-            viewModel.updateProduct(product, name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
-        }
-        dismiss()
-    }
-}
-
-struct ScaleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
 
 #Preview {
     ContentView()

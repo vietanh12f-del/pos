@@ -5,8 +5,9 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
     case home = "Trang chủ"
     case orders = "Đơn hàng"
     case restock = "Kho" // RestockHistoryView
-    case goods = "Hàng hóa" // Product List / SettingsView (renamed in logic)
+    case goods = "Hàng hóa" // Product List
     case chat = "Chat"
+    case settings = "Cài đặt"
     
     var id: String { rawValue }
     
@@ -17,6 +18,7 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
         case .restock: return "archivebox.fill"
         case .goods: return "cube.box.fill"
         case .chat: return "message.fill"
+        case .settings: return "gearshape.fill"
         }
     }
     
@@ -26,8 +28,9 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
         case .home: return 0
         case .orders: return 1
         case .restock: return 3
-        case .goods: return 4 // SettingsView acting as Goods/Product list
+        case .goods: return 4
         case .chat: return 5
+        case .settings: return 6
         }
     }
 }
@@ -49,14 +52,18 @@ class CustomTabBarManager: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: "activeTabs"),
            let decoded = try? JSONDecoder().decode([TabItemConfig].self, from: data) {
             self.activeTabs = decoded
+            
+            // Migration: If we increased the limit, maybe we want to auto-add new tabs if they are missing and we have space?
+            // For now, let's just ensure we respect the stored config but allow adding more up to 6.
         } else {
-            // Default configuration (Home, Chat | FAB | Orders, Goods)
-            // We store them in order. When rendering, we'll split them 2-2 around the FAB.
+            // Default configuration
             self.activeTabs = [
                 TabItemConfig(type: .home),
-                TabItemConfig(type: .chat),
                 TabItemConfig(type: .orders),
-                TabItemConfig(type: .goods)
+                TabItemConfig(type: .restock),
+                TabItemConfig(type: .goods),
+                TabItemConfig(type: .chat),
+                TabItemConfig(type: .settings)
             ]
         }
         
@@ -81,7 +88,7 @@ class CustomTabBarManager: ObservableObject {
     }
     
     func addTab(_ tab: TabItemConfig) {
-        if activeTabs.count >= 4 { return } // Limit to 4 slots (plus FAB)
+        if activeTabs.count >= 6 { return } // Limit to 6 slots
         activeTabs.append(tab)
         updateHiddenTabs()
         saveConfig()
