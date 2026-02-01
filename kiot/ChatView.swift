@@ -52,7 +52,7 @@ struct ChatView: View {
                     ScrollView {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.conversations) { conversation in
-                                if let employee = viewModel.getEmployee(id: conversation.employeeId) {
+                                if let employee = viewModel.getEmployee(id: conversation.participantId) {
                                     NavigationLink(destination: ChatDetailView(viewModel: viewModel, conversation: conversation, employee: employee, isTabBarVisible: $isTabBarVisible)) {
                                         ConversationRow(employee: employee, conversation: conversation)
                                     }
@@ -201,16 +201,22 @@ struct NewChatView: View {
     }
     
     func checkPhoneNumber() {
-        if let employee = viewModel.findEmployee(phoneNumber: phoneNumber) {
-            foundEmployee = employee
-            navigateToChat = true
-        } else {
-            withAnimation {
-                showToast = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                withAnimation {
-                    showToast = false
+        Task {
+            if let employee = await viewModel.findUser(phoneNumber: phoneNumber) {
+                await MainActor.run {
+                    foundEmployee = employee
+                    navigateToChat = true
+                }
+            } else {
+                await MainActor.run {
+                    withAnimation {
+                        showToast = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation {
+                            showToast = false
+                        }
+                    }
                 }
             }
         }

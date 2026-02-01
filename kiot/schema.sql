@@ -67,9 +67,9 @@ CREATE TABLE profiles (
 -- Enable Row Level Security for Profiles
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Policy: Users can view their own profile
-CREATE POLICY "Users can view own profile" ON profiles
-    FOR SELECT USING (auth.uid() = id);
+-- Policy: Users can view all profiles (for searching)
+CREATE POLICY "Users can view all profiles" ON profiles
+    FOR SELECT USING (auth.role() = 'authenticated');
 
 -- Policy: Users can insert their own profile
 CREATE POLICY "Users can insert own profile" ON profiles
@@ -78,4 +78,29 @@ CREATE POLICY "Users can insert own profile" ON profiles
 -- Policy: Users can update their own profile
 CREATE POLICY "Users can update own profile" ON profiles
     FOR UPDATE USING (auth.uid() = id);
+
+-- 8. Messages Table
+CREATE TABLE messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    sender_id UUID REFERENCES auth.users(id) NOT NULL,
+    receiver_id UUID REFERENCES auth.users(id) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_read BOOLEAN DEFAULT FALSE
+);
+
+-- Enable RLS for Messages
+ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+-- IMPORTANT: Enable Realtime for Messages table
+-- Run this in Supabase SQL Editor if realtime is not working
+-- ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+
+-- Policy: Users can view messages they sent or received
+CREATE POLICY "Users can view their messages" ON messages
+    FOR SELECT USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+-- Policy: Users can insert messages as sender
+CREATE POLICY "Users can send messages" ON messages
+    FOR INSERT WITH CHECK (auth.uid() = sender_id);
 

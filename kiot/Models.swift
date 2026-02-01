@@ -99,19 +99,38 @@ struct Employee: Identifiable, Codable, Hashable {
 }
 
 struct ChatMessage: Identifiable, Codable, Hashable {
-    var id = UUID()
+    var id: UUID = UUID()
     var senderId: UUID
+    var receiverId: UUID
     var text: String
     var timestamp: Date
     var isRead: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case senderId = "sender_id"
+        case receiverId = "receiver_id"
+        case text = "content"
+        case timestamp = "created_at"
+        case isRead = "is_read"
+    }
 }
 
 struct ChatConversation: Identifiable, Codable, Hashable {
-    var id = UUID()
-    var employeeId: UUID
+    var id: UUID = UUID()
+    var participantId: UUID // The other user's ID (was employeeId)
     var lastMessage: String
     var lastMessageTime: Date
     var unreadCount: Int
+    
+    // Helper to initialize from employeeId for backward compatibility if needed
+    init(id: UUID = UUID(), participantId: UUID, lastMessage: String, lastMessageTime: Date, unreadCount: Int) {
+        self.id = id
+        self.participantId = participantId
+        self.lastMessage = lastMessage
+        self.lastMessageTime = lastMessageTime
+        self.unreadCount = unreadCount
+    }
 }
 
 struct UserProfile: Identifiable, Codable {
