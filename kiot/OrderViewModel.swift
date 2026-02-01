@@ -241,7 +241,7 @@ class OrderViewModel: ObservableObject {
                     }
                 }
                 
-                restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice))
+                restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice, additionalCost: 0))
             }
         }
         currentInput = ""
@@ -257,11 +257,13 @@ class OrderViewModel: ObservableObject {
             var finalName = parsed.name
             var price = parsed.price
             var systemImage: String? = nil
+            var costPrice: Double = 0
             
             // 1. Try to find matching product in catalog (Intelligent Mapping)
             if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
                 finalName = match.name
                 systemImage = match.imageName
+                costPrice = match.costPrice // Capture current Unit Cost
                 
                 // If price wasn't specified in speech, use catalog price
                 if price == 0 {
@@ -276,7 +278,7 @@ class OrderViewModel: ObservableObject {
                 }
             }
             
-            return OrderItem(name: finalName, quantity: parsed.quantity, price: price, systemImage: systemImage)
+            return OrderItem(name: finalName, quantity: parsed.quantity, price: price, costPrice: costPrice, systemImage: systemImage)
         }
         return nil
     }
@@ -360,8 +362,8 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Restock Actions
     
-    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int) {
-        restockItems.append(RestockItem(name: name, quantity: quantity, unitPrice: unitPrice))
+    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil) {
+        restockItems.append(RestockItem(name: name, quantity: quantity, unitPrice: unitPrice, additionalCost: additionalCost, suggestedPrice: suggestedPrice))
     }
     
     func removeRestockItem(at offsets: IndexSet) {
@@ -384,19 +386,44 @@ class OrderViewModel: ObservableObject {
             }
         }
         
-        // Update Inventory & Catalog
+        // Update Inventory & Catalog (Moving Average Cost Logic)
         for item in restockItems {
             let key = item.name.lowercased()
-            let current = inventory[key] ?? 0
-            let newQuantity = current + item.quantity
+            let currentQuantity = inventory[key] ?? 0
+            let newQuantity = currentQuantity + item.quantity
             inventory[key] = newQuantity
             
             // Auto-add to products if not exists OR update if needed
             // Check case-insensitive
             if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
-                // Product exists. Update stock
+                // Product exists. Update stock and Calculate Moving Average Cost
                 var product = products[index]
+                
+                // AVCO Calculation
+                // Old Total Value = Current Stock * Old Cost Price
+                // New Item Value = New Quantity * New Final Unit Cost (Purchase + Additional)
+                // New Unit Cost = (Old Value + New Value) / (Old Qty + New Qty)
+                
+                let oldCost = product.costPrice
+                let newUnitCost = item.finalUnitCost
+                
+                // If stock was negative or zero, just use new cost (or handle negative logic)
+                // We'll assume simple positive stock logic for now.
+                let effectiveOldQty = max(0, Double(currentQuantity))
+                
+                let oldTotalValue = effectiveOldQty * oldCost
+                let newTotalValue = Double(item.quantity) * newUnitCost
+                
+                let newAverageCost = (oldTotalValue + newTotalValue) / (effectiveOldQty + Double(item.quantity))
+                
                 product.stockQuantity = newQuantity
+                product.costPrice = newAverageCost
+                
+                // Update selling price if suggested
+                if let suggested = item.suggestedPrice {
+                    product.price = suggested
+                }
+                
                 products[index] = product
                 
                 Task {
@@ -419,7 +446,8 @@ class OrderViewModel: ObservableObject {
                 let newProduct = Product(
                     id: UUID(), // Explicit ID
                     name: item.name, // Use original casing
-                    price: item.unitPrice * 1.3, // Suggest a markup? Or just use unitPrice? Let's use unitPrice for now as baseline.
+                    price: item.suggestedPrice ?? (item.finalUnitCost * 1.3), // Use suggested or default 30% markup
+                    costPrice: item.finalUnitCost, // Initial Cost
                     category: cat.rawValue,
                     imageName: "shippingbox.fill", // Default icon
                     color: "gray",
@@ -673,7 +701,10 @@ class OrderViewModel: ObservableObject {
     }
     
     func profit(for date: Date) -> Double {
-        revenue(for: date) - restockCost(for: date)
+        let calendar = Calendar.current
+        return pastOrders
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .reduce(0) { $0 + $1.profit }
     }
     
     func orders(for date: Date) -> [Bill] {
@@ -684,7 +715,8 @@ class OrderViewModel: ObservableObject {
     
     func makeBill() -> Bill? {
         guard !items.isEmpty else { return nil }
-        return Bill(id: UUID(), createdAt: Date(), items: items, total: totalAmount)
+        let cost = items.reduce(0) { $0 + $1.totalCost }
+        return Bill(id: UUID(), createdAt: Date(), items: items, total: totalAmount, totalCost: cost)
     }
     
     func billPayload() -> String? {
@@ -727,7 +759,12 @@ class OrderViewModel: ObservableObject {
         if let index = items.firstIndex(where: { $0.name == name && $0.price == price && $0.imageData == imageData }) {
             items[index].quantity += quantity
         } else {
-            items.append(OrderItem(name: name, quantity: quantity, price: price, imageData: imageData, systemImage: "cart.circle.fill"))
+            // Find cost price
+            var cost: Double = 0
+            if let product = products.first(where: { $0.name.lowercased() == name.lowercased() }) {
+                cost = product.costPrice
+            }
+            items.append(OrderItem(name: name, quantity: quantity, price: price, costPrice: cost, imageData: imageData, systemImage: "cart.circle.fill"))
         }
     }
     

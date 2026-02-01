@@ -261,7 +261,7 @@ struct InvoiceScannerView: View {
                 // Let's stick to what we found.
                 
                 if quantity > 0 {
-                     items.append(RestockItem(name: name, quantity: quantity, unitPrice: price))
+                     items.append(RestockItem(name: name, quantity: quantity, unitPrice: price, additionalCost: 0, suggestedPrice: price * 1.3))
                 }
             }
         }
@@ -275,7 +275,7 @@ struct InvoiceScannerView: View {
     
     private func addItemsToRestock() {
         for item in recognizedItems {
-            viewModel.addRestockItem(item.name, unitPrice: item.unitPrice, quantity: item.quantity)
+            viewModel.addRestockItem(item.name, unitPrice: item.unitPrice, quantity: item.quantity, additionalCost: item.additionalCost, suggestedPrice: item.suggestedPrice)
         }
         dismiss()
     }

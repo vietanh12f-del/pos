@@ -5,11 +5,16 @@ struct OrderItem: Identifiable, Hashable, Codable {
     var name: String
     var quantity: Int
     var price: Double
+    var costPrice: Double = 0 // Cost of Goods Sold (Unit Cost at time of sale)
     var imageData: Data?
     var systemImage: String?
     
     var total: Double {
         return Double(quantity) * price
+    }
+    
+    var totalCost: Double {
+        return Double(quantity) * costPrice
     }
 }
 
@@ -18,9 +23,15 @@ struct RestockItem: Identifiable, Hashable, Codable {
     var name: String
     var quantity: Int
     var unitPrice: Double
+    var additionalCost: Double = 0 // Shipping, packaging, etc.
+    var suggestedPrice: Double? = nil // User-defined or auto-calculated selling price
     
     var totalCost: Double {
-        return Double(quantity) * unitPrice
+        return (Double(quantity) * unitPrice) + additionalCost
+    }
+    
+    var finalUnitCost: Double {
+        return quantity > 0 ? totalCost / Double(quantity) : 0
     }
 }
 
@@ -29,6 +40,11 @@ struct Bill: Identifiable, Codable, Equatable {
     let createdAt: Date
     let items: [OrderItem]
     let total: Double
+    var totalCost: Double = 0 // Total COGS
+    
+    var profit: Double {
+        total - totalCost
+    }
     
     static func == (lhs: Bill, rhs: Bill) -> Bool {
         return lhs.id == rhs.id
@@ -46,13 +62,14 @@ struct RestockBill: Identifiable, Codable, Equatable {
     }
 }
 
-struct Product: Identifiable, Hashable, Codable {
+struct Product: Identifiable, Codable, Hashable {
     var id = UUID()
-    let name: String
-    let price: Double
-    let category: String
-    let imageName: String
-    let color: String
+    var name: String
+    var price: Double
+    var costPrice: Double = 0 // Moving Average Unit Cost
+    var category: String
+    var imageName: String
+    var color: String
     var imageData: Data?
     var stockQuantity: Int = 0
 }

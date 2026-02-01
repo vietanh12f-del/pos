@@ -13,7 +13,7 @@ struct WheelTabBarView: View {
     // Configuration
     private let circleRadius: CGFloat = 120 
     private let itemRadius: CGFloat = 120 
-    private let visibleHeight: CGFloat = 180 // Increased height to ensure buttons are within frame
+    private let visibleHeight: CGFloat = 220 // Increased height to ensure buttons are within frame
     private let iconSize: CGFloat = 44
     
     var body: some View {
@@ -148,23 +148,23 @@ struct WheelTabBarView: View {
         // Config: Visible area is top half (0 to +/- 90 degrees)
         // Fade area is bottom half (+/- 90 to 180 degrees)
         
-        // Hard cutoff for visibility at +/- 100 degrees (slightly more than half to be safe)
-        if dist > 100 {
+        // Hard cutoff for visibility at +/- 115 degrees (allow more items on sides)
+        if dist > 115 {
             return (0, 0.5)
         }
         
         // Opacity Logic:
-        // 0 - 80 degrees: Fully Visible (1.0)
-        // 80 - 100 degrees: Quick Fade Out
+        // 0 - 90 degrees: Fully Visible (1.0)
+        // 90 - 115 degrees: Quick Fade Out
         var opacity: Double = 1.0
-        if dist > 80 {
-             let fadeProgress = (dist - 80) / 20 // 0.0 to 1.0 over the 20 degree fade zone
+        if dist > 90 {
+             let fadeProgress = (dist - 90) / 25 // 0.0 to 1.0 over the 25 degree fade zone
              opacity = 1.0 - fadeProgress
         }
         
         // Scale Logic:
         // Keep scale mostly uniform, slight shrink at edges
-        let scale = 1.1 - (0.1 * (dist / 100))
+        let scale = 1.1 - (0.1 * (dist / 115))
         
         return (opacity, scale)
     }

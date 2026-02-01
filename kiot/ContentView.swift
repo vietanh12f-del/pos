@@ -51,7 +51,7 @@ struct ContentView: View {
                     .tag(6)
             }
             .accentColor(.themePrimary)
-            .padding(.bottom, isTabBarVisible ? 130 : 0) // Add padding for custom tab bar
+            .padding(.bottom, isTabBarVisible ? 160 : 0) // Add padding for custom tab bar
             
             // Custom Tab Bar Overlay
             if isTabBarVisible {
@@ -1840,6 +1840,8 @@ struct ManualRestockItemView: View {
     @State private var name = ""
     @State private var quantity = ""
     @State private var price = ""
+    @State private var incurredCost = ""
+    @State private var sellingPrice = ""
     
     var body: some View {
         NavigationStack {
@@ -1853,8 +1855,9 @@ struct ManualRestockItemView: View {
                     }
                     TextField("Số lượng", text: $quantity)
                         .keyboardType(.numberPad)
+                        .onChange(of: quantity) { _ in updateSellingPrice() }
                     
-                    TextField("Đơn giá", text: $price)
+                    TextField("Đơn giá nhập", text: $price)
                         .keyboardType(.decimalPad)
                         .onChange(of: price) { newValue in
                             // Filter non-numeric characters first (allow comma and dot)
@@ -1862,16 +1865,47 @@ struct ManualRestockItemView: View {
                             if filtered != newValue {
                                 price = filtered
                             }
+                            updateSellingPrice()
+                        }
+                    
+                    TextField("Chi phí phát sinh (Ship, bao bì...)", text: $incurredCost)
+                        .keyboardType(.decimalPad)
+                        .onChange(of: incurredCost) { newValue in
+                            let filtered = newValue.filter { "0123456789,.".contains($0) }
+                            if filtered != newValue {
+                                incurredCost = filtered
+                            }
+                            updateSellingPrice()
                         }
                     
                     if let p = parseDouble(price), let q = Int(quantity), q > 0 {
-                        HStack {
-                            Text("Tổng chi phí:")
-                            Spacer()
-                            Text(formatCurrency(p * Double(q)))
+                        let extra = parseDouble(incurredCost) ?? 0
+                        let total = (p * Double(q)) + extra
+                        let unitCost = total / Double(q)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Tổng chi phí:")
+                                Spacer()
+                                Text(formatCurrency(total))
+                                    .fontWeight(.bold)
+                            }
+                            
+                            HStack {
+                                Text("Giá vốn/sp:")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Spacer()
+                                Text(formatCurrency(unitCost))
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
                         }
                         .foregroundStyle(.secondary)
                     }
+                    
+                    TextField("Giá bán dự kiến (Lãi 30%)", text: $sellingPrice)
+                        .keyboardType(.decimalPad)
                 }
             }
             .navigationTitle("Thêm hàng nhập")
@@ -1882,7 +1916,9 @@ struct ManualRestockItemView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Thêm") {
                         if let p = parseDouble(price), let q = Int(quantity), !name.isEmpty {
-                            viewModel.addRestockItem(name, unitPrice: p, quantity: q)
+                            let extra = parseDouble(incurredCost) ?? 0
+                            let suggested = parseDouble(sellingPrice)
+                            viewModel.addRestockItem(name, unitPrice: p, quantity: q, additionalCost: extra, suggestedPrice: suggested)
                             dismiss()
                         }
                     }
@@ -1890,7 +1926,17 @@ struct ManualRestockItemView: View {
                 }
             }
         }
-        .presentationDetents([.height(350)])
+        .presentationDetents([.height(550)])
+    }
+    
+    func updateSellingPrice() {
+        if let p = parseDouble(price), let q = Int(quantity), q > 0 {
+            let extra = parseDouble(incurredCost) ?? 0
+            let total = (p * Double(q)) + extra
+            let unitCost = total / Double(q)
+            let suggested = unitCost * 1.3
+            sellingPrice = String(Int(suggested))
+        }
     }
     
     func parseDouble(_ input: String) -> Double? {
