@@ -230,7 +230,7 @@ class StoreManager: ObservableObject {
         }
     }
     
-    func getEmployees() async -> [StoreMember] {
+    func getEmployees() async -> [(StoreMember, String)] {
         guard let storeId = currentStore?.id else { return [] }
         
         do {
@@ -240,7 +240,41 @@ class StoreManager: ObservableObject {
                 .eq("store_id", value: storeId)
                 .execute()
                 .value
-            return members
+            
+            var result: [(StoreMember, String)] = []
+            
+            // Fetch names for each member
+            if !members.isEmpty {
+                let userIds = members.map { $0.userId }
+                
+                // Fetch profiles for these users
+                struct ProfileName: Decodable {
+                    let id: UUID
+                    let fullName: String
+                    
+                    enum CodingKeys: String, CodingKey {
+                        case id
+                        case fullName = "full_name"
+                    }
+                }
+                
+                let profiles: [ProfileName] = try await client
+                    .from("profiles")
+                    .select("id, full_name")
+                    .in("id", values: userIds)
+                    .execute()
+                    .value
+                
+                // Create a map for quick lookup
+                let nameMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0.fullName) })
+                
+                for member in members {
+                    let name = nameMap[member.userId] ?? "Nhân viên (Chưa cập nhật tên)"
+                    result.append((member, name))
+                }
+            }
+            
+            return result
         } catch {
             print("Error fetching employees: \(error)")
             return []

@@ -1,8 +1,14 @@
 import SwiftUI
 
+struct EmployeeViewModel: Identifiable {
+    let id: UUID
+    let member: StoreMember
+    let name: String
+}
+
 struct EmployeeManagementView: View {
     @ObservedObject private var storeManager = StoreManager.shared
-    @State private var employees: [StoreMember] = []
+    @State private var employees: [EmployeeViewModel] = []
     @State private var showAddEmployee = false
     @State private var newEmployeeEmail = ""
     @State private var selectedPermissions: Set<StorePermission> = [.viewHome, .viewOrders]
@@ -16,19 +22,18 @@ struct EmployeeManagementView: View {
                     Text("Chưa có nhân viên nào.")
                         .foregroundColor(.gray)
                 } else {
-                    ForEach(employees) { member in
-                        NavigationLink(destination: EmployeeDetailView(member: member)) {
+                    ForEach(employees) { employee in
+                        NavigationLink(destination: EmployeeDetailView(member: employee.member, name: employee.name)) {
                             HStack {
                                 VStack(alignment: .leading) {
-                                    // ideally fetch name from profile
-                                    Text("Nhân viên (ID: \(member.userId.uuidString.prefix(4)))") 
+                                    Text(employee.name) 
                                         .font(.headline)
-                                    Text(member.role.displayName)
+                                    Text(employee.member.role.displayName)
                                         .font(.caption)
                                         .foregroundColor(.gray)
                                 }
                                 Spacer()
-                                if member.status == .invited {
+                                if employee.member.status == .invited {
                                     Text("Đang mời")
                                         .font(.caption)
                                         .padding(4)
@@ -110,14 +115,15 @@ struct EmployeeManagementView: View {
     }
     
     func loadEmployees() async {
-        employees = await storeManager.getEmployees()
+        let rawEmployees = await storeManager.getEmployees()
+        employees = rawEmployees.map { EmployeeViewModel(id: $0.0.id, member: $0.0, name: $0.1) }
     }
     
     func deleteEmployee(at offsets: IndexSet) {
         offsets.forEach { index in
-            let member = employees[index]
+            let employee = employees[index]
             Task {
-                if await storeManager.removeEmployee(memberId: member.id) {
+                if await storeManager.removeEmployee(memberId: employee.member.id) {
                     await loadEmployees()
                 }
             }
@@ -127,13 +133,15 @@ struct EmployeeManagementView: View {
 
 struct EmployeeDetailView: View {
     let member: StoreMember
+    let name: String
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var permissions: Set<StorePermission> = []
+    @State private var showSuccessAlert = false
     
     var body: some View {
         Form {
             Section(header: Text("Thông tin")) {
-                Text("User ID: \(member.userId)")
+                Text("Tên: \(name)")
                 Text("Vai trò: \(member.role.displayName)")
                 Text("Trạng thái: \(member.status?.rawValue ?? "Unknown")")
             }
@@ -155,11 +163,19 @@ struct EmployeeDetailView: View {
             
             Button("Lưu thay đổi") {
                 Task {
-                    _ = await storeManager.updateEmployeePermissions(memberId: member.id, permissions: Array(permissions))
+                    let success = await storeManager.updateEmployeePermissions(memberId: member.id, permissions: Array(permissions))
+                    if success {
+                        showSuccessAlert = true
+                    }
                 }
             }
         }
         .navigationTitle("Chi tiết nhân viên")
+        .alert("Thành công", isPresented: $showSuccessAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Đã cập nhật quyền hạn thành công.")
+        }
         .onAppear {
             if let memberPermissions = member.permissions {
                 permissions = Set(memberPermissions)
