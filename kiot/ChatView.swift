@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
+    @ObservedObject var orderViewModel: OrderViewModel
     @State private var showNewChatSheet = false
     @State private var searchText = ""
     @Binding var isTabBarVisible: Bool
@@ -53,7 +54,7 @@ struct ChatView: View {
                         LazyVStack(spacing: 16) {
                             ForEach(viewModel.conversations) { conversation in
                                 if let employee = viewModel.getEmployee(id: conversation.participantId) {
-                                    NavigationLink(destination: ChatDetailView(viewModel: viewModel, conversation: conversation, employee: employee, isTabBarVisible: $isTabBarVisible)) {
+                                    NavigationLink(destination: ChatDetailView(viewModel: viewModel, orderViewModel: orderViewModel, conversation: conversation, employee: employee, isTabBarVisible: $isTabBarVisible)) {
                                         ConversationRow(employee: employee, conversation: conversation)
                                     }
                                 }
@@ -66,7 +67,7 @@ struct ChatView: View {
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showNewChatSheet) {
-                NewChatView(viewModel: viewModel, isPresented: $showNewChatSheet)
+                NewChatView(viewModel: viewModel, orderViewModel: orderViewModel, isPresented: $showNewChatSheet)
             }
         }
         .onAppear {
@@ -139,6 +140,7 @@ struct ConversationRow: View {
 
 struct NewChatView: View {
     @ObservedObject var viewModel: ChatViewModel
+    @ObservedObject var orderViewModel: OrderViewModel
     @Binding var isPresented: Bool
     @State private var phoneNumber = ""
     @State private var showToast = false
@@ -174,7 +176,7 @@ struct NewChatView: View {
                 
                 // Navigation Link (Hidden)
                 if let employee = foundEmployee {
-                    NavigationLink(destination: ChatDetailView(viewModel: viewModel, conversation: viewModel.startChat(with: employee), employee: employee, isTabBarVisible: .constant(false)), isActive: $navigateToChat) {
+                    NavigationLink(destination: ChatDetailView(viewModel: viewModel, orderViewModel: orderViewModel, conversation: viewModel.startChat(with: employee), employee: employee, isTabBarVisible: .constant(false)), isActive: $navigateToChat) {
                         EmptyView()
                     }
                 }
@@ -225,11 +227,16 @@ struct NewChatView: View {
 
 struct ChatDetailView: View {
     @ObservedObject var viewModel: ChatViewModel
+    @ObservedObject var orderViewModel: OrderViewModel
     let conversation: ChatConversation
     let employee: Employee
     @Binding var isTabBarVisible: Bool
     @State private var messageText = ""
     @Environment(\.presentationMode) var presentationMode
+    
+    // Order Integration
+    @State private var showOrderSheet = false
+    @State private var selectedBill: Bill?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -237,8 +244,8 @@ struct ChatDetailView: View {
             HStack {
                 Button(action: { presentationMode.wrappedValue.dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .foregroundStyle(Color.themeTextDark)
-                        .padding()
+                    .foregroundStyle(Color.themeTextDark)
+                    .padding()
                 }
                 
                 VStack(alignment: .leading) {
@@ -261,42 +268,11 @@ struct ChatDetailView: View {
             
             // Messages List
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        let msgs = viewModel.messages[conversation.id] ?? []
-                        ForEach(msgs) { msg in
-                            MessageBubble(message: msg, isCurrentUser: msg.senderId == viewModel.currentUserId)
-                        }
-                    }
-                    .padding()
-                }
-                .onChange(of: viewModel.messages[conversation.id]?.count) { _ in
-                    if let lastMsg = viewModel.messages[conversation.id]?.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMsg.id, anchor: .bottom)
-                        }
-                    }
-                }
+                messageList(proxy: proxy)
             }
             
             // Input Area
-            HStack {
-                TextField("Nhập tin nhắn...", text: $messageText)
-                    .padding(12)
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(20)
-                
-                Button(action: sendMessage) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(Color.themePrimary)
-                        .padding(10)
-                }
-                .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .padding()
-            .background(Color.white)
-            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: -2)
+            inputArea
         }
         .navigationBarHidden(true)
         .background(Color.themeBackgroundLight.ignoresSafeArea())
@@ -306,6 +282,50 @@ struct ChatDetailView: View {
         .onDisappear {
             isTabBarVisible = true
         }
+        .sheet(isPresented: $showOrderSheet) {
+            SmartOrderEntryView(viewModel: orderViewModel)
+        }
+        .sheet(item: $selectedBill) { bill in
+            BillDetailView(bill: bill, viewModel: orderViewModel)
+        }
+        .onChange(of: orderViewModel.lastCreatedBill) { bill in
+            if showOrderSheet, let bill = bill {
+                // Send order message
+                viewModel.sendOrderMessage(conversationId: conversation.id, bill: bill)
+                showOrderSheet = false
+                orderViewModel.lastCreatedBill = nil // Reset
+            }
+        }
+    }
+    
+    private var inputArea: some View {
+        HStack(spacing: 12) {
+            // Plus Button for Actions
+            Button(action: { showOrderSheet = true }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Color.themePrimary)
+                    .padding(10)
+                    .background(Color.themePrimary.opacity(0.1))
+                    .clipShape(Circle())
+            }
+            
+            TextField("Nhập tin nhắn...", text: $messageText)
+                .padding(12)
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(20)
+            
+            Button(action: sendMessage) {
+                Image(systemName: "paperplane.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color.themePrimary)
+                    .padding(10)
+            }
+            .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding()
+        .background(Color.white)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: -2)
     }
     
     func sendMessage() {
@@ -313,24 +333,142 @@ struct ChatDetailView: View {
         viewModel.sendMessage(conversationId: conversation.id, text: messageText)
         messageText = ""
     }
+    
+    @ViewBuilder
+    private func messageList(proxy: ScrollViewProxy) -> some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                let msgs = viewModel.messages[conversation.id] ?? []
+                ForEach(msgs) { msg in
+                    MessageBubble(
+                        message: msg,
+                        isCurrentUser: msg.senderId == viewModel.currentUserId,
+                        detectOrder: { text in
+                            orderViewModel.parseItem(from: text)
+                        },
+                        onProcessOrder: { item in
+                            orderViewModel.reset()
+                            orderViewModel.items.append(item)
+                            showOrderSheet = true
+                        },
+                        onViewOrder: { orderId in
+                            if let bill = orderViewModel.pastOrders.first(where: { $0.id == orderId }) {
+                                selectedBill = bill
+                            }
+                        }
+                    )
+                }
+            }
+            .padding()
+        }
+        .onChange(of: viewModel.messages[conversation.id]?.count) { _ in
+            if let lastMsg = viewModel.messages[conversation.id]?.last {
+                withAnimation {
+                    proxy.scrollTo(lastMsg.id, anchor: .bottom)
+                }
+            }
+        }
+    }
 }
 
 struct MessageBubble: View {
     let message: ChatMessage
     let isCurrentUser: Bool
+    var detectOrder: ((String) -> OrderItem?)? = nil
+    var onProcessOrder: ((OrderItem) -> Void)? = nil
+    var onViewOrder: ((UUID) -> Void)? = nil
+    
+    @State private var detectedItem: OrderItem?
     
     var body: some View {
         HStack {
             if isCurrentUser { Spacer() }
             
-            Text(message.text)
-                .padding()
-                .background(isCurrentUser ? Color.themePrimary : Color.white)
-                .foregroundStyle(isCurrentUser ? Color.white : Color.themeTextDark)
-                .cornerRadius(16)
-                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+            if (message.messageType ?? "text") == "order" {
+                // Order Card
+                Button(action: {
+                    if let orderId = message.orderId {
+                        onViewOrder?(orderId)
+                    }
+                }) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "cart.fill")
+                                .foregroundStyle(Color.themePrimary)
+                            Text("Đơn hàng")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                        }
+                        
+                        Text(message.text)
+                            .font(.body)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.themeTextDark)
+                            .multilineTextAlignment(.leading)
+                        
+                        Divider()
+                        
+                        HStack {
+                            Text("Xem chi tiết")
+                                .font(.caption)
+                                .foregroundStyle(Color.themePrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    .frame(width: 250)
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                // Text Message
+                VStack(alignment: isCurrentUser ? .trailing : .leading, spacing: 4) {
+                    Text(message.text)
+                        .padding()
+                        .background(isCurrentUser ? Color.themePrimary : Color.white)
+                        .foregroundStyle(isCurrentUser ? Color.white : Color.themeTextDark)
+                        .cornerRadius(16)
+                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    
+                    if let item = detectedItem {
+                        Button(action: { onProcessOrder?(item) }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.caption)
+                                Text("Tạo đơn: \(item.quantity) \(item.name)")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundStyle(Color.blue)
+                            .cornerRadius(12)
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+            }
             
             if !isCurrentUser { Spacer() }
+        }
+        .onAppear {
+            if (message.messageType ?? "text") == "text" && detectOrder != nil {
+                // Run in background to avoid blocking main thread during scroll
+                Task {
+                    let item = detectOrder?(message.text)
+                    await MainActor.run {
+                        self.detectedItem = item
+                    }
+                }
+            }
         }
     }
 }

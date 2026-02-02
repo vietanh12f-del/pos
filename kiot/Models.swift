@@ -98,49 +98,15 @@ struct Employee: Identifiable, Codable, Hashable {
     var role: String
 }
 
-struct ChatMessage: Identifiable, Codable, Hashable {
-    var id: UUID = UUID()
-    var senderId: UUID
-    var receiverId: UUID
-    var text: String
-    var timestamp: Date
-    var isRead: Bool
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case senderId = "sender_id"
-        case receiverId = "receiver_id"
-        case text = "content"
-        case timestamp = "created_at"
-        case isRead = "is_read"
-    }
-}
-
-struct ChatConversation: Identifiable, Codable, Hashable {
-    var id: UUID = UUID()
-    var participantId: UUID // The other user's ID (was employeeId)
-    var lastMessage: String
-    var lastMessageTime: Date
-    var unreadCount: Int
-    
-    // Helper to initialize from employeeId for backward compatibility if needed
-    init(id: UUID = UUID(), participantId: UUID, lastMessage: String, lastMessageTime: Date, unreadCount: Int) {
-        self.id = id
-        self.participantId = participantId
-        self.lastMessage = lastMessage
-        self.lastMessageTime = lastMessageTime
-        self.unreadCount = unreadCount
-    }
-}
-
-struct UserProfile: Identifiable, Codable {
-    var id: UUID // Matches auth.users.id
+struct UserProfile: Identifiable, Codable, Hashable {
+    let id: UUID
     var fullName: String
     var email: String?
     var phoneNumber: String?
     var address: String?
     var avatarUrl: String?
-    var createdAt: Date?
+    var createdAt: Date
+    var currentStoreId: UUID?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -150,5 +116,118 @@ struct UserProfile: Identifiable, Codable {
         case address
         case avatarUrl = "avatar_url"
         case createdAt = "created_at"
+        case currentStoreId = "current_store_id"
     }
+}
+
+// MARK: - Multi-Store Models
+
+struct Store: Identifiable, Codable, Hashable {
+    let id: UUID
+    var name: String
+    var address: String?
+    var ownerId: UUID
+    var createdAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case address
+        case ownerId = "owner_id"
+        case createdAt = "created_at"
+    }
+}
+
+enum StoreRole: String, Codable, CaseIterable {
+    case owner
+    case manager
+    case employee
+    
+    var displayName: String {
+        switch self {
+        case .owner: return "Chủ cửa hàng"
+        case .manager: return "Quản lý"
+        case .employee: return "Nhân viên"
+        }
+    }
+}
+
+enum StorePermission: String, Codable, CaseIterable, Hashable {
+    case viewHome = "view_home"
+    case viewOrders = "view_orders"
+    case viewInventory = "view_inventory"
+    case viewExpenses = "view_expenses"
+    case viewReports = "view_reports"
+    case manageEmployees = "manage_employees"
+    case deleteEmployee = "delete_employee"
+    
+    var displayName: String {
+        switch self {
+        case .viewHome: return "Xem Trang chủ"
+        case .viewOrders: return "Xem Đơn hàng"
+        case .viewInventory: return "Xem Kho hàng"
+        case .viewExpenses: return "Xem Chi phí"
+        case .viewReports: return "Xem Báo cáo"
+        case .manageEmployees: return "Quản lý Nhân viên"
+        case .deleteEmployee: return "Xóa Nhân viên"
+        }
+    }
+}
+
+enum MemberStatus: String, Codable {
+    case active
+    case invited
+    case declined
+}
+
+struct StoreMember: Identifiable, Codable, Hashable {
+    let id: UUID
+    let storeId: UUID
+    let userId: UUID
+    var role: StoreRole
+    var permissions: [StorePermission]?
+    var status: MemberStatus?
+    var joinedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case storeId = "store_id"
+        case userId = "user_id"
+        case role
+        case permissions
+        case status
+        case joinedAt = "joined_at"
+    }
+}
+
+// MARK: - Chat Models
+
+struct ChatMessage: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    let senderId: UUID
+    let receiverId: UUID
+    let text: String
+    let timestamp: Date
+    var isRead: Bool
+    var messageType: String?
+    var orderId: UUID?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case senderId = "sender_id"
+        case receiverId = "receiver_id"
+        case text = "content"
+        case timestamp = "created_at"
+        case isRead = "is_read"
+        case messageType = "message_type"
+        case orderId = "order_id"
+    }
+}
+
+struct ChatConversation: Identifiable, Hashable {
+    var id: UUID { participantId }
+    let participantId: UUID
+    var lastMessage: String
+    var lastMessageTime: Date
+    var unreadCount: Int
 }

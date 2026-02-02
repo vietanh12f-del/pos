@@ -8,6 +8,7 @@ import PhotosUI
 
 struct ContentView: View {
     @StateObject private var authManager = AuthManager.shared
+    @ObservedObject private var storeManager = StoreManager.shared
     @StateObject private var viewModel = OrderViewModel()
     @StateObject private var tabBarManager = CustomTabBarManager()
     @State private var selectedTab: Int = 0
@@ -25,6 +26,8 @@ struct ContentView: View {
             AuthenticationView()
         } else if authManager.needsProfileCreation {
             ProfileCreationView()
+        } else if storeManager.currentStore == nil {
+            StoreSelectionView()
         } else {
             ZStack(alignment: .bottom) {
                 TabView(selection: $selectedTab) {
@@ -44,7 +47,7 @@ struct ContentView: View {
                 GoodsView(viewModel: viewModel)
                     .tag(4)
                 
-                ChatView(isTabBarVisible: $isTabBarVisible)
+                ChatView(orderViewModel: viewModel, isTabBarVisible: $isTabBarVisible)
                     .tag(5)
                 
                 SettingsView()
@@ -74,6 +77,25 @@ struct ContentView: View {
             if bill != nil {
                 showNewOrder = true
             }
+        }
+        .onAppear {
+             // Handle auto-login to last store ONLY on app launch
+             // Check if we are already authenticated but no store selected
+             if authManager.isAuthenticated && storeManager.currentStore == nil {
+                 if let currentStoreId = authManager.currentUserProfile?.currentStoreId {
+                     // We need to fetch stores first if they aren't loaded
+                     if storeManager.myStores.isEmpty && storeManager.memberStores.isEmpty {
+                         Task {
+                             await storeManager.fetchStores()
+                             // Now try to select
+                             if let store = storeManager.myStores.first(where: { $0.id == currentStoreId }) ?? 
+                                            storeManager.memberStores.first(where: { $0.id == currentStoreId }) {
+                                 await storeManager.selectStore(store)
+                             }
+                         }
+                     }
+                 }
+             }
         }
         }
     }
@@ -145,49 +167,67 @@ struct HomeDashboardView: View {
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                     
                     // Financial Summary
-                    VStack(spacing: 12) {
-                        HStack(spacing: 12) {
-                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: selectedDate)), icon: "arrow.down.left", trend: "", isPositive: true)
-                            StatCard(title: "Chi phí", value: formatCurrency(viewModel.restockCost(for: selectedDate)), icon: "arrow.up.right", trend: "", isPositive: false)
-                        }
-                        
-                        // Net Profit Highlight
-                        let profit = viewModel.profit(for: selectedDate)
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("LỢI NHUẬN RÒNG")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white.opacity(0.8))
-                                Text(formatCurrency(profit))
+                    if StoreManager.shared.hasPermission(.viewReports) {
+                        VStack(spacing: 12) {
+                            HStack(spacing: 12) {
+                                StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: selectedDate)), icon: "arrow.down.left", trend: "", isPositive: true)
+                                StatCard(title: "Chi phí", value: formatCurrency(viewModel.restockCost(for: selectedDate)), icon: "arrow.up.right", trend: "", isPositive: false)
+                            }
+                            
+                            // Net Profit Highlight
+                            let profit = viewModel.profit(for: selectedDate)
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text("LỢI NHUẬN RÒNG")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.white.opacity(0.8))
+                                    Text(formatCurrency(profit))
+                                        .font(.title)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.white)
+                                }
+                                Spacer()
+                                Image(systemName: profit >= 0 ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis")
                                     .font(.title)
-                                    .fontWeight(.bold)
                                     .foregroundStyle(.white)
                             }
-                            Spacer()
-                            Image(systemName: profit >= 0 ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis")
-                                .font(.title)
-                                .foregroundStyle(.white)
+                            .padding()
+                            .background(profit >= 0 ? Color.themePrimary : Color.red)
+                            .cornerRadius(16)
+                            .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
                         }
+                    } else {
+                        // Restricted View Placeholder
+                        VStack(alignment: .center, spacing: 12) {
+                            Image(systemName: "lock.fill")
+                                .font(.largeTitle)
+                                .foregroundColor(.gray)
+                            Text("Bạn không có quyền xem báo cáo tài chính")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        .frame(maxWidth: .infinity)
                         .padding()
-                        .background(profit >= 0 ? Color.themePrimary : Color.red)
+                        .background(Color.white)
                         .cornerRadius(16)
-                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
                     }
                 }
                 .padding(.horizontal)
                 
                 // Daily Orders List
-                if !viewModel.orders(for: selectedDate).isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Đơn hàng ngày \(formatDate(selectedDate))")
-                            .font(.headline)
-                            .foregroundStyle(Color.themeTextDark)
-                            .padding(.horizontal)
-                        
-                        ForEach(viewModel.orders(for: selectedDate)) { bill in
-                            OrderRow(bill: bill)
+                if StoreManager.shared.hasPermission(.viewOrders) {
+                    if !viewModel.orders(for: selectedDate).isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Đơn hàng ngày \(formatDate(selectedDate))")
+                                .font(.headline)
+                                .foregroundStyle(Color.themeTextDark)
                                 .padding(.horizontal)
+                            
+                            ForEach(viewModel.orders(for: selectedDate)) { bill in
+                                OrderRow(bill: bill)
+                                    .padding(.horizontal)
+                            }
                         }
                     }
                 }
@@ -203,22 +243,30 @@ struct HomeDashboardView: View {
                         GridItem(.flexible()),
                         GridItem(.flexible())
                     ], spacing: 12) {
+                        // Always allow creating orders (selling)
                         QuickActionButton(icon: "cart.badge.plus", title: "Tạo đơn", isPrimary: true) {
                             showNewOrder = true
                         }
                         
-                        QuickActionButton(icon: "clock", title: "Lịch sử", isPrimary: false) {
-                            selectedTab = 1
+                        if StoreManager.shared.hasPermission(.viewOrders) {
+                            QuickActionButton(icon: "clock", title: "Lịch sử", isPrimary: false) {
+                                selectedTab = 1
+                            }
                         }
                         
-                        QuickActionButton(icon: "archivebox", title: "Kho hàng", isPrimary: false) {
-                            selectedTab = 3
+                        if StoreManager.shared.hasPermission(.viewInventory) {
+                            QuickActionButton(icon: "archivebox", title: "Kho hàng", isPrimary: false) {
+                                selectedTab = 3
+                            }
                         }
                         
-                        QuickActionButton(icon: "cube.box", title: "Hàng hóa", isPrimary: false) {
-                            selectedTab = 4
+                        if StoreManager.shared.hasPermission(.viewInventory) {
+                            QuickActionButton(icon: "cube.box", title: "Hàng hóa", isPrimary: false) {
+                                selectedTab = 4
+                            }
                         }
                         
+                        // Messages might be open to all? Let's keep it open for now
                         QuickActionButton(icon: "message", title: "Tin nhắn", isPrimary: false) {
                             selectedTab = 5
                         }
@@ -227,9 +275,11 @@ struct HomeDashboardView: View {
                             selectedTab = 6
                         }
                         
-                        QuickActionButton(icon: "chart.bar", title: "Thống kê", isPrimary: false) {
-                            withAnimation {
-                                selectedDate = Date()
+                        if StoreManager.shared.hasPermission(.viewReports) {
+                            QuickActionButton(icon: "chart.bar", title: "Thống kê", isPrimary: false) {
+                                withAnimation {
+                                    selectedDate = Date()
+                                }
                             }
                         }
                     }
@@ -1297,7 +1347,16 @@ struct OrderHistoryView: View {
             ZStack {
                 Color.themeBackgroundLight.ignoresSafeArea()
                 
-                if viewModel.pastOrders.isEmpty {
+                if !StoreManager.shared.hasPermission(.viewOrders) {
+                    VStack(spacing: 16) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 60))
+                            .foregroundStyle(Color.gray.opacity(0.3))
+                        Text("Bạn không có quyền xem lịch sử đơn hàng")
+                            .font(.headline)
+                            .foregroundStyle(Color.gray)
+                    }
+                } else if viewModel.pastOrders.isEmpty {
                     VStack(spacing: 16) {
                         Image(systemName: "doc.text.magnifyingglass")
                             .font(.system(size: 60))
@@ -1531,64 +1590,88 @@ struct RestockHistoryView: View {
                 
                 if selectedTab == 0 {
                     // Inventory View
-                    ScrollView {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                            ForEach(viewModel.products) { product in
-                                let stock = viewModel.stockLevel(for: product.name)
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .fill(colorForString(product.color).opacity(0.1))
-                                                .frame(width: 40, height: 40)
-                                            Image(systemName: product.imageName)
-                                                .foregroundStyle(colorForString(product.color))
+                    if !StoreManager.shared.hasPermission(.viewInventory) {
+                        VStack(spacing: 16) {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 60))
+                                .foregroundStyle(Color.gray.opacity(0.3))
+                            Text("Bạn không có quyền xem kho hàng")
+                                .font(.headline)
+                                .foregroundStyle(Color.gray)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.themeBackgroundLight)
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                                ForEach(viewModel.products) { product in
+                                    let stock = viewModel.stockLevel(for: product.name)
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .fill(colorForString(product.color).opacity(0.1))
+                                                    .frame(width: 40, height: 40)
+                                                Image(systemName: product.imageName)
+                                                    .foregroundStyle(colorForString(product.color))
+                                            }
+                                            Spacer()
+                                            if stock <= 5 {
+                                                Image(systemName: "exclamationmark.triangle.fill")
+                                                    .foregroundStyle(.orange)
+                                                    .font(.caption)
+                                            }
                                         }
-                                        Spacer()
-                                        if stock <= 5 {
-                                            Image(systemName: "exclamationmark.triangle.fill")
-                                                .foregroundStyle(.orange)
+                                        
+                                        Text(product.name)
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Color.themeTextDark)
+                                            .lineLimit(1)
+                                        
+                                        HStack {
+                                            Text("Tồn:")
                                                 .font(.caption)
+                                                .foregroundStyle(.gray)
+                                            Spacer()
+                                            Text("\(stock)")
+                                                .font(.headline)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(stock == 0 ? .red : (stock <= 5 ? .orange : .green))
                                         }
+                                        
+                                        Text(formatCurrency(product.price))
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
                                     }
-                                    
-                                    Text(product.name)
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(Color.themeTextDark)
-                                        .lineLimit(1)
-                                    
-                                    HStack {
-                                        Text("Tồn:")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                        Spacer()
-                                        Text("\(stock)")
-                                            .font(.headline)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(stock == 0 ? .red : (stock <= 5 ? .orange : .green))
+                                    .padding()
+                                    .background(Color.white)
+                                    .cornerRadius(12)
+                                    .shadow(color: .black.opacity(0.05), radius: 2)
+                                    .onTapGesture {
+                                        editingProduct = product
                                     }
-                                    
-                                    Text(formatCurrency(product.price))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding()
-                                .background(Color.white)
-                                .cornerRadius(12)
-                                .shadow(color: .black.opacity(0.05), radius: 2)
-                                .onTapGesture {
-                                    editingProduct = product
                                 }
                             }
+                            .padding()
                         }
-                        .padding()
+                        .background(Color.themeBackgroundLight)
                     }
-                    .background(Color.themeBackgroundLight)
                 } else {
                     // History View
-                    ZStack(alignment: .bottomTrailing) {
-                        List {
+                    if !StoreManager.shared.hasPermission(.viewInventory) {
+                        VStack(spacing: 16) {
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 60))
+                                .foregroundStyle(Color.gray.opacity(0.3))
+                            Text("Bạn không có quyền xem lịch sử nhập hàng")
+                                .font(.headline)
+                                .foregroundStyle(Color.gray)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ZStack(alignment: .bottomTrailing) {
+                            List {
                             if viewModel.restockHistory.isEmpty {
                                 Text("Chưa có lịch sử nhập hàng")
                                     .foregroundStyle(.gray)
@@ -1658,6 +1741,8 @@ struct RestockHistoryView: View {
                     }
                 }
             }
+        }
+    }
             .navigationTitle("Kho")
             .toolbar {
                 if selectedTab == 0 {
@@ -1692,7 +1777,7 @@ struct RestockHistoryView: View {
         formatter.timeStyle = .short
         return formatter.string(from: date)
     }
-}
+
 
 struct RestockEntryView: View {
     @ObservedObject var viewModel: OrderViewModel

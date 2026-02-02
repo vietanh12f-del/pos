@@ -34,8 +34,18 @@ struct GoodsView: View {
     
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(filteredCategories, id: \.self) { category in
+            if !StoreManager.shared.hasPermission(.viewInventory) {
+                VStack(spacing: 16) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 60))
+                        .foregroundStyle(Color.gray.opacity(0.3))
+                    Text("Bạn không có quyền xem hàng hóa")
+                        .font(.headline)
+                        .foregroundStyle(Color.gray)
+                }
+            } else {
+                List {
+                    ForEach(filteredCategories, id: \.self) { category in
                     Section(header: Text(category.displayName)) {
                         ForEach(filteredProducts(in: category)) { product in
                             Button(action: { editingProduct = product }) {
@@ -118,6 +128,7 @@ struct GoodsView: View {
                 Button("Hủy", role: .cancel) {}
             } message: { product in
                 Text("Bạn có chắc muốn xóa '\(product.name)'? Hành động này không thể hoàn tác.")
+            }
             }
         }
     }

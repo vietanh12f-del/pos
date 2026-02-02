@@ -23,7 +23,15 @@ struct AuthenticationView: View {
                     .font(.subheadline)
                     .foregroundStyle(.gray)
             }
-            .padding(.top, 60)
+            .padding(.top, 40)
+            
+            // Role Selection
+            Picker("Vai trò", selection: $authManager.selectedRole) {
+                Text("Chủ cửa hàng").tag("owner")
+                Text("Nhân viên").tag("employee")
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding(.horizontal)
             
             Spacer()
             
@@ -52,7 +60,7 @@ struct AuthenticationView: View {
                             ProgressView()
                                 .tint(.white)
                         } else {
-                            Text("Gửi mã OTP")
+                            Text("Đăng nhập bằng SĐT")
                                 .fontWeight(.bold)
                         }
                     }
@@ -62,6 +70,42 @@ struct AuthenticationView: View {
                     .foregroundStyle(.white)
                     .cornerRadius(12)
                     .disabled(phoneNumber.count < 9 || authManager.isLoading)
+                    
+                    // Divider
+                    HStack {
+                        Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
+                        Text("Hoặc")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .padding(.horizontal, 8)
+                        Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
+                    }
+                    .padding(.vertical, 20)
+                    
+                    // Google Sign In
+                    Button(action: signInWithGoogle) {
+                        HStack(spacing: 12) {
+                            // Since we don't have the Google logo asset, we'll use a text G or a system icon
+                            // Ideally, use a proper asset: Image("GoogleLogo")
+                            Text("G")
+                                .font(.title2)
+                                .fontWeight(.heavy)
+                                .foregroundStyle(Color.blue) // Google Blue-ish
+                            
+                            Text("Tiếp tục với Google")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Color.black.opacity(0.85))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    }
                     
                 } else {
                     // OTP Input View
@@ -139,6 +183,12 @@ struct AuthenticationView: View {
     func verifyOTP() {
         Task {
             _ = await authManager.verifyOTP(phone: phoneNumber, token: otpCode)
+        }
+    }
+    
+    func signInWithGoogle() {
+        Task {
+            _ = await authManager.signInWithGoogle()
         }
     }
 }

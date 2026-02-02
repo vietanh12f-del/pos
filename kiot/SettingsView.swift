@@ -2,11 +2,42 @@ import SwiftUI
 
 struct SettingsView: View {
     @StateObject private var authManager = AuthManager.shared
+    @ObservedObject private var storeManager = StoreManager.shared
     @State private var showEditProfile = false
     
     var body: some View {
         NavigationStack {
             List {
+                Section(header: Text("Cửa hàng")) {
+                    if let store = storeManager.currentStore {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(store.name)
+                                    .font(.headline)
+                                if let role = storeManager.currentMember?.role {
+                                    Text(role.displayName)
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            Spacer()
+                            Button("Chuyển") {
+                                storeManager.currentStore = nil // Triggers StoreSelectionView in ContentView
+                            }
+                        }
+                        
+                        if storeManager.hasPermission(.manageEmployees) {
+                             NavigationLink(destination: EmployeeManagementView()) {
+                                Text("Quản lý nhân viên")
+                            }
+                        }
+                    } else {
+                         Button("Chọn cửa hàng") {
+                             // This case might be rare as ContentView handles it, but good fallback
+                         }
+                    }
+                }
+
                 Section(header: Text("Tài khoản")) {
                     if let profile = authManager.currentUserProfile {
                         HStack {

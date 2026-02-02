@@ -16,6 +16,7 @@ class OrderViewModel: ObservableObject {
     @Published var orderCount: Int = 0
     @Published var totalRestockCost: Double = 0
     @Published var showOrderSuccessToast: Bool = false
+    @Published var lastCreatedBill: Bill? = nil
     
     var netProfit: Double {
         revenue - totalRestockCost
@@ -251,7 +252,7 @@ class OrderViewModel: ObservableObject {
         return inventory[name.lowercased()] ?? 0
     }
     
-    private func parseItem(from text: String) -> OrderItem? {
+    func parseItem(from text: String) -> OrderItem? {
         // Use SmartParser for flexible "AI-like" parsing
         if let parsed = SmartParser.parse(text: text) {
             var finalName = parsed.name
@@ -303,6 +304,7 @@ class OrderViewModel: ObservableObject {
         // Create bill
         if let bill = makeBill() {
             pastOrders.insert(bill, at: 0) // Newest first
+            lastCreatedBill = bill
             
             // Save Order to DB
             Task {

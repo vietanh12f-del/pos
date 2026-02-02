@@ -1,6 +1,7 @@
 import Foundation
 import Supabase
 import Combine
+import UIKit
 
 class AuthManager: ObservableObject {
     static let shared = AuthManager()
@@ -10,6 +11,7 @@ class AuthManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var currentUserProfile: UserProfile?
     @Published var needsProfileCreation: Bool = false
+    @Published var selectedRole: String = "owner" // "owner" or "employee" - User preference
     
     private let client = SupabaseConfig.client
     
@@ -187,6 +189,31 @@ class AuthManager: ObservableObject {
             self.isAuthenticated = false
         } catch {
             print("❌ Error signing out: \(error)")
+        }
+    }
+    
+    @MainActor
+    func signInWithGoogle() async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+        
+        do {
+            // Using generic OAuth flow
+            // Note: You need to configure the redirect URL in Supabase Dashboard -> Auth -> URL Configuration
+            // Redirect URL should be something like: kiot://login-callback
+            // In newer Supabase versions, this method returns a Session and handles the flow internally (using ASWebAuthenticationSession)
+            _ = try await client.auth.signInWithOAuth(
+                provider: .google,
+                redirectTo: URL(string: "kiot://login-callback")
+            )
+            
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Lỗi đăng nhập Google: \(error.localizedDescription)"
+            print("❌ Error signing in with Google: \(error)")
+            return false
         }
     }
     

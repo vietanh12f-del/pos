@@ -13,18 +13,35 @@ class ChatViewModel: ObservableObject {
         return AuthManager.shared.currentUserProfile?.id ?? UUID()
     }
     
+    private var cancellables = Set<AnyCancellable>()
+    
     init() {
         // loadMockData() // Disabled for real implementation
         Task {
             await fetchConversations()
-            await subscribeToRealtime()
         }
+        
+        // Wait for User Profile to be ready before subscribing to Realtime
+        AuthManager.shared.$currentUserProfile
+            .compactMap { $0 } // Only proceed if profile is not nil
+            .first() // Only need to setup once when profile loads
+            .sink { [weak self] _ in
+                Task { [weak self] in
+                    await self?.subscribeToRealtime()
+                }
+            }
+            .store(in: &cancellables)
     }
     
     // MARK: - Realtime Subscription
     
     func subscribeToRealtime() async {
-        let myId = currentUserId
+        guard let myId = AuthManager.shared.currentUserProfile?.id else {
+            print("⚠️ Cannot subscribe to realtime: User ID not found")
+            return 
+        }
+        
+        print("🔌 Subscribing to realtime messages for user: \(myId)")
         let channel = client.channel("public:messages")
         
         let changes = channel.postgresChange(
@@ -184,6 +201,52 @@ class ChatViewModel: ObservableObject {
             } catch {
                 print("Error sending message: \(error)")
                 // TODO: Handle error (retry, show alert)
+            }
+        }
+    }
+    
+    func sendOrderMessage(conversationId: UUID, bill: Bill) {
+        guard let conversation = conversations.first(where: { $0.id == conversationId }) else { return }
+        let receiverId = conversation.participantId
+        
+        // Format order summary text
+        let summary = "Đơn hàng: \(formatCurrency(bill.total)) (\(bill.items.count) món)"
+        
+        Task {
+            let msg = ChatMessage(
+                senderId: currentUserId,
+                receiverId: receiverId,
+                text: summary,
+                timestamp: Date(),
+                isRead: false,
+                messageType: "order",
+                orderId: bill.id
+            )
+            
+            // Optimistic UI Update
+            await MainActor.run {
+                if var msgs = messages[conversationId] {
+                    msgs.append(msg)
+                    messages[conversationId] = msgs
+                } else {
+                    messages[conversationId] = [msg]
+                }
+                
+                // Update conversation last message
+                if let index = conversations.firstIndex(where: { $0.id == conversationId }) {
+                    conversations[index].lastMessage = "📦 Đơn hàng mới"
+                    conversations[index].lastMessageTime = Date()
+                }
+            }
+            
+            // Send to Database
+            do {
+                try await client.database
+                    .from("messages")
+                    .insert(msg)
+                    .execute()
+            } catch {
+                print("Error sending order message: \(error)")
             }
         }
     }

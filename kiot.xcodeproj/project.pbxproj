@@ -14,9 +14,22 @@
 		1B3DA7D42F27646C009D3FD1 /* kiot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = kiot.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		1B4B689F2F30EDF70037E9FF /* Exceptions for "kiot" folder in "kiot" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 1B3DA7D32F27646C009D3FD1 /* kiot */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		1B3DA7D62F27646C009D3FD1 /* kiot */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				1B4B689F2F30EDF70037E9FF /* Exceptions for "kiot" folder in "kiot" target */,
+			);
 			path = kiot;
 			sourceTree = "<group>";
 		};
@@ -268,6 +281,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = kiot/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Ứng dụng cần truy cập camera để quét hóa đơn nhập hàng.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need access to the microphone to enable voice ordering.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We need speech recognition permission to convert your voice to text for ordering.";
@@ -314,6 +328,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = kiot/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Ứng dụng cần truy cập camera để quét hóa đơn nhập hàng.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We need access to the microphone to enable voice ordering.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We need speech recognition permission to convert your voice to text for ordering.";
