@@ -8,6 +8,7 @@ CREATE TABLE products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name TEXT NOT NULL,
     price NUMERIC NOT NULL,
+    cost_price NUMERIC DEFAULT 0,
     category TEXT NOT NULL,
     image_name TEXT,
     color TEXT,
@@ -28,7 +29,8 @@ CREATE TABLE order_items (
     order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
     product_name TEXT NOT NULL,
     quantity INTEGER NOT NULL,
-    price NUMERIC NOT NULL
+    price NUMERIC NOT NULL,
+    cost_price NUMERIC DEFAULT 0
 );
 
 -- 4. Restock Bills Table

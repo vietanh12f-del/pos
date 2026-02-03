@@ -3,7 +3,7 @@ import SwiftUI
 struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
     @ObservedObject var orderViewModel: OrderViewModel
-    @State private var showNewChatSheet = false
+    @Binding var showNewChatSheet: Bool
     @State private var searchText = ""
     @Binding var isTabBarVisible: Bool
     
@@ -21,16 +21,6 @@ struct ChatView: View {
                             .foregroundStyle(Color.themeTextDark)
                         
                         Spacer()
-                        
-                        Button(action: { showNewChatSheet = true }) {
-                            Image(systemName: "square.and.pencil")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundStyle(Color.themePrimary)
-                                .padding(10)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                        }
                     }
                     .padding(.horizontal)
                     .padding(.bottom)
@@ -65,7 +55,9 @@ struct ChatView: View {
                     }
                 }
             }
-            .navigationBarHidden(true)
+            .navigationBarBackButtonHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .navigationBarHidden(true)
             .sheet(isPresented: $showNewChatSheet) {
                 NewChatView(viewModel: viewModel, orderViewModel: orderViewModel, isPresented: $showNewChatSheet)
             }
@@ -274,6 +266,7 @@ struct ChatDetailView: View {
             // Input Area
             inputArea
         }
+        .navigationBarBackButtonHidden(true)
         .navigationBarHidden(true)
         .background(Color.themeBackgroundLight.ignoresSafeArea())
         .onAppear {

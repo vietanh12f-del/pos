@@ -218,6 +218,7 @@ struct ProductDTO: Codable {
     let image_name: String?
     let color: String?
     let stock_quantity: Int
+    let cost_price: Double?
     
     init(from domain: Product, inventory: [String: Int] = [:]) {
         self.id = domain.id
@@ -227,10 +228,11 @@ struct ProductDTO: Codable {
         self.image_name = domain.imageName
         self.color = domain.color
         self.stock_quantity = domain.stockQuantity
+        self.cost_price = domain.costPrice
     }
     
     func toDomain() -> Product {
-        return Product(id: id, name: name, price: price, category: category, imageName: image_name ?? "shippingbox", color: color ?? "gray", imageData: nil, stockQuantity: stock_quantity)
+        return Product(id: id, name: name, price: price, costPrice: cost_price ?? 0, category: category, imageName: image_name ?? "shippingbox", color: color ?? "gray", imageData: nil, stockQuantity: stock_quantity)
     }
 }
 
@@ -259,6 +261,7 @@ struct OrderItemDTO: Codable {
     let product_name: String
     let quantity: Int
     let price: Double
+    let cost_price: Double?
     
     init(from domain: OrderItem, orderId: UUID) {
         self.id = UUID()
@@ -266,10 +269,11 @@ struct OrderItemDTO: Codable {
         self.product_name = domain.name
         self.quantity = domain.quantity
         self.price = domain.price
+        self.cost_price = domain.costPrice
     }
     
     func toDomain() -> OrderItem {
-        return OrderItem(id: UUID(), name: product_name, quantity: quantity, price: price)
+        return OrderItem(id: UUID(), name: product_name, quantity: quantity, price: price, costPrice: cost_price ?? 0)
     }
 }
 

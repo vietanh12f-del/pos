@@ -63,7 +63,7 @@ class OrderViewModel: ObservableObject {
         if let index = items.firstIndex(where: { $0.name == product.name && $0.price == product.price && $0.systemImage == product.imageName }) {
             items[index].quantity += 1
         } else {
-            items.append(OrderItem(name: product.name, quantity: 1, price: product.price, systemImage: product.imageName))
+            items.append(OrderItem(name: product.name, quantity: 1, price: product.price, costPrice: product.costPrice, imageData: product.imageData, systemImage: product.imageName))
         }
     }
     
@@ -77,6 +77,7 @@ class OrderViewModel: ObservableObject {
     // Connection Status
     @Published var isDatabaseConnected: Bool = false
     @Published var databaseError: String? = nil
+    @Published var isLoading: Bool = false
     
     init() {
         // Load data from Database
@@ -128,6 +129,8 @@ class OrderViewModel: ObservableObject {
     
     @MainActor
     func loadData() async {
+        isLoading = true
+        defer { isLoading = false }
         do {
             async let fetchedProducts = database.fetchProducts()
             async let fetchedOrders = database.fetchOrders()
@@ -401,25 +404,23 @@ class OrderViewModel: ObservableObject {
                 // Product exists. Update stock and Calculate Moving Average Cost
                 var product = products[index]
                 
-                // AVCO Calculation
-                // Old Total Value = Current Stock * Old Cost Price
-                // New Item Value = New Quantity * New Final Unit Cost (Purchase + Additional)
-                // New Unit Cost = (Old Value + New Value) / (Old Qty + New Qty)
-                
-                let oldCost = product.costPrice
+                // Latest Purchase Price Logic (User Requirement)
                 let newUnitCost = item.finalUnitCost
+                product.costPrice = newUnitCost
                 
-                // If stock was negative or zero, just use new cost (or handle negative logic)
-                // We'll assume simple positive stock logic for now.
+                // AVCO Calculation (Alternative - Commented out)
+                /*
+                let oldCost = product.costPrice
                 let effectiveOldQty = max(0, Double(currentQuantity))
                 
                 let oldTotalValue = effectiveOldQty * oldCost
                 let newTotalValue = Double(item.quantity) * newUnitCost
                 
                 let newAverageCost = (oldTotalValue + newTotalValue) / (effectiveOldQty + Double(item.quantity))
+                product.costPrice = newAverageCost
+                */
                 
                 product.stockQuantity = newQuantity
-                product.costPrice = newAverageCost
                 
                 // Update selling price if suggested
                 if let suggested = item.suggestedPrice {
@@ -520,11 +521,12 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Product Catalog Management
     
-    func createProduct(name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil) {
+    func createProduct(name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil) {
         let newProduct = Product(
             id: UUID(),
             name: name,
             price: price,
+            costPrice: costPrice,
             category: category.rawValue,
             imageName: imageName,
             color: color,
@@ -545,7 +547,7 @@ class OrderViewModel: ObservableObject {
         inventory[name.lowercased()] = quantity
     }
     
-    func updateProduct(_ product: Product, name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil) {
+    func updateProduct(_ product: Product, name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil) {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             // Handle Name Change for Inventory
             let oldKey = product.name.lowercased()
@@ -562,6 +564,7 @@ class OrderViewModel: ObservableObject {
                 id: product.id,
                 name: name,
                 price: price,
+                costPrice: costPrice,
                 category: category.rawValue,
                 imageName: imageName,
                 color: color,

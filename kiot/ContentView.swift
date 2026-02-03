@@ -15,6 +15,9 @@ struct ContentView: View {
     @State private var showNewOrder: Bool = false
     @State private var isTabBarVisible: Bool = true
     @State private var showEditTabBar: Bool = false
+    @State private var showNewRestock: Bool = false
+    @State private var showNewProduct: Bool = false
+    @State private var showNewChat: Bool = false
     
     init() {
         // Hide default TabBar
@@ -41,16 +44,15 @@ struct ContentView: View {
                 Color.clear
                     .tag(2)
                 
-                RestockHistoryView(viewModel: viewModel)
+                InventoryView(viewModel: viewModel, showingAddProduct: $showNewProduct, showNewRestock: $showNewRestock)
                     .tag(3)
                 
-                GoodsView(viewModel: viewModel)
-                    .tag(4)
+                // Tag 4 (Goods) Removed - Merged into InventoryView
                 
-                ChatView(orderViewModel: viewModel, isTabBarVisible: $isTabBarVisible)
+                ChatView(orderViewModel: viewModel, showNewChatSheet: $showNewChat, isTabBarVisible: $isTabBarVisible)
                     .tag(5)
                 
-                SettingsView()
+                SettingsView(tabBarManager: tabBarManager)
                     .tag(6)
             }
             .accentColor(.themePrimary)
@@ -62,13 +64,19 @@ struct ContentView: View {
                     tabBarManager: tabBarManager,
                     selectedTab: $selectedTab,
                     showNewOrder: $showNewOrder,
-                    showEditTabBar: $showEditTabBar
+                    showEditTabBar: $showEditTabBar,
+                    showNewRestock: $showNewRestock,
+                    showNewProduct: $showNewProduct,
+                    showNewChat: $showNewChat
                 )
                 .transition(.move(edge: .bottom))
             }
         }
         .fullScreenCover(isPresented: $showNewOrder) {
             SmartOrderEntryView(viewModel: viewModel)
+        }
+        .fullScreenCover(isPresented: $showNewRestock) {
+            RestockEntryView(viewModel: viewModel)
         }
         .sheet(isPresented: $showEditTabBar) {
             EditTabBarView(tabBarManager: tabBarManager)
@@ -255,14 +263,8 @@ struct HomeDashboardView: View {
                         }
                         
                         if StoreManager.shared.hasPermission(.viewInventory) {
-                            QuickActionButton(icon: "archivebox", title: "Kho hàng", isPrimary: false) {
+                            QuickActionButton(icon: "cube.box.fill", title: "Kho hàng hóa", isPrimary: false) {
                                 selectedTab = 3
-                            }
-                        }
-                        
-                        if StoreManager.shared.hasPermission(.viewInventory) {
-                            QuickActionButton(icon: "cube.box", title: "Hàng hóa", isPrimary: false) {
-                                selectedTab = 4
                             }
                         }
                         
@@ -408,12 +410,20 @@ struct SmartOrderEntryView: View {
                                 viewModel.searchText = ""
                             }) {
                                 HStack(spacing: 12) {
-                                    Image(systemName: product.imageName)
-                                        .font(.title2)
-                                        .foregroundStyle(Color.themePrimary)
-                                        .frame(width: 40, height: 40)
-                                        .background(Color.themePrimary.opacity(0.1))
-                                        .clipShape(Circle())
+                                    if let data = product.imageData, let uiImage = UIImage(data: data) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 40, height: 40)
+                                            .clipShape(Circle())
+                                    } else {
+                                        Image(systemName: product.imageName)
+                                            .font(.title2)
+                                            .foregroundStyle(Color.themePrimary)
+                                            .frame(width: 40, height: 40)
+                                            .background(Color.themePrimary.opacity(0.1))
+                                            .clipShape(Circle())
+                                    }
                                     
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(product.name)
@@ -974,16 +984,25 @@ struct ProductCard: View {
         VStack {
             ZStack(alignment: .topTrailing) {
                 // Placeholder Image / Gradient
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(colorForString(product.color).opacity(0.1))
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay(
-                        Image(systemName: product.imageName)
-                            .resizable()
-                            .scaledToFit()
-                            .padding(30)
-                            .foregroundStyle(colorForString(product.color))
-                    )
+                if let data = product.imageData, let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .aspectRatio(1, contentMode: .fit)
+                        .cornerRadius(16)
+                        .clipped()
+                } else {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(colorForString(product.color).opacity(0.1))
+                        .aspectRatio(1, contentMode: .fit)
+                        .overlay(
+                            Image(systemName: product.imageName)
+                                .resizable()
+                                .scaledToFit()
+                                .padding(30)
+                                .foregroundStyle(colorForString(product.color))
+                        )
+                }
                 
                 Text(formatCurrency(product.price))
                     .font(.caption)
@@ -1570,213 +1589,7 @@ struct QRCodeView: View {
 
 // MARK: - Restock Views
 
-struct RestockHistoryView: View {
-    @ObservedObject var viewModel: OrderViewModel
-    @State private var selectedTab: Int = 0 // 0: Inventory, 1: History
-    @State private var showNewRestock = false
-    @State private var showScanner = false
-    @State private var editingProduct: Product?
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Segmented Control
-                Picker("Chế độ xem", selection: $selectedTab) {
-                    Text("Tồn kho").tag(0)
-                    Text("Lịch sử nhập").tag(1)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding()
-                
-                if selectedTab == 0 {
-                    // Inventory View
-                    if !StoreManager.shared.hasPermission(.viewInventory) {
-                        VStack(spacing: 16) {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 60))
-                                .foregroundStyle(Color.gray.opacity(0.3))
-                            Text("Bạn không có quyền xem kho hàng")
-                                .font(.headline)
-                                .foregroundStyle(Color.gray)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.themeBackgroundLight)
-                    } else {
-                        ScrollView {
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                                ForEach(viewModel.products) { product in
-                                    let stock = viewModel.stockLevel(for: product.name)
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        HStack {
-                                            ZStack {
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .fill(colorForString(product.color).opacity(0.1))
-                                                    .frame(width: 40, height: 40)
-                                                Image(systemName: product.imageName)
-                                                    .foregroundStyle(colorForString(product.color))
-                                            }
-                                            Spacer()
-                                            if stock <= 5 {
-                                                Image(systemName: "exclamationmark.triangle.fill")
-                                                    .foregroundStyle(.orange)
-                                                    .font(.caption)
-                                            }
-                                        }
-                                        
-                                        Text(product.name)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(Color.themeTextDark)
-                                            .lineLimit(1)
-                                        
-                                        HStack {
-                                            Text("Tồn:")
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
-                                            Spacer()
-                                            Text("\(stock)")
-                                                .font(.headline)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(stock == 0 ? .red : (stock <= 5 ? .orange : .green))
-                                        }
-                                        
-                                        Text(formatCurrency(product.price))
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding()
-                                    .background(Color.white)
-                                    .cornerRadius(12)
-                                    .shadow(color: .black.opacity(0.05), radius: 2)
-                                    .onTapGesture {
-                                        editingProduct = product
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                        .background(Color.themeBackgroundLight)
-                    }
-                } else {
-                    // History View
-                    if !StoreManager.shared.hasPermission(.viewInventory) {
-                        VStack(spacing: 16) {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 60))
-                                .foregroundStyle(Color.gray.opacity(0.3))
-                            Text("Bạn không có quyền xem lịch sử nhập hàng")
-                                .font(.headline)
-                                .foregroundStyle(Color.gray)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        ZStack(alignment: .bottomTrailing) {
-                            List {
-                            if viewModel.restockHistory.isEmpty {
-                                Text("Chưa có lịch sử nhập hàng")
-                                    .foregroundStyle(.gray)
-                                    .padding()
-                            } else {
-                                ForEach(viewModel.restockHistory) { bill in
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        HStack {
-                                            Text(formatDate(bill.createdAt))
-                                                .font(.headline)
-                                                .foregroundStyle(Color.themeTextDark)
-                                            Spacer()
-                                            Text(formatCurrency(bill.totalCost))
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(.red)
-                                        }
-                                        
-                                        Text("\(bill.items.count) mặt hàng")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                        
-                                        // Preview first few items
-                                        Text(bill.items.prefix(3).map { "\($0.quantity)x \($0.name)" }.joined(separator: ", "))
-                                            .font(.caption)
-                                            .lineLimit(1)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(.vertical, 4)
-                                    .contextMenu {
-                                        Button(action: {
-                                            viewModel.editRestockBill(bill)
-                                            showNewRestock = true
-                                        }) {
-                                            Label("Sửa", systemImage: "pencil")
-                                        }
-                                        
-                                        Button(role: .destructive, action: {
-                                            viewModel.deleteRestockBill(bill)
-                                        }) {
-                                            Label("Xóa", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                                .onDelete(perform: { indexSet in
-                                    for index in indexSet {
-                                        viewModel.deleteRestockBill(viewModel.restockHistory[index])
-                                    }
-                                })
-                            }
-                        }
-                        .listStyle(.insetGrouped)
-                        
-                        // FAB for New Restock
-                        Button(action: { showNewRestock = true }) {
-                            Circle()
-                            .fill(Color.themePrimary)
-                            .frame(width: 56, height: 56)
-                            .shadow(radius: 4)
-                            .overlay(
-                                Image(systemName: "plus")
-                                    .font(.title2)
-                                    .foregroundStyle(Color.themeTextDark)
-                            )
-                        }
-                        .padding()
-                        .padding(.bottom, 80) // Above Tab Bar
-                    }
-                }
-            }
-        }
-    }
-            .navigationTitle("Kho")
-            .toolbar {
-                if selectedTab == 0 {
-                    ToolbarItem(placement: .primaryAction) {
-                        HStack {
-                            Button(action: { showScanner = true }) {
-                                Image(systemName: "doc.text.viewfinder")
-                            }
-                            Button(action: { showNewRestock = true }) {
-                                Image(systemName: "plus")
-                            }
-                        }
-                    }
-                }
-            }
-            .fullScreenCover(isPresented: $showNewRestock) {
-                RestockEntryView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showScanner) {
-                InvoiceScannerView(viewModel: viewModel)
-            }
-            .sheet(item: $editingProduct) { product in
-                ProductEditView(viewModel: viewModel, mode: .edit(product))
-            }
-        }
-    }
-    
-    func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
+
 
 
 struct RestockEntryView: View {

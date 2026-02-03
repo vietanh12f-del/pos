@@ -5,6 +5,9 @@ struct WheelTabBarView: View {
     @Binding var selectedTab: Int
     @Binding var showNewOrder: Bool
     @Binding var showEditTabBar: Bool
+    @Binding var showNewRestock: Bool
+    @Binding var showNewProduct: Bool
+    @Binding var showNewChat: Bool
     
     // Rotation State
     @State private var rotation: Double = 0
@@ -170,26 +173,68 @@ struct WheelTabBarView: View {
     }
     
     private var fabButton: some View {
-        Button(action: { showNewOrder = true }) {
-            ZStack {
-                Circle()
-                    .fill(Color.themePrimary)
-                    .frame(width: 60, height: 60)
-                    .shadow(color: Color.themePrimary.opacity(0.4), radius: 8, x: 0, y: 4)
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white, lineWidth: 3)
-                    )
-                
-                Image(systemName: "plus")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
+        ZStack {
+            if selectedTab == 3 {
+                Menu {
+                    Button(action: {
+                        showNewProduct = true
+                    }) {
+                        Label("Thêm hàng hóa", systemImage: "plus.circle")
+                    }
+                    
+                    Button(action: {
+                        showNewRestock = true
+                    }) {
+                        Label("Nhập hàng", systemImage: "shippingbox")
+                    }
+                } label: {
+                    fabVisual
+                }
+                .onLongPressGesture {
+                    let generator = UIImpactFeedbackGenerator(style: .heavy)
+                    generator.impactOccurred()
+                    showEditTabBar = true
+                }
+            } else {
+                Button(action: {
+                    // Check for custom action first
+                    if let customAction = tabBarManager.customFabAction {
+                        customAction()
+                        return
+                    }
+                    
+                    // Contextual Action based on Tab
+                    switch selectedTab {
+                    case 0, 1: showNewOrder = true // Home & Orders
+                    case 5: showNewChat = true     // Chat
+                    default: showNewOrder = true   // Fallback
+                    }
+                }) {
+                    fabVisual
+                }
+                .onLongPressGesture {
+                    let generator = UIImpactFeedbackGenerator(style: .heavy)
+                    generator.impactOccurred()
+                    showEditTabBar = true
+                }
             }
         }
-        .onLongPressGesture {
-            let generator = UIImpactFeedbackGenerator(style: .heavy)
-            generator.impactOccurred()
-            showEditTabBar = true
+    }
+    
+    private var fabVisual: some View {
+        ZStack {
+            Circle()
+                .fill(Color.themePrimary)
+                .frame(width: 60, height: 60)
+                .shadow(color: Color.themePrimary.opacity(0.4), radius: 8, x: 0, y: 4)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white, lineWidth: 3)
+                )
+            
+            Image(systemName: "plus")
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(.white)
         }
     }
     

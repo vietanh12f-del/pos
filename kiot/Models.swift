@@ -72,6 +72,18 @@ struct Product: Identifiable, Codable, Hashable {
     var color: String
     var imageData: Data?
     var stockQuantity: Int = 0
+    
+    init(id: UUID = UUID(), name: String, price: Double, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, stockQuantity: Int = 0) {
+        self.id = id
+        self.name = name
+        self.price = price
+        self.costPrice = costPrice
+        self.category = category
+        self.imageName = imageName
+        self.color = color
+        self.imageData = imageData
+        self.stockQuantity = stockQuantity
+    }
 }
 
 enum Category: String, CaseIterable, Codable {

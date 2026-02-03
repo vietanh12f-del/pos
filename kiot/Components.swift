@@ -38,6 +38,13 @@ func formatTime(_ date: Date) -> String {
     return formatter.string(from: date)
 }
 
+func formatDate(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "vi_VN")
+    formatter.dateFormat = "dd/MM/yyyy HH:mm"
+    return formatter.string(from: date)
+}
+
 func billItemsSummary(_ bill: Bill) -> String {
     if bill.items.isEmpty { return "No items" }
     let items = bill.items.map { "\($0.quantity)x \($0.name)" }.joined(separator: ", ")

@@ -4,8 +4,7 @@ import Combine
 enum TabType: String, CaseIterable, Codable, Identifiable {
     case home = "Trang chủ"
     case orders = "Đơn hàng"
-    case restock = "Kho" // RestockHistoryView
-    case goods = "Hàng hóa" // Product List
+    case inventory = "Kho hàng hóa" // Merged Inventory & Goods
     case chat = "Chat"
     case settings = "Cài đặt"
     
@@ -15,8 +14,7 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .home: return "house.fill"
         case .orders: return "list.clipboard.fill"
-        case .restock: return "archivebox.fill"
-        case .goods: return "cube.box.fill"
+        case .inventory: return "cube.box.fill" // Updated to "cube.box.fill" per user request
         case .chat: return "message.fill"
         case .settings: return "gearshape.fill"
         }
@@ -27,8 +25,7 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .home: return 0
         case .orders: return 1
-        case .restock: return 3
-        case .goods: return 4
+        case .inventory: return 3
         case .chat: return 5
         case .settings: return 6
         }
@@ -43,6 +40,7 @@ struct TabItemConfig: Identifiable, Codable, Equatable {
 class CustomTabBarManager: ObservableObject {
     @Published var activeTabs: [TabItemConfig] = []
     @Published var hiddenTabs: [TabItemConfig] = []
+    @Published var customFabAction: (() -> Void)? = nil
     
     init() {
         loadConfig()
@@ -60,8 +58,7 @@ class CustomTabBarManager: ObservableObject {
             self.activeTabs = [
                 TabItemConfig(type: .home),
                 TabItemConfig(type: .orders),
-                TabItemConfig(type: .restock),
-                TabItemConfig(type: .goods),
+                TabItemConfig(type: .inventory),
                 TabItemConfig(type: .chat),
                 TabItemConfig(type: .settings)
             ]

@@ -14,6 +14,8 @@ struct ProductEditView: View {
     
     @State private var name: String = ""
     @State private var price: String = ""
+    @State private var importPrice: String = ""
+    @State private var additionalCost: String = ""
     @State private var quantity: String = "0"
     @State private var selectedCategory: Category = .others
     @State private var selectedColor: String = "gray"
@@ -34,6 +36,8 @@ struct ProductEditView: View {
         case .add:
             _name = State(initialValue: "")
             _price = State(initialValue: "")
+            _importPrice = State(initialValue: "")
+            _additionalCost = State(initialValue: "")
             _quantity = State(initialValue: "0")
             _selectedCategory = State(initialValue: .others)
             _selectedColor = State(initialValue: "gray")
@@ -41,6 +45,8 @@ struct ProductEditView: View {
         case .edit(let product):
             _name = State(initialValue: product.name)
             _price = State(initialValue: String(Int(product.price)))
+            _importPrice = State(initialValue: String(Int(product.costPrice)))
+            _additionalCost = State(initialValue: "0")
             _quantity = State(initialValue: String(viewModel.stockLevel(for: product.name)))
             _selectedCategory = State(initialValue: Category(rawValue: product.category) ?? .others)
             _selectedColor = State(initialValue: product.color)
@@ -53,11 +59,48 @@ struct ProductEditView: View {
     }
     
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Custom Header
+            HStack {
+                Button("Hủy") {
+                    dismiss()
+                }
+                .foregroundStyle(Color.themeTextDark)
+                
+                Spacer()
+                
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(Color.themeTextDark)
+                
+                Spacer()
+                
+                Button("Lưu") {
+                    save()
+                }
+                .disabled(name.isEmpty || price.isEmpty)
+                .foregroundStyle(name.isEmpty || price.isEmpty ? Color.gray : Color.themePrimary)
+            }
+            .padding()
+            .background(Color.white)
+            
             Form {
                 Section(header: Text("Chi tiết")) {
-                    TextField("Tên", text: $name)
-                    TextField("Giá", text: $price)
+                    TextField("Tên hàng", text: $name)
+                    
+                    if case .add = mode {
+                        TextField("Đơn giá nhập", text: $importPrice)
+                            .keyboardType(.decimalPad)
+                        TextField("Chi phí phát sinh", text: $additionalCost)
+                            .keyboardType(.decimalPad)
+                    } else {
+                        TextField("Đơn giá vốn", text: $importPrice)
+                            .keyboardType(.decimalPad)
+                        TextField("Chi phí phát sinh (thêm)", text: $additionalCost)
+                            .keyboardType(.decimalPad)
+                    }
+                    
+                    TextField("Giá bán dự kiến", text: $price)
                         .keyboardType(.decimalPad)
                     TextField("Tồn kho", text: $quantity)
                         .keyboardType(.numberPad)
@@ -179,18 +222,6 @@ struct ProductEditView: View {
                     }
                 }
             }
-            .navigationTitle(title)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Hủy") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Lưu") {
-                        save()
-                    }
-                    .disabled(name.isEmpty || price.isEmpty)
-                }
-            }
             .alert("Xóa mặt hàng?", isPresented: $showDeleteConfirmation) {
                 Button("Xóa", role: .destructive) {
                     if case .edit(let product) = mode {
@@ -214,6 +245,7 @@ struct ProductEditView: View {
                 }
             }
         }
+        .toolbar(.hidden, for: .navigationBar)
     }
     
     var title: String {
@@ -226,12 +258,19 @@ struct ProductEditView: View {
     func save() {
         guard let priceValue = Double(price) else { return }
         let quantityValue = Int(quantity) ?? 0
+        let importPriceValue = Double(importPrice) ?? 0
+        let additionalCostValue = Double(additionalCost) ?? 0
+        
+        var finalCostPrice = importPriceValue
+        if quantityValue > 0 && additionalCostValue > 0 {
+            finalCostPrice += (additionalCostValue / Double(quantityValue))
+        }
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
+            viewModel.createProduct(name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
         case .edit(let product):
-            viewModel.updateProduct(product, name: name, price: priceValue, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
+            viewModel.updateProduct(product, name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
         }
         dismiss()
     }

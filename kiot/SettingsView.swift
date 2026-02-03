@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @ObservedObject var tabBarManager: CustomTabBarManager
     @StateObject private var authManager = AuthManager.shared
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var showEditProfile = false
@@ -27,7 +28,7 @@ struct SettingsView: View {
                         }
                         
                         if storeManager.hasPermission(.manageEmployees) {
-                             NavigationLink(destination: EmployeeManagementView()) {
+                             NavigationLink(destination: EmployeeManagementView(tabBarManager: tabBarManager)) {
                                 Text("Quản lý nhân viên")
                             }
                         }
@@ -90,7 +91,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .navigationTitle("Cài đặt")
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showEditProfile) {
                 EditProfileView(authManager: authManager)
             }
