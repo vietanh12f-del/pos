@@ -121,7 +121,7 @@ struct AuthenticationView: View {
                             .cornerRadius(12)
                             .font(.title2)
                             .multilineTextAlignment(.center)
-                            .onChange(of: otpCode) { newValue in
+                            .onChange(of: otpCode) { _, newValue in
                                 if newValue.count == 6 {
                                     verifyOTP()
                                 }

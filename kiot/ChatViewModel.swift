@@ -109,7 +109,7 @@ class ChatViewModel: ObservableObject {
     @MainActor
     func findUser(phoneNumber: String) async -> Employee? {
         do {
-            let profiles: [UserProfile] = try await client.database
+            let profiles: [UserProfile] = try await client
                 .from("profiles")
                 .select()
                 .eq("phone_number", value: phoneNumber)
@@ -194,7 +194,7 @@ class ChatViewModel: ObservableObject {
             
             // Send to Database
             do {
-                try await client.database
+                try await client
                     .from("messages")
                     .insert(msg)
                     .execute()
@@ -241,7 +241,7 @@ class ChatViewModel: ObservableObject {
             
             // Send to Database
             do {
-                try await client.database
+                try await client
                     .from("messages")
                     .insert(msg)
                     .execute()
@@ -262,7 +262,7 @@ class ChatViewModel: ObservableObject {
         
         do {
             // Fetch messages where I am sender or receiver
-            let response: [ChatMessage] = try await client.database
+            let response: [ChatMessage] = try await client
                 .from("messages")
                 .select()
                 .or("sender_id.eq.\(myId),receiver_id.eq.\(myId)")
@@ -319,7 +319,7 @@ class ChatViewModel: ObservableObject {
         }
         
         do {
-            let profiles: [UserProfile] = try await client.database
+            let profiles: [UserProfile] = try await client
                 .from("profiles")
                 .select()
                 .eq("id", value: id)

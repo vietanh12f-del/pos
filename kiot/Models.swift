@@ -6,11 +6,12 @@ struct OrderItem: Identifiable, Hashable, Codable {
     var quantity: Int
     var price: Double
     var costPrice: Double = 0 // Cost of Goods Sold (Unit Cost at time of sale)
+    var discount: Double = 0 // Discount amount (absolute value)
     var imageData: Data?
     var systemImage: String?
     
     var total: Double {
-        return Double(quantity) * price
+        return (Double(quantity) * price) - discount
     }
     
     var totalCost: Double {

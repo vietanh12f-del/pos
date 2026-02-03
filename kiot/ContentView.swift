@@ -86,6 +86,18 @@ struct ContentView: View {
                 showNewOrder = true
             }
         }
+        .onChange(of: viewModel.shouldShowOrderSheet) { newValue in
+            if newValue {
+                showNewOrder = true
+                viewModel.shouldShowOrderSheet = false // Reset
+            }
+        }
+        .onChange(of: viewModel.shouldShowRestockSheet) { newValue in
+            if newValue {
+                showNewRestock = true
+                viewModel.shouldShowRestockSheet = false // Reset
+            }
+        }
         .onAppear {
              // Handle auto-login to last store ONLY on app launch
              // Check if we are already authenticated but no store selected
@@ -624,9 +636,15 @@ struct SmartOrderEntryView: View {
                                             .fontWeight(.bold)
                                             .foregroundStyle(Color.themeTextDark)
                                         Text("\(item.quantity)x")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.gray)
+                                    
+                                    if item.discount > 0 {
+                                        Text("-\(Int(item.discount/1000))k")
                                             .font(.caption2)
-                                            .foregroundStyle(Color.gray)
+                                            .foregroundStyle(.red)
                                     }
+                                }
                                 }
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 6)
@@ -761,6 +779,7 @@ struct ProductCustomizeView: View {
         self.viewModel = viewModel
         _name = State(initialValue: product.name)
         _price = State(initialValue: String(Int(product.price)))
+        _selectedImageData = State(initialValue: product.imageData)
     }
     
     var body: some View {
@@ -885,6 +904,7 @@ struct ItemEditView: View {
     @State private var name: String
     @State private var price: String
     @State private var quantity: String
+    @State private var discount: String
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
     
@@ -894,6 +914,7 @@ struct ItemEditView: View {
         _name = State(initialValue: item.name)
         _price = State(initialValue: String(Int(item.price)))
         _quantity = State(initialValue: String(item.quantity))
+        _discount = State(initialValue: String(Int(item.discount)))
         _selectedImageData = State(initialValue: item.imageData)
     }
     
@@ -905,6 +926,8 @@ struct ItemEditView: View {
                     TextField("Giá", text: $price)
                         .keyboardType(.numberPad)
                     TextField("Số lượng", text: $quantity)
+                        .keyboardType(.numberPad)
+                    TextField("Giảm giá (đ)", text: $discount)
                         .keyboardType(.numberPad)
                     
                     if let data = selectedImageData, let uiImage = UIImage(data: data) {
@@ -964,8 +987,8 @@ struct ItemEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
-                        if let priceVal = Double(price), let qtyVal = Int(quantity) {
-                            viewModel.updateItemFull(item, name: name, price: priceVal, quantity: qtyVal, imageData: selectedImageData)
+                        if let priceVal = Double(price), let qtyVal = Int(quantity), let discountVal = Double(discount) {
+                            viewModel.updateItemFull(item, name: name, price: priceVal, quantity: qtyVal, discount: discountVal, imageData: selectedImageData)
                             dismiss()
                         }
                     }
@@ -1189,7 +1212,24 @@ struct BillReceiptView: View {
             
             VStack(spacing: 16) {
                 ForEach(items) { item in
-                    HStack(alignment: .top) {
+                    HStack(alignment: .top, spacing: 12) {
+                        // Product Image
+                        if let data = item.imageData, let uiImage = UIImage(data: data) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 40, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                        } else {
+                            Image(systemName: item.systemImage ?? "cart.circle.fill")
+                                .font(.system(size: 24))
+                                .foregroundStyle(Color.themePrimary)
+                                .frame(width: 40, height: 40)
+                                .background(Color.themePrimary.opacity(0.1))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.name)
                                 .fontWeight(.medium)
@@ -1197,6 +1237,12 @@ struct BillReceiptView: View {
                             Text("\(item.quantity) x \(formatCurrency(item.price))")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.gray)
+                            
+                            if item.discount > 0 {
+                                Text("-\(formatCurrency(item.discount))")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
                         }
                         Spacer()
                         Text(formatCurrency(item.total))
@@ -1305,553 +1351,57 @@ struct BillReceiptView: View {
         .background(Color.white)
         .cornerRadius(20)
     }
-}
+    
+    
 
-struct ShareSheet: UIViewControllerRepresentable {
-    var items: [Any]
     
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        return controller
-    }
-    
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
 
-struct ActionButton: View {
-    let icon: String
-    let title: String
-    let color: Color
-    let action: () -> Void
     
-    init(icon: String, title: String, color: Color = .black, action: @escaping () -> Void) {
-        self.icon = icon
-        self.title = title
-        self.color = color
-        self.action = action
-    }
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle().fill(Color.white).frame(width: 50, height: 50).shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-                    Image(systemName: icon).font(.system(size: 20)).foregroundStyle(color)
-                }
-                Text(title).font(.caption).fontWeight(.bold).foregroundStyle(color)
-            }
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
 
-struct OrderHistoryView: View {
-    @ObservedObject var viewModel: OrderViewModel
-    @State private var selectedBill: Bill?
     
-    init(viewModel: OrderViewModel) {
-        self.viewModel = viewModel
-        // Customize Navigation Bar Title Appearance
-        let appearance = UINavigationBarAppearance()
-        appearance.configureWithTransparentBackground()
-        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor.black]
-        appearance.titleTextAttributes = [.foregroundColor: UIColor.black]
-        
-        UINavigationBar.appearance().standardAppearance = appearance
-        UINavigationBar.appearance().scrollEdgeAppearance = appearance
-    }
-    
-    var body: some View {
-        NavigationView {
-            ZStack {
-                Color.themeBackgroundLight.ignoresSafeArea()
-                
-                if !StoreManager.shared.hasPermission(.viewOrders) {
-                    VStack(spacing: 16) {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 60))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        Text("Bạn không có quyền xem lịch sử đơn hàng")
-                            .font(.headline)
-                            .foregroundStyle(Color.gray)
-                    }
-                } else if viewModel.pastOrders.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 60))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        Text("Chưa có đơn hàng nào")
-                            .font(.headline)
-                            .foregroundStyle(Color.gray)
-                    }
-                } else {
-                    List {
-                        ForEach(sections, id: \.title) { section in
-                            Section(header: Text(section.title)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.gray)
-                                .padding(.vertical, 4)) {
-                                ForEach(section.bills) { bill in
-                                    Button(action: { selectedBill = bill }) {
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(formatTime(bill.createdAt))
-                                                    .font(.caption)
-                                                    .foregroundStyle(Color.gray)
-                                                
-                                                Text(billItemsSummary(bill))
-                                                    .font(.subheadline)
-                                                    .fontWeight(.medium)
-                                                    .foregroundStyle(Color.themeTextDark)
-                                                    .lineLimit(1)
-                                            }
-                                            
-                                            Spacer()
-                                            
-                                            Text(formatCurrency(bill.total))
-                                                .font(.headline)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(Color.themePrimary)
-                                        }
-                                        .padding(.vertical, 8)
-                                    }
-                                    .listRowBackground(Color.white)
-                                    .contextMenu {
-                                        Button(action: {
-                                            viewModel.startEditing(bill)
-                                        }) {
-                                            Label("Sửa", systemImage: "pencil")
-                                        }
-                                        
-                                        Button(role: .destructive, action: {
-                                            viewModel.deleteOrder(bill)
-                                        }) {
-                                            Label("Xóa", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                                .onDelete { indexSet in
-                                    for index in indexSet {
-                                        let bill = section.bills[index]
-                                        viewModel.deleteOrder(bill)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                    .scrollContentBackground(.hidden) // Hide default list background
-                    .background(Color.themeBackgroundLight) // Use light theme background
-                }
-            }
-            .navigationTitle("Lịch sử đơn hàng")
-            .sheet(item: $selectedBill) { bill in
-                BillDetailView(bill: bill, viewModel: viewModel)
-            }
+    struct DottedLine: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: CGPoint(x: 0, y: 0))
+            path.addLine(to: CGPoint(x: rect.width, y: 0))
+            return path
         }
     }
     
-    func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "dd/MM HH:mm"
-        return formatter.string(from: date)
-    }
-    
-
-    
-    var sections: [(title: String, bills: [Bill])] {
-        let grouped = Dictionary(grouping: viewModel.pastOrders) { bill -> Date in
-            Calendar.current.startOfDay(for: bill.createdAt)
-        }
-        
-        return grouped.keys.sorted(by: >).map { date in
-            let title: String
-            if Calendar.current.isDateInToday(date) {
-                title = "Hôm nay"
-            } else if Calendar.current.isDateInYesterday(date) {
-                title = "Hôm qua"
+    struct QRCodeView: View {
+        let payload: String
+        var body: some View {
+            if let image = generateQRCode(from: payload) {
+                Image(uiImage: image).interpolation(.none).resizable().scaledToFit().padding(5).background(Color.white).cornerRadius(8)
             } else {
-                let formatter = DateFormatter()
-                formatter.locale = Locale(identifier: "vi_VN")
-                formatter.dateFormat = "dd/MM/yyyy"
-                title = formatter.string(from: date)
+                Image(systemName: "qrcode").resizable().interpolation(.none).scaledToFit()
             }
-            let bills = grouped[date]?.sorted(by: { $0.createdAt > $1.createdAt }) ?? []
-            return (title: title, bills: bills)
+        }
+        private func generateQRCode(from string: String) -> UIImage? {
+            let context = CIContext()
+            let filter = CIFilter.qrCodeGenerator()
+            let data = Data(string.utf8)
+            filter.setValue(data, forKey: "inputMessage")
+            filter.setValue("Q", forKey: "inputCorrectionLevel")
+            guard let outputImage = filter.outputImage else { return nil }
+            let transform = CGAffineTransform(scaleX: 10, y: 10)
+            let scaledImage = outputImage.transformed(by: transform)
+            if let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) {
+                return UIImage(cgImage: cgImage)
+            }
+            return nil
         }
     }
+    
+    // MARK: - Restock Views
+    
+    
+    
+    
+
+    
+    
 }
-
-struct BillDetailView: View {
-    let bill: Bill
-    @ObservedObject var viewModel: OrderViewModel
-    @Environment(\.dismiss) var dismiss
-    @State private var showDeleteConfirmation = false
-    
-    var body: some View {
-        VStack {
-            HStack {
-                Button("Sửa") {
-                    viewModel.startEditing(bill)
-                    dismiss()
-                }
-                .foregroundStyle(Color.blue)
-                
-                Spacer()
-                Button("Đóng") { dismiss() }
-            }
-            .padding()
-            
-            ScrollView {
-                BillReceiptView(
-                    items: bill.items,
-                    totalAmount: bill.total,
-                    dateString: formatDate(bill.createdAt),
-                    qrURL: nil, // History doesn't need fresh QR usually, or we could regenerate
-                    qrImage: nil,
-                    billPayload: nil,
-                    showButtons: false,
-                    onComplete: nil
-                )
-                .padding()
-                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
-                
-                Button(action: {
-                    showDeleteConfirmation = true
-                }) {
-                    Text("Xóa đơn hàng")
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.red)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.red.opacity(0.1))
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal)
-                .padding(.top, 20)
-            }
-        }
-        .background(Color.themeBackgroundLight)
-        .alert("Xóa đơn hàng?", isPresented: $showDeleteConfirmation) {
-            Button("Hủy", role: .cancel) { }
-            Button("Xóa", role: .destructive) {
-                viewModel.deleteOrder(bill)
-                dismiss()
-            }
-        } message: {
-            Text("Bạn có chắc muốn xóa đơn hàng này? Hành động này không thể hoàn tác.")
-        }
-    }
-    
-    func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "dd/MM/yyyy HH:mm"
-        return formatter.string(from: date)
-    }
-}
-
-struct DottedLine: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: rect.width, y: 0))
-        return path
-    }
-}
-
-struct QRCodeView: View {
-    let payload: String
-    var body: some View {
-        if let image = generateQRCode(from: payload) {
-            Image(uiImage: image).interpolation(.none).resizable().scaledToFit().padding(5).background(Color.white).cornerRadius(8)
-        } else {
-            Image(systemName: "qrcode").resizable().interpolation(.none).scaledToFit()
-        }
-    }
-    private func generateQRCode(from string: String) -> UIImage? {
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        let data = Data(string.utf8)
-        filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("Q", forKey: "inputCorrectionLevel")
-        guard let outputImage = filter.outputImage else { return nil }
-        let transform = CGAffineTransform(scaleX: 10, y: 10)
-        let scaledImage = outputImage.transformed(by: transform)
-        if let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) {
-            return UIImage(cgImage: cgImage)
-        }
-        return nil
-    }
-}
-
-// MARK: - Restock Views
-
-
-
-
-struct RestockEntryView: View {
-    @ObservedObject var viewModel: OrderViewModel
-    @Environment(\.dismiss) var dismiss
-    @State private var showManualInput = false
-    @State private var showScanner = false
-    
-    var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                VStack(spacing: 0) {
-                    // List of Items
-                    List {
-                        if viewModel.restockItems.isEmpty {
-                            Text("Nhấn mic để nói hoặc thêm thủ công.")
-                                .foregroundStyle(.gray)
-                                .listRowBackground(Color.clear)
-                        } else {
-                            ForEach(viewModel.restockItems) { item in
-                                HStack {
-                                    VStack(alignment: .leading) {
-                                        Text(item.name)
-                                            .font(.headline)
-                                            .foregroundStyle(Color.themeTextDark)
-                                        Text("\(item.quantity) x \(formatCurrency(item.unitPrice))")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Text(formatCurrency(item.totalCost))
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(Color.themeTextDark)
-                                }
-                            }
-                            .onDelete(perform: viewModel.removeRestockItem)
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                    
-                    // Total & Action
-                    VStack(spacing: 16) {
-                        HStack {
-                            Text("Tổng chi phí")
-                                .font(.headline)
-                                .foregroundStyle(.gray)
-                            Spacer()
-                            Text(formatCurrency(viewModel.restockItems.reduce(0) { $0 + $1.totalCost }))
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.themeTextDark)
-                        }
-                        .padding(.horizontal)
-                        
-                        Button(action: {
-                            viewModel.completeRestockSession()
-                            dismiss()
-                        }) {
-                            Text("Hoàn tất nhập hàng")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.themePrimary)
-                                .cornerRadius(16)
-                        }
-                        .disabled(viewModel.restockItems.isEmpty)
-                        .padding(.horizontal)
-                        .padding(.bottom)
-                    }
-                    .background(Color.white)
-                    .shadow(radius: 5)
-                }
-                
-                // Mic & Manual Input Controls
-                VStack {
-                    Spacer()
-                    HStack {
-                        // Manual Input Button
-                        Button(action: { showManualInput = true }) {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 50, height: 50)
-                                .shadow(radius: 3)
-                                .overlay(Image(systemName: "keyboard").foregroundStyle(Color.themeTextDark))
-                        }
-                        
-                        Spacer()
-                        
-                        // Mic Button
-                        Button(action: viewModel.toggleRecording) {
-                            Circle()
-                                .fill(viewModel.speechRecognizer.isRecording ? Color.red : Color.themeTextDark)
-                                .frame(width: 70, height: 70)
-                                .shadow(radius: 4)
-                                .overlay(
-                                    Image(systemName: viewModel.speechRecognizer.isRecording ? "stop.fill" : "mic.fill")
-                                        .font(.title)
-                                        .foregroundStyle(.white)
-                                )
-                        }
-                        
-                        Spacer()
-                        
-                        // Scanner Button
-                        Button(action: { showScanner = true }) {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 50, height: 50)
-                                .shadow(radius: 3)
-                                .overlay(Image(systemName: "doc.text.viewfinder").foregroundStyle(Color.themeTextDark))
-                        }
-                    }
-                    .padding(.bottom, 140) // Adjust based on Total section height
-                    .padding(.horizontal, 40)
-                }
-            }
-            .navigationTitle("Nhập hàng")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Hủy") { dismiss() }
-                }
-            }
-            .onAppear {
-                viewModel.isRestockMode = true
-            }
-            .onDisappear {
-                viewModel.isRestockMode = false
-            }
-            .sheet(isPresented: $showManualInput) {
-                ManualRestockItemView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showScanner) {
-                InvoiceScannerView(viewModel: viewModel)
-            }
-        }
-    }
-}
-
-struct ManualRestockItemView: View {
-    @ObservedObject var viewModel: OrderViewModel
-    @Environment(\.dismiss) var dismiss
-    
-    @State private var name = ""
-    @State private var quantity = ""
-    @State private var price = ""
-    @State private var incurredCost = ""
-    @State private var sellingPrice = ""
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("Chi tiết hàng hóa")) {
-                    TextField("Tên hàng", text: $name)
-                    if !name.isEmpty {
-                        Text("Tồn hiện tại: \(viewModel.stockLevel(for: name))")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                    }
-                    TextField("Số lượng", text: $quantity)
-                        .keyboardType(.numberPad)
-                        .onChange(of: quantity) { _ in updateSellingPrice() }
-                    
-                    TextField("Đơn giá nhập", text: $price)
-                        .keyboardType(.decimalPad)
-                        .onChange(of: price) { newValue in
-                            // Filter non-numeric characters first (allow comma and dot)
-                            let filtered = newValue.filter { "0123456789,.".contains($0) }
-                            if filtered != newValue {
-                                price = filtered
-                            }
-                            updateSellingPrice()
-                        }
-                    
-                    TextField("Chi phí phát sinh (Ship, bao bì...)", text: $incurredCost)
-                        .keyboardType(.decimalPad)
-                        .onChange(of: incurredCost) { newValue in
-                            let filtered = newValue.filter { "0123456789,.".contains($0) }
-                            if filtered != newValue {
-                                incurredCost = filtered
-                            }
-                            updateSellingPrice()
-                        }
-                    
-                    if let p = parseDouble(price), let q = Int(quantity), q > 0 {
-                        let extra = parseDouble(incurredCost) ?? 0
-                        let total = (p * Double(q)) + extra
-                        let unitCost = total / Double(q)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Tổng chi phí:")
-                                Spacer()
-                                Text(formatCurrency(total))
-                                    .fontWeight(.bold)
-                            }
-                            
-                            HStack {
-                                Text("Giá vốn/sp:")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                Spacer()
-                                Text(formatCurrency(unitCost))
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                            }
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    
-                    TextField("Giá bán dự kiến (Lãi 30%)", text: $sellingPrice)
-                        .keyboardType(.decimalPad)
-                }
-            }
-            .navigationTitle("Thêm hàng nhập")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Hủy") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Thêm") {
-                        if let p = parseDouble(price), let q = Int(quantity), !name.isEmpty {
-                            let extra = parseDouble(incurredCost) ?? 0
-                            let suggested = parseDouble(sellingPrice)
-                            viewModel.addRestockItem(name, unitPrice: p, quantity: q, additionalCost: extra, suggestedPrice: suggested)
-                            dismiss()
-                        }
-                    }
-                    .disabled(name.isEmpty || price.isEmpty || quantity.isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.height(550)])
-    }
-    
-    func updateSellingPrice() {
-        if let p = parseDouble(price), let q = Int(quantity), q > 0 {
-            let extra = parseDouble(incurredCost) ?? 0
-            let total = (p * Double(q)) + extra
-            let unitCost = total / Double(q)
-            let suggested = unitCost * 1.3
-            sellingPrice = String(Int(suggested))
-        }
-    }
-    
-    func parseDouble(_ input: String) -> Double? {
-        // Handle "2,000" or "20,000" (Thousands separator)
-        // If input contains comma, remove it assuming it's a thousands separator for VND
-        // e.g. "2,000" -> "2000"
-        let clean = input.replacingOccurrences(of: ",", with: "")
-        
-        // Also handle "2.000" as 2000 if it looks like thousands separator (common in VN)
-        // Simple heuristic: if it has a dot and 3 digits after it, and no other dots/commas... 
-        // But let's stick to the user request: "unit input with comma like 2,000"
-        // So we strip comma.
-        
-        return Double(clean)
-    }
-}
-
 
 #Preview {
     ContentView()

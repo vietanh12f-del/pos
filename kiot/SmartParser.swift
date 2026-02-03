@@ -1,130 +1,127 @@
 import Foundation
 import NaturalLanguage
 
+enum SmartIntent: String {
+    case order // Bán hàng
+    case restock // Nhập hàng
+}
+
 class SmartParser {
     
     /// Parses a raw string into structured order data using heuristics and NLP
     /// Supports inputs like:
     /// - "2 coffee 30k"
     /// - "coffee 30k 2"
-    /// - "bún bò 2 tô 50000"
-    static func parse(text: String) -> (name: String, quantity: Int, price: Double, isTotal: Bool?)? {
+    /// - "bún bò 2 tô 50000 giảm 10k"
+    /// - "nhập 50 hoa hồng đỏ giá 5k"
+    static func parse(text: String) -> (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, isTotal: Bool?, intent: SmartIntent?)? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         
-        // Detect price context keywords
         let lowerText = trimmed.lowercased()
-        var isTotal: Bool? = nil
         
+        // 1. Detect Intent using NLP classification keywords
+        var intent: SmartIntent? = nil
+        let restockKeywords = ["nhập", "mua thêm", "restock", "về kho", "nhập kho"]
+        let orderKeywords = ["bán", "khách mua", "order", "tính tiền", "lên đơn", "tạo đơn"]
+        
+        if restockKeywords.contains(where: { lowerText.contains($0) }) {
+            intent = .restock
+        } else if orderKeywords.contains(where: { lowerText.contains($0) }) {
+            intent = .order
+        }
+        
+        // 2. Detect Price Context (Total vs Unit)
+        var isTotal: Bool? = nil
         if lowerText.contains("tổng") || lowerText.contains("hết") || lowerText.contains("thành tiền") || lowerText.contains("total") || lowerText.contains("sum") {
             isTotal = true
         } else if lowerText.contains("mỗi") || lowerText.contains("từng") || lowerText.contains("unit") || lowerText.contains("each") || lowerText.contains("/") || lowerText.contains("per") {
             isTotal = false
         }
         
-        let tokenizer = NLTokenizer(unit: .word)
-        tokenizer.string = trimmed
+        // Use NLTagger for better tokenization and part-of-speech tagging
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        tagger.string = trimmed
         
         var tokens: [String] = []
-        tokenizer.enumerateTokens(in: trimmed.startIndex..<trimmed.endIndex) { tokenRange, _ in
+        var tokenRanges: [Range<String.Index>] = []
+        
+        tagger.enumerateTags(in: trimmed.startIndex..<trimmed.endIndex, unit: .word, scheme: .lexicalClass, options: [.omitPunctuation, .omitWhitespace]) { tag, tokenRange in
             tokens.append(String(trimmed[tokenRange]))
+            tokenRanges.append(tokenRange)
             return true
         }
         
         // Data holders
         var quantity: Int?
         var price: Double?
+        var discount: Double = 0
+        var discountIsPercent: Bool = false
         var nameParts: [String] = []
         
         // Regex for price with suffix (e.g., 30k, 30k, 50.000)
-        // Matches number followed optionally by 'k' or 'd'/'đ'
-        let priceRegex = try? NSRegularExpression(pattern: "^(\\d+(?:[.,]\\d+)?)(k|đ|d)?$", options: .caseInsensitive)
+        let priceRegex = try? NSRegularExpression(pattern: "^(\\d+(?:[.,]\\d+)?)(k|đ|d|%)?$", options: .caseInsensitive)
         
-        // Pass 1: Identify clear roles (Numbers, Prices)
+        // Regex for discount keywords
+        let discountKeywords = ["giảm", "off", "bớt", "chiết khấu", "discount", "km"]
+        
+        // Pass 1: Identify clear roles (Numbers, Prices, Discounts)
         var usedIndices = Set<Int>()
         
         var i = 0
         while i < tokens.count {
             let token = tokens[i]
             let lowerToken = token.lowercased()
-            var handled = false
             
-            // Check if it matches price pattern (has k/d suffix or is large number)
-            if let match = priceRegex?.firstMatch(in: lowerToken, range: NSRange(location: 0, length: lowerToken.utf16.count)) {
-                let numberRange = match.range(at: 1)
-                if let swiftRange = Range(numberRange, in: lowerToken) {
-                    var numberString = String(lowerToken[swiftRange])
-                    
-                    // Smart Number Parsing for Vietnamese Context
-                    // Handle "2.000" or "2,000" as 2000 (Thousands separator)
-                    // Handle "2,5" or "2.5" as 2.5 (Decimal separator)
-                    
-                    let hasDot = numberString.contains(".")
-                    let hasComma = numberString.contains(",")
-                    
-                    if hasDot || hasComma {
-                        // Normalize separators to a common char for analysis
-                        let unified = numberString.replacingOccurrences(of: ",", with: ".")
-                        let parts = unified.components(separatedBy: ".")
-                        
-                        if let lastPart = parts.last, lastPart.count == 3 {
-                            // High probability of thousands separator (e.g., 2.000 or 1.500)
-                            // Remove all non-numeric characters to treat as integer
-                            numberString = numberString.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
-                        } else {
-                            // Probable decimal (e.g., 2.5 or 2,5)
-                            // Replace comma with dot for Swift Double parsing
-                            numberString = numberString.replacingOccurrences(of: ",", with: ".")
-                        }
+            // Check for Discount Keyword
+            if discountKeywords.contains(lowerToken) {
+                usedIndices.insert(i)
+                // Look ahead for value
+                if i + 1 < tokens.count {
+                    let nextToken = tokens[i+1]
+                    if let (val, indices, isPercent) = parsePriceOrNumber(token: nextToken, at: i+1, tokens: tokens, priceRegex: priceRegex) {
+                        discount = val
+                        discountIsPercent = isPercent
+                        indices.forEach { usedIndices.insert($0) }
+                        i = indices.max()! // Advance
                     }
-
-                    if let value = Double(numberString) {
-                        let suffixRange = match.range(at: 2)
-                        let hasSuffix = suffixRange.location != NSNotFound
-                        
-                        // Check for detached suffix in next token (e.g. "30" "k")
-                        var effectiveMultiplier: Double = 1.0
-                        var consumedNextToken = false
-                        
-                        if !hasSuffix && i + 1 < tokens.count {
-                            let nextToken = tokens[i+1].lowercased()
-                            if ["k", "nghìn", "nghin"].contains(nextToken) {
-                                effectiveMultiplier = 1000.0
-                                consumedNextToken = true
-                            } else if ["đ", "d", "vnd"].contains(nextToken) {
-                                consumedNextToken = true
-                            }
-                        }
-                        
-                        // Heuristic: If > 1000 or has suffix (attached or detached), it's definitely PRICE
-                        if hasSuffix {
-                            // "30k" -> 30000
-                            let suffix = (lowerToken as NSString).substring(with: suffixRange).lowercased()
-                            if suffix == "k" {
-                                price = value * 1000
-                            } else {
-                                price = value
-                            }
-                            usedIndices.insert(i)
-                            handled = true
-                        } else if effectiveMultiplier > 1.0 {
-                            price = value * effectiveMultiplier
-                            usedIndices.insert(i)
-                            usedIndices.insert(i+1)
-                            i += 1 // Skip next token
-                            handled = true
-                        } else if value >= 1000 {
-                            price = value
-                            usedIndices.insert(i)
-                            if consumedNextToken {
-                                usedIndices.insert(i+1)
-                                i += 1
-                            }
-                            handled = true
-                        }
+                }
+                i += 1
+                continue
+            }
+            
+            // Check for Price/Number
+            // We prioritize detecting Price if it has suffix or is large
+            if let (val, indices, isPercent) = parsePriceOrNumber(token: token, at: i, tokens: tokens, priceRegex: priceRegex, checkSuffix: true) {
+                // If we found a price-like number
+                // Check if it's likely a price or quantity
+                // If > 1000 or has suffix, it's price
+                // If < 1000 and integer, could be quantity, UNLESS we already have quantity
+                
+                let isLikelyPrice = val >= 1000 || indices.count > 1 // indices > 1 means it consumed a suffix token like 'k'
+                
+                if isLikelyPrice {
+                    if price == nil {
+                        price = val
+                        indices.forEach { usedIndices.insert($0) }
+                        i = indices.max()!
+                    }
+                } else {
+                    // Ambiguous number (e.g. "50")
+                    // If we haven't found quantity, assume quantity
+                    if quantity == nil {
+                        quantity = Int(val)
+                        indices.forEach { usedIndices.insert($0) }
+                        i = indices.max()!
+                    } else if price == nil {
+                        // We have quantity, so this must be price
+                        price = val
+                        indices.forEach { usedIndices.insert($0) }
+                        i = indices.max()!
                     }
                 }
             }
+            
             i += 1
         }
         
@@ -140,7 +137,8 @@ class SmartParser {
             "bảy": 7, "bay": 7,
             "tám": 8, "tam": 8,
             "chín": 9, "chin": 9,
-            "mười": 10, "muoi": 10
+            "mười": 10, "muoi": 10,
+            "chục": 10, "chuc": 10
         ]
         
         if quantity == nil {
@@ -165,17 +163,99 @@ class SmartParser {
             }
         }
         
-        // Pass 3: Everything else is Name
+        // Pass 3: Smart Name Extraction
+        // Filter out intent keywords and filler words from name
+        let intentKeywords = restockKeywords + orderKeywords + ["cho", "của", "với", "lấy"]
+        
         for (index, token) in tokens.enumerated() {
             if !usedIndices.contains(index) {
-                nameParts.append(token)
+                let lower = token.lowercased()
+                if !intentKeywords.contains(lower) {
+                    // Use NLTagger to skip verbs/conjunctions if we want strict noun parsing?
+                    // For now, simple keyword filtering is safer for product names which can be anything.
+                    nameParts.append(token)
+                }
             }
         }
         
         let finalName = nameParts.joined(separator: " ")
         if finalName.isEmpty { return nil }
         
-        return (name: finalName, quantity: quantity ?? 1, price: price ?? 0, isTotal: isTotal)
+        return (name: finalName, quantity: quantity ?? 1, price: price ?? 0, discount: discount, discountIsPercent: discountIsPercent, isTotal: isTotal, intent: intent)
+    }
+    
+    // Helper to parse "30k", "50.000", "2"
+    private static func parsePriceOrNumber(token: String, at index: Int, tokens: [String], priceRegex: NSRegularExpression?, checkSuffix: Bool = true) -> (Double, [Int], Bool)? {
+        let lowerToken = token.lowercased()
+        
+        if let match = priceRegex?.firstMatch(in: lowerToken, range: NSRange(location: 0, length: lowerToken.utf16.count)) {
+            let numberRange = match.range(at: 1)
+            if let swiftRange = Range(numberRange, in: lowerToken) {
+                var numberString = String(lowerToken[swiftRange])
+                
+                // Normalize separators
+                let hasDot = numberString.contains(".")
+                let hasComma = numberString.contains(",")
+                
+                if hasDot || hasComma {
+                    let unified = numberString.replacingOccurrences(of: ",", with: ".")
+                    let parts = unified.components(separatedBy: ".")
+                    
+                    if let lastPart = parts.last, lastPart.count == 3 {
+                        // Thousands separator (e.g., 2.000)
+                        numberString = numberString.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
+                    } else {
+                        // Decimal (e.g., 2.5)
+                        numberString = numberString.replacingOccurrences(of: ",", with: ".")
+                    }
+                }
+
+                if let value = Double(numberString) {
+                    var finalValue = value
+                    var consumedIndices = [index]
+                    var isPercent = false
+                    
+                    let suffixRange = match.range(at: 2)
+                    let hasSuffix = suffixRange.location != NSNotFound
+                    
+                    var effectiveMultiplier: Double = 1.0
+                    
+                    if !hasSuffix && checkSuffix && index + 1 < tokens.count {
+                        let nextToken = tokens[index+1].lowercased()
+                        if ["k", "nghìn", "nghin"].contains(nextToken) {
+                            effectiveMultiplier = 1000.0
+                            consumedIndices.append(index+1)
+                        } else if ["đ", "d", "vnd"].contains(nextToken) {
+                            // Just currency symbol, doesn't multiply but confirms it's a price/value
+                            consumedIndices.append(index+1)
+                        } else if nextToken == "%" {
+                             // Percentage discount context
+                             consumedIndices.append(index+1)
+                             isPercent = true
+                        }
+                    }
+                    
+                    if hasSuffix {
+                        let suffix = (lowerToken as NSString).substring(with: suffixRange).lowercased()
+                        if suffix == "k" {
+                            finalValue = value * 1000
+                        } else if suffix == "%" {
+                            isPercent = true
+                        }
+                    } else {
+                        finalValue = value * effectiveMultiplier
+                    }
+                    
+                    // Special case for % in the string itself (e.g. "10%")
+                    if lowerToken.contains("%") {
+                         isPercent = true
+                    }
+                    
+                    return (finalValue, consumedIndices, isPercent)
+                }
+            }
+        }
+        return nil
     }
     
     static func findBestMatch(name: String, in products: [Product]) -> Product? {

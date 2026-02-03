@@ -39,7 +39,7 @@ class SupabaseDatabaseService: DatabaseService {
     
     // MARK: - Products
     func fetchProducts() async throws -> [Product] {
-        let response: [ProductDTO] = try await client.database
+        let response: [ProductDTO] = try await client
             .from("products")
             .select()
             .execute()
@@ -50,7 +50,7 @@ class SupabaseDatabaseService: DatabaseService {
     
     func saveProduct(_ product: Product) async throws {
         let dto = ProductDTO(from: product)
-        try await client.database
+        try await client
             .from("products")
             .insert(dto)
             .execute()
@@ -58,7 +58,7 @@ class SupabaseDatabaseService: DatabaseService {
     
     func updateProduct(_ product: Product) async throws {
         let dto = ProductDTO(from: product)
-        try await client.database
+        try await client
             .from("products")
             .update(dto)
             .eq("id", value: product.id)
@@ -66,7 +66,7 @@ class SupabaseDatabaseService: DatabaseService {
     }
     
     func deleteProduct(_ id: UUID) async throws {
-        try await client.database
+        try await client
             .from("products")
             .delete()
             .eq("id", value: id)
@@ -133,7 +133,7 @@ class SupabaseDatabaseService: DatabaseService {
     
     // MARK: - Price History
     func fetchPriceHistory() async throws -> [String: Double] {
-        let history: [PriceHistoryDTO] = try await client.database
+        let history: [PriceHistoryDTO] = try await client
             .from("price_history")
             .select()
             .execute()
@@ -146,7 +146,7 @@ class SupabaseDatabaseService: DatabaseService {
     
     func upsertPriceHistory(name: String, price: Double) async throws {
         let dto = PriceHistoryDTO(product_name: name, price: price)
-        try await client.database
+        try await client
             .from("price_history")
             .upsert(dto)
             .execute()
@@ -154,7 +154,7 @@ class SupabaseDatabaseService: DatabaseService {
     
     // MARK: - Profiles
     func fetchProfile(id: UUID) async throws -> UserProfile? {
-        let response: [UserProfile] = try await client.database
+        let response: [UserProfile] = try await client
             .from("profiles")
             .select()
             .eq("id", value: id)
@@ -165,7 +165,7 @@ class SupabaseDatabaseService: DatabaseService {
     }
     
     func saveProfile(_ profile: UserProfile) async throws {
-        try await client.database
+        try await client
             .from("profiles")
             .upsert(profile)
             .execute()
@@ -262,6 +262,7 @@ struct OrderItemDTO: Codable {
     let quantity: Int
     let price: Double
     let cost_price: Double?
+    let discount: Double?
     
     init(from domain: OrderItem, orderId: UUID) {
         self.id = UUID()
@@ -270,10 +271,11 @@ struct OrderItemDTO: Codable {
         self.quantity = domain.quantity
         self.price = domain.price
         self.cost_price = domain.costPrice
+        self.discount = domain.discount
     }
     
     func toDomain() -> OrderItem {
-        return OrderItem(id: UUID(), name: product_name, quantity: quantity, price: price, costPrice: cost_price ?? 0)
+        return OrderItem(id: UUID(), name: product_name, quantity: quantity, price: price, costPrice: cost_price ?? 0, discount: discount ?? 0)
     }
 }
 

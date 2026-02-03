@@ -11,6 +11,10 @@ class OrderViewModel: ObservableObject {
     @Published var inventory: [String: Int] = [:]
     @Published var pastOrders: [Bill] = []
     
+    // Navigation Triggers
+    @Published var shouldShowRestockSheet = false
+    @Published var shouldShowOrderSheet = false
+
     // Dashboard Stats
     @Published var revenue: Double = 0
     @Published var orderCount: Int = 0
@@ -112,6 +116,25 @@ class OrderViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+            
+        // Listen for AppIntent notifications
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("TriggerVoiceInput"), object: nil, queue: .main) { [weak self] notification in
+            if let text = notification.object as? String {
+                self?.currentInput = text
+                self?.processInput()
+            }
+        }
+        
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("TriggerRestockInput"), object: nil, queue: .main) { [weak self] notification in
+            if let text = notification.object as? String {
+                self?.currentInput = text
+                // Ensure intent is detected as Restock
+                if !(text.lowercased().contains("nhập") || text.lowercased().contains("restock")) {
+                    self?.currentInput = "nhập " + text
+                }
+                self?.processInput()
+            }
+        }
     }
     
     func toggleRecording() {
@@ -176,28 +199,46 @@ class OrderViewModel: ObservableObject {
     }
     
     func processInput() {
-        if isRestockMode {
-            processRestockInput()
-            return
-        }
-        
         let rawText = currentInput
         let lines = rawText.components(separatedBy: CharacterSet(charactersIn: ",\n"))
         
         for line in lines {
-            if let item = parseItem(from: line) {
-                items.append(item)
-                // Update history if price is valid
-                if item.price > 0 {
-                    priceHistory[item.name.lowercased()] = item.price
-                    
-                    Task {
-                    do {
-                        try await database.upsertPriceHistory(name: item.name.lowercased(), price: item.price)
-                    } catch {
-                        print("❌ Error updating price history: \(error)")
+            if let parsed = SmartParser.parse(text: line) {
+                // 1. Check Intent to possibly switch modes
+                if let intent = parsed.intent {
+                    if intent == .restock {
+                        if !isRestockMode {
+                            DispatchQueue.main.async { 
+                                self.isRestockMode = true 
+                                self.shouldShowRestockSheet = true
+                            }
+                        } else {
+                             // Already in restock mode, but maybe sheet is closed?
+                             DispatchQueue.main.async { self.shouldShowRestockSheet = true }
+                        }
+                        handleRestockParsed(parsed)
+                        continue
+                    } else if intent == .order {
+                        if isRestockMode {
+                            DispatchQueue.main.async { 
+                                self.isRestockMode = false 
+                                self.shouldShowOrderSheet = true
+                            }
+                        } else {
+                            DispatchQueue.main.async { self.shouldShowOrderSheet = true }
+                        }
+                        handleOrderParsed(parsed)
+                        continue
                     }
                 }
+                
+                // 2. No explicit intent, use current mode
+                if isRestockMode {
+                    DispatchQueue.main.async { self.shouldShowRestockSheet = true }
+                    handleRestockParsed(parsed)
+                } else {
+                    DispatchQueue.main.async { self.shouldShowOrderSheet = true }
+                    handleOrderParsed(parsed)
                 }
             }
         }
@@ -205,50 +246,114 @@ class OrderViewModel: ObservableObject {
         currentInput = ""
     }
     
-    func processRestockInput() {
-        let rawText = currentInput
-        let lines = rawText.components(separatedBy: CharacterSet(charactersIn: ",\n"))
+    private func handleOrderParsed(_ parsed: (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, isTotal: Bool?, intent: SmartIntent?)) {
+        var finalName = parsed.name
+        var price = parsed.price
+        var systemImage: String? = nil
+        var costPrice: Double = 0
+        var imageData: Data? = nil
         
-        for line in lines {
-            if let parsed = SmartParser.parse(text: line) {
-                var finalName = parsed.name
-                
-                // Intelligent Mapping: Match with existing catalog to ensure inventory consistency
-                if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
-                    finalName = match.name
+        // Intelligent Mapping
+        if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
+            finalName = match.name
+            systemImage = match.imageName
+            costPrice = match.costPrice
+            imageData = match.imageData
+            
+            if price == 0 {
+                price = match.price
+            }
+        } else {
+            // Fallback to history
+            if price == 0 {
+                if let historyPrice = priceHistory[parsed.name.lowercased()] {
+                    price = historyPrice
                 }
-                
-                var unitPrice: Double = 0
-                var quantity = parsed.quantity
-                let rawPrice = parsed.price
-                
-                if rawPrice > 0 {
-                    if let isTotal = parsed.isTotal {
-                        if isTotal {
-                            unitPrice = rawPrice / Double(quantity)
-                        } else {
-                            unitPrice = rawPrice
-                        }
-                    } else {
-                        // Heuristic fallback
-                        // If price is very large (e.g. > 500k), it's likely Total Cost.
-                        // UNLESS quantity is 1, then Unit = Total.
-                        if quantity == 1 {
-                             unitPrice = rawPrice
-                        } else if rawPrice > 500_000 {
-                            // Assume Total Cost
-                            unitPrice = rawPrice / Double(quantity)
-                        } else {
-                            // Assume Unit Price
-                            unitPrice = rawPrice
-                        }
-                    }
-                }
-                
-                restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice, additionalCost: 0))
             }
         }
-        currentInput = ""
+        
+        // Calculate Discount Amount
+        var finalDiscount = parsed.discount
+        if parsed.discountIsPercent {
+             // If price is 0, we can't calculate percentage discount yet. 
+             // Ideally we should store the percentage, but OrderItem only has discount value.
+             // For now, if price > 0, calculate it. If not, it might be 0.
+             if price > 0 {
+                 finalDiscount = price * (parsed.discount / 100.0)
+             }
+        }
+        
+        // Add item
+        let item = OrderItem(name: finalName, quantity: parsed.quantity, price: price, costPrice: costPrice, discount: finalDiscount, imageData: imageData, systemImage: systemImage)
+        
+        // Update or append
+        if let index = items.firstIndex(where: { $0.name == item.name && $0.price == item.price && $0.discount == item.discount && $0.systemImage == item.systemImage }) {
+            items[index].quantity += item.quantity
+        } else {
+            items.append(item)
+        }
+        
+        // Update history
+        if item.price > 0 {
+            priceHistory[item.name.lowercased()] = item.price
+            Task {
+                try? await database.upsertPriceHistory(name: item.name.lowercased(), price: item.price)
+            }
+        }
+    }
+    
+    private func handleRestockParsed(_ parsed: (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, isTotal: Bool?, intent: SmartIntent?)) {
+        var finalName = parsed.name
+        
+        if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
+            finalName = match.name
+        }
+        
+        var unitPrice: Double = 0
+        var quantity = parsed.quantity
+        let rawPrice = parsed.price
+        
+        if rawPrice > 0 {
+            if let isTotal = parsed.isTotal {
+                if isTotal {
+                    unitPrice = rawPrice / Double(quantity)
+                } else {
+                    unitPrice = rawPrice
+                }
+            } else {
+                if quantity == 1 {
+                     unitPrice = rawPrice
+                } else if rawPrice > 500_000 {
+                    unitPrice = rawPrice / Double(quantity)
+                } else {
+                    unitPrice = rawPrice
+                }
+            }
+        }
+        
+        // Discount in restock usually means discount from supplier
+        // We can subtract it from unit price or treat as negative additional cost
+        // Here we'll treat it as negative additional cost for simplicity in unit cost calc
+        var discountValue = parsed.discount
+        if parsed.discountIsPercent {
+             if unitPrice > 0 {
+                 discountValue = unitPrice * (parsed.discount / 100.0) * Double(quantity) // Total discount? Or per unit?
+                 // Let's assume parsed.discount is total discount if we used total price logic, or unit discount if unit price.
+                 // Actually, additionalCost is usually total for the batch.
+                 // If percentage, it's usually on the total cost.
+                 let totalBaseCost = unitPrice * Double(quantity)
+                 discountValue = totalBaseCost * (parsed.discount / 100.0)
+             }
+        }
+        
+        let additionalCost = -discountValue
+        
+        restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice, additionalCost: additionalCost))
+    }
+    
+    func processRestockInput() {
+        // Deprecated by processInput handling both, but kept for compatibility if called directly
+        processInput()
     }
     
     func stockLevel(for name: String) -> Int {
@@ -282,7 +387,15 @@ class OrderViewModel: ObservableObject {
                 }
             }
             
-            return OrderItem(name: finalName, quantity: parsed.quantity, price: price, costPrice: costPrice, systemImage: systemImage)
+            // Calculate Discount
+            var finalDiscount = parsed.discount
+            if parsed.discountIsPercent {
+                if price > 0 {
+                    finalDiscount = price * (parsed.discount / 100.0)
+                }
+            }
+            
+            return OrderItem(name: finalName, quantity: parsed.quantity, price: price, costPrice: costPrice, discount: finalDiscount, systemImage: systemImage)
         }
         return nil
     }
@@ -760,8 +873,8 @@ class OrderViewModel: ObservableObject {
     }
     
     // MARK: - Manual Item Management
-    func addItem(_ name: String, price: Double, quantity: Int, imageData: Data? = nil) {
-        if let index = items.firstIndex(where: { $0.name == name && $0.price == price && $0.imageData == imageData }) {
+    func addItem(_ name: String, price: Double, quantity: Int, discount: Double = 0, imageData: Data? = nil) {
+        if let index = items.firstIndex(where: { $0.name == name && $0.price == price && $0.discount == discount && $0.imageData == imageData }) {
             items[index].quantity += quantity
         } else {
             // Find cost price
@@ -769,7 +882,7 @@ class OrderViewModel: ObservableObject {
             if let product = products.first(where: { $0.name.lowercased() == name.lowercased() }) {
                 cost = product.costPrice
             }
-            items.append(OrderItem(name: name, quantity: quantity, price: price, costPrice: cost, imageData: imageData, systemImage: "cart.circle.fill"))
+            items.append(OrderItem(name: name, quantity: quantity, price: price, costPrice: cost, discount: discount, imageData: imageData, systemImage: "cart.circle.fill"))
         }
     }
     
@@ -783,11 +896,12 @@ class OrderViewModel: ObservableObject {
         }
     }
     
-    func updateItemFull(_ item: OrderItem, name: String, price: Double, quantity: Int, imageData: Data?) {
+    func updateItemFull(_ item: OrderItem, name: String, price: Double, quantity: Int, discount: Double, imageData: Data?) {
         if let index = items.firstIndex(where: { $0.id == item.id }) {
             items[index].name = name
             items[index].price = price
             items[index].quantity = quantity
+            items[index].discount = discount
             items[index].imageData = imageData
             // Preserve existing systemImage
         }

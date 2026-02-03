@@ -354,7 +354,7 @@ struct ChatDetailView: View {
             }
             .padding()
         }
-        .onChange(of: viewModel.messages[conversation.id]?.count) { _ in
+        .onChange(of: viewModel.messages[conversation.id]?.count) { _, _ in
             if let lastMsg = viewModel.messages[conversation.id]?.last {
                 withAnimation {
                     proxy.scrollTo(lastMsg.id, anchor: .bottom)

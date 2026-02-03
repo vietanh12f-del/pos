@@ -94,9 +94,9 @@ struct ProductEditView: View {
                         TextField("Chi phí phát sinh", text: $additionalCost)
                             .keyboardType(.decimalPad)
                     } else {
-                        TextField("Đơn giá vốn", text: $importPrice)
+                        TextField("Đơn giá nhập", text: $importPrice)
                             .keyboardType(.decimalPad)
-                        TextField("Chi phí phát sinh (thêm)", text: $additionalCost)
+                        TextField("Chi phí phát sinh", text: $additionalCost)
                             .keyboardType(.decimalPad)
                     }
                     

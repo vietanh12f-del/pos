@@ -42,7 +42,7 @@ class AuthManager: ObservableObject {
     @MainActor
     func checkProfile(userId: UUID) async {
         do {
-             let response: [UserProfile] = try await client.database
+             let response: [UserProfile] = try await client
                 .from("profiles")
                 .select()
                 .eq("id", value: userId)
@@ -82,7 +82,7 @@ class AuthManager: ObservableObject {
         )
         
         do {
-            try await client.database.from("profiles").upsert(newProfile).execute()
+            try await client.from("profiles").upsert(newProfile).execute()
             self.currentUserProfile = newProfile
             self.needsProfileCreation = false
             self.isLoading = false
@@ -111,7 +111,7 @@ class AuthManager: ObservableObject {
         )
         
         do {
-            try await client.database.from("profiles").upsert(updatedProfile).execute()
+            try await client.from("profiles").upsert(updatedProfile).execute()
             self.currentUserProfile = updatedProfile
             self.isLoading = false
             return true
