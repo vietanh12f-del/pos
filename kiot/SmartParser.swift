@@ -13,8 +13,8 @@ class SmartParser {
     /// - "2 coffee 30k"
     /// - "coffee 30k 2"
     /// - "bún bò 2 tô 50000 giảm 10k"
-    /// - "nhập 50 hoa hồng đỏ giá 5k"
-    static func parse(text: String) -> (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, isTotal: Bool?, intent: SmartIntent?)? {
+    /// - "nhập 50 hoa hồng đỏ giá 5k phí ship 30k"
+    static func parse(text: String) -> (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, additionalCost: Double, isTotal: Bool?, intent: SmartIntent?)? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         
@@ -46,7 +46,7 @@ class SmartParser {
         var tokens: [String] = []
         var tokenRanges: [Range<String.Index>] = []
         
-        tagger.enumerateTags(in: trimmed.startIndex..<trimmed.endIndex, unit: .word, scheme: .lexicalClass, options: [.omitPunctuation, .omitWhitespace]) { tag, tokenRange in
+        tagger.enumerateTags(in: trimmed.startIndex..<trimmed.endIndex, unit: .word, scheme: .lexicalClass, options: [.omitWhitespace]) { tag, tokenRange in
             tokens.append(String(trimmed[tokenRange]))
             tokenRanges.append(tokenRange)
             return true
@@ -57,6 +57,7 @@ class SmartParser {
         var price: Double?
         var discount: Double = 0
         var discountIsPercent: Bool = false
+        var additionalCost: Double = 0
         var nameParts: [String] = []
         
         // Regex for price with suffix (e.g., 30k, 30k, 50.000)
@@ -65,7 +66,11 @@ class SmartParser {
         // Regex for discount keywords
         let discountKeywords = ["giảm", "off", "bớt", "chiết khấu", "discount", "km"]
         
-        // Pass 1: Identify clear roles (Numbers, Prices, Discounts)
+        // Regex for additional cost keywords
+        let additionalCostKeywords = ["phí", "ship", "cước", "thêm", "chi"]
+        let skippableCostWords = ["phát", "sinh", "vận", "chuyển", "bộ", "tiền", "phí", "ship", "cước", "thêm"] // Allow keywords to skip each other
+        
+        // Pass 1: Identify clear roles (Numbers, Prices, Discounts, Additional Costs)
         var usedIndices = Set<Int>()
         
         var i = 0
@@ -88,6 +93,52 @@ class SmartParser {
                 }
                 i += 1
                 continue
+            }
+            
+            // Check for Additional Cost Keyword
+            if additionalCostKeywords.contains(lowerToken) {
+                // Don't mark used yet, wait for confirmation
+                
+                // Scan ahead for price
+                var foundValue = false
+                var tempUsedIndices = [Int]()
+                var limit = 0
+                
+                var j = i + 1
+                while j < tokens.count && limit < 4 { // Look ahead up to 4 tokens
+                    let lookAheadToken = tokens[j].lowercased()
+                    
+                    // Check if it's a price/number
+                    if let (val, indices, _) = parsePriceOrNumber(token: tokens[j], at: j, tokens: tokens, priceRegex: priceRegex) {
+                        // Heuristic: Additional cost should be significant or have suffix
+                        // Avoid "thêm 2 cái" being parsed as cost 2.
+                        let hasSuffix = tokens[j].lowercased().range(of: "[kđd%]", options: .regularExpression) != nil || (j+1 < tokens.count && ["k", "nghìn", "đ"].contains(tokens[j+1].lowercased()))
+                        
+                        if val >= 1000 || hasSuffix {
+                            additionalCost = val
+                            usedIndices.insert(i) // Now mark the start keyword as used
+                            indices.forEach { usedIndices.insert($0) }
+                            tempUsedIndices.forEach { usedIndices.insert($0) }
+                            i = indices.max()!
+                            foundValue = true
+                            break
+                        }
+                    }
+                    
+                    // If not price, check if it's a skippable word or another keyword
+                    if additionalCostKeywords.contains(lookAheadToken) || skippableCostWords.contains(lookAheadToken) {
+                        tempUsedIndices.append(j)
+                        j += 1
+                        limit += 1
+                    } else {
+                        // Unknown word, stop scanning to avoid eating into product name
+                        break
+                    }
+                }
+                
+                if foundValue {
+                    continue
+                }
             }
             
             // Check for Price/Number
@@ -165,7 +216,8 @@ class SmartParser {
         
         // Pass 3: Smart Name Extraction
         // Filter out intent keywords and filler words from name
-        let intentKeywords = restockKeywords + orderKeywords + ["cho", "của", "với", "lấy"]
+        // Also exclude additional cost keywords to be safe (though they should be in usedIndices if parsed correctly)
+        let intentKeywords = restockKeywords + orderKeywords + ["cho", "của", "với", "lấy", "phí", "ship", "vận chuyển", "cước", "thêm", "phát sinh"]
         
         for (index, token) in tokens.enumerated() {
             if !usedIndices.contains(index) {
@@ -181,7 +233,7 @@ class SmartParser {
         let finalName = nameParts.joined(separator: " ")
         if finalName.isEmpty { return nil }
         
-        return (name: finalName, quantity: quantity ?? 1, price: price ?? 0, discount: discount, discountIsPercent: discountIsPercent, isTotal: isTotal, intent: intent)
+        return (name: finalName, quantity: quantity ?? 1, price: price ?? 0, discount: discount, discountIsPercent: discountIsPercent, additionalCost: additionalCost, isTotal: isTotal, intent: intent)
     }
     
     // Helper to parse "30k", "50.000", "2"

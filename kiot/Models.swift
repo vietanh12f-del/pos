@@ -26,6 +26,7 @@ struct RestockItem: Identifiable, Hashable, Codable {
     var unitPrice: Double
     var additionalCost: Double = 0 // Shipping, packaging, etc.
     var suggestedPrice: Double? = nil // User-defined or auto-calculated selling price
+    var isConfirmed: Bool = false // Check/Verify status
     
     var totalCost: Double {
         return (Double(quantity) * unitPrice) + additionalCost
@@ -61,6 +62,14 @@ struct RestockBill: Identifiable, Codable, Equatable {
     static func == (lhs: RestockBill, rhs: RestockBill) -> Bool {
         return lhs.id == rhs.id
     }
+}
+
+struct OperatingExpense: Identifiable, Codable, Equatable {
+    let id: UUID
+    var title: String
+    var amount: Double
+    var note: String?
+    var createdAt: Date
 }
 
 struct Product: Identifiable, Codable, Hashable {

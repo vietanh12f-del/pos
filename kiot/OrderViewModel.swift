@@ -14,22 +14,44 @@ class OrderViewModel: ObservableObject {
     // Navigation Triggers
     @Published var shouldShowRestockSheet = false
     @Published var shouldShowOrderSheet = false
+    @Published var showOrderSuccessToast: Bool = false
+    
+    @Published var lastCreatedBill: Bill?
+
+    // Voice & AI
+    @Published var isProcessingVoice: Bool = false
+    @Published var useGPT: Bool = true // Toggle for AI parser
+
 
     // Dashboard Stats
     @Published var revenue: Double = 0
     @Published var orderCount: Int = 0
     @Published var totalRestockCost: Double = 0
-    @Published var showOrderSuccessToast: Bool = false
-    @Published var lastCreatedBill: Bill? = nil
+    @Published var totalOperatingCost: Double = 0 // Added for net profit calculation
     
+    // Daily Stats Cache
+    @Published var todayStats: DailyFinancialStats?
+    
+    // Global Stats (All Time) - kept for compatibility, but maybe should be deprecated or updated
     var netProfit: Double {
-        revenue - totalRestockCost
+        // Simple global calculation (Cash flow based or Accrual?)
+        // Let's keep it simple: Revenue - COGS - Expenses (Global)
+        // But COGS is tracked in bills.
+        let globalRevenue = pastOrders.reduce(0) { $0 + $1.total }
+        let globalCOGS = pastOrders.reduce(0) { $0 + $1.totalCost }
+        let globalOpEx = operatingExpenses.reduce(0) { $0 + $1.amount }
+        let globalIncurredFees = restockHistory.reduce(0) { billSum, bill in
+            billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
+        }
+        
+        return globalRevenue - globalCOGS - globalOpEx - globalIncurredFees
     }
     
     // Restock
     @Published var isRestockMode: Bool = false
     @Published var restockItems: [RestockItem] = []
     @Published var restockHistory: [RestockBill] = []
+    @Published var operatingExpenses: [OperatingExpense] = []
     
     // Catalog & Dashboard
     @Published var selectedCategory: Category = .all
@@ -159,13 +181,15 @@ class OrderViewModel: ObservableObject {
             async let fetchedOrders = database.fetchOrders()
             async let fetchedRestock = database.fetchRestockHistory()
             async let fetchedPriceHistory = database.fetchPriceHistory()
+            async let fetchedExpenses = database.fetchOperatingExpenses()
             
-            let (prods, orders, restocks, prices) = try await (fetchedProducts, fetchedOrders, fetchedRestock, fetchedPriceHistory)
+            let (prods, orders, restocks, prices, expenses) = try await (fetchedProducts, fetchedOrders, fetchedRestock, fetchedPriceHistory, fetchedExpenses)
             
             self.products = prods
             self.pastOrders = orders
             self.restockHistory = restocks
             self.priceHistory = prices
+            self.operatingExpenses = expenses
             
             // Sync inventory dictionary from products
             self.inventory = [:]
@@ -199,6 +223,78 @@ class OrderViewModel: ObservableObject {
     }
     
     func processInput() {
+        if useGPT {
+            Task {
+                await processInputGPT()
+            }
+        } else {
+            processInputLegacy()
+        }
+    }
+    
+    @MainActor
+    func processInputGPT() async {
+        let rawText = currentInput
+        guard !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        
+        isProcessingVoice = true
+        // Keep processing flag on for a bit longer or handle it in UI
+        
+        do {
+            let response = try await OpenAIService.shared.parseOrder(text: rawText)
+            isProcessingVoice = false // Done processing
+            
+            // Determine Intent
+            let isRestock = response.intent == "restock"
+            let intentEnum: SmartIntent = isRestock ? .restock : .order
+            
+            // Switch Mode
+            if isRestock {
+                if !isRestockMode {
+                    self.isRestockMode = true
+                    self.shouldShowRestockSheet = true
+                } else {
+                    self.shouldShowRestockSheet = true
+                }
+            } else {
+                if isRestockMode {
+                    self.isRestockMode = false
+                    self.shouldShowOrderSheet = true
+                } else {
+                    self.shouldShowOrderSheet = true
+                }
+            }
+            
+            // Process Items
+            for item in response.items {
+                let tuple = (
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    discount: item.discount,
+                    discountIsPercent: item.discountIsPercent,
+                    additionalCost: item.additionalCost,
+                    isTotal: Optional(item.isTotal),
+                    intent: Optional(intentEnum)
+                )
+                
+                if isRestock {
+                    handleRestockParsed(tuple)
+                } else {
+                    handleOrderParsed(tuple)
+                }
+            }
+            
+            currentInput = ""
+            
+        } catch {
+            print("GPT Parsing Failed: \(error). Falling back to legacy.")
+            isProcessingVoice = false
+            processInputLegacy()
+        }
+    }
+
+    func processInputLegacy() {
         let rawText = currentInput
         let lines = rawText.components(separatedBy: CharacterSet(charactersIn: ",\n"))
         
@@ -246,7 +342,7 @@ class OrderViewModel: ObservableObject {
         currentInput = ""
     }
     
-    private func handleOrderParsed(_ parsed: (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, isTotal: Bool?, intent: SmartIntent?)) {
+    private func handleOrderParsed(_ parsed: (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, additionalCost: Double, isTotal: Bool?, intent: SmartIntent?)) {
         var finalName = parsed.name
         var price = parsed.price
         var systemImage: String? = nil
@@ -302,7 +398,7 @@ class OrderViewModel: ObservableObject {
         }
     }
     
-    private func handleRestockParsed(_ parsed: (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, isTotal: Bool?, intent: SmartIntent?)) {
+    private func handleRestockParsed(_ parsed: (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, additionalCost: Double, isTotal: Bool?, intent: SmartIntent?)) {
         var finalName = parsed.name
         
         if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
@@ -346,9 +442,11 @@ class OrderViewModel: ObservableObject {
              }
         }
         
-        let additionalCost = -discountValue
+        // Include manually added additional cost (parsed.additionalCost)
+        // Note: discountValue is treated as negative additional cost
+        let totalAdditionalCost = parsed.additionalCost - discountValue
         
-        restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice, additionalCost: additionalCost))
+        restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice, additionalCost: totalAdditionalCost))
     }
     
     func processRestockInput() {
@@ -473,9 +571,70 @@ class OrderViewModel: ObservableObject {
     }
     
     func recalculateStats() {
+        // Global Stats
         revenue = pastOrders.reduce(0) { $0 + $1.total }
         orderCount = pastOrders.count
+        
+        // Total Restock Cost (Import Price + Fees)
         totalRestockCost = restockHistory.reduce(0) { $0 + $1.totalCost }
+        
+        // Total Operating Cost
+        totalOperatingCost = operatingExpenses.reduce(0) { $0 + $1.amount }
+        
+        // Calculate Today's Stats
+        calculateTodayStats()
+    }
+    
+    func calculateTodayStats() {
+        let service = FinancialReportService.shared
+        let todayStatsList = service.generateReport(
+            orders: pastOrders,
+            expenses: operatingExpenses,
+            restocks: restockHistory,
+            range: .today
+        )
+        self.todayStats = todayStatsList.first
+    }
+    
+    func exportFinancialReport(range: ReportDateRange) -> URL? {
+        let service = FinancialReportService.shared
+        let stats = service.generateReport(
+            orders: pastOrders,
+            expenses: operatingExpenses,
+            restocks: restockHistory,
+            range: range
+        )
+        return service.exportToCSV(stats: stats)
+    }
+    
+    // MARK: - Operating Expenses
+    func addOperatingExpense(title: String, amount: Double, note: String?) {
+        let expense = OperatingExpense(id: UUID(), title: title, amount: amount, note: note, createdAt: Date())
+        operatingExpenses.insert(expense, at: 0)
+        recalculateStats()
+        
+        Task {
+            do {
+                try await database.saveOperatingExpense(expense)
+            } catch {
+                print("❌ Error saving expense: \(error)")
+            }
+        }
+    }
+    
+    func deleteOperatingExpense(_ expense: OperatingExpense) {
+        if let index = operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
+            operatingExpenses.remove(at: index)
+            recalculateStats()
+            
+            Task {
+                do {
+                    try await database.deleteOperatingExpense(expense.id)
+                } catch {
+                    print("❌ Error deleting expense: \(error)")
+                }
+            }
+        }
     }
     
     // MARK: - Restock Actions
@@ -486,6 +645,18 @@ class OrderViewModel: ObservableObject {
     
     func removeRestockItem(at offsets: IndexSet) {
         restockItems.remove(atOffsets: offsets)
+    }
+    
+    func updateRestockItem(_ item: RestockItem) {
+        if let index = restockItems.firstIndex(where: { $0.id == item.id }) {
+            restockItems[index] = item
+        }
+    }
+    
+    func toggleRestockItemConfirmation(_ item: RestockItem) {
+        if let index = restockItems.firstIndex(where: { $0.id == item.id }) {
+            restockItems[index].isConfirmed.toggle()
+        }
     }
     
     func completeRestockSession() {
@@ -820,9 +991,25 @@ class OrderViewModel: ObservableObject {
     
     func profit(for date: Date) -> Double {
         let calendar = Calendar.current
-        return pastOrders
+        
+        // 1. Gross Profit from Orders (Revenue - COGS)
+        let dailyOrders = pastOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+        let grossProfit = dailyOrders.reduce(0) { $0 + $1.profit }
+        
+        // 2. Operational Costs (OPEX)
+        let dailyOpEx = operatingExpenses
             .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
-            .reduce(0) { $0 + $1.profit }
+            .reduce(0) { $0 + $1.amount }
+            
+        // 3. Incurred Fees from Restock (Phát sinh)
+        // Only additionalCost reduces profit immediately (User requirement)
+        let dailyIncurredFees = restockHistory
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .reduce(0) { billSum, bill in
+                billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
+            }
+            
+        return grossProfit - dailyOpEx - dailyIncurredFees
     }
     
     func orders(for date: Date) -> [Bill] {

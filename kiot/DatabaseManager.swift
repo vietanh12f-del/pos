@@ -21,6 +21,10 @@ protocol DatabaseService {
     func fetchPriceHistory() async throws -> [String: Double]
     func upsertPriceHistory(name: String, price: Double) async throws
     
+    func fetchOperatingExpenses() async throws -> [OperatingExpense]
+    func saveOperatingExpense(_ expense: OperatingExpense) async throws
+    func deleteOperatingExpense(_ id: UUID) async throws
+    
     func fetchProfile(id: UUID) async throws -> UserProfile?
     func saveProfile(_ profile: UserProfile) async throws
 }
@@ -152,6 +156,34 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
     }
     
+    // MARK: - Operating Expenses
+    func fetchOperatingExpenses() async throws -> [OperatingExpense] {
+        let response: [OperatingExpenseDTO] = try await client
+            .from("operating_expenses")
+            .select()
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        
+        return response.map { $0.toDomain() }
+    }
+    
+    func saveOperatingExpense(_ expense: OperatingExpense) async throws {
+        let dto = OperatingExpenseDTO(from: expense)
+        try await client
+            .from("operating_expenses")
+            .insert(dto)
+            .execute()
+    }
+    
+    func deleteOperatingExpense(_ id: UUID) async throws {
+        try await client
+            .from("operating_expenses")
+            .delete()
+            .eq("id", value: id)
+            .execute()
+    }
+    
     // MARK: - Profiles
     func fetchProfile(id: UUID) async throws -> UserProfile? {
         let response: [UserProfile] = try await client
@@ -201,10 +233,34 @@ class SupabaseDatabaseService: DatabaseService {
     
     func fetchProfile(id: UUID) async throws -> UserProfile? { return nil }
     func saveProfile(_ profile: UserProfile) async throws { print("⚠️ saveProfile: Mocked success") }
+    
+    func fetchOperatingExpenses() async throws -> [OperatingExpense] { return [] }
+    func saveOperatingExpense(_ expense: OperatingExpense) async throws { print("⚠️ saveOperatingExpense: Mocked success") }
+    func deleteOperatingExpense(_ id: UUID) async throws { print("⚠️ deleteOperatingExpense: Mocked success") }
 }
 #endif
 
 // MARK: - DTOs (Data Transfer Objects) to match SQL Schema
+struct OperatingExpenseDTO: Codable {
+    let id: UUID
+    let title: String
+    let amount: Double
+    let note: String?
+    let created_at: Date
+    
+    init(from domain: OperatingExpense) {
+        self.id = domain.id
+        self.title = domain.title
+        self.amount = domain.amount
+        self.note = domain.note
+        self.created_at = domain.createdAt
+    }
+    
+    func toDomain() -> OperatingExpense {
+        return OperatingExpense(id: id, title: title, amount: amount, note: note, createdAt: created_at)
+    }
+}
+
 struct PriceHistoryDTO: Codable {
     let product_name: String
     let price: Double

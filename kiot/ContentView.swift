@@ -18,6 +18,9 @@ struct ContentView: View {
     @State private var showNewRestock: Bool = false
     @State private var showNewProduct: Bool = false
     @State private var showNewChat: Bool = false
+    @State private var showAddEmployee: Bool = false
+    @State private var costsSubTab: Int = 0 // State for Costs & Imports sub-tab
+    @State private var showNewOperatingExpense: Bool = false // Sheet state for Operating Expense
     
     init() {
         // Hide default TabBar
@@ -47,7 +50,9 @@ struct ContentView: View {
                 InventoryView(viewModel: viewModel, showingAddProduct: $showNewProduct, showNewRestock: $showNewRestock)
                     .tag(3)
                 
-                // Tag 4 (Goods) Removed - Merged into InventoryView
+                // Costs & Imports Tab
+                CostsAndImportsView(viewModel: viewModel, selectedSubTab: $costsSubTab)
+                    .tag(4)
                 
                 ChatView(orderViewModel: viewModel, showNewChatSheet: $showNewChat, isTabBarVisible: $isTabBarVisible)
                     .tag(5)
@@ -67,10 +72,16 @@ struct ContentView: View {
                     showEditTabBar: $showEditTabBar,
                     showNewRestock: $showNewRestock,
                     showNewProduct: $showNewProduct,
-                    showNewChat: $showNewChat
+                    showNewChat: $showNewChat,
+                    showAddEmployee: $showAddEmployee,
+                    showNewOperatingExpense: $showNewOperatingExpense,
+                    costsSubTab: costsSubTab
                 )
                 .transition(.move(edge: .bottom))
             }
+            
+            // Voice Assistant Overlay
+            VoiceOverlayView(viewModel: viewModel)
         }
         .fullScreenCover(isPresented: $showNewOrder) {
             SmartOrderEntryView(viewModel: viewModel)
@@ -78,8 +89,16 @@ struct ContentView: View {
         .fullScreenCover(isPresented: $showNewRestock) {
             RestockEntryView(viewModel: viewModel)
         }
+        .sheet(isPresented: $showNewOperatingExpense) {
+            AddOperatingExpenseView(viewModel: viewModel)
+        }
         .sheet(isPresented: $showEditTabBar) {
             EditTabBarView(tabBarManager: tabBarManager)
+        }
+        .sheet(isPresented: $showAddEmployee) {
+            AddEmployeeView(isPresented: $showAddEmployee, onAddSuccess: {
+                 // Refresh employees if needed, but since this is global, we might not need to trigger update in EmployeeManagementView immediately unless it's open
+            })
         }
         .onChange(of: viewModel.editingBill) { bill in
             if bill != nil {
@@ -149,13 +168,23 @@ struct HomeDashboardView: View {
                             
                             // Database Status
                             if viewModel.isDatabaseConnected {
-                                Image(systemName: "icloud.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.green)
+                                HStack(spacing: 4) {
+                                    Image(systemName: "icloud.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.green)
+                                    Text("Đã kết nối")
+                                        .font(.caption2)
+                                        .foregroundStyle(.green)
+                                }
                             } else {
-                                Image(systemName: "exclamationmark.icloud.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.red)
+                                HStack(spacing: 4) {
+                                    Image(systemName: "exclamationmark.icloud.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.red)
+                                    Text("Mất kết nối")
+                                        .font(.caption2)
+                                        .foregroundStyle(.red)
+                                }
                             }
                         }
                         
@@ -560,23 +589,7 @@ struct SmartOrderEntryView: View {
             }
             
             // Voice Assistant FAB
-            Button(action: { viewModel.toggleRecording() }) {
-                ZStack {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 64, height: 64)
-                        .shadow(color: Color.red.opacity(0.4), radius: 10, x: 0, y: 5)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white, lineWidth: 4)
-                        )
-                    
-                    Image(systemName: viewModel.speechRecognizer.isRecording ? "stop.fill" : "mic.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .symbolEffect(.pulse, isActive: viewModel.speechRecognizer.isRecording)
-                }
-            }
+            VoiceAIButton(viewModel: viewModel)
             .padding(.bottom, 260)
             .padding(.trailing, 20)
             .frame(maxWidth: .infinity, alignment: .bottomTrailing)
@@ -864,6 +877,7 @@ struct ManualItemView: View {
     @State private var name: String = ""
     @State private var price: String = ""
     @State private var quantity: String = "1"
+    @State private var discount: String = ""
     
     var body: some View {
         NavigationStack {
@@ -873,6 +887,8 @@ struct ManualItemView: View {
                     TextField("Giá", text: $price)
                         .keyboardType(.numberPad)
                     TextField("Số lượng", text: $quantity)
+                        .keyboardType(.numberPad)
+                    TextField("Giảm giá (đ)", text: $discount)
                         .keyboardType(.numberPad)
                 }
             }
@@ -884,7 +900,8 @@ struct ManualItemView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Thêm") {
                         if let priceVal = Double(price), let qtyVal = Int(quantity), !name.isEmpty {
-                            viewModel.addItem(name, price: priceVal, quantity: qtyVal)
+                            let discountVal = Double(discount) ?? 0
+                            viewModel.addItem(name, price: priceVal, quantity: qtyVal, discount: discountVal)
                             dismiss()
                         }
                     }
@@ -921,29 +938,65 @@ struct ItemEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Chi tiết")) {
-                    TextField("Tên", text: $name)
-                    TextField("Giá", text: $price)
-                        .keyboardType(.numberPad)
-                    TextField("Số lượng", text: $quantity)
-                        .keyboardType(.numberPad)
-                    TextField("Giảm giá (đ)", text: $discount)
-                        .keyboardType(.numberPad)
+                Section(header: Text("Thông tin cơ bản")) {
+                    TextField("Tên mặt hàng", text: $name)
+                        .font(.headline)
+                }
+                
+                Section(header: Text("Chi tiết giá & Số lượng")) {
+                    HStack {
+                        Text("Đơn giá")
+                            .frame(width: 80, alignment: .leading)
+                            .foregroundStyle(.gray)
+                        TextField("0", text: $price)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                        Text("đ")
+                            .foregroundStyle(.gray)
+                    }
                     
+                    HStack {
+                        Text("Số lượng")
+                            .frame(width: 80, alignment: .leading)
+                            .foregroundStyle(.gray)
+                        TextField("1", text: $quantity)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    
+                    HStack {
+                        Text("Giảm giá")
+                            .frame(width: 80, alignment: .leading)
+                            .foregroundStyle(.gray)
+                        TextField("0", text: $discount)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                        Text("đ")
+                            .foregroundStyle(.gray)
+                    }
+                }
+                
+                Section(header: Text("Hình ảnh")) {
                     if let data = selectedImageData, let uiImage = UIImage(data: data) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 200)
-                            .cornerRadius(8)
-                            .frame(maxWidth: .infinity)
-                        
-                        Button("Xóa ảnh", role: .destructive) {
-                            selectedImageData = nil
+                        ZStack(alignment: .topTrailing) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 200)
+                                .cornerRadius(8)
+                                .frame(maxWidth: .infinity)
+                            
+                            Button(action: { selectedImageData = nil }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title)
+                                    .foregroundStyle(.red)
+                                    .background(Color.white.clipShape(Circle()))
+                            }
+                            .padding(8)
                         }
                     } else {
                         // Show placeholder or current system icon
-                        VStack {
+                        VStack(spacing: 12) {
                             if let sysImage = item.systemImage {
                                 Image(systemName: sysImage)
                                     .font(.system(size: 60))
@@ -961,13 +1014,19 @@ struct ItemEditView: View {
                         .frame(maxWidth: .infinity)
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(8)
+                        .onTapGesture {
+                            // Trigger picker somehow? Need to expose picker trigger
+                            // But PhotosPicker is below.
+                        }
                     }
                     
                     PhotosPicker(selection: $selectedItem, matching: .images) {
                         HStack {
-                            Image(systemName: "photo")
-                            Text(selectedImageData == nil ? "Chọn ảnh" : "Đổi ảnh")
+                            Image(systemName: "photo.badge.plus")
+                            Text(selectedImageData == nil ? "Chọn ảnh từ thư viện" : "Thay đổi ảnh")
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                     }
                     .onChange(of: selectedItem) { newItem in
                         Task {

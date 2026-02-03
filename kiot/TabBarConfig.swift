@@ -5,6 +5,7 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
     case home = "Trang chủ"
     case orders = "Đơn hàng"
     case inventory = "Kho hàng hóa" // Merged Inventory & Goods
+    case costs = "Chi phí" // Costs & Imports
     case chat = "Chat"
     case settings = "Cài đặt"
     
@@ -14,7 +15,8 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .home: return "house.fill"
         case .orders: return "list.clipboard.fill"
-        case .inventory: return "cube.box.fill" // Updated to "cube.box.fill" per user request
+        case .inventory: return "cube.box.fill"
+        case .costs: return "chart.line.uptrend.xyaxis" // Or dollarsign.circle.fill
         case .chat: return "message.fill"
         case .settings: return "gearshape.fill"
         }
@@ -26,6 +28,7 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
         case .home: return 0
         case .orders: return 1
         case .inventory: return 3
+        case .costs: return 4 // Using the gap
         case .chat: return 5
         case .settings: return 6
         }
@@ -59,6 +62,7 @@ class CustomTabBarManager: ObservableObject {
                 TabItemConfig(type: .home),
                 TabItemConfig(type: .orders),
                 TabItemConfig(type: .inventory),
+                TabItemConfig(type: .costs),
                 TabItemConfig(type: .chat),
                 TabItemConfig(type: .settings)
             ]

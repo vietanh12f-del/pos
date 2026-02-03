@@ -8,6 +8,9 @@ struct WheelTabBarView: View {
     @Binding var showNewRestock: Bool
     @Binding var showNewProduct: Bool
     @Binding var showNewChat: Bool
+    @Binding var showAddEmployee: Bool
+    @Binding var showNewOperatingExpense: Bool
+    var costsSubTab: Int
     
     // Rotation State
     @State private var rotation: Double = 0
@@ -119,6 +122,13 @@ struct WheelTabBarView: View {
                             )
                             .scaleEffect(visualState.scale) // Scale effect for "float in/out"
                         
+                        Text(tab.type.rawValue)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(selectedTab == tab.type.tagIndex ? Color.themePrimary : Color.gray)
+                            .lineLimit(1)
+                            .opacity(visualState.opacity)
+                            .offset(y: 4) // Push it down a bit
+                        
                         if selectedTab == tab.type.tagIndex {
                             Circle()
                                 .fill(Color.themePrimary)
@@ -175,20 +185,36 @@ struct WheelTabBarView: View {
     private var fabButton: some View {
         ZStack {
             if selectedTab == 3 {
-                Menu {
-                    Button(action: {
-                        showNewProduct = true
-                    }) {
-                        Label("Thêm hàng hóa", systemImage: "plus.circle")
-                    }
-                    
-                    Button(action: {
+                // For Inventory, we might want to keep the menu OR switch to direct "Restock"
+                // User said: "ví dụ ... nhập hàng" (e.g. restock)
+                // Let's use direct action for consistency with the request "chú thích mỗi tab"
+                // But if the user really wants the menu, I should probably keep it?
+                // The request says "chú thích ... nhập hàng ... ở từng tính năng".
+                // I will interpret "Nhập hàng" as the primary action.
+                // However, the menu had "Add Product" too.
+                // I will switch to direct Restock (showNewRestock) and label it "Nhập hàng".
+                // If they want "Add Product", they can do it inside Restock or via other UI.
+                
+                Button(action: {
+                    showNewRestock = true
+                }) {
+                    fabVisual(label: "Nhập hàng")
+                }
+                .onLongPressGesture {
+                   let generator = UIImpactFeedbackGenerator(style: .heavy)
+                   generator.impactOccurred()
+                   showEditTabBar = true
+               }
+            } else if selectedTab == 4 {
+                // Costs & Imports tab FAB
+                Button(action: {
+                    if costsSubTab == 0 {
+                        showNewOperatingExpense = true
+                    } else {
                         showNewRestock = true
-                    }) {
-                        Label("Nhập hàng", systemImage: "shippingbox")
                     }
-                } label: {
-                    fabVisual
+                }) {
+                    fabVisual(label: costsSubTab == 0 ? "Thêm chi phí" : "Nhập hàng")
                 }
                 .onLongPressGesture {
                     let generator = UIImpactFeedbackGenerator(style: .heavy)
@@ -207,10 +233,20 @@ struct WheelTabBarView: View {
                     switch selectedTab {
                     case 0, 1: showNewOrder = true // Home & Orders
                     case 5: showNewChat = true     // Chat
+                    case 6: showAddEmployee = true // Settings (Staff)
                     default: showNewOrder = true   // Fallback
                     }
                 }) {
-                    fabVisual
+                    // Dynamic Label
+                    let label: String = {
+                        switch selectedTab {
+                        case 0, 1: return "Lên đơn"
+                        case 5: return "Thêm Chat"
+                        case 6: return "Thêm NV"
+                        default: return "Tạo mới"
+                        }
+                    }()
+                    fabVisual(label: label)
                 }
                 .onLongPressGesture {
                     let generator = UIImpactFeedbackGenerator(style: .heavy)
@@ -221,20 +257,31 @@ struct WheelTabBarView: View {
         }
     }
     
-    private var fabVisual: some View {
-        ZStack {
-            Circle()
-                .fill(Color.themePrimary)
-                .frame(width: 60, height: 60)
-                .shadow(color: Color.themePrimary.opacity(0.4), radius: 8, x: 0, y: 4)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white, lineWidth: 3)
-                )
+    private func fabVisual(label: String) -> some View {
+        VStack(spacing: 4) {
+            ZStack {
+                Circle()
+                    .fill(Color.themePrimary)
+                    .frame(width: 60, height: 60)
+                    .shadow(color: Color.themePrimary.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white, lineWidth: 3)
+                    )
+                
+                Image(systemName: "plus")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(.white)
+            }
             
-            Image(systemName: "plus")
-                .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(.white)
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.themePrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.white.opacity(0.9))
+                .cornerRadius(8)
+                .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
         }
     }
     

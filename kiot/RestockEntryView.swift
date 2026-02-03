@@ -5,6 +5,7 @@ struct RestockEntryView: View {
     @Environment(\.dismiss) var dismiss
     @State private var showManualInput = false
     @State private var showScanner = false
+    @State private var editingItem: RestockItem?
     
     var body: some View {
         NavigationStack {
@@ -19,6 +20,16 @@ struct RestockEntryView: View {
                         } else {
                             ForEach(viewModel.restockItems) { item in
                                 HStack {
+                                    // Check/Verify Button
+                                    Button(action: {
+                                        viewModel.toggleRestockItemConfirmation(item)
+                                    }) {
+                                        Image(systemName: item.isConfirmed ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(item.isConfirmed ? .green : .gray)
+                                            .font(.title2)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
                                     VStack(alignment: .leading) {
                                         Text(item.name)
                                             .font(.headline)
@@ -33,6 +44,10 @@ struct RestockEntryView: View {
                                     Text(formatCurrency(item.totalCost))
                                         .fontWeight(.bold)
                                         .foregroundStyle(Color.themeTextDark)
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    editingItem = item
                                 }
                             }
                             .onDelete(perform: viewModel.removeRestockItem)
@@ -77,6 +92,8 @@ struct RestockEntryView: View {
                 // Mic & Manual Input Controls
                 VStack {
                     Spacer()
+                    
+                    // Mic & Manual Input Controls
                     HStack {
                         // Manual Input Button
                         Button(action: { showManualInput = true }) {
@@ -90,17 +107,7 @@ struct RestockEntryView: View {
                         Spacer()
                         
                         // Mic Button
-                        Button(action: viewModel.toggleRecording) {
-                            Circle()
-                                .fill(viewModel.speechRecognizer.isRecording ? Color.red : Color.themeTextDark)
-                                .frame(width: 70, height: 70)
-                                .shadow(radius: 4)
-                                .overlay(
-                                    Image(systemName: viewModel.speechRecognizer.isRecording ? "stop.fill" : "mic.fill")
-                                        .font(.title)
-                                        .foregroundStyle(.white)
-                                )
-                        }
+                        VoiceAIButton(viewModel: viewModel, size: 70)
                         
                         Spacer()
                         
@@ -116,6 +123,9 @@ struct RestockEntryView: View {
                     .padding(.bottom, 140) // Adjust based on Total section height
                     .padding(.horizontal, 40)
                 }
+                
+                // Voice Overlay
+                VoiceOverlayView(viewModel: viewModel)
             }
             .navigationTitle("Nhập hàng")
             .toolbar {
@@ -135,12 +145,16 @@ struct RestockEntryView: View {
             .sheet(isPresented: $showScanner) {
                 InvoiceScannerView(viewModel: viewModel)
             }
+            .sheet(item: $editingItem) { item in
+                ManualRestockItemView(viewModel: viewModel, itemToEdit: item)
+            }
         }
     }
 }
 
 struct ManualRestockItemView: View {
     @ObservedObject var viewModel: OrderViewModel
+    var itemToEdit: RestockItem? = nil
     @Environment(\.dismiss) var dismiss
     
     @State private var name = ""
@@ -214,17 +228,28 @@ struct ManualRestockItemView: View {
                         .keyboardType(.decimalPad)
                 }
             }
-            .navigationTitle("Thêm hàng nhập")
+            .navigationTitle(itemToEdit == nil ? "Thêm hàng nhập" : "Sửa hàng nhập")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Hủy") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Thêm") {
+                    Button(itemToEdit == nil ? "Thêm" : "Lưu") {
                         if let p = parseDouble(price), let q = Int(quantity), !name.isEmpty {
                             let extra = parseDouble(incurredCost) ?? 0
                             let suggested = parseDouble(sellingPrice)
-                            viewModel.addRestockItem(name, unitPrice: p, quantity: q, additionalCost: extra, suggestedPrice: suggested)
+                            
+                            if var item = itemToEdit {
+                                item.name = name
+                                item.quantity = q
+                                item.unitPrice = p
+                                item.additionalCost = extra
+                                item.suggestedPrice = suggested
+                                item.isConfirmed = true
+                                viewModel.updateRestockItem(item)
+                            } else {
+                                viewModel.addRestockItem(name, unitPrice: p, quantity: q, additionalCost: extra, suggestedPrice: suggested)
+                            }
                             dismiss()
                         }
                     }
@@ -233,6 +258,17 @@ struct ManualRestockItemView: View {
             }
         }
         .presentationDetents([.height(550)])
+        .onAppear {
+            if let item = itemToEdit {
+                name = item.name
+                quantity = String(item.quantity)
+                price = String(format: "%.0f", item.unitPrice)
+                incurredCost = String(format: "%.0f", item.additionalCost)
+                if let s = item.suggestedPrice {
+                    sellingPrice = String(format: "%.0f", s)
+                }
+            }
+        }
     }
     
     func updateSellingPrice() {

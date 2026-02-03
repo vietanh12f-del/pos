@@ -11,10 +11,6 @@ struct EmployeeManagementView: View {
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var employees: [EmployeeViewModel] = []
     @State private var showAddEmployee = false
-    @State private var newEmployeeEmail = ""
-    @State private var selectedPermissions: Set<StorePermission> = [.viewHome, .viewOrders]
-    @State private var showErrorAlert = false
-    @State private var errorMessage = ""
     
     var body: some View {
         List {
@@ -51,70 +47,9 @@ struct EmployeeManagementView: View {
         }
         .navigationTitle("Quản lý nhân viên")
         .sheet(isPresented: $showAddEmployee) {
-            VStack(spacing: 0) {
-                // Custom Header
-                HStack {
-                    Button("Hủy") {
-                        showAddEmployee = false
-                    }
-                    .foregroundStyle(Color.themeTextDark)
-                    
-                    Spacer()
-                    
-                    Text("Thêm nhân viên")
-                        .font(.headline)
-                        .foregroundStyle(Color.themeTextDark)
-                    
-                    Spacer()
-                    
-                    Button("Mời") {
-                        Task {
-                            let success = await storeManager.inviteEmployee(email: newEmployeeEmail, permissions: Array(selectedPermissions))
-                            if success {
-                                showAddEmployee = false
-                                await loadEmployees()
-                            } else {
-                                errorMessage = storeManager.errorMessage ?? "Lỗi không xác định"
-                                showErrorAlert = true
-                            }
-                        }
-                    }
-                    .disabled(newEmployeeEmail.isEmpty)
-                    .foregroundStyle(newEmployeeEmail.isEmpty ? Color.gray : Color.themePrimary)
-                }
-                .padding()
-                .background(Color.white)
-                
-                Form {
-                    Section(header: Text("Thông tin nhân viên")) {
-                        TextField("Email / Số điện thoại", text: $newEmployeeEmail)
-                        Text("Nhập chính xác Email hoặc SĐT đã đăng ký")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                    
-                    Section(header: Text("Quyền truy cập")) {
-                        ForEach(StorePermission.allCases, id: \.self) { permission in
-                            Toggle(permission.displayName, isOn: Binding(
-                                get: { selectedPermissions.contains(permission) },
-                                set: { isSelected in
-                                    if isSelected {
-                                        selectedPermissions.insert(permission)
-                                    } else {
-                                        selectedPermissions.remove(permission)
-                                    }
-                                }
-                            ))
-                        }
-                    }
-                }
-                .alert("Lỗi", isPresented: $showErrorAlert) {
-                    Button("OK", role: .cancel) { }
-                } message: {
-                    Text(errorMessage)
-                }
-            }
-            .toolbar(.hidden, for: .navigationBar)
+            AddEmployeeView(isPresented: $showAddEmployee, onAddSuccess: {
+                await loadEmployees()
+            })
         }
         .onAppear {
             tabBarManager.customFabAction = { showAddEmployee = true }
@@ -126,7 +61,7 @@ struct EmployeeManagementView: View {
             tabBarManager.customFabAction = nil
         }
     }
-    
+
     func loadEmployees() async {
         let rawEmployees = await storeManager.getEmployees()
         employees = rawEmployees.map { EmployeeViewModel(id: $0.0.id, member: $0.0, name: $0.1) }
@@ -141,6 +76,84 @@ struct EmployeeManagementView: View {
                 }
             }
         }
+    }
+}
+
+struct AddEmployeeView: View {
+    @Binding var isPresented: Bool
+    var onAddSuccess: () async -> Void
+    
+    @ObservedObject private var storeManager = StoreManager.shared
+    @State private var newEmployeeEmail = ""
+    @State private var selectedPermissions: Set<StorePermission> = [.viewHome, .viewOrders]
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Custom Header
+            HStack {
+                Button("Hủy") {
+                    isPresented = false
+                }
+                .foregroundStyle(Color.themeTextDark)
+                
+                Spacer()
+                
+                Text("Thêm nhân viên")
+                    .font(.headline)
+                    .foregroundStyle(Color.themeTextDark)
+                
+                Spacer()
+                
+                Button("Mời") {
+                    Task {
+                        let success = await storeManager.inviteEmployee(email: newEmployeeEmail, permissions: Array(selectedPermissions))
+                        if success {
+                            isPresented = false
+                            await onAddSuccess()
+                        } else {
+                            errorMessage = storeManager.errorMessage ?? "Lỗi không xác định"
+                            showErrorAlert = true
+                        }
+                    }
+                }
+                .disabled(newEmployeeEmail.isEmpty)
+                .foregroundStyle(newEmployeeEmail.isEmpty ? Color.gray : Color.themePrimary)
+            }
+            .padding()
+            .background(Color.white)
+            
+            Form {
+                Section(header: Text("Thông tin nhân viên")) {
+                    TextField("Email / Số điện thoại", text: $newEmployeeEmail)
+                    Text("Nhập chính xác Email hoặc SĐT đã đăng ký")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Section(header: Text("Quyền truy cập")) {
+                    ForEach(StorePermission.allCases, id: \.self) { permission in
+                        Toggle(permission.displayName, isOn: Binding(
+                            get: { selectedPermissions.contains(permission) },
+                            set: { isSelected in
+                                if isSelected {
+                                    selectedPermissions.insert(permission)
+                                } else {
+                                    selectedPermissions.remove(permission)
+                                }
+                            }
+                        ))
+                    }
+                }
+            }
+            .alert("Lỗi", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 
