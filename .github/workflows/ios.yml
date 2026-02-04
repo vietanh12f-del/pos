@@ -162,7 +162,7 @@ jobs:
           -archivePath build/App.xcarchive \
           clean archive \
           CODE_SIGN_STYLE=Manual \
-          CODE_SIGN_IDENTITY="iPhone Distribution: Tunaib Hajeef" \
+          CODE_SIGN_IDENTITY="Apple Development: vietanh12g@gmail.com (Z948SQ7799)" \
           PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
           DEVELOPMENT_TEAM="$TEAM_ID"
 
