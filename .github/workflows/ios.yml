@@ -149,8 +149,8 @@ jobs:
     # ---------------------------
     - name: Build iOS Archive
       env:
-        TEAM_ID: 2M6M6BW775
-        PROFILE_NAME: a
+        TEAM_ID: CM6SD7QW9K
+        PROFILE_NAME: kiot
       run: |
         set -e
 
@@ -212,7 +212,7 @@ jobs:
           <string>manual</string>
           <key>provisioningProfiles</key>
           <dict>
-            <key>a.export.kiot</key>
+            <key>com.kiot.kiot</key>
             <string>a</string>
           </dict>
           <key>compileBitcode</key>
