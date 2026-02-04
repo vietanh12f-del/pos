@@ -213,7 +213,7 @@ jobs:
           <key>provisioningProfiles</key>
           <dict>
             <key>com.kiot.kiot</key>
-            <string>a</string>
+            <string>kiot</string>
           </dict>
           <key>compileBitcode</key>
           <false/>
