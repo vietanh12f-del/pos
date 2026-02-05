@@ -1,0 +1,1031 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 70;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		793D8EDF2E983112006B6969 /* ExamplesApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EB82E983112006B6969 /* ExamplesApp.swift */; };
+		793D8EE02E983112006B6969 /* ThirdPartyAuthClerk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8ED42E983112006B6969 /* ThirdPartyAuthClerk.swift */; };
+		793D8EE22E983112006B6969 /* AddTodoListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EA02E983112006B6969 /* AddTodoListView.swift */; };
+		793D8EE32E983112006B6969 /* Debug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EB52E983112006B6969 /* Debug.swift */; };
+		793D8EE62E983112006B6969 /* TodoListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8ED52E983112006B6969 /* TodoListRow.swift */; };
+		793D8EE82E983112006B6969 /* UIViewControllerWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8ED82E983112006B6969 /* UIViewControllerWrapper.swift */; };
+		793D8EEC2E983112006B6969 /* AnyJSONView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EA12E983112006B6969 /* AnyJSONView.swift */; };
+		793D8EED2E983112006B6969 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8ED32E983112006B6969 /* SupabaseConfig.swift */; };
+		793D8EEF2E983112006B6969 /* ActionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8E9F2E983112006B6969 /* ActionState.swift */; };
+		793D8EF12E983112006B6969 /* UIApplicationExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8ED72E983112006B6969 /* UIApplicationExtensions.swift */; };
+		793D8EF52E983112006B6969 /* Stringfy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8ED12E983112006B6969 /* Stringfy.swift */; };
+		793D8EF62E983112006B6969 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EAE2E983112006B6969 /* Constants.swift */; };
+		793D8EF72E983112006B6969 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EBE2E983112006B6969 /* Models.swift */; };
+		793D8EF82E983112006B6969 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8ECC2E983112006B6969 /* RootView.swift */; };
+		793D8EFE2E983112006B6969 /* MFAFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EBD2E983112006B6969 /* MFAFlow.swift */; };
+		793D8F002E983112006B6969 /* ErrorText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EB62E983112006B6969 /* ErrorText.swift */; };
+		793D8F012E983112006B6969 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8EBB2E983112006B6969 /* HomeView.swift */; };
+		793D8F052E983112006B6969 /* TodoListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 793D8ED62E983112006B6969 /* TodoListView.swift */; };
+		793D8F082E983112006B6969 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 793D8EA22E983112006B6969 /* Assets.xcassets */; };
+		793D8F0A2E983112006B6969 /* Supabase.plist in Resources */ = {isa = PBXBuildFile; fileRef = 793D8ED22E983112006B6969 /* Supabase.plist */; };
+		7956406D2955B3500088A06F /* SwiftUINavigation in Frameworks */ = {isa = PBXBuildFile; productRef = 7956406C2955B3500088A06F /* SwiftUINavigation */; };
+		795640702955B5190088A06F /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 7956406F2955B5190088A06F /* IdentifiedCollections */; };
+		795FA98E2DF354B000F67AFF /* FacebookLogin in Frameworks */ = {isa = PBXBuildFile; productRef = 795FA98D2DF354B000F67AFF /* FacebookLogin */; };
+		7962989D2AEBC6F9000AA957 /* SVGView in Frameworks */ = {isa = PBXBuildFile; productRef = 7962989C2AEBC6F9000AA957 /* SVGView */; };
+		79719ECE2ADF26C400737804 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 79719ECD2ADF26C400737804 /* Supabase */; };
+		797D664A2B46A1D8007592ED /* Dependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797D66492B46A1D8007592ED /* Dependencies.swift */; };
+		7993B8A92B3C673A009B610B /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7993B8A82B3C673A009B610B /* AuthView.swift */; };
+		7993B8AB2B3C67E0009B610B /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7993B8AA2B3C67E0009B610B /* Toast.swift */; };
+		79B8F4242B5FED7C0000E839 /* IdentifiedCollections in Frameworks */ = {isa = PBXBuildFile; productRef = 79B8F4232B5FED7C0000E839 /* IdentifiedCollections */; };
+		79B8F4262B602F640000E839 /* Logger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B8F4252B602F640000E839 /* Logger.swift */; };
+		79BD76772B59C3E300CA3D68 /* UserStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79BD76762B59C3E300CA3D68 /* UserStore.swift */; };
+		79BD76792B59C53900CA3D68 /* ChannelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79BD76782B59C53900CA3D68 /* ChannelStore.swift */; };
+		79BD767B2B59C61300CA3D68 /* MessageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79BD767A2B59C61300CA3D68 /* MessageStore.swift */; };
+		79BE42A12D942EFD00B9DDF4 /* Clerk in Frameworks */ = {isa = PBXBuildFile; productRef = 79BE42A02D942EFD00B9DDF4 /* Clerk */; };
+		79D884CA2B3C18830009EA4A /* SlackCloneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D884C92B3C18830009EA4A /* SlackCloneApp.swift */; };
+		79D884CC2B3C18830009EA4A /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D884CB2B3C18830009EA4A /* AppView.swift */; };
+		79D884CE2B3C18840009EA4A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 79D884CD2B3C18840009EA4A /* Assets.xcassets */; };
+		79D884D22B3C18840009EA4A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 79D884D12B3C18840009EA4A /* Preview Assets.xcassets */; };
+		79D884D72B3C18DB0009EA4A /* Supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D884D62B3C18DB0009EA4A /* Supabase.swift */; };
+		79D884D92B3C18E90009EA4A /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 79D884D82B3C18E90009EA4A /* Supabase */; };
+		79D884DB2B3C191F0009EA4A /* ChannelListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D884DA2B3C191F0009EA4A /* ChannelListView.swift */; };
+		79D884DD2B3C19320009EA4A /* MessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D884DC2B3C19320009EA4A /* MessagesView.swift */; };
+		79E2B5582B97890F0042CD21 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 79E2B5572B97890F0042CD21 /* GoogleSignIn */; };
+		79E2B55A2B97890F0042CD21 /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 79E2B5592B97890F0042CD21 /* GoogleSignInSwift */; };
+		79FEFFAF2B07873600D36347 /* UserManagementApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FEFFAE2B07873600D36347 /* UserManagementApp.swift */; };
+		79FEFFB12B07873600D36347 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FEFFB02B07873600D36347 /* AppView.swift */; };
+		79FEFFB32B07873700D36347 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 79FEFFB22B07873700D36347 /* Assets.xcassets */; };
+		79FEFFB72B07873700D36347 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 79FEFFB62B07873700D36347 /* Preview Assets.xcassets */; };
+		79FEFFBC2B07874000D36347 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 79FEFFBB2B07874000D36347 /* Supabase */; };
+		79FEFFBE2B07894700D36347 /* Supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FEFFBD2B07894700D36347 /* Supabase.swift */; };
+		79FEFFC02B07895900D36347 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FEFFBF2B07895900D36347 /* AuthView.swift */; };
+		79FEFFC32B078CD800D36347 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FEFFC22B078CD800D36347 /* ProfileView.swift */; };
+		79FEFFC52B078D7900D36347 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FEFFC42B078D7900D36347 /* Models.swift */; };
+		79FEFFC72B078FB000D36347 /* SwiftUIHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FEFFC62B078FB000D36347 /* SwiftUIHelpers.swift */; };
+		79FEFFC92B0797F600D36347 /* AvatarImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FEFFC82B0797F600D36347 /* AvatarImage.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		793895C62954ABFF0044F2B8 /* Examples.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Examples.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		793D8E9F2E983112006B6969 /* ActionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionState.swift; sourceTree = "<group>"; };
+		793D8EA02E983112006B6969 /* AddTodoListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTodoListView.swift; sourceTree = "<group>"; };
+		793D8EA12E983112006B6969 /* AnyJSONView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyJSONView.swift; sourceTree = "<group>"; };
+		793D8EA22E983112006B6969 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		793D8EAE2E983112006B6969 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		793D8EB52E983112006B6969 /* Debug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Debug.swift; sourceTree = "<group>"; };
+		793D8EB62E983112006B6969 /* ErrorText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorText.swift; sourceTree = "<group>"; };
+		793D8EB72E983112006B6969 /* Examples.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Examples.entitlements; sourceTree = "<group>"; };
+		793D8EB82E983112006B6969 /* ExamplesApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExamplesApp.swift; sourceTree = "<group>"; };
+		793D8EBB2E983112006B6969 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		793D8EBC2E983112006B6969 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		793D8EBD2E983112006B6969 /* MFAFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MFAFlow.swift; sourceTree = "<group>"; };
+		793D8EBE2E983112006B6969 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		793D8ECC2E983112006B6969 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		793D8ED12E983112006B6969 /* Stringfy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stringfy.swift; sourceTree = "<group>"; };
+		793D8ED22E983112006B6969 /* Supabase.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Supabase.plist; sourceTree = "<group>"; };
+		793D8ED32E983112006B6969 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
+		793D8ED42E983112006B6969 /* ThirdPartyAuthClerk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThirdPartyAuthClerk.swift; sourceTree = "<group>"; };
+		793D8ED52E983112006B6969 /* TodoListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoListRow.swift; sourceTree = "<group>"; };
+		793D8ED62E983112006B6969 /* TodoListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoListView.swift; sourceTree = "<group>"; };
+		793D8ED72E983112006B6969 /* UIApplicationExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIApplicationExtensions.swift; sourceTree = "<group>"; };
+		793D8ED82E983112006B6969 /* UIViewControllerWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIViewControllerWrapper.swift; sourceTree = "<group>"; };
+		797D66492B46A1D8007592ED /* Dependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dependencies.swift; sourceTree = "<group>"; };
+		7993B8A82B3C673A009B610B /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		7993B8AA2B3C67E0009B610B /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
+		7993B8AC2B3C97B6009B610B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		79B8F4252B602F640000E839 /* Logger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Logger.swift; sourceTree = "<group>"; };
+		79BD76762B59C3E300CA3D68 /* UserStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStore.swift; sourceTree = "<group>"; };
+		79BD76782B59C53900CA3D68 /* ChannelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelStore.swift; sourceTree = "<group>"; };
+		79BD767A2B59C61300CA3D68 /* MessageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageStore.swift; sourceTree = "<group>"; };
+		79D884C72B3C18830009EA4A /* SlackClone.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SlackClone.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		79D884C92B3C18830009EA4A /* SlackCloneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlackCloneApp.swift; sourceTree = "<group>"; };
+		79D884CB2B3C18830009EA4A /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
+		79D884CD2B3C18840009EA4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		79D884CF2B3C18840009EA4A /* SlackClone.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SlackClone.entitlements; sourceTree = "<group>"; };
+		79D884D12B3C18840009EA4A /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		79D884D62B3C18DB0009EA4A /* Supabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Supabase.swift; sourceTree = "<group>"; };
+		79D884DA2B3C191F0009EA4A /* ChannelListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChannelListView.swift; sourceTree = "<group>"; };
+		79D884DC2B3C19320009EA4A /* MessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesView.swift; sourceTree = "<group>"; };
+		79FEFFAC2B07873600D36347 /* UserManagement.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = UserManagement.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		79FEFFAE2B07873600D36347 /* UserManagementApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserManagementApp.swift; sourceTree = "<group>"; };
+		79FEFFB02B07873600D36347 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
+		79FEFFB22B07873700D36347 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		79FEFFB42B07873700D36347 /* UserManagement.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = UserManagement.entitlements; sourceTree = "<group>"; };
+		79FEFFB62B07873700D36347 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		79FEFFBD2B07894700D36347 /* Supabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Supabase.swift; sourceTree = "<group>"; };
+		79FEFFBF2B07895900D36347 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		79FEFFC12B078B6100D36347 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		79FEFFC22B078CD800D36347 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		79FEFFC42B078D7900D36347 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		79FEFFC62B078FB000D36347 /* SwiftUIHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIHelpers.swift; sourceTree = "<group>"; };
+		79FEFFC82B0797F600D36347 /* AvatarImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarImage.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		793D8EAD2E983112006B6969 /* Auth */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Auth; sourceTree = "<group>"; };
+		793D8EB42E983112006B6969 /* Database */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Database; sourceTree = "<group>"; };
+		793D8EBA2E983112006B6969 /* Functions */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Functions; sourceTree = "<group>"; };
+		793D8EC02E983112006B6969 /* Preview Content */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "Preview Content"; sourceTree = "<group>"; };
+		793D8EC52E983112006B6969 /* Profile */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Profile; sourceTree = "<group>"; };
+		793D8ECB2E983112006B6969 /* Realtime */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Realtime; sourceTree = "<group>"; };
+		793D8ED02E983112006B6969 /* Storage */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Storage; sourceTree = "<group>"; };
+		793D8F1E2E984184006B6969 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Shared; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		793895C32954ABFF0044F2B8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				795FA98E2DF354B000F67AFF /* FacebookLogin in Frameworks */,
+				79BE42A12D942EFD00B9DDF4 /* Clerk in Frameworks */,
+				79E2B5582B97890F0042CD21 /* GoogleSignIn in Frameworks */,
+				795640702955B5190088A06F /* IdentifiedCollections in Frameworks */,
+				7956406D2955B3500088A06F /* SwiftUINavigation in Frameworks */,
+				79E2B55A2B97890F0042CD21 /* GoogleSignInSwift in Frameworks */,
+				7962989D2AEBC6F9000AA957 /* SVGView in Frameworks */,
+				79719ECE2ADF26C400737804 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		79D884C42B3C18830009EA4A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				79D884D92B3C18E90009EA4A /* Supabase in Frameworks */,
+				79B8F4242B5FED7C0000E839 /* IdentifiedCollections in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		79FEFFA92B07873600D36347 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				79FEFFBC2B07874000D36347 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		793895BD2954ABFF0044F2B8 = {
+			isa = PBXGroup;
+			children = (
+				793895C82954ABFF0044F2B8 /* Examples */,
+				79FEFFAD2B07873600D36347 /* UserManagement */,
+				79D884C82B3C18830009EA4A /* SlackClone */,
+				793895C72954ABFF0044F2B8 /* Products */,
+				7956405A2954AC3E0088A06F /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		793895C72954ABFF0044F2B8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				793895C62954ABFF0044F2B8 /* Examples.app */,
+				79FEFFAC2B07873600D36347 /* UserManagement.app */,
+				79D884C72B3C18830009EA4A /* SlackClone.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		793895C82954ABFF0044F2B8 /* Examples */ = {
+			isa = PBXGroup;
+			children = (
+				793D8E9F2E983112006B6969 /* ActionState.swift */,
+				793D8EA02E983112006B6969 /* AddTodoListView.swift */,
+				793D8EA12E983112006B6969 /* AnyJSONView.swift */,
+				793D8EA22E983112006B6969 /* Assets.xcassets */,
+				793D8EAD2E983112006B6969 /* Auth */,
+				793D8EAE2E983112006B6969 /* Constants.swift */,
+				793D8EB42E983112006B6969 /* Database */,
+				793D8EB52E983112006B6969 /* Debug.swift */,
+				793D8EB62E983112006B6969 /* ErrorText.swift */,
+				793D8EB72E983112006B6969 /* Examples.entitlements */,
+				793D8EB82E983112006B6969 /* ExamplesApp.swift */,
+				793D8EBA2E983112006B6969 /* Functions */,
+				793D8EBB2E983112006B6969 /* HomeView.swift */,
+				793D8EBC2E983112006B6969 /* Info.plist */,
+				793D8EBD2E983112006B6969 /* MFAFlow.swift */,
+				793D8EBE2E983112006B6969 /* Models.swift */,
+				793D8EC02E983112006B6969 /* Preview Content */,
+				793D8EC52E983112006B6969 /* Profile */,
+				793D8ECB2E983112006B6969 /* Realtime */,
+				793D8ECC2E983112006B6969 /* RootView.swift */,
+				793D8F1E2E984184006B6969 /* Shared */,
+				793D8ED02E983112006B6969 /* Storage */,
+				793D8ED12E983112006B6969 /* Stringfy.swift */,
+				793D8ED22E983112006B6969 /* Supabase.plist */,
+				793D8ED32E983112006B6969 /* SupabaseConfig.swift */,
+				793D8ED42E983112006B6969 /* ThirdPartyAuthClerk.swift */,
+				793D8ED52E983112006B6969 /* TodoListRow.swift */,
+				793D8ED62E983112006B6969 /* TodoListView.swift */,
+				793D8ED72E983112006B6969 /* UIApplicationExtensions.swift */,
+				793D8ED82E983112006B6969 /* UIViewControllerWrapper.swift */,
+			);
+			path = Examples;
+			sourceTree = "<group>";
+		};
+		7956405A2954AC3E0088A06F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		79D884C82B3C18830009EA4A /* SlackClone */ = {
+			isa = PBXGroup;
+			children = (
+				7993B8AC2B3C97B6009B610B /* Info.plist */,
+				79D884C92B3C18830009EA4A /* SlackCloneApp.swift */,
+				79D884CB2B3C18830009EA4A /* AppView.swift */,
+				79D884CD2B3C18840009EA4A /* Assets.xcassets */,
+				79D884CF2B3C18840009EA4A /* SlackClone.entitlements */,
+				79D884D02B3C18840009EA4A /* Preview Content */,
+				79D884D62B3C18DB0009EA4A /* Supabase.swift */,
+				79D884DA2B3C191F0009EA4A /* ChannelListView.swift */,
+				79D884DC2B3C19320009EA4A /* MessagesView.swift */,
+				7993B8A82B3C673A009B610B /* AuthView.swift */,
+				7993B8AA2B3C67E0009B610B /* Toast.swift */,
+				797D66492B46A1D8007592ED /* Dependencies.swift */,
+				79BD76762B59C3E300CA3D68 /* UserStore.swift */,
+				79BD76782B59C53900CA3D68 /* ChannelStore.swift */,
+				79BD767A2B59C61300CA3D68 /* MessageStore.swift */,
+				79B8F4252B602F640000E839 /* Logger.swift */,
+			);
+			path = SlackClone;
+			sourceTree = "<group>";
+		};
+		79D884D02B3C18840009EA4A /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				79D884D12B3C18840009EA4A /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		79FEFFAD2B07873600D36347 /* UserManagement */ = {
+			isa = PBXGroup;
+			children = (
+				79FEFFB02B07873600D36347 /* AppView.swift */,
+				79FEFFB22B07873700D36347 /* Assets.xcassets */,
+				79FEFFBF2B07895900D36347 /* AuthView.swift */,
+				79FEFFC82B0797F600D36347 /* AvatarImage.swift */,
+				79FEFFC12B078B6100D36347 /* Info.plist */,
+				79FEFFC42B078D7900D36347 /* Models.swift */,
+				79FEFFB52B07873700D36347 /* Preview Content */,
+				79FEFFC22B078CD800D36347 /* ProfileView.swift */,
+				79FEFFBD2B07894700D36347 /* Supabase.swift */,
+				79FEFFC62B078FB000D36347 /* SwiftUIHelpers.swift */,
+				79FEFFB42B07873700D36347 /* UserManagement.entitlements */,
+				79FEFFAE2B07873600D36347 /* UserManagementApp.swift */,
+			);
+			path = UserManagement;
+			sourceTree = "<group>";
+		};
+		79FEFFB52B07873700D36347 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				79FEFFB62B07873700D36347 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		793895C52954ABFF0044F2B8 /* Examples */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 793895D52954AC000044F2B8 /* Build configuration list for PBXNativeTarget "Examples" */;
+			buildPhases = (
+				793895C22954ABFF0044F2B8 /* Sources */,
+				793895C32954ABFF0044F2B8 /* Frameworks */,
+				793895C42954ABFF0044F2B8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				793D8EAD2E983112006B6969 /* Auth */,
+				793D8EB42E983112006B6969 /* Database */,
+				793D8EBA2E983112006B6969 /* Functions */,
+				793D8EC02E983112006B6969 /* Preview Content */,
+				793D8EC52E983112006B6969 /* Profile */,
+				793D8ECB2E983112006B6969 /* Realtime */,
+				793D8ED02E983112006B6969 /* Storage */,
+				793D8F1E2E984184006B6969 /* Shared */,
+			);
+			name = Examples;
+			packageProductDependencies = (
+				7956406C2955B3500088A06F /* SwiftUINavigation */,
+				7956406F2955B5190088A06F /* IdentifiedCollections */,
+				79719ECD2ADF26C400737804 /* Supabase */,
+				7962989C2AEBC6F9000AA957 /* SVGView */,
+				79E2B5572B97890F0042CD21 /* GoogleSignIn */,
+				79E2B5592B97890F0042CD21 /* GoogleSignInSwift */,
+				79BE42A02D942EFD00B9DDF4 /* Clerk */,
+				795FA98D2DF354B000F67AFF /* FacebookLogin */,
+			);
+			productName = Examples;
+			productReference = 793895C62954ABFF0044F2B8 /* Examples.app */;
+			productType = "com.apple.product-type.application";
+		};
+		79D884C62B3C18830009EA4A /* SlackClone */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 79D884D52B3C18840009EA4A /* Build configuration list for PBXNativeTarget "SlackClone" */;
+			buildPhases = (
+				79D884C32B3C18830009EA4A /* Sources */,
+				79D884C42B3C18830009EA4A /* Frameworks */,
+				79D884C52B3C18830009EA4A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SlackClone;
+			packageProductDependencies = (
+				79D884D82B3C18E90009EA4A /* Supabase */,
+				79B8F4232B5FED7C0000E839 /* IdentifiedCollections */,
+			);
+			productName = SlackClone;
+			productReference = 79D884C72B3C18830009EA4A /* SlackClone.app */;
+			productType = "com.apple.product-type.application";
+		};
+		79FEFFAB2B07873600D36347 /* UserManagement */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 79FEFFB82B07873700D36347 /* Build configuration list for PBXNativeTarget "UserManagement" */;
+			buildPhases = (
+				79FEFFA82B07873600D36347 /* Sources */,
+				79FEFFA92B07873600D36347 /* Frameworks */,
+				79FEFFAA2B07873600D36347 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = UserManagement;
+			packageProductDependencies = (
+				79FEFFBB2B07874000D36347 /* Supabase */,
+			);
+			productName = UserManagement;
+			productReference = 79FEFFAC2B07873600D36347 /* UserManagement.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		793895BE2954ABFF0044F2B8 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1510;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					793895C52954ABFF0044F2B8 = {
+						CreatedOnToolsVersion = 14.1;
+					};
+					79D884C62B3C18830009EA4A = {
+						CreatedOnToolsVersion = 15.1;
+					};
+					79FEFFAB2B07873600D36347 = {
+						CreatedOnToolsVersion = 15.0.1;
+					};
+				};
+			};
+			buildConfigurationList = 793895C12954ABFF0044F2B8 /* Build configuration list for PBXProject "Examples" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 793895BD2954ABFF0044F2B8;
+			packageReferences = (
+				7956406B2955B3500088A06F /* XCRemoteSwiftPackageReference "swiftui-navigation" */,
+				7956406E2955B5190088A06F /* XCRemoteSwiftPackageReference "swift-identified-collections" */,
+				7962989B2AEBC6F9000AA957 /* XCRemoteSwiftPackageReference "SVGView" */,
+				79E2B5562B97890F0042CD21 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+				79BE429F2D942EFD00B9DDF4 /* XCRemoteSwiftPackageReference "clerk-ios" */,
+				795FA98C2DF354B000F67AFF /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */,
+			);
+			productRefGroup = 793895C72954ABFF0044F2B8 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				793895C52954ABFF0044F2B8 /* Examples */,
+				79FEFFAB2B07873600D36347 /* UserManagement */,
+				79D884C62B3C18830009EA4A /* SlackClone */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		793895C42954ABFF0044F2B8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				793D8F082E983112006B6969 /* Assets.xcassets in Resources */,
+				793D8F0A2E983112006B6969 /* Supabase.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		79D884C52B3C18830009EA4A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				79D884D22B3C18840009EA4A /* Preview Assets.xcassets in Resources */,
+				79D884CE2B3C18840009EA4A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		79FEFFAA2B07873600D36347 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				79FEFFB72B07873700D36347 /* Preview Assets.xcassets in Resources */,
+				79FEFFB32B07873700D36347 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		793895C22954ABFF0044F2B8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				793D8EDF2E983112006B6969 /* ExamplesApp.swift in Sources */,
+				793D8EE02E983112006B6969 /* ThirdPartyAuthClerk.swift in Sources */,
+				793D8EE22E983112006B6969 /* AddTodoListView.swift in Sources */,
+				793D8EE32E983112006B6969 /* Debug.swift in Sources */,
+				793D8EE62E983112006B6969 /* TodoListRow.swift in Sources */,
+				793D8EE82E983112006B6969 /* UIViewControllerWrapper.swift in Sources */,
+				793D8EEC2E983112006B6969 /* AnyJSONView.swift in Sources */,
+				793D8EED2E983112006B6969 /* SupabaseConfig.swift in Sources */,
+				793D8EEF2E983112006B6969 /* ActionState.swift in Sources */,
+				793D8EF12E983112006B6969 /* UIApplicationExtensions.swift in Sources */,
+				793D8EF52E983112006B6969 /* Stringfy.swift in Sources */,
+				793D8EF62E983112006B6969 /* Constants.swift in Sources */,
+				793D8EF72E983112006B6969 /* Models.swift in Sources */,
+				793D8EF82E983112006B6969 /* RootView.swift in Sources */,
+				793D8EFE2E983112006B6969 /* MFAFlow.swift in Sources */,
+				793D8F002E983112006B6969 /* ErrorText.swift in Sources */,
+				793D8F012E983112006B6969 /* HomeView.swift in Sources */,
+				793D8F052E983112006B6969 /* TodoListView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		79D884C32B3C18830009EA4A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7993B8A92B3C673A009B610B /* AuthView.swift in Sources */,
+				7993B8AB2B3C67E0009B610B /* Toast.swift in Sources */,
+				79D884DD2B3C19320009EA4A /* MessagesView.swift in Sources */,
+				79BD76792B59C53900CA3D68 /* ChannelStore.swift in Sources */,
+				797D664A2B46A1D8007592ED /* Dependencies.swift in Sources */,
+				79D884DB2B3C191F0009EA4A /* ChannelListView.swift in Sources */,
+				79BD767B2B59C61300CA3D68 /* MessageStore.swift in Sources */,
+				79B8F4262B602F640000E839 /* Logger.swift in Sources */,
+				79D884CC2B3C18830009EA4A /* AppView.swift in Sources */,
+				79BD76772B59C3E300CA3D68 /* UserStore.swift in Sources */,
+				79D884D72B3C18DB0009EA4A /* Supabase.swift in Sources */,
+				79D884CA2B3C18830009EA4A /* SlackCloneApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		79FEFFA82B07873600D36347 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				79FEFFB12B07873600D36347 /* AppView.swift in Sources */,
+				79FEFFBE2B07894700D36347 /* Supabase.swift in Sources */,
+				79FEFFC32B078CD800D36347 /* ProfileView.swift in Sources */,
+				79FEFFC52B078D7900D36347 /* Models.swift in Sources */,
+				79FEFFC72B078FB000D36347 /* SwiftUIHelpers.swift in Sources */,
+				79FEFFC02B07895900D36347 /* AuthView.swift in Sources */,
+				79FEFFC92B0797F600D36347 /* AvatarImage.swift in Sources */,
+				79FEFFAF2B07873600D36347 /* UserManagementApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		793895D32954AC000044F2B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = ELTTE7K8TT;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		793895D42954AC000044F2B8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = ELTTE7K8TT;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		793895D62954AC000044F2B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Examples/Examples.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_ASSET_PATHS = "\"Examples/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Examples/Info.plist;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.supabase.swift-examples";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		793895D72954AC000044F2B8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Examples/Examples.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_ASSET_PATHS = "\"Examples/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Examples/Info.plist;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.supabase.swift-examples";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		79D884D32B3C18840009EA4A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SlackClone/SlackClone.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"SlackClone/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SlackClone/Info.plist;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.supabase.slack-clone";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+			};
+			name = Debug;
+		};
+		79D884D42B3C18840009EA4A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SlackClone/SlackClone.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"SlackClone/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SlackClone/Info.plist;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.supabase.slack-clone";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2,7";
+			};
+			name = Release;
+		};
+		79FEFFB92B07873700D36347 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = UserManagement/UserManagement.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"UserManagement/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = UserManagement/Info.plist;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.supabase.UserManagement;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		79FEFFBA2B07873700D36347 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = UserManagement/UserManagement.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"UserManagement/Preview Content\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = UserManagement/Info.plist;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.supabase.UserManagement;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		793895C12954ABFF0044F2B8 /* Build configuration list for PBXProject "Examples" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				793895D32954AC000044F2B8 /* Debug */,
+				793895D42954AC000044F2B8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		793895D52954AC000044F2B8 /* Build configuration list for PBXNativeTarget "Examples" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				793895D62954AC000044F2B8 /* Debug */,
+				793895D72954AC000044F2B8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		79D884D52B3C18840009EA4A /* Build configuration list for PBXNativeTarget "SlackClone" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				79D884D32B3C18840009EA4A /* Debug */,
+				79D884D42B3C18840009EA4A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		79FEFFB82B07873700D36347 /* Build configuration list for PBXNativeTarget "UserManagement" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				79FEFFB92B07873700D36347 /* Debug */,
+				79FEFFBA2B07873700D36347 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7956406B2955B3500088A06F /* XCRemoteSwiftPackageReference "swiftui-navigation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swiftui-navigation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+		7956406E2955B5190088A06F /* XCRemoteSwiftPackageReference "swift-identified-collections" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-identified-collections.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+		795FA98C2DF354B000F67AFF /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/facebook/facebook-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 14.1.0;
+			};
+		};
+		7962989B2AEBC6F9000AA957 /* XCRemoteSwiftPackageReference "SVGView" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/exyte/SVGView";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.6;
+			};
+		};
+		79BE429F2D942EFD00B9DDF4 /* XCRemoteSwiftPackageReference "clerk-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/clerk/clerk-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.52.0;
+			};
+		};
+		79E2B5562B97890F0042CD21 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7956406C2955B3500088A06F /* SwiftUINavigation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7956406B2955B3500088A06F /* XCRemoteSwiftPackageReference "swiftui-navigation" */;
+			productName = SwiftUINavigation;
+		};
+		7956406F2955B5190088A06F /* IdentifiedCollections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7956406E2955B5190088A06F /* XCRemoteSwiftPackageReference "swift-identified-collections" */;
+			productName = IdentifiedCollections;
+		};
+		795FA98D2DF354B000F67AFF /* FacebookLogin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 795FA98C2DF354B000F67AFF /* XCRemoteSwiftPackageReference "facebook-ios-sdk" */;
+			productName = FacebookLogin;
+		};
+		7962989C2AEBC6F9000AA957 /* SVGView */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7962989B2AEBC6F9000AA957 /* XCRemoteSwiftPackageReference "SVGView" */;
+			productName = SVGView;
+		};
+		79719ECD2ADF26C400737804 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Supabase;
+		};
+		79B8F4232B5FED7C0000E839 /* IdentifiedCollections */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7956406E2955B5190088A06F /* XCRemoteSwiftPackageReference "swift-identified-collections" */;
+			productName = IdentifiedCollections;
+		};
+		79BE42A02D942EFD00B9DDF4 /* Clerk */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 79BE429F2D942EFD00B9DDF4 /* XCRemoteSwiftPackageReference "clerk-ios" */;
+			productName = Clerk;
+		};
+		79D884D82B3C18E90009EA4A /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Supabase;
+		};
+		79E2B5572B97890F0042CD21 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 79E2B5562B97890F0042CD21 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		79E2B5592B97890F0042CD21 /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 79E2B5562B97890F0042CD21 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+		79FEFFBB2B07874000D36347 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 793895BE2954ABFF0044F2B8 /* Project object */;
+}

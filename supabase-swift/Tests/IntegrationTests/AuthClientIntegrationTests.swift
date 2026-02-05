@@ -1,0 +1,430 @@
+//
+//  AuthClientIntegrationTests.swift
+//
+//
+//  Created by Guilherme Souza on 27/03/24.
+//
+
+import ConcurrencyExtras
+import CustomDump
+import InlineSnapshotTesting
+import TestHelpers
+import XCTest
+
+@testable import Auth
+
+#if canImport(FoundationNetworking)
+  import FoundationNetworking
+#endif
+
+final class AuthClientIntegrationTests: XCTestCase {
+  let authClient = makeClient()
+
+  override func setUp() async throws {
+    try await super.setUp()
+
+    try XCTSkipUnless(
+      ProcessInfo.processInfo.environment["INTEGRATION_TESTS"] != nil,
+      "INTEGRATION_TESTS not defined."
+    )
+  }
+
+  static func makeClient(serviceRole: Bool = false) -> AuthClient {
+    let key = serviceRole ? DotEnv.SUPABASE_SERVICE_ROLE_KEY : DotEnv.SUPABASE_ANON_KEY
+    return AuthClient(
+      configuration: AuthClient.Configuration(
+        url: URL(string: "\(DotEnv.SUPABASE_URL)/auth/v1")!,
+        headers: [
+          "apikey": key,
+          "Authorization": "Bearer \(key)",
+        ],
+        localStorage: InMemoryLocalStorage(),
+        logger: nil
+      )
+    )
+  }
+
+  func testMultipleAuthInstances() async throws {
+    try await signUpIfNeededOrSignIn(email: mockEmail(), password: mockPassword())
+
+    let client2 = Self.makeClient()
+
+    let sessionFromClient1 = try await authClient.session
+    let sessionFromClient2 = try await client2.setSession(
+      accessToken: sessionFromClient1.accessToken,
+      refreshToken: sessionFromClient1.refreshToken
+    )
+
+    expectNoDifference(sessionFromClient1.accessToken, sessionFromClient2.accessToken)
+    expectNoDifference(sessionFromClient1.refreshToken, sessionFromClient2.refreshToken)
+    expectNoDifference(sessionFromClient1.expiresAt, sessionFromClient2.expiresAt)
+  }
+
+  func testSignUpAndSignInWithEmail() async throws {
+    try await XCTAssertAuthChangeEvents([.initialSession, .signedIn, .signedOut, .signedIn]) {
+      let email = mockEmail()
+      let password = mockPassword()
+
+      let metadata: [String: AnyJSON] = [
+        "test": .integer(42)
+      ]
+
+      let response = try await authClient.signUp(
+        email: email,
+        password: password,
+        data: metadata
+      )
+
+      XCTAssertNotNil(response.session)
+      XCTAssertEqual(response.user.email, email)
+      XCTAssertEqual(response.user.userMetadata["test"], 42)
+
+      try await authClient.signOut()
+
+      try await authClient.signIn(email: email, password: password)
+    }
+  }
+
+  //  func testSignUpAndSignInWithPhone() async throws {
+  //    try await XCTAssertAuthChangeEvents([.initialSession, .signedIn, .signedOut, .signedIn]) {
+  //      let phone = mockPhoneNumber()
+  //      let password = mockPassword()
+  //      let metadata: [String: AnyJSON] = [
+  //        "test": .integer(42),
+  //      ]
+  //      let response = try await authClient.signUp(phone: phone, password: password, data: metadata)
+  //      XCTAssertNotNil(response.session)
+  //      XCTAssertEqual(response.user.phone, phone)
+  //      XCTAssertEqual(response.user.userMetadata["test"], 42)
+  //
+  //      try await authClient.signOut()
+  //
+  //      try await authClient.signIn(phone: phone, password: password)
+  //    }
+  //  }
+
+  func testSignInWithEmail_invalidEmail() async throws {
+    let email = mockEmail()
+    let password = mockPassword()
+
+    do {
+      try await authClient.signIn(email: email, password: password)
+      XCTFail("Expect failure")
+    } catch {
+      if let error = error as? AuthError {
+        XCTAssertEqual(error.localizedDescription, "Invalid login credentials")
+      } else {
+        XCTFail("Unexpected error: \(error)")
+      }
+    }
+  }
+
+  //  func testSignInWithOTP_usingEmail() async throws {
+  //    let email = mockEmail()
+  //
+  //    try await authClient.signInWithOTP(email: email)
+  //    try await authClient.verifyOTP(email: email, token: "123456", type: .magiclink)
+  //  }
+
+  func testSignOut_otherScope_shouldSignOutLocally() async throws {
+    try await XCTAssertAuthChangeEvents([.initialSession, .signedIn]) {
+      let email = mockEmail()
+      let password = mockPassword()
+
+      try await signUpIfNeededOrSignIn(email: email, password: password)
+      try await authClient.signOut(scope: .others)
+    }
+  }
+
+  func testReauthenticate() async throws {
+    let email = mockEmail()
+    let password = mockPassword()
+
+    try await signUpIfNeededOrSignIn(email: email, password: password)
+    try await authClient.reauthenticate()
+  }
+
+  func testUser() async throws {
+    let email = mockEmail()
+    let password = mockPassword()
+
+    try await signUpIfNeededOrSignIn(email: email, password: password)
+    let user = try await authClient.user()
+    XCTAssertEqual(user.email, email)
+  }
+
+  func testUserWithCustomJWT() async throws {
+    let firstUserSession = try await signUpIfNeededOrSignIn(
+      email: mockEmail(),
+      password: mockPassword()
+    ).session
+    let secondUserSession = try await signUpIfNeededOrSignIn(
+      email: mockEmail(),
+      password: mockPassword()
+    )
+
+    let user = try await authClient.user(jwt: firstUserSession?.accessToken)
+
+    XCTAssertEqual(user.id, firstUserSession?.user.id)
+    XCTAssertNotEqual(user.id, secondUserSession.user.id)
+  }
+
+  func testUpdateUser() async throws {
+    try await XCTAssertAuthChangeEvents([.initialSession, .signedIn, .userUpdated]) {
+      try await signUpIfNeededOrSignIn(email: mockEmail(), password: mockPassword())
+
+      let updatedUser = try await authClient.update(user: .init(data: ["test": .integer(42)]))
+      XCTAssertEqual(updatedUser.userMetadata["test"], 42)
+    }
+  }
+
+  func testUserIdentities() async throws {
+    let session = try await signUpIfNeededOrSignIn(email: mockEmail(), password: mockPassword())
+    let identities = try await authClient.userIdentities()
+    expectNoDifference(
+      session.user.identities?.map(\.identityId) ?? [],
+      identities.map(\.identityId)
+    )
+  }
+
+  func testUnlinkIdentity_withOnlyOneIdentity() async throws {
+    let identities = try await signUpIfNeededOrSignIn(email: mockEmail(), password: mockPassword())
+      .user.identities
+    let identity = try XCTUnwrap(identities?.first)
+
+    do {
+      try await authClient.unlinkIdentity(identity)
+      XCTFail("Expect failure")
+    } catch let error as AuthError {
+      XCTAssertEqual(error.errorCode, .singleIdentityNotDeletable)
+    }
+  }
+
+  func testResetPasswordForEmail() async throws {
+    let email = mockEmail()
+    try await authClient.resetPasswordForEmail(email)
+  }
+
+  func testRefreshToken() async throws {
+    try await XCTAssertAuthChangeEvents([.initialSession, .signedIn, .tokenRefreshed]) {
+      try await signUpIfNeededOrSignIn(email: mockEmail(), password: mockPassword())
+
+      let refreshedSession = try await authClient.refreshSession()
+      let currentStoredSession = try await authClient.session
+
+      XCTAssertEqual(currentStoredSession.accessToken, refreshedSession.accessToken)
+    }
+  }
+
+  func testSignInAnonymous() async throws {
+    try await XCTAssertAuthChangeEvents([.initialSession, .signedIn]) {
+      try await authClient.signInAnonymously()
+    }
+  }
+
+  func testSignInAnonymousAndLinkUserWithEmail() async throws {
+    try await XCTAssertAuthChangeEvents([.initialSession, .signedIn, .userUpdated]) {
+      try await authClient.signInAnonymously()
+
+      let email = mockEmail()
+      let user = try await authClient.update(user: UserAttributes(email: email))
+
+      XCTAssertEqual(user.email, email)
+    }
+  }
+
+  func testDeleteAccountAndSignOut() async throws {
+    let response = try await signUpIfNeededOrSignIn(email: mockEmail(), password: mockPassword())
+
+    let session = try XCTUnwrap(response.session)
+
+    var request = URLRequest(url: URL(string: "\(DotEnv.SUPABASE_URL)/rest/v1/rpc/delete_user")!)
+    request.httpMethod = "POST"
+    request.setValue(DotEnv.SUPABASE_ANON_KEY, forHTTPHeaderField: "apikey")
+    request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+
+    _ = try await URLSession.shared.data(for: request)
+
+    try await XCTAssertAuthChangeEvents([.initialSession, .signedOut]) {
+      try await authClient.signOut()
+    }
+  }
+
+  func testLinkIdentity() async throws {
+    try await signUpIfNeededOrSignIn(email: mockEmail(), password: mockPassword())
+
+    try await authClient.linkIdentity(provider: .apple) { url in
+      XCTAssertTrue(url.absoluteString.contains("apple.com"))
+    }
+  }
+
+  func testListUsers() async throws {
+    // Skip: Requires pre-seeded users and service role key configuration
+    // that may not be available in all CI environments
+    try XCTSkipIf(true, "Requires service role key and pre-seeded users")
+    let client = Self.makeClient(serviceRole: true)
+    let pagination = try await client.admin.listUsers(params: PageParams(perPage: 10))
+    XCTAssertEqual(pagination.users.count, 10)
+    XCTAssertEqual(pagination.aud, "authenticated")
+    XCTAssertEqual(pagination.nextPage, 2)
+  }
+
+  func testSignOut() async throws {
+    try await XCTAssertAuthChangeEvents([.initialSession, .signedIn, .signedOut]) {
+      try await signUpIfNeededOrSignIn(email: mockEmail(), password: mockPassword())
+
+      _ = try await authClient.session
+      XCTAssertNotNil(authClient.currentSession)
+
+      try await authClient.signOut()
+
+      do {
+        _ = try await authClient.session
+        XCTFail("Expected to throw AuthError.sessionMissing")
+      } catch let error as AuthError {
+        XCTAssertEqual(error, .sessionMissing)
+      }
+      XCTAssertNil(authClient.currentSession)
+    }
+  }
+
+  //  func testGenerateLink_signUp() async throws {
+  //    let client = Self.makeClient(serviceRole: true)
+  //    let email = mockEmail()
+  //    let password = mockPassword()
+  //
+  //    let link = try await client.admin.generateLink(
+  //      params: .signUp(
+  //        email: email,
+  //        password: password,
+  //        data: ["full_name": "John Doe"]
+  //      )
+  //    )
+  //
+  //    expectNoDifference(link.properties.actionLink.path, "/auth/v1/verify")
+  //    expectNoDifference(link.properties.verificationType, .signup)
+  //    expectNoDifference(link.user.email, email)
+  //  }
+  //
+  //  func testGenerateLink_magicLink() async throws {
+  //    let client = Self.makeClient(serviceRole: true)
+  //    let email = mockEmail()
+  //    let password = mockPassword()
+  //
+  //    // first create a user
+  //    try await client.admin.createUser(
+  //      attributes: AdminUserAttributes(email: email, password: password)
+  //    )
+  //
+  //    // generate a magic link for the created user
+  //    let link = try await client.admin.generateLink(params: .magicLink(email: email))
+  //
+  //    expectNoDifference(link.properties.verificationType, .magiclink)
+  //  }
+
+  // func testGenerateLink_recovery() async throws {
+  //   let client = Self.makeClient(serviceRole: true)
+  //   let email = mockEmail()
+  //   let password = mockPassword()
+
+  //   _ = try await client.signUp(email: email, password: password)
+
+  //   let link = try await client.admin.generateLink(params: .recovery(email: email))
+
+  //   expectNoDifference(link.properties.verificationType, .recovery)
+  // }
+
+  //  func testGenerateLink_invite() async throws {
+  //    let client = Self.makeClient(serviceRole: true)
+  //    let email = mockEmail()
+  //
+  //    let link = try await client.admin.generateLink(params: .invite(email: email))
+  //
+  //    expectNoDifference(link.properties.verificationType, .invite)
+  //  }
+
+  @discardableResult
+  private func signUpIfNeededOrSignIn(
+    email: String,
+    password: String
+  ) async throws -> AuthResponse {
+    do {
+      let session = try await authClient.signIn(email: email, password: password)
+      return .session(session)
+    } catch {
+      return try await authClient.signUp(email: email, password: password)
+    }
+  }
+
+  private func mockEmail(length: Int = Int.random(in: 5...10)) -> String {
+    var username = ""
+    for _ in 0..<length {
+      let randomAscii = Int.random(in: 97...122)  // ASCII values for lowercase letters
+      let randomCharacter = Character(UnicodeScalar(randomAscii)!)
+      username.append(randomCharacter)
+    }
+    return "\(username)@supabase.com"
+  }
+
+  private func mockPhoneNumber() -> String {
+    // Generate random country code (1 to 3 digits)
+    let countryCode = String(format: "%d", Int.random(in: 1...999))
+
+    // Generate random area code (3 digits)
+    let areaCode = String(format: "%03d", Int.random(in: 100...999))
+
+    // Generate random subscriber number (7 digits)
+    let subscriberNumber = String(format: "%07d", Int.random(in: 1_000_000...9_999_999))
+
+    // Format the phone number in E.164 format
+    let phoneNumber = "\(countryCode)\(areaCode)\(subscriberNumber)"
+
+    return phoneNumber
+  }
+
+  private func mockPassword(length: Int = 12) -> String {
+    let allowedCharacters =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+"
+    var password = ""
+
+    for _ in 0..<length {
+      let randomIndex = Int.random(in: 0..<allowedCharacters.count)
+      let character = allowedCharacters[
+        allowedCharacters.index(
+          allowedCharacters.startIndex,
+          offsetBy: randomIndex
+        )
+      ]
+      password.append(character)
+    }
+
+    return password
+  }
+
+  private func XCTAssertAuthChangeEvents(
+    _ events: [AuthChangeEvent],
+    function: StaticString = #function,
+    block: () async throws -> Void
+  ) async rethrows {
+    let expectation = expectation(description: "\(function)-onAuthStateChange")
+    expectation.expectedFulfillmentCount = events.count
+
+    let receivedEvents = LockIsolated<[AuthChangeEvent]>([])
+
+    let token = await authClient.onAuthStateChange { event, _ in
+      receivedEvents.withValue {
+        $0.append(event)
+      }
+
+      expectation.fulfill()
+    }
+
+    try await block()
+
+    await fulfillment(of: [expectation], timeout: 0.5)
+
+    expectNoDifference(events, receivedEvents.value)
+
+    token.remove()
+  }
+}

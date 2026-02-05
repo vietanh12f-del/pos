@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>{{ DOT_REVERSED_IOS_CLIENT_ID }}</string>
+			</array>
+		</dict>
+    <dict>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>fb{{ FACEBOOK APP ID }}</string>
+    </array>
+    </dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>{{ YOUR_IOS_CLIENT_ID }}</string>
+	<key>GIDServerClientID</key>
+	<string>{{ YOUR_SERVER_CLIENT_ID }}</string>
+  <key>FacebookAppID</key>
+  <string>{{ FACEBOOK APP ID }}</string>
+  <key>FacebookClientToken</key>
+  <string>{{ FACEBOOK CLIENT TOKEN }}</string>
+  <key>FacebookDisplayName</key>
+  <string>Examples</string>
+  <key>LSApplicationQueriesSchemes</key>
+  <array>
+    <string>fbapi</string>
+    <string>fb-messenger-share-api</string>
+  </array>
+</dict>
+</plist>
