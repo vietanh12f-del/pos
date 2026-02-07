@@ -8,147 +8,235 @@ struct RestockEntryView: View {
     @State private var editingItem: RestockItem?
     
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                VStack(spacing: 0) {
-                    // List of Items
-                    List {
-                        if viewModel.restockItems.isEmpty {
-                            Text("Nhấn mic để nói hoặc thêm thủ công.")
-                                .foregroundStyle(.gray)
-                                .listRowBackground(Color.clear)
-                        } else {
-                            ForEach(viewModel.restockItems) { item in
-                                HStack {
-                                    // Check/Verify Button
-                                    Button(action: {
-                                        viewModel.toggleRestockItemConfirmation(item)
-                                    }) {
-                                        Image(systemName: item.isConfirmed ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(item.isConfirmed ? .green : .gray)
-                                            .font(.title2)
-                                    }
-                                    .buttonStyle(.plain)
-                                    
-                                    VStack(alignment: .leading) {
-                                        Text(item.name)
-                                            .font(.headline)
-                                            .foregroundStyle(Color.themeTextDark)
-                                        Text("\(item.quantity) x \(formatCurrency(item.unitPrice))")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Text(formatCurrency(item.totalCost))
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(Color.themeTextDark)
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    editingItem = item
-                                }
-                            }
-                            .onDelete(perform: viewModel.removeRestockItem)
-                        }
+        ZStack(alignment: .bottom) {
+            // Background
+            Color.themeBackgroundLight.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("Nhập hàng")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                    Spacer()
+                    Button(action: { 
+                        viewModel.cancelVoiceProcessing()
+                        dismiss() 
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title)
+                            .foregroundStyle(Color.gray.opacity(0.5))
                     }
-                    .listStyle(.insetGrouped)
-                    
-                    // Total & Action
-                    VStack(spacing: 16) {
-                        HStack {
-                            Text("Tổng chi phí")
-                                .font(.headline)
-                                .foregroundStyle(.gray)
-                            Spacer()
-                            Text(formatCurrency(viewModel.restockItems.reduce(0) { $0 + $1.totalCost }))
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.themeTextDark)
+                }
+                .padding()
+                .padding(.top, 10)
+                .background(Color.white)
+                
+                // Content
+                if viewModel.restockItems.isEmpty {
+                    VStack(spacing: 20) {
+                        Spacer()
+                        Image(systemName: "cart.badge.plus")
+                            .font(.system(size: 80))
+                            .foregroundStyle(Color.gray.opacity(0.3))
+                        Text("Chưa có hàng hóa nào")
+                            .font(.title3)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.gray)
+                        Text("Nhấn vào mic để nói hoặc dùng các công cụ bên dưới")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.gray.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        Spacer()
+                        Spacer() // Push up a bit
+                    }
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(viewModel.restockItems) { item in
+                                RestockItemCard(item: item, viewModel: viewModel)
+                                    .onTapGesture {
+                                        editingItem = item
+                                    }
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            viewModel.removeRestockItem(at: IndexSet(integer: viewModel.restockItems.firstIndex(where: {$0.id == item.id}) ?? 0))
+                                        } label: {
+                                            Label("Xóa", systemImage: "trash")
+                                        }
+                                    }
+                            }
                         }
-                        .padding(.horizontal)
+                        .padding()
+                        .padding(.bottom, 160) // Space for bottom panel + FABs
+                    }
+                }
+            }
+            
+            // Floating Controls & Bottom Panel
+            VStack(spacing: 0) {
+                Spacer()
+                
+                // Floating Action Buttons (FABs)
+                HStack {
+                    Spacer()
+                    VStack(spacing: 16) {
+                        // Scanner FAB
+                        Button(action: { showScanner = true }) {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 50, height: 50)
+                                .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+                                .overlay(
+                                    Image(systemName: "doc.text.viewfinder")
+                                        .font(.title2)
+                                        .foregroundStyle(Color.themePrimary)
+                                )
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                        
+                        // Manual Input FAB
+                        Button(action: { showManualInput = true }) {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 50, height: 50)
+                                .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+                                .overlay(
+                                    Image(systemName: "keyboard")
+                                        .font(.title2)
+                                        .foregroundStyle(Color.themePrimary)
+                                )
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                        
+                        // Main Mic FAB (Matching SmartOrderEntryView)
+                        VoiceAIButton(viewModel: viewModel, size: 64)
+                    }
+                    .padding(.trailing, 24)
+                    .padding(.bottom, 20)
+                }
+                
+                // Bottom Panel (Total & Complete)
+                VStack(spacing: 16) {
+                    // Total Info
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("Tổng chi phí")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Text(formatCurrency(viewModel.restockItems.reduce(0) { $0 + $1.totalCost }))
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                        
+                        Spacer()
                         
                         Button(action: {
                             viewModel.completeRestockSession()
                             dismiss()
                         }) {
-                            Text("Hoàn tất nhập hàng")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.themePrimary)
-                                .cornerRadius(16)
+                            HStack {
+                                Text("Hoàn tất")
+                                Image(systemName: "checkmark")
+                            }
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 14)
+                            .background(
+                                Capsule()
+                                    .fill(viewModel.restockItems.isEmpty ? Color.gray : Color.themePrimary)
+                            )
                         }
                         .disabled(viewModel.restockItems.isEmpty)
-                        .padding(.horizontal)
-                        .padding(.bottom)
                     }
-                    .background(Color.white)
-                    .shadow(radius: 5)
                 }
+                .padding(24)
+                .background(
+                    Color.white
+                        .cornerRadius(24, corners: [.topLeft, .topRight])
+                        .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
+                )
+            }
+            
+            // Voice Overlay
+            VoiceOverlayView(viewModel: viewModel)
+        }
+        .navigationBarHidden(true)
+        .onAppear { viewModel.isRestockMode = true }
+        .onDisappear { 
+            viewModel.isRestockMode = false 
+            viewModel.cancelVoiceProcessing()
+        }
+        .sheet(isPresented: $showManualInput) { ManualRestockItemView(viewModel: viewModel) }
+        .sheet(isPresented: $showScanner) { InvoiceScannerView(viewModel: viewModel) }
+        .sheet(item: $editingItem) { item in ManualRestockItemView(viewModel: viewModel, itemToEdit: item) }
+    }
+}
+
+// Helper View for Item Card
+struct RestockItemCard: View {
+    let item: RestockItem
+    @ObservedObject var viewModel: OrderViewModel
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Icon/Image Placeholder
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.themePrimary.opacity(0.1))
+                    .frame(width: 50, height: 50)
                 
-                // Mic & Manual Input Controls
-                VStack {
-                    Spacer()
-                    
-                    // Mic & Manual Input Controls
-                    HStack {
-                        // Manual Input Button
-                        Button(action: { showManualInput = true }) {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 50, height: 50)
-                                .shadow(radius: 3)
-                                .overlay(Image(systemName: "keyboard").foregroundStyle(Color.themeTextDark))
-                        }
-                        
-                        Spacer()
-                        
-                        // Mic Button
-                        VoiceAIButton(viewModel: viewModel, size: 70)
-                        
-                        Spacer()
-                        
-                        // Scanner Button
-                        Button(action: { showScanner = true }) {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 50, height: 50)
-                                .shadow(radius: 3)
-                                .overlay(Image(systemName: "doc.text.viewfinder").foregroundStyle(Color.themeTextDark))
-                        }
+                Text(String(item.name.prefix(1)).uppercased())
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themePrimary)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.headline)
+                    .foregroundStyle(Color.themeTextDark)
+                    .lineLimit(1)
+                
+                HStack(spacing: 8) {
+                    Label("\(item.quantity)", systemImage: "number")
+                    Label(formatCurrency(item.unitPrice), systemImage: "tag")
+                }
+                .font(.caption)
+                .foregroundStyle(.gray)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(formatCurrency(item.totalCost))
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themeTextDark)
+                
+                Button(action: {
+                    withAnimation {
+                        viewModel.toggleRestockItemConfirmation(item)
                     }
-                    .padding(.bottom, 140) // Adjust based on Total section height
-                    .padding(.horizontal, 40)
+                }) {
+                    Image(systemName: item.isConfirmed ? "checkmark.circle.fill" : "circle")
+                        .font(.title2)
+                        .foregroundStyle(item.isConfirmed ? .green : .gray.opacity(0.3))
                 }
-                
-                // Voice Overlay
-                VoiceOverlayView(viewModel: viewModel)
-            }
-            .navigationTitle("Nhập hàng")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Hủy") { dismiss() }
-                }
-            }
-            .onAppear {
-                viewModel.isRestockMode = true
-            }
-            .onDisappear {
-                viewModel.isRestockMode = false
-            }
-            .sheet(isPresented: $showManualInput) {
-                ManualRestockItemView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showScanner) {
-                InvoiceScannerView(viewModel: viewModel)
-            }
-            .sheet(item: $editingItem) { item in
-                ManualRestockItemView(viewModel: viewModel, itemToEdit: item)
             }
         }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(item.isConfirmed ? Color.green.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
     }
 }
 

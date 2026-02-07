@@ -17,7 +17,7 @@ struct OrderHistoryView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Color.themeBackgroundLight.ignoresSafeArea()
                 
@@ -96,6 +96,7 @@ struct OrderHistoryView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .refreshable { await viewModel.loadData(force: true) }
                     .scrollContentBackground(.hidden) // Hide default list background
                     .background(Color.themeBackgroundLight) // Use light theme background
                 }

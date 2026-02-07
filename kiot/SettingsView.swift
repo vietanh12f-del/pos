@@ -7,7 +7,6 @@ struct SettingsView: View {
     @State private var showEditProfile = false
     
     var body: some View {
-        NavigationStack {
             List {
                 Section(header: Text("Cửa hàng")) {
                     if let store = storeManager.currentStore {
@@ -30,6 +29,12 @@ struct SettingsView: View {
                         if storeManager.hasPermission(.manageEmployees) {
                              NavigationLink(destination: EmployeeManagementView(tabBarManager: tabBarManager)) {
                                 Text("Quản lý nhân viên")
+                            }
+                        }
+                        
+                        if storeManager.currentMember?.role == .owner {
+                            NavigationLink(destination: StoreBankSettingsView(store: store)) {
+                                Text("Cài đặt tài khoản ngân hàng")
                             }
                         }
                     } else {
@@ -91,9 +96,74 @@ struct SettingsView: View {
                     }
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("Cài đặt")
+            .navigationBarBackButtonHidden(true)
             .sheet(isPresented: $showEditProfile) {
                 EditProfileView(authManager: authManager)
+            }
+        }
+    }
+
+
+struct StoreBankSettingsView: View {
+    let store: Store
+    @State private var bankName: String
+    @State private var bankAccountNumber: String
+    @Environment(\.dismiss) var dismiss
+    @State private var isLoading = false
+    
+    // Supported Banks (Common VietQR Banks)
+    let banks = ["VCB", "TCB", "MB", "ACB", "VPB", "BIDV", "CTG", "ICB"]
+    
+    init(store: Store) {
+        self.store = store
+        _bankName = State(initialValue: store.bankName ?? "VCB")
+        _bankAccountNumber = State(initialValue: store.bankAccountNumber ?? "")
+    }
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Thông tin nhận tiền (VietQR)")) {
+                Picker("Ngân hàng", selection: $bankName) {
+                    ForEach(banks, id: \.self) { bank in
+                        Text(bank).tag(bank)
+                    }
+                }
+                
+                TextField("Số tài khoản", text: $bankAccountNumber)
+                    .keyboardType(.numberPad)
+            }
+            
+            Button(action: save) {
+                if isLoading {
+                    ProgressView()
+                } else {
+                    Text("Lưu thay đổi")
+                }
+            }
+            .disabled(isLoading)
+        }
+        .navigationTitle("Cài đặt ngân hàng")
+    }
+    
+    func save() {
+        isLoading = true
+        Task {
+            do {
+                var updatedStore = store
+                updatedStore.bankName = bankName
+                updatedStore.bankAccountNumber = bankAccountNumber
+                
+                // Update in Supabase
+                try await StoreManager.shared.updateStoreBankInfo(storeId: store.id, bankName: bankName, accountNumber: bankAccountNumber)
+                
+                await MainActor.run {
+                    isLoading = false
+                    dismiss()
+                }
+            } catch {
+                print("Error saving bank info: \(error)")
+                isLoading = false
             }
         }
     }
@@ -115,7 +185,6 @@ struct EditProfileView: View {
     }
     
     var body: some View {
-        NavigationStack {
             Form {
                 Section(header: Text("Thông tin cá nhân")) {
                     TextField("Họ và tên", text: $name)
@@ -154,4 +223,4 @@ struct EditProfileView: View {
             }
         }
     }
-}
+

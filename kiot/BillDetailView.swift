@@ -49,6 +49,8 @@ struct BillDetailView: View {
                 .padding(.top, 20)
             }
         }
+        .navigationTitle("Chi tiết đơn hàng")
+        .navigationBarHidden(true)
         .background(Color.themeBackgroundLight)
         .alert("Xóa đơn hàng?", isPresented: $showDeleteConfirmation) {
             Button("Hủy", role: .cancel) { }

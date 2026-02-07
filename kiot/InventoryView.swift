@@ -196,6 +196,9 @@ struct InventoryView: View {
                             }
                         }
                         .listStyle(.plain)
+                        .refreshable {
+                            await viewModel.loadData(force: true)
+                        }
                     }
                 } else {
                     // Restock History List
@@ -250,11 +253,15 @@ struct InventoryView: View {
                             }
                         }
                         .listStyle(.plain)
+                        .refreshable {
+                            await viewModel.loadData()
+                        }
                     }
                 }
             }
             .background(Color.themeBackgroundLight)
-            .toolbar(.hidden, for: .navigationBar) // Hide system nav bar
+            .navigationTitle("Kho hàng hóa")
+            .navigationBarHidden(true)
             .alert("Xác nhận xóa", isPresented: $showDeleteConfirmation, presenting: productToDelete) { product in
                 Button("Xóa", role: .destructive) {
                     if let index = viewModel.products.firstIndex(where: { $0.id == product.id }) {

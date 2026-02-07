@@ -110,8 +110,20 @@ class SpeechRecognizer: ObservableObject {
     
     func stopRecording() {
         silenceTimer?.invalidate()
-        audioEngine.stop()
+        
+        if audioEngine.isRunning {
+            audioEngine.stop()
+            audioEngine.inputNode.removeTap(onBus: 0)
+        }
+        
         recognitionRequest?.endAudio()
-        isRecording = false
+        recognitionTask?.cancel()
+        
+        recognitionRequest = nil
+        recognitionTask = nil
+        
+        DispatchQueue.main.async {
+            self.isRecording = false
+        }
     }
 }

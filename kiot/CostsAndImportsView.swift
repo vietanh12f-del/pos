@@ -3,6 +3,7 @@ import SwiftUI
 struct CostsAndImportsView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Binding var selectedSubTab: Int // 0: Vận hành, 1: Phát sinh
+    @ObservedObject private var storeManager = StoreManager.shared
     
     @State private var showExportSheet: Bool = false
     @State private var exportURL: URL?
@@ -14,50 +15,114 @@ struct CostsAndImportsView: View {
         }
     }
     
+    private var canViewOperatingCosts: Bool {
+        storeManager.hasPermission(.viewExpenses)
+    }
+    
+    private var canViewImportCosts: Bool {
+        storeManager.hasPermission(.viewExpenses) || storeManager.hasPermission(.viewInventory)
+    }
+    
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text("CHI PHÍ & NHẬP HÀNG")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(Color.themeTextDark)
-                    Spacer()
+            if canViewOperatingCosts || canViewImportCosts {
+                VStack(spacing: 0) {
+                    // Header
+                    HStack {
+                        Text("CHI PHÍ & NHẬP HÀNG")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(Color.themeTextDark)
+                        Spacer()
+                        
+                        Menu {
+                            Button("Hôm nay") { exportReport(.today) }
+                            Button("Tuần này") { exportReport(.thisWeek) }
+                            Button("Tháng này") { exportReport(.thisMonth) }
+                        } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
                     
-                    Menu {
-                        Button("Hôm nay") { exportReport(.today) }
-                        Button("Tuần này") { exportReport(.thisWeek) }
-                        Button("Tháng này") { exportReport(.thisMonth) }
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color.themePrimary)
+                    // Custom Segmented Control
+                    HStack(spacing: 0) {
+                        if canViewOperatingCosts {
+                            CostsTabButton(title: "Vận hành", isSelected: selectedSubTab == 0) { selectedSubTab = 0 }
+                        }
+                        
+                        if canViewImportCosts {
+                            CostsTabButton(title: "Phát sinh", isSelected: selectedSubTab == 1) { selectedSubTab = 1 }
+                        }
+                    }
+                    .background(Color.white)
+                    .onChange(of: canViewOperatingCosts) { newValue in
+                        if !newValue && selectedSubTab == 0 { selectedSubTab = 1 }
+                    }
+                    .onAppear {
+                        // Validate initial selection
+                        if selectedSubTab == 0 && !canViewOperatingCosts {
+                            selectedSubTab = 1
+                        } else if selectedSubTab == 1 && !canViewImportCosts {
+                            selectedSubTab = 0
+                        }
+                    }
+                    
+                    // Content
+                    if selectedSubTab == 0 {
+                        if canViewOperatingCosts {
+                            OperatingCostsList(viewModel: viewModel)
+                        } else {
+                            AccessDeniedView(title: "Vận hành")
+                        }
+                    } else {
+                        if canViewImportCosts {
+                            ImportCostsList(viewModel: viewModel)
+                        } else {
+                            AccessDeniedView(title: "Phát sinh")
+                        }
                     }
                 }
-                .padding()
-                .background(Color.white)
-                
-                // Custom Segmented Control
-                HStack(spacing: 0) {
-                    CostsTabButton(title: "Vận hành", isSelected: selectedSubTab == 0) { selectedSubTab = 0 }
-                    CostsTabButton(title: "Phát sinh", isSelected: selectedSubTab == 1) { selectedSubTab = 1 }
+                .navigationTitle("Chi phí & Nhập hàng")
+                .navigationBarHidden(true)
+                .background(Color(UIColor.systemGroupedBackground))
+                .sheet(isPresented: $showExportSheet) {
+                    if let url = exportURL {
+                        ShareSheet(items: [url])
+                    }
                 }
-                .background(Color.white)
-                
-                // Content
-                if selectedSubTab == 0 {
-                    OperatingCostsList(viewModel: viewModel)
-                } else {
-                    ImportCostsList(viewModel: viewModel)
-                }
-            }
-            .background(Color(UIColor.systemGroupedBackground))
-            .sheet(isPresented: $showExportSheet) {
-                if let url = exportURL {
-                    ShareSheet(items: [url])
-                }
+            } else {
+                AccessDeniedView(title: "Chi phí & Nhập hàng")
             }
         }
+    }
+}
+
+struct AccessDeniedView: View {
+    let title: String
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "lock.circle.fill")
+                .font(.system(size: 60))
+                .foregroundStyle(.gray)
+            
+            Text("Không có quyền truy cập")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundStyle(Color.themeTextDark)
+            
+            Text("Bạn cần quyền 'Xem Chi phí' để xem nội dung này.\nVui lòng liên hệ chủ cửa hàng.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(UIColor.systemGroupedBackground))
+        .navigationTitle(title)
+        .navigationBarHidden(true)
     }
 }
 
@@ -87,6 +152,7 @@ struct CostsTabButton: View {
 
 struct OperatingCostsList: View {
     @ObservedObject var viewModel: OrderViewModel
+    @State private var expenseToEdit: OperatingExpense?
     
     var body: some View {
         List {
@@ -118,6 +184,14 @@ struct OperatingCostsList: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            expenseToEdit = expense
+                        } label: {
+                            Label("Sửa", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
                 }
                 .onDelete { indexSet in
                     for index in indexSet {
@@ -127,6 +201,10 @@ struct OperatingCostsList: View {
             }
         }
         .listStyle(.plain)
+        .refreshable { await viewModel.loadData(force: true) }
+        .sheet(item: $expenseToEdit) { expense in
+            AddOperatingExpenseView(viewModel: viewModel, existingExpense: expense)
+        }
     }
     
     private func formatDate(_ date: Date) -> String {
@@ -205,11 +283,26 @@ struct ImportCostsList: View {
                         }
                     }
                     .padding(.vertical, 4)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            viewModel.deleteRestockBill(bill)
+                        } label: {
+                            Label("Xóa", systemImage: "trash")
+                        }
+                        
+                        Button {
+                            viewModel.editRestockBill(bill)
+                        } label: {
+                            Label("Sửa", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
                 }
                 // No delete here for now, or add if needed (viewModel.deleteRestockBill)
             }
         }
         .listStyle(.plain)
+        .refreshable { await viewModel.loadData(force: true) }
     }
     
     private func formatDate(_ date: Date) -> String {
