@@ -8,7 +8,7 @@ struct ChatView: View {
     @Binding var isTabBarVisible: Bool
     
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ZStack(alignment: .bottom) {
                 Color.themeBackgroundLight.ignoresSafeArea()
                 
@@ -55,9 +55,9 @@ struct ChatView: View {
                     }
                 }
             }
-            .navigationTitle("Tin nhắn")
             .navigationBarBackButtonHidden(true)
-            .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
+        .navigationBarHidden(true)
             .sheet(isPresented: $showNewChatSheet) {
                 NewChatView(viewModel: viewModel, orderViewModel: orderViewModel, isPresented: $showNewChatSheet)
             }
@@ -266,7 +266,6 @@ struct ChatDetailView: View {
             // Input Area
             inputArea
         }
-        .navigationTitle(employee.name)
         .navigationBarBackButtonHidden(true)
         .navigationBarHidden(true)
         .background(Color.themeBackgroundLight.ignoresSafeArea())

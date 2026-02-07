@@ -17,18 +17,11 @@ class OrderViewModel: ObservableObject {
     @Published var showOrderSuccessToast: Bool = false
     
     @Published var lastCreatedBill: Bill?
-    
-    // Cache control
-    private var loadedStoreId: UUID?
 
     // Voice & AI
     @Published var isProcessingVoice: Bool = false
     @Published var useGPT: Bool = true // Toggle for AI parser
 
-
-    // Alerting
-    @Published var showErrorAlert: Bool = false
-    @Published var errorMessage: String = ""
 
     // Dashboard Stats
     @Published var revenue: Double = 0
@@ -113,6 +106,11 @@ class OrderViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     
     init() {
+        // Load data from Database
+        Task {
+            await loadData()
+        }
+        
         // Recalculate stats
         recalculateStats()
         
@@ -174,136 +172,45 @@ class OrderViewModel: ObservableObject {
         }
     }
     
-    func cancelVoiceProcessing() {
-        if isProcessingVoice {
-            isProcessingVoice = false
-        }
-        if speechRecognizer.isRecording {
-            speechRecognizer.stopRecording()
-        }
-    }
-    
-    // Clear all data (used when switching stores)
-    func clearData() {
-        self.loadedStoreId = nil // Reset cache
-        self.products = []
-        self.pastOrders = []
-        self.restockHistory = []
-        self.priceHistory = [:]
-        self.operatingExpenses = []
-        self.inventory = [:]
-        self.revenue = 0
-        self.orderCount = 0
-        self.totalRestockCost = 0
-        self.totalOperatingCost = 0
-        self.todayStats = nil
-    }
-    
     @MainActor
-    func loadData(force: Bool = false) async {
-        let storeId = StoreManager.shared.currentStore?.id
-        
-        // Skip if already loaded for this store, unless forced
-        if !force && storeId == self.loadedStoreId && storeId != nil {
-             print("✅ OrderViewModel: Data already loaded for store \(storeId!.uuidString). Skipping.")
-             return
-        }
-        
+    func loadData() async {
         isLoading = true
         defer { isLoading = false }
-        
-        print("🔄 OrderViewModel: Loading data for store: \(storeId?.uuidString ?? "nil")")
-        
-        // Define a helper for async results to avoid one failure killing the whole batch
-        func fetchResult<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
-            do {
-                let value = try await operation()
-                return .success(value)
-            } catch {
-                return .failure(error)
-            }
-        }
-        
-        // Fetch all data in parallel, but handle errors individually
-        async let productsResult = fetchResult { try await self.database.fetchProducts() }
-        async let ordersResult = fetchResult { try await self.database.fetchOrders() }
-        async let restockResult = fetchResult { try await self.database.fetchRestockHistory() }
-        async let pricesResult = fetchResult { try await self.database.fetchPriceHistory() }
-        async let expensesResult = fetchResult { try await self.database.fetchOperatingExpenses() }
-        
-        let (rProds, rOrders, rRestock, rPrices, rExpenses) = await (productsResult, ordersResult, restockResult, pricesResult, expensesResult)
-        
-        // 1. Products (CRITICAL)
-        switch rProds {
-        case .success(let prods):
+        do {
+            async let fetchedProducts = database.fetchProducts()
+            async let fetchedOrders = database.fetchOrders()
+            async let fetchedRestock = database.fetchRestockHistory()
+            async let fetchedPriceHistory = database.fetchPriceHistory()
+            async let fetchedExpenses = database.fetchOperatingExpenses()
+            
+            let (prods, orders, restocks, prices, expenses) = try await (fetchedProducts, fetchedOrders, fetchedRestock, fetchedPriceHistory, fetchedExpenses)
+            
             self.products = prods
-            // If we successfully fetched products, we assume we are connected
-            self.isDatabaseConnected = true
-            self.databaseError = nil
-        case .failure(let error):
-            // Check for cancellation to avoid false disconnected state
-            let nsError = error as NSError
-            if error is CancellationError || (error as? URLError)?.code == .cancelled || nsError.code == -999 {
-                print("⚠️ Load data cancelled - keeping previous state")
-                return
+            self.pastOrders = orders
+            self.restockHistory = restocks
+            self.priceHistory = prices
+            self.operatingExpenses = expenses
+            
+            // Sync inventory dictionary from products
+            self.inventory = [:]
+            for product in prods {
+                self.inventory[product.name.lowercased()] = product.stockQuantity
             }
             
-            print("❌ Error fetching products: \(error)")
+            recalculateStats()
+            
+            if database.isMock {
+                print("⚠️ Running in Mock Mode (Supabase not installed)")
+                self.isDatabaseConnected = false
+                self.databaseError = "Chưa cài đặt Supabase Package"
+            } else {
+                self.isDatabaseConnected = true
+                self.databaseError = nil
+            }
+        } catch {
+            print("Error loading data: \(error)")
             self.isDatabaseConnected = false
             self.databaseError = error.localizedDescription
-            // If products fail, we can't do much, but we continue to process others just in case
-        }
-        
-        // 2. Orders
-        switch rOrders {
-        case .success(let orders):
-            self.pastOrders = orders
-        case .failure(let error):
-            print("⚠️ Error fetching orders: \(error)")
-            // Don't set isDatabaseConnected = false here, as it might be a permission issue
-        }
-        
-        // 3. Restock History
-        switch rRestock {
-        case .success(let restocks):
-            self.restockHistory = restocks
-        case .failure(let error):
-            print("⚠️ Error fetching restock history: \(error)")
-        }
-        
-        // 4. Price History
-        switch rPrices {
-        case .success(let prices):
-            self.priceHistory = prices
-        case .failure(let error):
-            print("⚠️ Error fetching price history: \(error)")
-        }
-        
-        // 5. Operating Expenses
-        switch rExpenses {
-        case .success(let expenses):
-            self.operatingExpenses = expenses
-        case .failure(let error):
-            print("⚠️ Error fetching expenses: \(error)")
-        }
-        
-        // Sync inventory dictionary from products
-        self.inventory = [:]
-        for product in self.products {
-            self.inventory[product.name.lowercased()] = product.stockQuantity
-        }
-        
-        recalculateStats()
-        
-        // Mark as successfully loaded for this store
-        if self.isDatabaseConnected {
-            self.loadedStoreId = storeId
-        }
-        
-        if database.isMock {
-            print("⚠️ Running in Mock Mode (Supabase not installed)")
-            self.isDatabaseConnected = false
-            self.databaseError = "Chưa cài đặt Supabase Package"
         }
     }
     
@@ -328,25 +235,13 @@ class OrderViewModel: ObservableObject {
     @MainActor
     func processInputGPT() async {
         let rawText = currentInput
-        guard !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { 
-            // Safety: Ensure processing flag is off if input is empty
-            isProcessingVoice = false
-            return 
-        }
-        
-        // Prevent double processing if already processing
-        if isProcessingVoice { return }
+        guard !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         
         isProcessingVoice = true
         // Keep processing flag on for a bit longer or handle it in UI
         
         do {
-            let currentMode = isRestockMode ? "restock" : "order"
-            let response = try await OpenAIService.shared.parseOrder(text: rawText, currentMode: currentMode)
-            
-            // Check if cancelled (user dismissed overlay)
-            if !isProcessingVoice { return }
-            
+            let response = try await OpenAIService.shared.parseOrder(text: rawText)
             isProcessingVoice = false // Done processing
             
             // Determine Intent
@@ -488,22 +383,8 @@ class OrderViewModel: ObservableObject {
         let item = OrderItem(name: finalName, quantity: parsed.quantity, price: price, costPrice: costPrice, discount: finalDiscount, imageData: imageData, systemImage: systemImage)
         
         // Update or append
-        // Logic fix: Only merge if the user explicitly wants to add more. 
-        // For voice input, usually it's a new request. 
-        // But if the user says "2 coffee" then "1 coffee", they might expect 3.
-        // HOWEVER, the bug report says "automatically multiple 3 times".
-        // This might be due to UI triggering processInput multiple times or GPT returning multiple items?
-        // Or maybe this merge logic is running too often?
-        // Let's assume for now we want to merge if it's the exact same item.
-        
         if let index = items.firstIndex(where: { $0.name == item.name && $0.price == item.price && $0.discount == item.discount && $0.systemImage == item.systemImage }) {
-             // If coming from GPT, we should probably NOT merge automatically if it causes confusion, 
-             // but merging is standard POS behavior.
-             // The issue "multiply 3 times" suggests `quantity` is being tripled.
-             // Check if `item.quantity` itself is already tripled? No, that's in GPT.
-             // Check if this function is called 3 times?
-             // If so, we need to debounce or prevent multiple calls.
-             items[index].quantity += item.quantity
+            items[index].quantity += item.quantity
         } else {
             items.append(item)
         }
@@ -729,8 +610,6 @@ class OrderViewModel: ObservableObject {
     // MARK: - Operating Expenses
     func addOperatingExpense(title: String, amount: Double, note: String?) {
         let expense = OperatingExpense(id: UUID(), title: title, amount: amount, note: note, createdAt: Date())
-        
-        // Optimistic UI update
         operatingExpenses.insert(expense, at: 0)
         recalculateStats()
         
@@ -739,41 +618,6 @@ class OrderViewModel: ObservableObject {
                 try await database.saveOperatingExpense(expense)
             } catch {
                 print("❌ Error saving expense: \(error)")
-                DispatchQueue.main.async {
-                    self.errorMessage = "Không thể lưu chi phí: \(error.localizedDescription)"
-                    self.showErrorAlert = true
-                    // Revert optimistic update
-                    if let index = self.operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
-                        self.operatingExpenses.remove(at: index)
-                        self.recalculateStats()
-                    }
-                }
-            }
-        }
-    }
-    
-    func updateOperatingExpense(_ expense: OperatingExpense) {
-        // Optimistic UI update
-        if let index = operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
-            let oldExpense = operatingExpenses[index]
-            operatingExpenses[index] = expense
-            recalculateStats()
-            
-            Task {
-                do {
-                    try await database.updateOperatingExpense(expense)
-                } catch {
-                    print("❌ Error updating expense: \(error)")
-                    DispatchQueue.main.async {
-                        self.errorMessage = "Không thể cập nhật chi phí: \(error.localizedDescription)"
-                        self.showErrorAlert = true
-                        // Revert
-                        if let idx = self.operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
-                            self.operatingExpenses[idx] = oldExpense
-                            self.recalculateStats()
-                        }
-                    }
-                }
             }
         }
     }
@@ -845,9 +689,7 @@ class OrderViewModel: ObservableObject {
                 var product = products[index]
                 
                 // Latest Purchase Price Logic (User Requirement)
-                // Fix: Do NOT capitalize additionalCost into costPrice, because it is already deducted as an expense (dailyIncurredFees).
-                // If we include it here, we double-count the cost (once now, once in COGS).
-                let newUnitCost = item.unitPrice
+                let newUnitCost = item.finalUnitCost
                 product.costPrice = newUnitCost
                 
                 // AVCO Calculation (Alternative - Commented out)
@@ -891,8 +733,8 @@ class OrderViewModel: ObservableObject {
                 let newProduct = Product(
                     id: UUID(), // Explicit ID
                     name: item.name, // Use original casing
-                    price: item.suggestedPrice ?? (item.finalUnitCost * 1.3), // Use suggested or default 30% markup (on total cost is fine for suggestion)
-                    costPrice: item.unitPrice, // Initial Cost (Base unit price only, to avoid double counting expenses)
+                    price: item.suggestedPrice ?? (item.finalUnitCost * 1.3), // Use suggested or default 30% markup
+                    costPrice: item.finalUnitCost, // Initial Cost
                     category: cat.rawValue,
                     imageName: "shippingbox.fill", // Default icon
                     color: "gray",
@@ -959,7 +801,6 @@ class OrderViewModel: ObservableObject {
         // Load items into current session
         restockItems = bill.items
         isRestockMode = true
-        shouldShowRestockSheet = true
     }
     
     // MARK: - Product Catalog Management
@@ -1148,44 +989,12 @@ class OrderViewModel: ObservableObject {
             .reduce(0) { $0 + $1.totalCost }
     }
     
-    func cogs(for date: Date) -> Double {
-        let calendar = Calendar.current
-        let dailyOrders = pastOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
-        return dailyOrders.reduce(0) { $0 + $1.totalCost }
-    }
-    
-    func totalExpenses(for date: Date) -> Double {
-        let calendar = Calendar.current
-        
-        // 1. COGS (Cost of Goods Sold)
-        let dailyCOGS = cogs(for: date)
-        
-        // 2. Operating Expenses
-        let dailyOpEx = operatingExpenses
-            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
-            .reduce(0) { $0 + $1.amount }
-            
-        // 3. Incurred Fees from Restock
-        let dailyIncurredFees = restockHistory
-            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
-            .reduce(0) { billSum, bill in
-                billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
-            }
-            
-        return dailyCOGS + dailyOpEx + dailyIncurredFees
-    }
-    
-    func grossProfit(for date: Date) -> Double {
-        let calendar = Calendar.current
-        let dailyOrders = pastOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
-        return dailyOrders.reduce(0) { $0 + $1.profit }
-    }
-    
     func profit(for date: Date) -> Double {
         let calendar = Calendar.current
         
         // 1. Gross Profit from Orders (Revenue - COGS)
-        let grossProfit = self.grossProfit(for: date)
+        let dailyOrders = pastOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+        let grossProfit = dailyOrders.reduce(0) { $0 + $1.profit }
         
         // 2. Operational Costs (OPEX)
         let dailyOpEx = operatingExpenses
@@ -1236,16 +1045,8 @@ class OrderViewModel: ObservableObject {
     
     func vietQRURL() -> URL? {
         guard let bill = makeBill(), bill.total > 0 else { return nil }
-        
-        // Use Store's Bank Info if available, otherwise default to "VCB" and hardcoded account
-        let bankName = StoreManager.shared.currentStore?.bankName ?? "VCB"
-        let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? "9967861809"
-        
-        // If bank account is empty, use default
-        let finalBankAccount = bankAccount.isEmpty ? "9967861809" : bankAccount
-        
         let amount = Int(bill.total)
-        let base = "https://img.vietqr.io/image/\(bankName)-\(finalBankAccount)-compact.png"
+        let base = "https://img.vietqr.io/image/VCB-9967861809-compact.png"
         
         let infoBase: String
         let shortId = bill.id.uuidString.prefix(8)

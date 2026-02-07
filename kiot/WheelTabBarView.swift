@@ -2,7 +2,6 @@ import SwiftUI
 
 struct WheelTabBarView: View {
     @ObservedObject var tabBarManager: CustomTabBarManager
-    @ObservedObject private var storeManager = StoreManager.shared
     @Binding var selectedTab: Int
     @Binding var showNewOrder: Bool
     @Binding var showEditTabBar: Bool
@@ -210,23 +209,9 @@ struct WheelTabBarView: View {
                 // Costs & Imports tab FAB
                 Button(action: {
                     if costsSubTab == 0 {
-                        if storeManager.hasPermission(.viewExpenses) {
-                            showNewOperatingExpense = true
-                        } else {
-                             // Switch to tab to let view handle denial or auto-switch
-                             // Actually if we are here, we are likely on the tab.
-                             // But if they don't have permission, the button shouldn't do anything or show alert?
-                             // For now, let's just do nothing if denied, maybe feedback
-                             let generator = UINotificationFeedbackGenerator()
-                             generator.notificationOccurred(.error)
-                        }
+                        showNewOperatingExpense = true
                     } else {
-                        if storeManager.hasPermission(.viewExpenses) || storeManager.hasPermission(.viewInventory) {
-                            showNewRestock = true
-                        } else {
-                             let generator = UINotificationFeedbackGenerator()
-                             generator.notificationOccurred(.error)
-                        }
+                        showNewRestock = true
                     }
                 }) {
                     fabVisual(label: costsSubTab == 0 ? "Thêm chi phí" : "Nhập hàng")

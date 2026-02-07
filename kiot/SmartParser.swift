@@ -4,7 +4,6 @@ import NaturalLanguage
 enum SmartIntent: String {
     case order // Bán hàng
     case restock // Nhập hàng
-    case expense // Chi phí
 }
 
 class SmartParser {
@@ -24,13 +23,10 @@ class SmartParser {
         // 1. Detect Intent using NLP classification keywords
         var intent: SmartIntent? = nil
         let restockKeywords = ["nhập", "mua thêm", "restock", "về kho", "nhập kho"]
-        let expenseKeywords = ["chi phí", "trả tiền", "tiền điện", "tiền nước", "tiền nhà", "lương", "marketing", "quảng cáo", "internet", "wifi", "thuê mặt bằng"]
         let orderKeywords = ["bán", "khách mua", "order", "tính tiền", "lên đơn", "tạo đơn"]
         
         if restockKeywords.contains(where: { lowerText.contains($0) }) {
             intent = .restock
-        } else if expenseKeywords.contains(where: { lowerText.contains($0) }) {
-            intent = .expense
         } else if orderKeywords.contains(where: { lowerText.contains($0) }) {
             intent = .order
         }
@@ -68,11 +64,11 @@ class SmartParser {
         let priceRegex = try? NSRegularExpression(pattern: "^(\\d+(?:[.,]\\d+)?)(k|đ|d|%)?$", options: .caseInsensitive)
         
         // Regex for discount keywords
-        let discountKeywords = ["giảm", "off", "bớt", "chiết khấu", "discount", "km", "khuyến"]
+        let discountKeywords = ["giảm", "off", "bớt", "chiết khấu", "discount", "km"]
         
         // Regex for additional cost keywords
         let additionalCostKeywords = ["phí", "ship", "cước", "thêm", "chi"]
-        let skippableCostWords = ["phát", "sinh", "vận", "chuyển", "bộ", "tiền", "phí", "ship", "cước", "thêm", "giá", "trị"] // Allow keywords to skip each other
+        let skippableCostWords = ["phát", "sinh", "vận", "chuyển", "bộ", "tiền", "phí", "ship", "cước", "thêm"] // Allow keywords to skip each other
         
         // Pass 1: Identify clear roles (Numbers, Prices, Discounts, Additional Costs)
         var usedIndices = Set<Int>()
@@ -85,22 +81,10 @@ class SmartParser {
             // Check for Discount Keyword
             if discountKeywords.contains(lowerToken) {
                 usedIndices.insert(i)
-                
-                // Check for multi-word keywords (e.g. "giảm giá", "khuyến mãi")
-                var valueIndex = i + 1
-                if valueIndex < tokens.count {
-                    let nextToken = tokens[valueIndex].lowercased()
-                    if (lowerToken == "giảm" && nextToken == "giá") ||
-                       (lowerToken == "khuyến" && nextToken == "mãi") {
-                        usedIndices.insert(valueIndex)
-                        valueIndex += 1
-                    }
-                }
-                
                 // Look ahead for value
-                if valueIndex < tokens.count {
-                    let nextToken = tokens[valueIndex]
-                    if let (val, indices, isPercent) = parsePriceOrNumber(token: nextToken, at: valueIndex, tokens: tokens, priceRegex: priceRegex) {
+                if i + 1 < tokens.count {
+                    let nextToken = tokens[i+1]
+                    if let (val, indices, isPercent) = parsePriceOrNumber(token: nextToken, at: i+1, tokens: tokens, priceRegex: priceRegex) {
                         discount = val
                         discountIsPercent = isPercent
                         indices.forEach { usedIndices.insert($0) }
@@ -109,30 +93,6 @@ class SmartParser {
                 }
                 i += 1
                 continue
-            }
-            
-            // Check for explicit Price Keyword (e.g. "giá 20k", "giá 20")
-            if ["giá", "trị", "price"].contains(lowerToken) {
-                // Look ahead for value
-                if i + 1 < tokens.count {
-                    if let (val, indices, _) = parsePriceOrNumber(token: tokens[i+1], at: i+1, tokens: tokens, priceRegex: priceRegex) {
-                        // Heuristic: If explicitly said "giá 20", treat as 20k
-                        var finalPrice = val
-                        if finalPrice < 1000 && !indices.contains(where: { tokens[$0].lowercased().contains("k") || tokens[$0].lowercased().contains("đ") }) {
-                             finalPrice *= 1000
-                        }
-                        
-                        // Only assign if we don't have a price yet, or to overwrite ambiguous number
-                        if price == nil {
-                            price = finalPrice
-                            usedIndices.insert(i) // Mark "giá"
-                            indices.forEach { usedIndices.insert($0) }
-                            i = indices.max()!
-                            i += 1
-                            continue
-                        }
-                    }
-                }
             }
             
             // Check for Additional Cost Keyword
@@ -257,7 +217,7 @@ class SmartParser {
         // Pass 3: Smart Name Extraction
         // Filter out intent keywords and filler words from name
         // Also exclude additional cost keywords to be safe (though they should be in usedIndices if parsed correctly)
-        let intentKeywords = restockKeywords + orderKeywords + ["cho", "của", "với", "lấy", "phí", "ship", "vận chuyển", "cước", "thêm", "phát sinh", "khuyến", "mãi", "vnđ", "đồng"]
+        let intentKeywords = restockKeywords + orderKeywords + ["cho", "của", "với", "lấy", "phí", "ship", "vận chuyển", "cước", "thêm", "phát sinh"]
         
         for (index, token) in tokens.enumerated() {
             if !usedIndices.contains(index) {

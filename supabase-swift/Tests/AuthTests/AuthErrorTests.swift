@@ -28,7 +28,7 @@ final class AuthErrorTests: XCTestCase {
       errorCode: .emailConflictIdentityNotDeletable,
       underlyingData: Data(),
       underlyingResponse: HTTPURLResponse(
-        url: URL(string: "https://cgqxrsoaxgyvcskbixuu.supabase.co")!, statusCode: 400, httpVersion: nil, headerFields: nil)!
+        url: URL(string: "http://localhost")!, statusCode: 400, httpVersion: nil, headerFields: nil)!
     )
     XCTAssertEqual(api.errorCode, .emailConflictIdentityNotDeletable)
     XCTAssertEqual(api.message, "API Error")
@@ -87,7 +87,7 @@ final class AuthErrorTests: XCTestCase {
         errorCode: code,
         underlyingData: Data(),
         underlyingResponse: HTTPURLResponse(
-          url: URL(string: "https://cgqxrsoaxgyvcskbixuu.supabase.co")!,
+          url: URL(string: "http://localhost")!,
           statusCode: 400,
           httpVersion: nil,
           headerFields: nil

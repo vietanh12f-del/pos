@@ -133,16 +133,6 @@ class StoreManager: ObservableObject {
             let newStore = Store(id: UUID(), name: name, address: address, ownerId: userId, createdAt: Date())
             try await client.from("stores").insert(newStore).execute()
             
-            // Bootstrap per-store resources
-            // 1) Create a dedicated storage bucket for this store
-            let bucketId = "store-\(newStore.id.uuidString)"
-            try? await client.storage.createBucket(bucketId, options: BucketOptions(public: false))
-            
-            // 2) Optionally call RPC to initialize per-store schema/data (if available)
-            try? await client
-                .rpc("bootstrap_store", params: ["store_id": newStore.id.uuidString, "store_name": name])
-                .execute()
-            
             // Refresh stores
             await fetchStores()
             
@@ -291,31 +281,6 @@ class StoreManager: ObservableObject {
         }
     }
     
-    func deleteStore(_ store: Store) async -> Bool {
-        do {
-            try await client
-                .from("stores")
-                .delete()
-                .eq("id", value: store.id)
-                .execute()
-            
-            // If deleted store was current store, clear selection
-            if currentStore?.id == store.id {
-                await MainActor.run {
-                    self.currentStore = nil
-                    self.currentMember = nil
-                }
-            }
-            
-            // Refresh stores
-            await fetchStores()
-            return true
-        } catch {
-            self.errorMessage = "Lỗi xóa cửa hàng: \(error.localizedDescription)"
-            return false
-        }
-    }
-
     func updateEmployeePermissions(memberId: UUID, permissions: [StorePermission]) async -> Bool {
         do {
             try await client
@@ -393,25 +358,6 @@ class StoreManager: ObservableObject {
         } catch {
             self.errorMessage = "Lỗi phản hồi lời mời: \(error.localizedDescription)"
             return false
-        }
-    }
-
-    func updateStoreBankInfo(storeId: UUID, bankName: String, accountNumber: String) async throws {
-        try await client
-            .from("stores")
-            .update(["bank_name": bankName, "bank_account_number": accountNumber])
-            .eq("id", value: storeId)
-            .execute()
-            
-        // Update local store
-        if let index = myStores.firstIndex(where: { $0.id == storeId }) {
-            myStores[index].bankName = bankName
-            myStores[index].bankAccountNumber = accountNumber
-        }
-        
-        if currentStore?.id == storeId {
-            currentStore?.bankName = bankName
-            currentStore?.bankAccountNumber = accountNumber
         }
     }
 }

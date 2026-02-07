@@ -4,8 +4,6 @@ struct AddOperatingExpenseView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Environment(\.dismiss) var dismiss
     
-    var existingExpense: OperatingExpense?
-    
     @State private var title: String = ""
     @State private var amount: String = ""
     @State private var note: String = ""
@@ -54,14 +52,7 @@ struct AddOperatingExpenseView: View {
                     TextField("Ghi chú (Tùy chọn)", text: $note)
                 }
             }
-            .navigationTitle(existingExpense == nil ? "Thêm chi phí vận hành" : "Sửa chi phí vận hành")
-            .onAppear {
-                if let expense = existingExpense {
-                    title = expense.title
-                    amount = String(format: "%.0f", expense.amount)
-                    note = expense.note ?? ""
-                }
-            }
+            .navigationTitle("Thêm chi phí vận hành")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Hủy") { dismiss() }
@@ -69,18 +60,7 @@ struct AddOperatingExpenseView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
                         if let value = parseDouble(amount), !title.isEmpty {
-                            if let existing = existingExpense {
-                                let updated = OperatingExpense(
-                                    id: existing.id,
-                                    title: title,
-                                    amount: value,
-                                    note: note.isEmpty ? nil : note,
-                                    createdAt: existing.createdAt
-                                )
-                                viewModel.updateOperatingExpense(updated)
-                            } else {
-                                viewModel.addOperatingExpense(title: title, amount: value, note: note.isEmpty ? nil : note)
-                            }
+                            viewModel.addOperatingExpense(title: title, amount: value, note: note.isEmpty ? nil : note)
                             dismiss()
                         }
                     }

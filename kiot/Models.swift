@@ -150,8 +150,6 @@ struct Store: Identifiable, Codable, Hashable {
     var address: String?
     var ownerId: UUID
     var createdAt: Date
-    var bankAccountNumber: String?
-    var bankName: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -159,8 +157,6 @@ struct Store: Identifiable, Codable, Hashable {
         case address
         case ownerId = "owner_id"
         case createdAt = "created_at"
-        case bankAccountNumber = "bank_account_number"
-        case bankName = "bank_name"
     }
 }
 

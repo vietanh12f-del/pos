@@ -122,7 +122,7 @@ struct AddEmployeeView: View {
                 .foregroundStyle(newEmployeeEmail.isEmpty ? Color.gray : Color.themePrimary)
             }
             .padding()
-            .background(Color.themeBackgroundLight)
+            .background(Color.white)
             
             Form {
                 Section(header: Text("Thông tin nhân viên")) {
@@ -223,8 +223,7 @@ struct EmployeeDetailView: View {
                 }
             }
         }
-        .navigationTitle("Chi tiết nhân viên")
-        .navigationBarHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .alert("Thành công", isPresented: $showSuccessAlert) {
             Button("OK", role: .cancel) { }
         } message: {
