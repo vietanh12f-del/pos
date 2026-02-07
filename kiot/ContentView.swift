@@ -59,6 +59,9 @@ struct ContentView: View {
                     
                     SettingsView(tabBarManager: tabBarManager)
                         .tag(6)
+                    
+                    StatisticsView(viewModel: viewModel)
+                        .tag(7)
                 }
                 .accentColor(.themePrimary)
                 .padding(.bottom, isTabBarVisible ? 160 : 0) // Add padding for custom tab bar
@@ -332,9 +335,7 @@ struct ContentView: View {
                                     
                                     if StoreManager.shared.hasPermission(.viewReports) {
                                         QuickActionButton(icon: "chart.bar", title: "Thống kê", isPrimary: false) {
-                                            withAnimation {
-                                                selectedDate = Date()
-                                            }
+                                            selectedTab = 7
                                         }
                                     }
                                 }

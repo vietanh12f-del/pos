@@ -6,6 +6,7 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
     case orders = "Đơn hàng"
     case inventory = "Kho hàng hóa" // Merged Inventory & Goods
     case costs = "Chi phí" // Costs & Imports
+    case analytics = "Thống kê"
     case chat = "Chat"
     case settings = "Cài đặt"
     
@@ -17,6 +18,7 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
         case .orders: return "list.clipboard.fill"
         case .inventory: return "cube.box.fill"
         case .costs: return "chart.line.uptrend.xyaxis" // Or dollarsign.circle.fill
+        case .analytics: return "chart.bar.doc.horizontal.fill"
         case .chat: return "message.fill"
         case .settings: return "gearshape.fill"
         }
@@ -29,6 +31,7 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
         case .orders: return 1
         case .inventory: return 3
         case .costs: return 4 // Using the gap
+        case .analytics: return 7
         case .chat: return 5
         case .settings: return 6
         }
@@ -63,6 +66,7 @@ class CustomTabBarManager: ObservableObject {
                 TabItemConfig(type: .orders),
                 TabItemConfig(type: .inventory),
                 TabItemConfig(type: .costs),
+                TabItemConfig(type: .analytics),
                 TabItemConfig(type: .chat),
                 TabItemConfig(type: .settings)
             ]
@@ -89,7 +93,7 @@ class CustomTabBarManager: ObservableObject {
     }
     
     func addTab(_ tab: TabItemConfig) {
-        if activeTabs.count >= 6 { return } // Limit to 6 slots
+        if activeTabs.count >= 7 { return }
         activeTabs.append(tab)
         updateHiddenTabs()
         saveConfig()

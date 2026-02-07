@@ -2,6 +2,7 @@ import Foundation
 import Supabase
 import Combine
 import UIKit
+import AuthenticationServices
 
 class AuthManager: ObservableObject {
     static let shared = AuthManager()
@@ -28,9 +29,16 @@ class AuthManager: ObservableObject {
     func checkSession() async {
         do {
             let session = try await client.auth.session
-            self.isAuthenticated = true
-            print("✅ User is authenticated: \(session.user.id)")
-            await checkProfile(userId: session.user.id)
+            if session.isExpired {
+                self.isAuthenticated = false
+                self.currentUserProfile = nil
+                self.needsProfileCreation = false
+                print("ℹ️ Stored session expired")
+            } else {
+                self.isAuthenticated = true
+                print("✅ User is authenticated: \(session.user.id)")
+                await checkProfile(userId: session.user.id)
+            }
         } catch {
             self.isAuthenticated = false
             self.currentUserProfile = nil
@@ -213,6 +221,93 @@ class AuthManager: ObservableObject {
             self.isLoading = false
             self.errorMessage = "Lỗi đăng nhập Google: \(error.localizedDescription)"
             print("❌ Error signing in with Google: \(error)")
+            return false
+        }
+    }
+    
+    @MainActor
+    func signInWithApple(using idToken: String, fullName: String?) async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+        
+        do {
+            _ = try await client.auth.signInWithIdToken(
+                credentials: .init(
+                    provider: .apple,
+                    idToken: idToken
+                )
+            )
+            
+            if let fullName {
+                _ = try? await client.auth.update(
+                    user: UserAttributes(data: ["full_name": .string(fullName)])
+                )
+            }
+            
+            self.isAuthenticated = true
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Lỗi đăng nhập Apple: \(error.localizedDescription)"
+            return false
+        }
+    }
+    
+    private final class AppleAuthDelegate: NSObject, ASAuthorizationControllerDelegate {
+        var completion: ((Result<ASAuthorization, Error>) -> Void)?
+        func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+            completion?(.success(authorization))
+        }
+        func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+            completion?(.failure(error))
+        }
+    }
+    
+    @MainActor
+    func loginWithApple() async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+        
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.email, .fullName]
+        
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        let delegate = AppleAuthDelegate()
+        controller.delegate = delegate
+        
+        do {
+            let authorization = try await withCheckedThrowingContinuation { continuation in
+                delegate.completion = { result in
+                    switch result {
+                    case .success(let auth):
+                        continuation.resume(returning: auth)
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                }
+                controller.performRequests()
+            }
+            
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                self.isLoading = false
+                self.errorMessage = "Lỗi đăng nhập Apple"
+                return false
+            }
+            
+            guard let tokenData = credential.identityToken,
+                  let idToken = String(data: tokenData, encoding: .utf8) else {
+                self.isLoading = false
+                self.errorMessage = "Token Apple không hợp lệ"
+                return false
+            }
+            
+            let fullName = credential.fullName?.formatted()
+            return await signInWithApple(using: idToken, fullName: fullName)
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Lỗi đăng nhập Apple: \(error.localizedDescription)"
             return false
         }
     }

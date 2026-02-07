@@ -25,7 +25,7 @@ struct DailyFinancialStats: Identifiable, Codable {
     }
 }
 
-enum ReportDateRange {
+enum ReportDateRange: Hashable {
     case today
     case thisWeek
     case thisMonth
