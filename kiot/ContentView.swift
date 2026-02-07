@@ -38,6 +38,7 @@ struct ContentView: View {
             ZStack(alignment: .bottom) {
                 TabView(selection: $selectedTab) {
 <<<<<<< HEAD
+<<<<<<< HEAD
                     HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab)
                         .tag(0)
                     
@@ -66,6 +67,10 @@ struct ContentView: View {
                 }
                 .accentColor(.themePrimary)
                 .padding(.bottom, isTabBarVisible ? 160 : 0) // Add padding for custom tab bar
+=======
+                HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab)
+                    .tag(0)
+>>>>>>> parent of 55e8d5c (Update new source code)
 =======
                 HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab)
                     .tag(0)
@@ -819,6 +824,7 @@ struct ProductCustomizeView: View {
     @State private var selectedImageData: Data?
     
 <<<<<<< HEAD
+<<<<<<< HEAD
     // MARK: - Home Dashboard
     struct HomeDashboardView: View {
         @ObservedObject var viewModel: OrderViewModel
@@ -1052,12 +1058,17 @@ struct ProductCustomizeView: View {
         
         
 =======
+=======
+>>>>>>> parent of 55e8d5c (Update new source code)
     init(product: Product, viewModel: OrderViewModel) {
         self.product = product
         self.viewModel = viewModel
         _name = State(initialValue: product.name)
         _price = State(initialValue: String(Int(product.price)))
         _selectedImageData = State(initialValue: product.imageData)
+<<<<<<< HEAD
+>>>>>>> parent of 55e8d5c (Update new source code)
+=======
 >>>>>>> parent of 55e8d5c (Update new source code)
     }
     
