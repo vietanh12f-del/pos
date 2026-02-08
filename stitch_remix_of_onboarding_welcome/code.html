@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Thống kê Kinh doanh Chi tiết</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#19e6c4",
+                        "teal-dark": "#0d8a76",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#11211e",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1.25rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .glass-card {
+                @apply bg-white/80 backdrop-blur-md border border-white/20 dark:bg-white/5 dark:border-white/10;
+            }
+            .area-gradient {
+                background: linear-gradient(180deg, rgba(25, 230, 196, 0.2) 0%, rgba(25, 230, 196, 0) 100%);
+            }
+            .profit-gradient {
+                background: linear-gradient(180deg, rgba(13, 138, 118, 0.2) 0%, rgba(13, 138, 118, 0) 100%);
+            }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full flex-col max-w-[480px] mx-auto bg-white dark:bg-background-dark shadow-xl overflow-x-hidden">
+<div class="flex items-center bg-white dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-20">
+<button class="flex size-10 items-center justify-center rounded-full bg-background-light dark:bg-white/5">
+<span class="material-symbols-outlined text-[#111817] dark:text-white">chevron_left</span>
+</button>
+<h1 class="text-[#111817] dark:text-white text-lg font-bold">Thống kê Chi tiết</h1>
+<button class="flex size-10 items-center justify-center rounded-full bg-background-light dark:bg-white/5">
+<span class="material-symbols-outlined text-[#111817] dark:text-white">calendar_today</span>
+</button>
+</div>
+<div class="px-4 py-3">
+<div class="flex p-1 bg-background-light dark:bg-white/5 rounded-xl border border-[#dce5e4] dark:border-white/10">
+<button class="flex-1 py-2 text-sm font-bold rounded-lg bg-white dark:bg-primary shadow-sm text-[#111817]">Ngày</button>
+<button class="flex-1 py-2 text-sm font-medium text-[#638882] dark:text-white/60">Tuần</button>
+<button class="flex-1 py-2 text-sm font-medium text-[#638882] dark:text-white/60">Tháng</button>
+<button class="flex-1 py-2 text-sm font-medium text-[#638882] dark:text-white/60">Năm</button>
+</div>
+</div>
+<div class="flex flex-col gap-3 px-4 py-2">
+<div class="p-5 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-[#638882] text-xs font-bold uppercase tracking-wider mb-1">Lợi nhuận ròng</p>
+<h2 class="text-[#111817] dark:text-white text-3xl font-extrabold tracking-tight">8.420.000đ</h2>
+</div>
+<div class="flex items-center gap-1 bg-white/80 px-2 py-1 rounded-full border border-primary/20">
+<span class="material-symbols-outlined text-[#078830] text-sm font-bold">trending_up</span>
+<span class="text-[#078830] text-[10px] font-bold">+18.5%</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="p-4 rounded-2xl bg-background-light dark:bg-white/5 border border-transparent dark:border-white/10">
+<p class="text-[#638882] text-[10px] font-bold uppercase tracking-wider mb-1">Doanh thu</p>
+<p class="text-[#111817] dark:text-white text-lg font-extrabold">24.150k</p>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[#078830] text-[14px]">arrow_upward</span>
+<span class="text-[#078830] text-[10px] font-bold">12%</span>
+</div>
+</div>
+<div class="p-4 rounded-2xl bg-background-light dark:bg-white/5 border border-transparent dark:border-white/10">
+<p class="text-[#638882] text-[10px] font-bold uppercase tracking-wider mb-1">Tổng đơn hàng</p>
+<p class="text-[#111817] dark:text-white text-lg font-extrabold">128</p>
+<div class="flex items-center gap-1 mt-1">
+<span class="material-symbols-outlined text-[#d32f2f] text-[14px]">arrow_downward</span>
+<span class="text-[#d32f2f] text-[10px] font-bold">3%</span>
+</div>
+</div>
+</div>
+</div>
+<div class="px-4 py-4">
+<div class="flex items-center justify-between mb-4 px-1">
+<h3 class="text-[#111817] dark:text-white font-bold">Doanh thu vs Lợi nhuận</h3>
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-1">
+<div class="size-2 rounded-full bg-primary"></div>
+<span class="text-[10px] font-medium text-[#638882]">Doanh thu</span>
+</div>
+<div class="flex items-center gap-1">
+<div class="size-2 rounded-full bg-teal-dark"></div>
+<span class="text-[10px] font-medium text-[#638882]">Lợi nhuận</span>
+</div>
+</div>
+</div>
+<div class="relative h-48 w-full glass-card rounded-2xl p-4 flex flex-col justify-end">
+<div class="absolute inset-0 flex items-end px-4 pb-8">
+<svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 400 100">
+<path d="M0,100 L0,60 L50,45 L100,70 L150,30 L200,50 L250,20 L300,40 L350,15 L400,35 L400,100 Z" fill="rgba(25, 230, 196, 0.15)"></path>
+<path d="M0,60 L50,45 L100,70 L150,30 L200,50 L250,20 L300,40 L350,15 L400,35" fill="none" stroke="#19e6c4" stroke-width="3"></path>
+<path d="M0,100 L0,85 L50,75 L100,90 L150,65 L200,80 L250,55 L300,75 L350,60 L400,75 L400,100 Z" fill="rgba(13, 138, 118, 0.1)"></path>
+<path d="M0,85 L50,75 L100,90 L150,65 L200,80 L250,55 L300,75 L350,60 L400,75" fill="none" stroke="#0d8a76" stroke-width="2"></path>
+</svg>
+</div>
+<div class="flex justify-between border-t border-[#dce5e4] dark:border-white/10 pt-2 px-1">
+<span class="text-[10px] text-[#638882] font-medium">06:00</span>
+<span class="text-[10px] text-[#638882] font-medium">10:00</span>
+<span class="text-[10px] text-[#638882] font-medium">14:00</span>
+<span class="text-[10px] text-[#638882] font-medium">18:00</span>
+<span class="text-[10px] text-[#638882] font-medium">22:00</span>
+</div>
+</div>
+</div>
+<div class="px-4 py-4 mb-32">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-[#111817] dark:text-white font-bold">Sản phẩm bán chạy</h3>
+<a class="text-xs font-bold text-teal-dark" href="#">Xem tất cả</a>
+</div>
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-3 p-3 glass-card rounded-xl">
+<div class="size-14 rounded-lg bg-cover bg-center shrink-0 border border-[#dce5e4] dark:border-white/10" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDCtnN0nr1DPH-AnDYdDDIIesOej0Nq14HltFw6K6t4B65ABs1ZMUy2LD62eKujyS65imKFfaqlj7xRjVL2KBydcyNNhq-TzBOmHa6yu5bvrMWhuIrm-TB7Silzo6FNEsPEiwHffR3B8IHE_-CngFINAeuzsE6-a0bxE672BqIRlcUB4pdfi8CASc8tdQaQtV5oYS-B5Kch6lOg_3WnaPDYKWi9XcFWhQ6netwr3BkXyJUp7p4ut9u3kDLAO_TEL-hgUk7LOumxwjw')"></div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-bold text-[#111817] dark:text-white truncate">Iced Mocha Coffee</p>
+<p class="text-xs text-[#638882]">Đã bán: 142</p>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-[#111817] dark:text-white">6.390k</p>
+<div class="flex items-center justify-end gap-1">
+<span class="text-[10px] font-bold text-[#078830]">+12%</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 glass-card rounded-xl">
+<div class="size-14 rounded-lg bg-cover bg-center shrink-0 border border-[#dce5e4] dark:border-white/10" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCIpqZffvQDY9loou1rlSgAj2iFklzwRgbZ6jN-v-Gi0FbCC3PV_aDUgtKXVDFq5AujFk5Y2ZcQ87gOXDgEijfHAW6bThUPyibVIx_dfU7pvgevVPD-AaiJ8vmt4xlqWKVzZtQjHztrYqYwIDLGbGuJ3QqtQxVlmhAIahmfPQAABzv1KQsgBNmsOmQMhdufNLZEWM2vH4xUyNNpPBc-pvIse1WJk8Jgrufij8RCZoELHyjXzUxQKfi67luFtEQHUp-JggnduxFrYwU')"></div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-bold text-[#111817] dark:text-white truncate">Matcha Latte Cream</p>
+<p class="text-xs text-[#638882]">Đã bán: 98</p>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-[#111817] dark:text-white">4.410k</p>
+<div class="flex items-center justify-end gap-1">
+<span class="text-[10px] font-bold text-[#078830]">+8%</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 glass-card rounded-xl">
+<div class="size-14 rounded-lg bg-cover bg-center shrink-0 border border-[#dce5e4] dark:border-white/10" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDwIV-JrN25jBMdbr18jV91DR2U6IwvZz8b9cZ7lAmlvrzLJu97xZB6B3Mq-tQ7IBsmSYREBU3MjnuknX8GyxwAg0Ht12oz6WR1wTOZg7fj-9toBPyHXaXy757fvL2g3W21SzrYcWPNjOnH2-LwdYZQ_GWU9LZnFm5OvuNHX6Rd7pG6Uy-A_fMdnXHtBXsyeWy6L3z7zfbLxy3GSll2heEC-EzegZWogc0hxdxp7_s4xloFOKZ7tw7ug5rX_1k8eLiew7RWaqVx8GQ')"></div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-bold text-[#111817] dark:text-white truncate">Glazed Donuts</p>
+<p class="text-xs text-[#638882]">Đã bán: 76</p>
+</div>
+<div class="text-right">
+<p class="text-sm font-bold text-[#111817] dark:text-white">2.280k</p>
+<div class="flex items-center justify-end gap-1">
+<span class="text-[10px] font-bold text-[#638882]">0%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] pointer-events-none z-50">
+<div class="absolute bottom-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-white dark:bg-[#11211e] rounded-[50%] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] border-t border-[#dce5e4] dark:border-white/10 pointer-events-auto"></div>
+<div class="absolute bottom-8 left-1/2 -translate-x-1/2 size-16 bg-primary rounded-full shadow-lg shadow-primary/40 flex items-center justify-center border-4 border-white dark:border-background-dark pointer-events-auto active:scale-90 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-background-dark text-3xl font-bold">query_stats</span>
+</div>
+<div class="absolute bottom-4 left-1/2 -translate-x-1/2 w-full flex justify-around items-end px-10 pb-6 pointer-events-auto">
+<div class="flex flex-col items-center text-[#638882] cursor-pointer">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[10px] font-bold mt-1">Trang chủ</span>
+</div>
+<div class="flex flex-col items-center text-[#638882] cursor-pointer">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="text-[10px] font-bold mt-1">Đơn hàng</span>
+</div>
+<div class="w-16 h-1"></div> 
+<div class="flex flex-col items-center text-primary cursor-pointer">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-[10px] font-bold mt-1">Thống kê</span>
+</div>
+<div class="flex flex-col items-center text-[#638882] cursor-pointer">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-bold mt-1">Cá nhân</span>
+</div>
+</div>
+</div>
+</div>
+
+</body></html>

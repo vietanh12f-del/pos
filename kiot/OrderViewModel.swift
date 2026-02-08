@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import SwiftUI
+import Supabase
 
 class OrderViewModel: ObservableObject {
     @Published var currentInput: String = ""
@@ -11,20 +12,54 @@ class OrderViewModel: ObservableObject {
     @Published var inventory: [String: Int] = [:]
     @Published var pastOrders: [Bill] = []
     
+    // Navigation Triggers
+    @Published var shouldShowRestockSheet = false
+    @Published var shouldShowOrderSheet = false
+    @Published var showOrderSuccessToast: Bool = false
+    
+    @Published var lastCreatedBill: Bill?
+    
+    // Cache control
+    private var loadedStoreId: UUID?
+
+    // Voice & AI
+    @Published var isProcessingVoice: Bool = false
+    @Published var useGPT: Bool = true // Toggle for AI parser
+
+
+    // Alerting
+    @Published var showErrorAlert: Bool = false
+    @Published var errorMessage: String = ""
+
     // Dashboard Stats
     @Published var revenue: Double = 0
     @Published var orderCount: Int = 0
     @Published var totalRestockCost: Double = 0
-    @Published var showOrderSuccessToast: Bool = false
+    @Published var totalOperatingCost: Double = 0 // Added for net profit calculation
     
+    // Daily Stats Cache
+    @Published var todayStats: DailyFinancialStats?
+    
+    // Global Stats (All Time) - kept for compatibility, but maybe should be deprecated or updated
     var netProfit: Double {
-        revenue - totalRestockCost
+        // Simple global calculation (Cash flow based or Accrual?)
+        // Let's keep it simple: Revenue - COGS - Expenses (Global)
+        // But COGS is tracked in bills.
+        let globalRevenue = pastOrders.reduce(0) { $0 + $1.total }
+        let globalCOGS = pastOrders.reduce(0) { $0 + $1.totalCost }
+        let globalOpEx = operatingExpenses.reduce(0) { $0 + $1.amount }
+        let globalIncurredFees = restockHistory.reduce(0) { billSum, bill in
+            billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
+        }
+        
+        return globalRevenue - globalCOGS - globalOpEx - globalIncurredFees
     }
     
     // Restock
     @Published var isRestockMode: Bool = false
     @Published var restockItems: [RestockItem] = []
     @Published var restockHistory: [RestockBill] = []
+    @Published var operatingExpenses: [OperatingExpense] = []
     
     // Catalog & Dashboard
     @Published var selectedCategory: Category = .all
@@ -46,11 +81,24 @@ class OrderViewModel: ObservableObject {
         return products.filter { $0.category == selectedCategory.rawValue }
     }
     
+    // Smart Suggestion
+    @Published var searchText: String = ""
+    
+    var searchSuggestions: [Product] {
+        if searchText.isEmpty { return [] }
+        let lowerText = searchText.lowercased()
+        return products.filter { 
+            $0.name.lowercased().contains(lowerText) || 
+            $0.category.lowercased().contains(lowerText) ||
+            ($0.barcode?.contains(lowerText) ?? false)
+        }
+    }
+    
     func addProduct(_ product: Product) {
         if let index = items.firstIndex(where: { $0.name == product.name && $0.price == product.price && $0.systemImage == product.imageName }) {
             items[index].quantity += 1
         } else {
-            items.append(OrderItem(name: product.name, quantity: 1, price: product.price, systemImage: product.imageName))
+            items.append(OrderItem(name: product.name, quantity: 1, price: product.price, costPrice: product.costPrice, imageData: product.imageData, systemImage: product.imageName))
         }
     }
     
@@ -58,38 +106,17 @@ class OrderViewModel: ObservableObject {
     @Published var speechRecognizer = SpeechRecognizer()
     private var cancellables = Set<AnyCancellable>()
     
+    // Database Service
+    private let database: DatabaseService = SupabaseDatabaseService()
+    
+    // Connection Status
+    @Published var isDatabaseConnected: Bool = false
+    @Published var databaseError: String? = nil
+    @Published var isLoading: Bool = false
+    
+    private var realtimeChannel: RealtimeChannelV2?
+    
     init() {
-        if let saved = UserDefaults.standard.dictionary(forKey: "PriceHistory") as? [String: Double] {
-            priceHistory = saved
-        }
-        
-        if let savedInventory = UserDefaults.standard.dictionary(forKey: "Inventory") as? [String: Int] {
-            inventory = savedInventory
-        }
-        
-        if let savedProductsData = UserDefaults.standard.data(forKey: "Products"),
-           let decodedProducts = try? JSONDecoder().decode([Product].self, from: savedProductsData) {
-            products = decodedProducts
-        }
-        
-        // Ensure inventory keys exist for all products
-        for product in products {
-            let key = product.name.lowercased()
-            if inventory[key] == nil {
-                inventory[key] = 0
-            }
-        }
-        
-        if let savedOrdersData = UserDefaults.standard.data(forKey: "PastOrders"),
-           let decodedOrders = try? JSONDecoder().decode([Bill].self, from: savedOrdersData) {
-            pastOrders = decodedOrders
-        }
-        
-        if let savedRestockData = UserDefaults.standard.data(forKey: "RestockHistory"),
-           let decodedRestock = try? JSONDecoder().decode([RestockBill].self, from: savedRestockData) {
-            restockHistory = decodedRestock
-        }
-        
         // Recalculate stats
         recalculateStats()
         
@@ -117,6 +144,25 @@ class OrderViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+            
+        // Listen for AppIntent notifications
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("TriggerVoiceInput"), object: nil, queue: .main) { [weak self] notification in
+            if let text = notification.object as? String {
+                self?.currentInput = text
+                self?.processInput()
+            }
+        }
+        
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("TriggerRestockInput"), object: nil, queue: .main) { [weak self] notification in
+            if let text = notification.object as? String {
+                self?.currentInput = text
+                // Ensure intent is detected as Restock
+                if !(text.lowercased().contains("nhập") || text.lowercased().contains("restock")) {
+                    self?.currentInput = "nhập " + text
+                }
+                self?.processInput()
+            }
+        }
     }
     
     func toggleRecording() {
@@ -132,106 +178,670 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    func cancelVoiceProcessing() {
+        if isProcessingVoice {
+            isProcessingVoice = false
+        }
+        if speechRecognizer.isRecording {
+            speechRecognizer.stopRecording()
+        }
+    }
+    
+    // Clear all data (used when switching stores)
+    func clearData() {
+        self.loadedStoreId = nil // Reset cache
+        self.products = []
+        self.pastOrders = []
+        self.restockHistory = []
+        self.priceHistory = [:]
+        self.operatingExpenses = []
+        self.inventory = [:]
+        self.revenue = 0
+        self.orderCount = 0
+        self.totalRestockCost = 0
+        self.totalOperatingCost = 0
+        self.todayStats = nil
+    }
+    
+    @MainActor
+    func loadData(force: Bool = false) async {
+        let storeId = StoreManager.shared.currentStore?.id
+        
+        // Skip if already loaded for this store, unless forced
+        if !force && storeId == self.loadedStoreId && storeId != nil && !products.isEmpty {
+             print("✅ OrderViewModel: Data already loaded for store \(storeId!.uuidString). Skipping.")
+             return
+        }
+        
+        guard let storeId = storeId else { return }
+        
+        isLoading = true
+        defer { isLoading = false }
+        
+        print("🔄 OrderViewModel: Loading data for store: \(storeId) (Force: \(force))")
+        
+        // Define a helper for async results to avoid one failure killing the whole batch
+        func fetchResult<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
+            do {
+                let value = try await operation()
+                return .success(value)
+            } catch {
+                return .failure(error)
+            }
+        }
+        
+        // Fetch all data in parallel, but handle errors individually
+        async let productsResult = fetchResult { try await self.database.fetchProducts() }
+        async let ordersResult = fetchResult { try await self.database.fetchOrders() }
+        async let restockResult = fetchResult { try await self.database.fetchRestockHistory() }
+        async let pricesResult = fetchResult { try await self.database.fetchPriceHistory() }
+        async let expensesResult = fetchResult { try await self.database.fetchOperatingExpenses() }
+        
+        let (rProds, rOrders, rRestock, rPrices, rExpenses) = await (productsResult, ordersResult, restockResult, pricesResult, expensesResult)
+        
+        // 1. Products (CRITICAL)
+        switch rProds {
+        case .success(let prods):
+            self.products = prods
+            let productsWithCost = prods.filter { $0.costPrice > 0 }
+            if let first = prods.first {
+                 print("✅ [OrderViewModel] Loaded \(prods.count) products. \(productsWithCost.count) have cost > 0. Sample: \(first.name) - Price: \(first.price), Cost: \(first.costPrice)")
+            }
+            // If we successfully fetched products, we assume we are connected
+            self.isDatabaseConnected = true
+            self.databaseError = nil
+        case .failure(let error):
+            // Check for cancellation to avoid false disconnected state
+            let nsError = error as NSError
+            if error is CancellationError || (error as? URLError)?.code == .cancelled || nsError.code == -999 {
+                print("⚠️ Load data cancelled - keeping previous state")
+                return
+            }
+            
+            print("❌ Error fetching products: \(error)")
+            self.isDatabaseConnected = false
+            self.databaseError = error.localizedDescription
+            // If products fail, we can't do much, but we continue to process others just in case
+        }
+        
+        // 2. Orders
+        switch rOrders {
+        case .success(let orders):
+            self.pastOrders = orders
+        case .failure(let error):
+            print("⚠️ Error fetching orders: \(error)")
+            // Don't set isDatabaseConnected = false here, as it might be a permission issue
+        }
+        
+        // 3. Restock History
+        switch rRestock {
+        case .success(let restocks):
+            self.restockHistory = restocks
+        case .failure(let error):
+            print("⚠️ Error fetching restock history: \(error)")
+        }
+        
+        // 4. Price History
+        switch rPrices {
+        case .success(let prices):
+            self.priceHistory = prices
+        case .failure(let error):
+            print("⚠️ Error fetching price history: \(error)")
+        }
+        
+        // 5. Operating Expenses
+        switch rExpenses {
+        case .success(let expenses):
+            self.operatingExpenses = expenses
+        case .failure(let error):
+            print("⚠️ Error fetching expenses: \(error)")
+        }
+        
+        // Sync inventory dictionary from products
+        self.inventory = [:]
+        for product in self.products {
+            self.inventory[product.name.lowercased()] = product.stockQuantity
+        }
+        
+        recalculateStats()
+        
+        // Mark as successfully loaded for this store
+        if self.isDatabaseConnected {
+            self.loadedStoreId = storeId
+        }
+        
+        if database.isMock {
+            print("⚠️ Running in Mock Mode (Supabase not installed)")
+            self.isDatabaseConnected = false
+            self.databaseError = "Chưa cài đặt Supabase Package"
+        } else {
+            // Setup Realtime Subscription
+            setupRealtimeSubscription()
+        }
+    }
+    
     var suggestedItems: [String] {
         return priceHistory.keys.sorted()
     }
     
+    // MARK: - Realtime Sync
+    func setupRealtimeSubscription() {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return }
+        
+        // Remove existing channel if any
+        if let channel = realtimeChannel {
+            Task { await channel.unsubscribe() }
+        }
+        
+        let client = SupabaseConfig.client
+        let decoder = client.database.configuration.decoder
+        let channel = client.channel("db-changes")
+        let filter = "store_id=eq.\(storeId)"
+        
+        // --- Products ---
+        let _ = channel.onPostgresChange(InsertAction.self, schema: "public", table: "products", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Insert Product: \(change)")
+            Task { @MainActor in
+                do {
+                    let dto = try change.decodeRecord(as: ProductDTO.self, decoder: decoder)
+                    let product = dto.toDomain()
+                    if !self.products.contains(where: { $0.id == product.id }) {
+                        self.products.append(product)
+                        self.inventory[product.name.lowercased()] = product.stockQuantity
+                        self.recalculateStats()
+                    }
+                } catch {
+                    print("❌ Error decoding product insert: \(error)")
+                }
+            }
+        }
+        
+        let _ = channel.onPostgresChange(UpdateAction.self, schema: "public", table: "products", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Update Product: \(change)")
+            Task { @MainActor in
+                do {
+                    let dto = try change.decodeRecord(as: ProductDTO.self, decoder: decoder)
+                    let product = dto.toDomain()
+                    if let index = self.products.firstIndex(where: { $0.id == product.id }) {
+                        self.products[index] = product
+                        self.inventory[product.name.lowercased()] = product.stockQuantity
+                        self.recalculateStats()
+                    }
+                } catch {
+                    print("❌ Error decoding product update: \(error)")
+                }
+            }
+        }
+        
+        let _ = channel.onPostgresChange(DeleteAction.self, schema: "public", table: "products", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Delete Product: \(change)")
+            struct DeletePayload: Decodable { let id: UUID }
+            do {
+                let payload = try change.decodeOldRecord(as: DeletePayload.self, decoder: decoder)
+                Task { @MainActor in
+                    self.products.removeAll { $0.id == payload.id }
+                    self.recalculateStats()
+                }
+            } catch {
+                print("❌ Error decoding product delete: \(error)")
+            }
+        }
+        
+        // --- Orders (Bills) ---
+        let _ = channel.onPostgresChange(InsertAction.self, schema: "public", table: "orders", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Insert Order: \(change)")
+            struct OrderPayload: Decodable { let id: UUID }
+            do {
+                let payload = try change.decodeRecord(as: OrderPayload.self, decoder: decoder)
+                Task {
+                    if let fullBill = try? await self.database.fetchOrder(id: payload.id) {
+                        await MainActor.run {
+                            if !self.pastOrders.contains(where: { $0.id == fullBill.id }) {
+                                self.pastOrders.insert(fullBill, at: 0)
+                                self.recalculateStats()
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print("❌ Error decoding order insert: \(error)")
+            }
+        }
+        
+        let _ = channel.onPostgresChange(UpdateAction.self, schema: "public", table: "orders", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Update Order: \(change)")
+            struct OrderPayload: Decodable { let id: UUID }
+            do {
+                let payload = try change.decodeRecord(as: OrderPayload.self, decoder: decoder)
+                Task {
+                    if let fullBill = try? await self.database.fetchOrder(id: payload.id) {
+                        await MainActor.run {
+                            if let index = self.pastOrders.firstIndex(where: { $0.id == fullBill.id }) {
+                                self.pastOrders[index] = fullBill
+                                self.recalculateStats()
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print("❌ Error decoding order update: \(error)")
+            }
+        }
+        
+        let _ = channel.onPostgresChange(DeleteAction.self, schema: "public", table: "orders", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Delete Order: \(change)")
+            struct DeletePayload: Decodable { let id: UUID }
+            do {
+                let payload = try change.decodeOldRecord(as: DeletePayload.self, decoder: decoder)
+                Task { @MainActor in
+                    self.pastOrders.removeAll { $0.id == payload.id }
+                    self.recalculateStats()
+                }
+            } catch {
+                print("❌ Error decoding order delete: \(error)")
+            }
+        }
+        
+        // --- Restock Bills ---
+        let _ = channel.onPostgresChange(InsertAction.self, schema: "public", table: "restock_bills", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Insert RestockBill: \(change)")
+            struct RestockPayload: Decodable { let id: UUID }
+            do {
+                let payload = try change.decodeRecord(as: RestockPayload.self, decoder: decoder)
+                Task {
+                    if let fullBill = try? await self.database.fetchRestockBill(id: payload.id) {
+                        await MainActor.run {
+                            if !self.restockHistory.contains(where: { $0.id == fullBill.id }) {
+                                self.restockHistory.insert(fullBill, at: 0)
+                                self.recalculateStats()
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print("❌ Error decoding restock insert: \(error)")
+            }
+        }
+
+        let _ = channel.onPostgresChange(UpdateAction.self, schema: "public", table: "restock_bills", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Update RestockBill: \(change)")
+            struct RestockPayload: Decodable { let id: UUID }
+            do {
+                let payload = try change.decodeRecord(as: RestockPayload.self, decoder: decoder)
+                Task {
+                    if let fullBill = try? await self.database.fetchRestockBill(id: payload.id) {
+                        await MainActor.run {
+                            if let index = self.restockHistory.firstIndex(where: { $0.id == fullBill.id }) {
+                                self.restockHistory[index] = fullBill
+                                self.recalculateStats()
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print("❌ Error decoding restock update: \(error)")
+            }
+        }
+        
+        let _ = channel.onPostgresChange(DeleteAction.self, schema: "public", table: "restock_bills", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Delete RestockBill: \(change)")
+            struct DeletePayload: Decodable { let id: UUID }
+            do {
+                let payload = try change.decodeOldRecord(as: DeletePayload.self, decoder: decoder)
+                Task { @MainActor in
+                    self.restockHistory.removeAll { $0.id == payload.id }
+                    self.recalculateStats()
+                }
+            } catch {
+                print("❌ Error decoding restock delete: \(error)")
+            }
+        }
+        
+        // --- Operating Expenses ---
+        let _ = channel.onPostgresChange(InsertAction.self, schema: "public", table: "operating_expenses", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Insert Expense: \(change)")
+            Task { @MainActor in
+                do {
+                    let dto = try change.decodeRecord(as: OperatingExpenseDTO.self, decoder: decoder)
+                    let expense = dto.toDomain()
+                    if !self.operatingExpenses.contains(where: { $0.id == expense.id }) {
+                        self.operatingExpenses.insert(expense, at: 0)
+                        self.recalculateStats()
+                    }
+                } catch {
+                    print("❌ Error decoding expense insert: \(error)")
+                }
+            }
+        }
+
+        let _ = channel.onPostgresChange(UpdateAction.self, schema: "public", table: "operating_expenses", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Update Expense: \(change)")
+            Task { @MainActor in
+                do {
+                    let dto = try change.decodeRecord(as: OperatingExpenseDTO.self, decoder: decoder)
+                    let expense = dto.toDomain()
+                    if let index = self.operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
+                        self.operatingExpenses[index] = expense
+                        self.recalculateStats()
+                    }
+                } catch {
+                    print("❌ Error decoding expense update: \(error)")
+                }
+            }
+        }
+        
+        let _ = channel.onPostgresChange(DeleteAction.self, schema: "public", table: "operating_expenses", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            print("🔔 Realtime Delete Expense: \(change)")
+            struct DeletePayload: Decodable { let id: UUID }
+            do {
+                let payload = try change.decodeOldRecord(as: DeletePayload.self, decoder: decoder)
+                Task { @MainActor in
+                    self.operatingExpenses.removeAll { $0.id == payload.id }
+                    self.recalculateStats()
+                }
+            } catch {
+                print("❌ Error decoding expense delete: \(error)")
+            }
+        }
+
+        Task {
+            await channel.subscribe()
+            self.realtimeChannel = channel
+            print("📡 Realtime subscription started for store: \(storeId)")
+        }
+    }
+
     var totalAmount: Double {
         items.reduce(0) { $0 + $1.total }
     }
     
     func processInput() {
-        if isRestockMode {
-            processRestockInput()
-            return
-        }
-        
-        let rawText = currentInput
-        let lines = rawText.components(separatedBy: CharacterSet(charactersIn: ",\n"))
-        
-        for line in lines {
-            if let item = parseItem(from: line) {
-                items.append(item)
-                // Update history if price is valid
-                if item.price > 0 {
-                    priceHistory[item.name.lowercased()] = item.price
-                    saveHistory()
-                }
+        if useGPT {
+            Task {
+                await processInputGPT()
             }
+        } else {
+            processInputLegacy()
         }
-        
-        currentInput = ""
     }
     
-    func processRestockInput() {
+    @MainActor
+    func processInputGPT() async {
+        let rawText = currentInput
+        guard !rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { 
+            // Safety: Ensure processing flag is off if input is empty
+            isProcessingVoice = false
+            return 
+        }
+        
+        // Prevent double processing if already processing
+        if isProcessingVoice { return }
+        
+        isProcessingVoice = true
+        // Keep processing flag on for a bit longer or handle it in UI
+        
+        do {
+            let currentMode = isRestockMode ? "restock" : "order"
+            let response = try await OpenAIService.shared.parseOrder(text: rawText, currentMode: currentMode)
+            
+            // Check if cancelled (user dismissed overlay)
+            if !isProcessingVoice { return }
+            
+            isProcessingVoice = false // Done processing
+            
+            // Determine Intent
+            let isRestock = response.intent == "restock"
+            let intentEnum: SmartIntent = isRestock ? .restock : .order
+            
+            // Switch Mode
+            if isRestock {
+                if !isRestockMode {
+                    self.isRestockMode = true
+                    self.shouldShowRestockSheet = true
+                } else {
+                    self.shouldShowRestockSheet = true
+                }
+            } else {
+                if isRestockMode {
+                    self.isRestockMode = false
+                    self.shouldShowOrderSheet = true
+                } else {
+                    self.shouldShowOrderSheet = true
+                }
+            }
+            
+            // Process Items
+            for item in response.items {
+                let tuple = (
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    discount: item.discount,
+                    discountIsPercent: item.discountIsPercent,
+                    additionalCost: item.additionalCost,
+                    isTotal: Optional(item.isTotal),
+                    intent: Optional(intentEnum)
+                )
+                
+                if isRestock {
+                    handleRestockParsed(tuple)
+                } else {
+                    handleOrderParsed(tuple)
+                }
+            }
+            
+            currentInput = ""
+            
+        } catch {
+            print("GPT Parsing Failed: \(error). Falling back to legacy.")
+            isProcessingVoice = false
+            processInputLegacy()
+        }
+    }
+
+    func processInputLegacy() {
         let rawText = currentInput
         let lines = rawText.components(separatedBy: CharacterSet(charactersIn: ",\n"))
         
         for line in lines {
             if let parsed = SmartParser.parse(text: line) {
-                var finalName = parsed.name
-                
-                // Intelligent Mapping: Match with existing catalog to ensure inventory consistency
-                if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
-                    finalName = match.name
-                }
-                
-                var unitPrice: Double = 0
-                var quantity = parsed.quantity
-                let rawPrice = parsed.price
-                
-                if rawPrice > 0 {
-                    if let isTotal = parsed.isTotal {
-                        if isTotal {
-                            unitPrice = rawPrice / Double(quantity)
+                // 1. Check Intent to possibly switch modes
+                if let intent = parsed.intent {
+                    if intent == .restock {
+                        if !isRestockMode {
+                            DispatchQueue.main.async { 
+                                self.isRestockMode = true 
+                                self.shouldShowRestockSheet = true
+                            }
                         } else {
-                            unitPrice = rawPrice
+                             // Already in restock mode, but maybe sheet is closed?
+                             DispatchQueue.main.async { self.shouldShowRestockSheet = true }
                         }
-                    } else {
-                        // Heuristic fallback
-                        // If price is very large (e.g. > 500k), it's likely Total Cost.
-                        // UNLESS quantity is 1, then Unit = Total.
-                        if quantity == 1 {
-                             unitPrice = rawPrice
-                        } else if rawPrice > 500_000 {
-                            // Assume Total Cost
-                            unitPrice = rawPrice / Double(quantity)
+                        handleRestockParsed(parsed)
+                        continue
+                    } else if intent == .order {
+                        if isRestockMode {
+                            DispatchQueue.main.async { 
+                                self.isRestockMode = false 
+                                self.shouldShowOrderSheet = true
+                            }
                         } else {
-                            // Assume Unit Price
-                            unitPrice = rawPrice
+                            DispatchQueue.main.async { self.shouldShowOrderSheet = true }
                         }
+                        handleOrderParsed(parsed)
+                        continue
                     }
                 }
                 
-                restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice))
+                // 2. No explicit intent, use current mode
+                if isRestockMode {
+                    DispatchQueue.main.async { self.shouldShowRestockSheet = true }
+                    handleRestockParsed(parsed)
+                } else {
+                    DispatchQueue.main.async { self.shouldShowOrderSheet = true }
+                    handleOrderParsed(parsed)
+                }
             }
         }
+        
         currentInput = ""
     }
     
-    private func saveHistory() {
-        UserDefaults.standard.set(priceHistory, forKey: "PriceHistory")
+    private func handleOrderParsed(_ parsed: (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, additionalCost: Double, isTotal: Bool?, intent: SmartIntent?)) {
+        var finalName = parsed.name
+        var price = parsed.price
+        var systemImage: String? = nil
+        var costPrice: Double = 0
+        var imageData: Data? = nil
+        
+        // Intelligent Mapping
+        if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
+            finalName = match.name
+            systemImage = match.imageName
+            costPrice = match.costPrice
+            imageData = match.imageData
+            
+            if price == 0 {
+                price = match.price
+            }
+        } else {
+            // Fallback to history
+            if price == 0 {
+                if let historyPrice = priceHistory[parsed.name.lowercased()] {
+                    price = historyPrice
+                }
+            }
+        }
+        
+        // Calculate Discount Amount
+        var finalDiscount = parsed.discount
+        if parsed.discountIsPercent {
+             // If price is 0, we can't calculate percentage discount yet. 
+             // Ideally we should store the percentage, but OrderItem only has discount value.
+             // For now, if price > 0, calculate it. If not, it might be 0.
+             if price > 0 {
+                 finalDiscount = price * (parsed.discount / 100.0)
+             }
+        }
+        
+        // Add item
+        let item = OrderItem(name: finalName, quantity: parsed.quantity, price: price, costPrice: costPrice, discount: finalDiscount, imageData: imageData, systemImage: systemImage)
+        
+        // Update or append
+        // Logic fix: Only merge if the user explicitly wants to add more. 
+        // For voice input, usually it's a new request. 
+        // But if the user says "2 coffee" then "1 coffee", they might expect 3.
+        // HOWEVER, the bug report says "automatically multiple 3 times".
+        // This might be due to UI triggering processInput multiple times or GPT returning multiple items?
+        // Or maybe this merge logic is running too often?
+        // Let's assume for now we want to merge if it's the exact same item.
+        
+        if let index = items.firstIndex(where: { $0.name == item.name && $0.price == item.price && $0.discount == item.discount && $0.systemImage == item.systemImage }) {
+             // If coming from GPT, we should probably NOT merge automatically if it causes confusion, 
+             // but merging is standard POS behavior.
+             // The issue "multiply 3 times" suggests `quantity` is being tripled.
+             // Check if `item.quantity` itself is already tripled? No, that's in GPT.
+             // Check if this function is called 3 times?
+             // If so, we need to debounce or prevent multiple calls.
+             items[index].quantity += item.quantity
+        } else {
+            items.append(item)
+        }
+        
+        // Update history
+        if item.price > 0 {
+            priceHistory[item.name.lowercased()] = item.price
+            Task {
+                try? await database.upsertPriceHistory(name: item.name.lowercased(), price: item.price)
+            }
+        }
     }
     
-    private func saveInventory() {
-        UserDefaults.standard.set(inventory, forKey: "Inventory")
+    private func handleRestockParsed(_ parsed: (name: String, quantity: Int, price: Double, discount: Double, discountIsPercent: Bool, additionalCost: Double, isTotal: Bool?, intent: SmartIntent?)) {
+        var finalName = parsed.name
+        
+        if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
+            finalName = match.name
+        }
+        
+        var unitPrice: Double = 0
+        var quantity = parsed.quantity
+        let rawPrice = parsed.price
+        
+        if rawPrice > 0 {
+            if let isTotal = parsed.isTotal {
+                if isTotal {
+                    unitPrice = rawPrice / Double(quantity)
+                } else {
+                    unitPrice = rawPrice
+                }
+            } else {
+                if quantity == 1 {
+                     unitPrice = rawPrice
+                } else if rawPrice > 500_000 {
+                    unitPrice = rawPrice / Double(quantity)
+                } else {
+                    unitPrice = rawPrice
+                }
+            }
+        }
+        
+        // Discount in restock usually means discount from supplier
+        // We can subtract it from unit price or treat as negative additional cost
+        // Here we'll treat it as negative additional cost for simplicity in unit cost calc
+        var discountValue = parsed.discount
+        if parsed.discountIsPercent {
+             if unitPrice > 0 {
+                 discountValue = unitPrice * (parsed.discount / 100.0) * Double(quantity) // Total discount? Or per unit?
+                 // Let's assume parsed.discount is total discount if we used total price logic, or unit discount if unit price.
+                 // Actually, additionalCost is usually total for the batch.
+                 // If percentage, it's usually on the total cost.
+                 let totalBaseCost = unitPrice * Double(quantity)
+                 discountValue = totalBaseCost * (parsed.discount / 100.0)
+             }
+        }
+        
+        // Include manually added additional cost (parsed.additionalCost)
+        // Note: discountValue is treated as negative additional cost
+        let totalAdditionalCost = parsed.additionalCost - discountValue
+        
+        restockItems.append(RestockItem(name: finalName, quantity: quantity, unitPrice: unitPrice, additionalCost: totalAdditionalCost))
+    }
+    
+    func processRestockInput() {
+        // Deprecated by processInput handling both, but kept for compatibility if called directly
+        processInput()
     }
     
     func stockLevel(for name: String) -> Int {
         return inventory[name.lowercased()] ?? 0
     }
     
-    private func parseItem(from text: String) -> OrderItem? {
+    func parseItem(from text: String) -> OrderItem? {
         // Use SmartParser for flexible "AI-like" parsing
         if let parsed = SmartParser.parse(text: text) {
             var finalName = parsed.name
             var price = parsed.price
             var systemImage: String? = nil
+            var costPrice: Double = 0
             
             // 1. Try to find matching product in catalog (Intelligent Mapping)
             if let match = SmartParser.findBestMatch(name: parsed.name, in: products) {
                 finalName = match.name
                 systemImage = match.imageName
+                costPrice = match.costPrice // Capture current Unit Cost
                 
                 // If price wasn't specified in speech, use catalog price
                 if price == 0 {
@@ -246,7 +856,15 @@ class OrderViewModel: ObservableObject {
                 }
             }
             
-            return OrderItem(name: finalName, quantity: parsed.quantity, price: price, systemImage: systemImage)
+            // Calculate Discount
+            var finalDiscount = parsed.discount
+            if parsed.discountIsPercent {
+                if price > 0 {
+                    finalDiscount = price * (parsed.discount / 100.0)
+                }
+            }
+            
+            return OrderItem(name: finalName, quantity: parsed.quantity, price: price, costPrice: costPrice, discount: finalDiscount, systemImage: systemImage)
         }
         return nil
     }
@@ -267,20 +885,44 @@ class OrderViewModel: ObservableObject {
         return warnings
     }
     
-    func completeOrder() {
+    func completeOrder(isPaid: Bool) {
         // Create bill
-        if let bill = makeBill() {
+        if let bill = makeBill(isPaid: isPaid) {
             pastOrders.insert(bill, at: 0) // Newest first
-            saveOrders()
+            lastCreatedBill = bill
+            
+            // Save Order to DB
+            Task {
+                do {
+                    try await database.saveOrder(bill)
+                } catch {
+                    print("❌ Error saving order: \(error)")
+                }
+            }
             
             // Deduct from Inventory
             for item in bill.items {
                 let key = item.name.lowercased()
                 if let current = inventory[key] {
-                    inventory[key] = max(0, current - item.quantity)
+                    let newQuantity = max(0, current - item.quantity)
+                    inventory[key] = newQuantity
+                    
+                    // Update Product in DB
+                    if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
+                        var product = products[index]
+                        product.stockQuantity = newQuantity
+                        products[index] = product
+                        
+                        Task {
+                            do {
+                                try await database.updateProduct(product)
+                            } catch {
+                                print("❌ Error updating product stock: \(error)")
+                            }
+                        }
+                    }
                 }
             }
-            saveInventory()
             
             // Update stats
                 recalculateStats()
@@ -300,19 +942,129 @@ class OrderViewModel: ObservableObject {
     }
     
     func recalculateStats() {
+        // Global Stats
         revenue = pastOrders.reduce(0) { $0 + $1.total }
         orderCount = pastOrders.count
+        
+        // Total Restock Cost (Import Price + Fees)
         totalRestockCost = restockHistory.reduce(0) { $0 + $1.totalCost }
+        
+        // Total Operating Cost
+        totalOperatingCost = operatingExpenses.reduce(0) { $0 + $1.amount }
+        
+        // Calculate Today's Stats
+        calculateTodayStats()
+    }
+    
+    func calculateTodayStats() {
+        let service = FinancialReportService.shared
+        let todayStatsList = service.generateReport(
+            orders: pastOrders,
+            expenses: operatingExpenses,
+            restocks: restockHistory,
+            range: .today
+        )
+        self.todayStats = todayStatsList.first
+    }
+    
+    func exportFinancialReport(range: ReportDateRange) -> URL? {
+        let service = FinancialReportService.shared
+        let stats = service.generateReport(
+            orders: pastOrders,
+            expenses: operatingExpenses,
+            restocks: restockHistory,
+            range: range
+        )
+        return service.exportToCSV(stats: stats)
+    }
+    
+    // MARK: - Operating Expenses
+    func addOperatingExpense(title: String, amount: Double, note: String?) {
+        let expense = OperatingExpense(id: UUID(), title: title, amount: amount, note: note, createdAt: Date())
+        
+        // Optimistic UI update
+        operatingExpenses.insert(expense, at: 0)
+        recalculateStats()
+        
+        Task {
+            do {
+                try await database.saveOperatingExpense(expense)
+            } catch {
+                print("❌ Error saving expense: \(error)")
+                DispatchQueue.main.async {
+                    self.errorMessage = "Không thể lưu chi phí: \(error.localizedDescription)"
+                    self.showErrorAlert = true
+                    // Revert optimistic update
+                    if let index = self.operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
+                        self.operatingExpenses.remove(at: index)
+                        self.recalculateStats()
+                    }
+                }
+            }
+        }
+    }
+    
+    func updateOperatingExpense(_ expense: OperatingExpense) {
+        // Optimistic UI update
+        if let index = operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
+            let oldExpense = operatingExpenses[index]
+            operatingExpenses[index] = expense
+            recalculateStats()
+            
+            Task {
+                do {
+                    try await database.updateOperatingExpense(expense)
+                } catch {
+                    print("❌ Error updating expense: \(error)")
+                    DispatchQueue.main.async {
+                        self.errorMessage = "Không thể cập nhật chi phí: \(error.localizedDescription)"
+                        self.showErrorAlert = true
+                        // Revert
+                        if let idx = self.operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
+                            self.operatingExpenses[idx] = oldExpense
+                            self.recalculateStats()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    func deleteOperatingExpense(_ expense: OperatingExpense) {
+        if let index = operatingExpenses.firstIndex(where: { $0.id == expense.id }) {
+            operatingExpenses.remove(at: index)
+            recalculateStats()
+            
+            Task {
+                do {
+                    try await database.deleteOperatingExpense(expense.id)
+                } catch {
+                    print("❌ Error deleting expense: \(error)")
+                }
+            }
+        }
     }
     
     // MARK: - Restock Actions
     
-    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int) {
-        restockItems.append(RestockItem(name: name, quantity: quantity, unitPrice: unitPrice))
+    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil) {
+        restockItems.append(RestockItem(name: name, quantity: quantity, unitPrice: unitPrice, additionalCost: additionalCost, suggestedPrice: suggestedPrice))
     }
     
     func removeRestockItem(at offsets: IndexSet) {
         restockItems.remove(atOffsets: offsets)
+    }
+    
+    func updateRestockItem(_ item: RestockItem) {
+        if let index = restockItems.firstIndex(where: { $0.id == item.id }) {
+            restockItems[index] = item
+        }
+    }
+    
+    func toggleRestockItemConfirmation(_ item: RestockItem) {
+        if let index = restockItems.firstIndex(where: { $0.id == item.id }) {
+            restockItems[index].isConfirmed.toggle()
+        }
     }
     
     func completeRestockSession() {
@@ -323,27 +1075,60 @@ class OrderViewModel: ObservableObject {
         
         restockHistory.insert(bill, at: 0)
         
-        // Update Inventory & Catalog
+        Task {
+            do {
+                try await database.saveRestockBill(bill)
+            } catch {
+                print("❌ Error saving restock bill: \(error)")
+            }
+        }
+        
+        // Update Inventory & Catalog (Moving Average Cost Logic)
         for item in restockItems {
             let key = item.name.lowercased()
-            let current = inventory[key] ?? 0
-            inventory[key] = current + item.quantity
+            let currentQuantity = inventory[key] ?? 0
+            let newQuantity = currentQuantity + item.quantity
+            inventory[key] = newQuantity
             
             // Auto-add to products if not exists OR update if needed
             // Check case-insensitive
             if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
-                // Product exists. Do we update anything?
-                // User asked: "update items in stock is not update in new order items"
-                // Maybe they want the price to update?
-                // But sales price != cost price.
-                // However, often users want to see the item "Available" or refreshed.
-                // If the inventory was 0 and now is > 0, it should just work via stockLevel check.
-                // But let's trigger a refresh by ensuring persistence.
+                // Product exists. Update stock and Calculate Moving Average Cost
+                var product = products[index]
                 
-                // OPTIONAL: If the sales price is 0 (placeholder), maybe update it?
-                // Let's NOT overwrite sales price with cost price unless explicitly requested, 
-                // as that ruins profit margins.
-                // BUT, we must ensure the product is "active".
+                // Update: Capitalize additionalCost (incurred fees) into costPrice as requested.
+                // finalUnitCost = (quantity * unitPrice + additionalCost) / quantity
+                let newUnitCost = item.finalUnitCost
+                product.costPrice = newUnitCost
+                
+                // AVCO Calculation (Alternative - Commented out)
+                /*
+                let oldCost = product.costPrice
+                let effectiveOldQty = max(0, Double(currentQuantity))
+                
+                let oldTotalValue = effectiveOldQty * oldCost
+                let newTotalValue = Double(item.quantity) * newUnitCost
+                
+                let newAverageCost = (oldTotalValue + newTotalValue) / (effectiveOldQty + Double(item.quantity))
+                product.costPrice = newAverageCost
+                */
+                
+                product.stockQuantity = newQuantity
+                
+                // Update selling price if suggested
+                if let suggested = item.suggestedPrice {
+                    product.price = suggested
+                }
+                
+                products[index] = product
+                
+                Task {
+                    do {
+                        try await database.updateProduct(product)
+                    } catch {
+                        print("❌ Error updating product from restock: \(error)")
+                    }
+                }
             } else {
                 // New Product
                 // Determine category? Default to Others or Flowers if name contains flower keywords
@@ -357,18 +1142,25 @@ class OrderViewModel: ObservableObject {
                 let newProduct = Product(
                     id: UUID(), // Explicit ID
                     name: item.name, // Use original casing
-                    price: item.unitPrice * 1.3, // Suggest a markup? Or just use unitPrice? Let's use unitPrice for now as baseline.
+                    price: item.suggestedPrice ?? (item.finalUnitCost * 1.3), // Use suggested or default 30% markup (on total cost is fine for suggestion)
+                    costPrice: item.finalUnitCost, // Initial Cost includes incurred fees
                     category: cat.rawValue,
                     imageName: "shippingbox.fill", // Default icon
-                    color: "gray"
+                    color: "gray",
+                    stockQuantity: newQuantity
                 )
                 products.append(newProduct)
+                
+                Task {
+                    do {
+                        try await database.saveProduct(newProduct)
+                    } catch {
+                        print("❌ Error saving new product from restock: \(error)")
+                    }
+                }
             }
         }
         
-        saveRestockHistory()
-        saveInventory()
-        saveProducts()
         recalculateStats()
         
         restockItems.removeAll()
@@ -382,13 +1174,31 @@ class OrderViewModel: ObservableObject {
             for item in bill.items {
                 let key = item.name.lowercased()
                 if let current = inventory[key] {
-                    inventory[key] = max(0, current - item.quantity)
+                    let newQuantity = max(0, current - item.quantity)
+                    inventory[key] = newQuantity
+                    
+                    // Update Product
+                    if let pIndex = products.firstIndex(where: { $0.name.lowercased() == key }) {
+                        var p = products[pIndex]
+                        p.stockQuantity = newQuantity
+                        products[pIndex] = p
+                        Task { 
+                            do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
+                        }
+                    }
                 }
             }
             
             restockHistory.remove(at: index)
-            saveRestockHistory()
-            saveInventory()
+            
+            Task {
+                do {
+                    try await database.deleteRestockBill(bill.id)
+                } catch {
+                    print("❌ Error deleting restock bill: \(error)")
+                }
+            }
+            
             recalculateStats()
         }
     }
@@ -400,34 +1210,59 @@ class OrderViewModel: ObservableObject {
         // Load items into current session
         restockItems = bill.items
         isRestockMode = true
-    }
-    
-    private func saveRestockHistory() {
-        if let encoded = try? JSONEncoder().encode(restockHistory) {
-            UserDefaults.standard.set(encoded, forKey: "RestockHistory")
-        }
+        shouldShowRestockSheet = true
     }
     
     // MARK: - Product Catalog Management
     
-    func createProduct(name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int) {
-        let newProduct = Product(
-            id: UUID(),
+    func createProduct(name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil) {
+        let tempId = UUID()
+        var newProduct = Product(
+            id: tempId,
             name: name,
             price: price,
+            costPrice: costPrice,
             category: category.rawValue,
             imageName: imageName,
-            color: color
+            color: color,
+            imageData: imageData,
+            stockQuantity: quantity,
+            barcode: barcode
         )
         products.append(newProduct)
-        saveProducts()
-        
-        // Initialize inventory
         inventory[name.lowercased()] = quantity
-        saveInventory()
+        
+        Task {
+            var imageURL: String? = nil
+            if let data = imageData {
+                do {
+                    imageURL = try await StorageManager.shared.uploadProductImage(data: data, fileName: tempId.uuidString)
+                    print("✅ Image uploaded: \(imageURL ?? "nil")")
+                } catch {
+                    print("❌ Error uploading image: \(error)")
+                }
+            }
+            
+            newProduct.imageURL = imageURL
+            
+            // Update local model with URL if needed (optional, as imageData is already there)
+            if let url = imageURL {
+                await MainActor.run {
+                    if let index = products.firstIndex(where: { $0.id == tempId }) {
+                        products[index].imageURL = url
+                    }
+                }
+            }
+            
+            do {
+                try await database.saveProduct(newProduct)
+            } catch {
+                print("❌ Error saving new product: \(error)")
+            }
+        }
     }
     
-    func updateProduct(_ product: Product, name: String, price: Double, category: Category, imageName: String, color: String, quantity: Int) {
+    func updateProduct(_ product: Product, name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil) {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             // Handle Name Change for Inventory
             let oldKey = product.name.lowercased()
@@ -439,18 +1274,51 @@ class OrderViewModel: ObservableObject {
             
             // Update Inventory
             inventory[newKey] = quantity
-            saveInventory()
             
-            let updatedProduct = Product(
+            var updatedProduct = Product(
                 id: product.id,
                 name: name,
                 price: price,
+                costPrice: costPrice,
                 category: category.rawValue,
                 imageName: imageName,
-                color: color
+                color: color,
+                imageData: imageData,
+                imageURL: imageURL, // Use passed URL (handles deletion if nil)
+                stockQuantity: quantity,
+                barcode: barcode
             )
             products[index] = updatedProduct
-            saveProducts()
+            
+            Task {
+                // If imageData changed (or is new), upload it
+                
+                var newImageURL = updatedProduct.imageURL
+                
+                if let data = imageData {
+                     // Only upload if different from original or no URL
+                    do {
+                        newImageURL = try await StorageManager.shared.uploadProductImage(data: data, fileName: product.id.uuidString)
+                         print("✅ Image updated: \(newImageURL ?? "nil")")
+                    } catch {
+                        print("❌ Error uploading image update: \(error)")
+                    }
+                }
+                
+                updatedProduct.imageURL = newImageURL
+                
+                await MainActor.run {
+                    if let idx = products.firstIndex(where: { $0.id == product.id }) {
+                        products[idx].imageURL = newImageURL
+                    }
+                }
+                
+                do {
+                    try await database.updateProduct(updatedProduct)
+                } catch {
+                    print("❌ Error updating product: \(error)")
+                }
+            }
         }
     }
     
@@ -458,21 +1326,31 @@ class OrderViewModel: ObservableObject {
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             // Remove inventory
             inventory.removeValue(forKey: product.name.lowercased())
-            saveInventory()
             
             products.remove(at: index)
-            saveProducts()
+            
+            Task {
+                do {
+                    try await database.deleteProduct(product.id)
+                } catch {
+                    print("❌ Error deleting product: \(error)")
+                }
+            }
         }
     }
     
     func deleteProducts(at offsets: IndexSet) {
+        let productsToDelete = offsets.map { products[$0] }
         products.remove(atOffsets: offsets)
-        saveProducts()
-    }
-
-    private func saveProducts() {
-        if let encoded = try? JSONEncoder().encode(products) {
-            UserDefaults.standard.set(encoded, forKey: "Products")
+        
+        Task {
+            for product in productsToDelete {
+                do {
+                    try await database.deleteProduct(product.id)
+                } catch {
+                    print("❌ Error deleting product batch: \(error)")
+                }
+            }
         }
     }
     
@@ -496,7 +1374,17 @@ class OrderViewModel: ObservableObject {
         // Replace in history
         if let index = pastOrders.firstIndex(where: { $0.id == originalBill.id }) {
             pastOrders[index] = updatedBill
-            saveOrders()
+            
+            Task {
+                // Delete old and save new
+                do {
+                    try await database.deleteOrder(originalBill.id)
+                    try await database.saveOrder(updatedBill)
+                } catch {
+                    print("❌ Error saving edited order: \(error)")
+                }
+            }
+            
             recalculateStats()
         }
         
@@ -512,21 +1400,37 @@ class OrderViewModel: ObservableObject {
     func deleteOrder(_ bill: Bill) {
         if let index = pastOrders.firstIndex(where: { $0.id == bill.id }) {
             pastOrders.remove(at: index)
-            saveOrders()
+            
+            Task {
+                try? await database.deleteOrder(bill.id)
+            }
+            
             recalculateStats()
         }
     }
     
     func deleteOrder(at offsets: IndexSet) {
+        let ordersToDelete = offsets.map { pastOrders[$0] }
         pastOrders.remove(atOffsets: offsets)
-        saveOrders()
+        
+        Task {
+            for order in ordersToDelete {
+                try? await database.deleteOrder(order.id)
+            }
+        }
+        
         recalculateStats()
     }
-
-    private func saveOrders() {
-        if let encoded = try? JSONEncoder().encode(pastOrders) {
-            UserDefaults.standard.set(encoded, forKey: "PastOrders")
+    
+    func updateOrder(_ bill: Bill) async throws {
+        // Optimistic update
+        if let index = pastOrders.firstIndex(where: { $0.id == bill.id }) {
+            pastOrders[index] = bill
+            recalculateStats()
         }
+        
+        // Update DB
+        try await database.updateOrder(bill)
     }
     
     func reset() {
@@ -551,8 +1455,65 @@ class OrderViewModel: ObservableObject {
             .reduce(0) { $0 + $1.totalCost }
     }
     
+    func cogs(for date: Date) -> Double {
+        let calendar = Calendar.current
+        //let dailyOrders = pastOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+        return pastOrders
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .reduce(0) { $0 + $1.totalCost }
+    }
+    
+    func totalExpenses(for date: Date) -> Double {
+        let calendar = Calendar.current
+        
+        // 1. COGS (Cost of Goods Sold)
+        let dailyCOGS = cogs(for: date)
+        
+        // 2. Operating Expenses
+        let dailyOpEx = operatingExpenses
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .reduce(0) { $0 + $1.amount }
+            
+        // 3. Incurred Fees from Restock
+        /*
+        let dailyIncurredFees = restockHistory
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .reduce(0) { billSum, bill in
+                billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
+            }
+        */
+            
+        return dailyCOGS + dailyOpEx // + dailyIncurredFees (Removed as requested)
+    }
+    
+    func grossProfit(for date: Date) -> Double {
+        let calendar = Calendar.current
+        let dailyOrders = pastOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+        return dailyOrders.reduce(0) { $0 + $1.profit }
+    }
+    
     func profit(for date: Date) -> Double {
-        revenue(for: date) - restockCost(for: date)
+        let calendar = Calendar.current
+        
+        // 1. Gross Profit from Orders (Revenue - COGS)
+        let grossProfit = self.grossProfit(for: date)
+        
+        // 2. Operational Costs (OPEX)
+        let dailyOpEx = operatingExpenses
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .reduce(0) { $0 + $1.amount }
+            
+        // 3. Incurred Fees from Restock (Phát sinh)
+        // Only additionalCost reduces profit immediately (User requirement)
+        /*
+        let dailyIncurredFees = restockHistory
+            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .reduce(0) { billSum, bill in
+                billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
+            }
+        */
+            
+        return grossProfit - dailyOpEx // - dailyIncurredFees (Removed as requested, now part of COGS)
     }
     
     func orders(for date: Date) -> [Bill] {
@@ -561,9 +1522,19 @@ class OrderViewModel: ObservableObject {
             .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
     }
     
-    func makeBill() -> Bill? {
+    func makeBill(isPaid: Bool = false) -> Bill? {
         guard !items.isEmpty else { return nil }
-        return Bill(id: UUID(), createdAt: Date(), items: items, total: totalAmount)
+        let cost = items.reduce(0) { $0 + $1.totalCost }
+        var bill = Bill(id: UUID(), createdAt: Date(), items: items, total: totalAmount, totalCost: cost)
+        bill.isPaid = isPaid
+        
+        // Populate creator info
+        if let profile = AuthManager.shared.currentUserProfile {
+            bill.creatorId = profile.id
+            bill.creatorName = profile.fullName
+        }
+        
+        return bill
     }
     
     func billPayload() -> String? {
@@ -587,8 +1558,25 @@ class OrderViewModel: ObservableObject {
     
     func vietQRURL() -> URL? {
         guard let bill = makeBill(), bill.total > 0 else { return nil }
+        
+        // Use Store's Bank Info if available, otherwise default to "VCB" and hardcoded account
+        var bankName = StoreManager.shared.currentStore?.bankName ?? "Vietcombank (VCB)"
+        
+        // If bankName contains parenthesis (e.g. "Vietcombank (VCB)"), extract the code inside
+        if let range = bankName.range(of: "\\((.*?)\\)", options: .regularExpression) {
+             let code = bankName[range]
+             // Remove ( and )
+             let cleanCode = code.dropFirst().dropLast()
+             bankName = String(cleanCode)
+        }
+        
+        let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? "9967861809"
+        
+        // If bank account is empty, use default
+        let finalBankAccount = bankAccount.isEmpty ? "9967861809" : bankAccount
+        
         let amount = Int(bill.total)
-        let base = "https://img.vietqr.io/image/VCB-9967861809-compact.png"
+        let base = "https://img.vietqr.io/image/\(bankName)-\(finalBankAccount)-compact.png"
         
         let infoBase: String
         let shortId = bill.id.uuidString.prefix(8)
@@ -602,11 +1590,16 @@ class OrderViewModel: ObservableObject {
     }
     
     // MARK: - Manual Item Management
-    func addItem(_ name: String, price: Double, quantity: Int, imageData: Data? = nil) {
-        if let index = items.firstIndex(where: { $0.name == name && $0.price == price && $0.imageData == imageData }) {
+    func addItem(_ name: String, price: Double, quantity: Int, discount: Double = 0, imageData: Data? = nil) {
+        if let index = items.firstIndex(where: { $0.name == name && $0.price == price && $0.discount == discount && $0.imageData == imageData }) {
             items[index].quantity += quantity
         } else {
-            items.append(OrderItem(name: name, quantity: quantity, price: price, imageData: imageData, systemImage: "cart.circle.fill"))
+            // Find cost price
+            var cost: Double = 0
+            if let product = products.first(where: { $0.name.lowercased() == name.lowercased() }) {
+                cost = product.costPrice
+            }
+            items.append(OrderItem(name: name, quantity: quantity, price: price, costPrice: cost, discount: discount, imageData: imageData, systemImage: "cart.circle.fill"))
         }
     }
     
@@ -620,11 +1613,12 @@ class OrderViewModel: ObservableObject {
         }
     }
     
-    func updateItemFull(_ item: OrderItem, name: String, price: Double, quantity: Int, imageData: Data?) {
+    func updateItemFull(_ item: OrderItem, name: String, price: Double, quantity: Int, discount: Double, imageData: Data?) {
         if let index = items.firstIndex(where: { $0.id == item.id }) {
             items[index].name = name
             items[index].price = price
             items[index].quantity = quantity
+            items[index].discount = discount
             items[index].imageData = imageData
             // Preserve existing systemImage
         }
