@@ -58,7 +58,7 @@ struct ContentView: View {
                         
                         CostsAndImportsView(viewModel: viewModel, selectedSubTab: $costsSubTab, showNewOperatingExpense: $showNewOperatingExpense)
                             .tabItem {
-                                Label("Chi phí", systemImage: "banknote.fill")
+                                Label("Chi Phí & Nhập Hàng", systemImage: "banknote.fill")
                             }
                             .tag(4)
                         
@@ -70,13 +70,13 @@ struct ContentView: View {
                         
                         StatisticsView(viewModel: viewModel)
                             .tabItem {
-                                Label("Thống kê", systemImage: "chart.bar.xaxis")
+                                Label("Thống Kê", systemImage: "chart.bar.xaxis")
                             }
                             .tag(7)
                         
                         SettingsView(tabBarManager: tabBarManager)
                             .tabItem {
-                                Label("Cài đặt", systemImage: "gearshape.fill")
+                                Label("Cài Đặt", systemImage: "gearshape.fill")
                             }
                             .tag(6)
                         
@@ -361,12 +361,12 @@ struct ContentView: View {
                                         selectedTab = 5
                                     }
                                     
-                                    QuickActionButton(icon: "gearshape", title: "Cài đặt", isPrimary: false) {
+                                    QuickActionButton(icon: "gearshape", title: "Cài Đặt", isPrimary: false) {
                                         selectedTab = 6
                                     }
                                     
                                     if StoreManager.shared.hasPermission(.viewReports) {
-                                        QuickActionButton(icon: "chart.bar", title: "Thống kê", isPrimary: false) {
+                                        QuickActionButton(icon: "chart.bar", title: "Thống Kê", isPrimary: false) {
                                             selectedTab = 7
                                         }
                                     }

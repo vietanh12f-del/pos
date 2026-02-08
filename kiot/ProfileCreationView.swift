@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct ProfileCreationView: View {
     @StateObject private var authManager = AuthManager.shared
@@ -89,6 +90,18 @@ struct ProfileCreationView: View {
             Spacer()
         }
         .padding()
+        .onAppear {
+            if let user = SupabaseConfig.client.auth.currentUser {
+                if fullName.isEmpty {
+                    if case let .string(name)? = user.userMetadata["full_name"] {
+                        fullName = name
+                    }
+                }
+                if email.isEmpty {
+                    email = user.email ?? ""
+                }
+            }
+        }
     }
     
     func saveProfile() {

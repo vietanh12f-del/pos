@@ -5,10 +5,10 @@ enum TabType: String, CaseIterable, Codable, Identifiable {
     case home = "Trang chủ"
     case orders = "Đơn hàng"
     case inventory = "Kho hàng hóa" // Merged Inventory & Goods
-    case costs = "Chi phí" // Costs & Imports
-    case analytics = "Thống kê"
+    case costs = "Chi Phí & Nhập Hàng"
+    case analytics = "Thống Kê"
     case chat = "Chat"
-    case settings = "Cài đặt"
+    case settings = "Cài Đặt"
     
     var id: String { rawValue }
     

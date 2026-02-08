@@ -116,7 +116,7 @@ struct StatisticsView: View {
                 }
             }
             .background(Color.themeBackgroundLight)
-            .navigationTitle("Thống kê")
+            .navigationTitle("Thống Kê")
         }
         .onAppear {
             regenerate()
@@ -229,4 +229,3 @@ struct StatisticsRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-

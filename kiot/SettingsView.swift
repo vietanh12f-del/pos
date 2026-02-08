@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct SettingsView: View {
     @ObservedObject var tabBarManager: CustomTabBarManager
@@ -219,8 +220,18 @@ struct EditProfileView: View {
     
     init(authManager: AuthManager) {
         self.authManager = authManager
-        _name = State(initialValue: authManager.currentUserProfile?.fullName ?? "")
-        _email = State(initialValue: authManager.currentUserProfile?.email ?? "")
+        let fallbackUser = SupabaseConfig.client.auth.currentUser
+        let initialName: String = {
+            if let n = authManager.currentUserProfile?.fullName, !n.isEmpty { return n }
+            if case let .string(n)? = fallbackUser?.userMetadata["full_name"] { return n }
+            return ""
+        }()
+        let initialEmail: String = {
+            if let e = authManager.currentUserProfile?.email, !e.isEmpty { return e }
+            return fallbackUser?.email ?? ""
+        }()
+        _name = State(initialValue: initialName)
+        _email = State(initialValue: initialEmail)
         _address = State(initialValue: authManager.currentUserProfile?.address ?? "")
     }
     
@@ -263,4 +274,3 @@ struct EditProfileView: View {
             }
         }
     }
-

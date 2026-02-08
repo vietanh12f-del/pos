@@ -5,9 +5,9 @@ struct MoreView: View {
     
     let menuItems: [MenuItem] = [
         MenuItem(id: 5, title: "Chat", icon: "message.fill", color: .blue),
-        MenuItem(id: 4, title: "Chi phí", icon: "banknote.fill", color: .green),
-        MenuItem(id: 7, title: "Thống kê", icon: "chart.bar.xaxis", color: .orange),
-        MenuItem(id: 6, title: "Cài đặt", icon: "gearshape.fill", color: .gray)
+        MenuItem(id: 4, title: "Chi Phí & Nhập Hàng", icon: "banknote.fill", color: .green),
+        MenuItem(id: 7, title: "Thống Kê", icon: "chart.bar.xaxis", color: .orange),
+        MenuItem(id: 6, title: "Cài Đặt", icon: "gearshape.fill", color: .gray)
     ]
     
     var body: some View {
