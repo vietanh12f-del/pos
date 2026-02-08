@@ -9,6 +9,32 @@ struct SettingsView: View {
     
     var body: some View {
         List {
+            Section {
+                HStack(spacing: 12) {
+                    Image(systemName: authManager.selectedRole == "owner" ? "crown.fill" : "person.2.fill")
+                        .font(.title2)
+                        .foregroundStyle(Color.themePrimary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Chế độ đăng nhập")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Text(authManager.selectedRole == "owner" ? "Chủ cửa hàng" : "Nhân viên")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themeTextDark)
+                    }
+                    Spacer()
+                    Text("Đang hoạt động")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.15))
+                        .cornerRadius(8)
+                }
+                .padding(.vertical, 4)
+            }
             Section(header: Text("Cửa hàng")) {
                     if let store = storeManager.currentStore {
                         HStack {
