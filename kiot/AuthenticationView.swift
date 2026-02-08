@@ -25,12 +25,27 @@ struct AuthenticationView: View {
             }
             .padding(.top, 40)
             
-            // Role Selection
-            Picker("Vai trò", selection: $authManager.selectedRole) {
-                Text("Chủ cửa hàng").tag("owner")
-                Text("Nhân viên").tag("employee")
+            Text("Chọn vai trò")
+                .font(.headline)
+                .foregroundStyle(Color.themeTextDark)
+            HStack(spacing: 12) {
+                roleCard(
+                    icon: "crown.fill",
+                    title: "Chủ cửa hàng",
+                    subtitle: "Quản lý mọi tính năng",
+                    isSelected: authManager.selectedRole == "owner"
+                ) {
+                    authManager.selectedRole = "owner"
+                }
+                roleCard(
+                    icon: "person.2.fill",
+                    title: "Nhân viên",
+                    subtitle: "Bán hàng, kho, chat",
+                    isSelected: authManager.selectedRole == "employee"
+                ) {
+                    authManager.selectedRole = "employee"
+                }
             }
-            .pickerStyle(SegmentedPickerStyle())
             .padding(.horizontal)
             
             Spacer()
@@ -193,6 +208,38 @@ struct AuthenticationView: View {
     }
 }
 
+#Preview {
+    AuthenticationView()
+}
+
+private func roleCard(icon: String, title: String, subtitle: String, isSelected: Bool, onTap: @escaping () -> Void) -> some View {
+    Button(action: onTap) {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(isSelected ? Color.white : Color.themePrimary)
+                .frame(width: 56, height: 56)
+                .background(isSelected ? Color.themePrimary : Color.themePrimary.opacity(0.1))
+                .clipShape(Circle())
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.themeTextDark)
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(isSelected ? Color.white : Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(isSelected ? Color.themePrimary : Color.gray.opacity(0.2), lineWidth: isSelected ? 2 : 1)
+        )
+        .cornerRadius(14)
+        .shadow(color: Color.black.opacity(isSelected ? 0.08 : 0.03), radius: isSelected ? 8 : 4, x: 0, y: 2)
+    }
+}
 #Preview {
     AuthenticationView()
 }
