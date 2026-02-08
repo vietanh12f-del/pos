@@ -102,7 +102,7 @@ struct ContentView: View {
                     // Voice Assistant Overlay
                     VoiceOverlayView(viewModel: viewModel, bottomPadding: isTabBarVisible ? (70 + geometry.safeAreaInsets.bottom + 10) : 20)
                 }
-                .ignoresSafeArea(.keyboard, edges: .bottom) // Prevent keyboard from pushing UI up
+                .ignoresSafeArea(.keyboard, edges: .bottom)
                 .fullScreenCover(isPresented: $showNewOrder) {
                     SmartOrderEntryView(viewModel: viewModel)
                 }
@@ -441,6 +441,8 @@ struct ContentView: View {
         @State private var showExternalProductAlert = false
         @State private var isLookingUpBarcode = false
         @Namespace private var namespace
+        @FocusState private var walkInFocused: Bool
+        @State private var keyboardHeight: CGFloat = 0
         
         var body: some View {
             ZStack(alignment: .bottom) {
@@ -681,11 +683,11 @@ struct ContentView: View {
                     .zIndex(1) // Ensure it stays on top
                 }
                 
-                // Voice Assistant FAB
                 VoiceAIButton(viewModel: viewModel)
-                    .padding(.bottom, 260)
+                    .padding(.bottom, 320)
                     .padding(.trailing, 20)
                     .frame(maxWidth: .infinity, alignment: .bottomTrailing)
+                    .zIndex(2)
                 
                 // Order Summary Sheet (Always visible at bottom)
                 VStack(spacing: 0) {
@@ -714,6 +716,18 @@ struct ContentView: View {
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.themePrimary)
                         }
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.fill")
+                                .foregroundStyle(.gray)
+                            TextField("Tên khách lẻ", text: $viewModel.walkInName)
+                                .textInputAutocapitalization(.words)
+                                .disableAutocorrection(true)
+                                .focused($walkInFocused)
+                        }
+                        .padding(12)
+                        .background(Color.gray.opacity(0.08))
+                        .cornerRadius(12)
                         
                         // Horizontal Item List
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -834,7 +848,7 @@ struct ContentView: View {
                         .opacity(viewModel.items.isEmpty ? 0.6 : 1)
                     }
                     .padding(.horizontal)
-                    .padding(.bottom, 30)
+                    .padding(.bottom, 30 + (walkInFocused ? keyboardHeight : 0))
                 }
                 .background(Color.white)
                 .cornerRadius(24, corners: [.topLeft, .topRight])
@@ -943,6 +957,14 @@ struct ContentView: View {
             .sheet(item: $foundExternalProduct) { info in
                 ExternalProductAddView(info: info, viewModel: viewModel)
             }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { output in
+                    if let value = output.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
+                        keyboardHeight = value.cgRectValue.height
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                    keyboardHeight = 0
+                }
         }
     }
     
@@ -1325,7 +1347,7 @@ struct ContentView: View {
                                 viewModel.completeOrder(isPaid: isPaid)
                                 dismiss()
                             }
-                        )
+                        , customerName: viewModel.walkInName)
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                     }
@@ -1385,7 +1407,8 @@ struct ContentView: View {
                     qrImage: loadedQR,
                     billPayload: viewModel.billPayload(),
                     showButtons: false,
-                    onComplete: nil
+                    onComplete: nil,
+                    customerName: viewModel.walkInName
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -1409,11 +1432,12 @@ struct ContentView: View {
         let billPayload: String?
         let showButtons: Bool
         let onComplete: ((Bool) -> Void)?
+        let customerName: String
         
         var body: some View {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Khách lẻ")
+                        Text(customerName)
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.themeTextDark)

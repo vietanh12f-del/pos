@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var showEditProfile = false
     
+    
     var body: some View {
         List {
             Section {
@@ -35,17 +36,12 @@ struct SettingsView: View {
                 }
                 .padding(.vertical, 4)
             }
-            Section(header: Text("Cửa hàng")) {
+            Section(header: Text("Cửa hàng hiện tại")) {
                     if let store = storeManager.currentStore {
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(store.name)
                                     .font(.headline)
-                                if let role = storeManager.currentMember?.role {
-                                    Text(role.displayName)
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
                             }
                             Spacer()
                             Button("Chuyển") {
@@ -122,6 +118,7 @@ struct SettingsView: View {
                             .foregroundStyle(.gray)
                     }
                 }
+                
             }
             .navigationTitle("Cài đặt")
             .navigationBarBackButtonHidden(true)
@@ -132,7 +129,6 @@ struct SettingsView: View {
             }
         }
     }
-
 
 struct StoreBankSettingsView: View {
     let store: Store

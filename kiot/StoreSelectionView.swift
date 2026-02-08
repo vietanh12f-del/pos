@@ -107,7 +107,7 @@ struct StoreSelectionView: View {
                             } else {
                                 // Employee View
                                 VStack(spacing: 20) {
-                                    if storeManager.memberStores.isEmpty && storeManager.invitedStores.isEmpty && storeManager.myStores.isEmpty {
+                                    if storeManager.memberStores.isEmpty && storeManager.invitedStores.isEmpty {
                                         EmptyStoreStateView(message: "Bạn chưa là nhân viên của cửa hàng nào.")
                                     } else {
                                         // Member Stores
@@ -119,20 +119,6 @@ struct StoreSelectionView: View {
                                                 }
                                             }
                                         }
-                                        
-                                        // Owned Stores (Simulation Mode)
-                                        if !storeManager.myStores.isEmpty {
-                                            SectionHeader(title: "Cửa hàng của bạn (Chế độ nhân viên)")
-                                            ForEach(storeManager.myStores) { store in
-                                                StoreRowCard(store: store) {
-                                                    Task {
-                                                        await storeManager.selectStore(store)
-                                                        dismiss()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        
                                         // Invitations
                                         if !storeManager.invitedStores.isEmpty {
                                             SectionHeader(title: "Lời mời tham gia")
@@ -403,4 +389,3 @@ struct InvitationRow: View {
         }
     }
 }
-

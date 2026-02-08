@@ -42,7 +42,8 @@ struct BillDetailView: View {
                     qrImage: nil,
                     billPayload: nil,
                     showButtons: false,
-                    onComplete: nil
+                    onComplete: nil,
+                    customerName: "Khách lẻ"
                 )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -148,7 +149,8 @@ struct BillDetailView: View {
                 qrImage: loadedQR,
                 billPayload: nil,
                 showButtons: false,
-                onComplete: nil
+                onComplete: nil,
+                customerName: "Khách lẻ"
             )
             .frame(width: 375)
             .background(Color.white)

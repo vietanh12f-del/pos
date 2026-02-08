@@ -7,6 +7,7 @@ class OrderViewModel: ObservableObject {
     @Published var currentInput: String = ""
     @Published var items: [OrderItem] = []
     @Published var showPayment: Bool = false
+    @Published var walkInName: String = "Khách lẻ"
     
     @Published var priceHistory: [String: Double] = [:]
     @Published var inventory: [String: Int] = [:]
@@ -201,6 +202,7 @@ class OrderViewModel: ObservableObject {
         self.totalRestockCost = 0
         self.totalOperatingCost = 0
         self.todayStats = nil
+        self.walkInName = "Khách lẻ"
     }
     
     @MainActor
