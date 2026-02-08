@@ -14,7 +14,7 @@ struct AuthenticationView: View {
                     .font(.system(size: 60))
                     .foregroundStyle(Color.themePrimary)
                 
-                Text("Kiot Hoa")
+                Text("SmartKiot")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.themeTextDark)
