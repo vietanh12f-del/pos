@@ -1,18 +1,22 @@
 import SwiftUI
 import Vision
 import PhotosUI
+import UIKit
 
 struct InvoiceScannerView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Environment(\.dismiss) var dismiss
     
-    @State private var selectedItem: PhotosPickerItem?
+    @State private var selectedImageData: Data?
     @State private var recognizedItems: [RestockItem] = []
     @State private var isScanning = false
     @State private var errorMessage: String?
+    @State private var showCamera = false
+    @State private var showPhotoPicker = false
+    @State private var capturedImage: UIImage?
     
     var body: some View {
-        NavigationStack {
+        NavigationView {
             VStack {
                 if recognizedItems.isEmpty && !isScanning {
                     VStack(spacing: 20) {
@@ -29,17 +33,40 @@ struct InvoiceScannerView: View {
                             .foregroundStyle(.gray)
                             .padding(.horizontal)
                         
-                        PhotosPicker(selection: $selectedItem, matching: .images) {
-                            HStack {
-                                Image(systemName: "photo")
-                                Text("Chọn ảnh từ thư viện")
+                        HStack(spacing: 16) {
+                            Button(action: {
+                                showCamera = true
+                            }) {
+                                VStack {
+                                    Image(systemName: "camera.fill")
+                                        .font(.title)
+                                    Text("Chụp ảnh")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 80)
+                                .background(Color.themePrimary)
+                                .foregroundStyle(.white)
+                                .cornerRadius(12)
                             }
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.themePrimary)
-                            .cornerRadius(12)
+                            
+                            Button(action: {
+                                showPhotoPicker = true
+                            }) {
+                                VStack {
+                                    Image(systemName: "photo.on.rectangle")
+                                        .font(.title)
+                                    Text("Thư viện")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 80)
+                                .background(Color.gray.opacity(0.1))
+                                .foregroundStyle(Color.themePrimary)
+                                .cornerRadius(12)
+                            }
                         }
                         .padding(.horizontal)
                     }
@@ -53,7 +80,7 @@ struct InvoiceScannerView: View {
                             ForEach($recognizedItems) { $item in
                                 HStack {
                                     TextField("Tên", text: $item.name)
-                                        .fontWeight(.medium)
+                                        .font(.body.weight(.medium))
                                     
                                     Divider()
                                     
@@ -93,36 +120,29 @@ struct InvoiceScannerView: View {
                     Button("Đóng") { dismiss() }
                 }
             }
-            .onChange(of: selectedItem) { newItem in
-                if let newItem {
-                    scanImage(newItem)
+            .onChange(of: selectedImageData) { newData in
+                if let newData, let uiImage = UIImage(data: newData) {
+                    isScanning = true
+                    recognizeText(from: uiImage)
                 }
+            }
+            .onChange(of: capturedImage) { newImage in
+                if let newImage {
+                    isScanning = true
+                    recognizeText(from: newImage)
+                }
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                ImagePicker(image: $capturedImage)
+                    .ignoresSafeArea()
+            }
+            .sheet(isPresented: $showPhotoPicker) {
+                PhotoPicker(selectedImageData: $selectedImageData)
             }
             .alert("Lỗi", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage ?? "")
-            }
-        }
-    }
-    
-    private func scanImage(_ item: PhotosPickerItem) {
-        isScanning = true
-        
-        item.loadTransferable(type: Data.self) { result in
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let data):
-                    if let data, let uiImage = UIImage(data: data) {
-                        recognizeText(from: uiImage)
-                    } else {
-                        isScanning = false
-                        errorMessage = "Không thể tải ảnh."
-                    }
-                case .failure(let error):
-                    isScanning = false
-                    errorMessage = error.localizedDescription
-                }
             }
         }
     }
@@ -227,7 +247,7 @@ struct InvoiceScannerView: View {
                 // Let's stick to what we found.
                 
                 if quantity > 0 {
-                     items.append(RestockItem(name: name, quantity: quantity, unitPrice: price))
+                     items.append(RestockItem(name: name, quantity: quantity, unitPrice: price, additionalCost: 0, suggestedPrice: price * 1.3))
                 }
             }
         }
@@ -241,8 +261,46 @@ struct InvoiceScannerView: View {
     
     private func addItemsToRestock() {
         for item in recognizedItems {
-            viewModel.addRestockItem(item.name, unitPrice: item.unitPrice, quantity: item.quantity)
+            viewModel.addRestockItem(item.name, unitPrice: item.unitPrice, quantity: item.quantity, additionalCost: item.additionalCost, suggestedPrice: item.suggestedPrice)
         }
         dismiss()
+    }
+}
+
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    var sourceType: UIImagePickerController.SourceType = .camera
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = sourceType
+        picker.delegate = context.coordinator
+        picker.allowsEditing = false
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let uiImage = info[.originalImage] as? UIImage {
+                parent.image = uiImage
+            }
+            picker.dismiss(animated: true)
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+        }
     }
 }

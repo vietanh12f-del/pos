@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Team Collaboration Chat</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#19e6c4",
+                        "background-light": "#f6f8f8",
+                        "background-dark": "#11211e",
+                    },
+                    fontFamily: {
+                        "display": ["Plus Jakarta Sans", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full max-w-[480px] mx-auto flex-col bg-white dark:bg-slate-900 overflow-x-hidden shadow-xl">
+<div class="sticky top-0 z-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+<div class="flex items-center p-4 pb-2 justify-between">
+<div class="text-slate-900 dark:text-white flex size-12 shrink-0 items-center">
+<span class="material-symbols-outlined text-2xl">arrow_back_ios</span>
+</div>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Team Chat</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex size-10 cursor-pointer items-center justify-center rounded-full bg-primary text-slate-900 shadow-md">
+<span class="material-symbols-outlined text-2xl">chat_add_on</span>
+</button>
+</div>
+</div>
+<div class="px-4">
+<div class="flex border-b border-slate-100 dark:border-slate-800 gap-8">
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-primary text-slate-900 dark:text-white pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">Active</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-slate-400 pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">Groups</p>
+</a>
+<a class="flex flex-col items-center justify-center border-b-[3px] border-b-transparent text-slate-400 pb-[13px] pt-4" href="#">
+<p class="text-sm font-bold leading-normal tracking-[0.015em]">Archived</p>
+</a>
+</div>
+</div>
+<div class="px-4 py-3">
+<label class="flex flex-col min-w-40 h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-xl h-full bg-slate-100 dark:bg-slate-800">
+<div class="text-slate-400 flex items-center justify-center pl-4 rounded-l-xl">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 border-none bg-transparent focus:outline-0 focus:ring-0 text-slate-900 dark:text-white placeholder:text-slate-400 px-4 pl-2 text-base font-normal leading-normal" placeholder="Search chats or members" value=""/>
+</div>
+</label>
+</div>
+</div>
+<div class="flex-1 flex flex-col pb-32">
+<div class="border-b border-slate-50 dark:border-slate-800">
+<div class="flex gap-4 bg-white dark:bg-slate-900 px-4 py-4 justify-between items-center">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14 ring-2 ring-primary/20" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCbnAtBrrbnUp_1TvmNqJbaEpJ9nO98GTssW_NN2B5nG-telxmWfpTXosjI1krRgYlmbQbzUQcg00s7yPSGzaeWPG10eAMqRtAiXBFqFG0pTrwokvu9GYY7nZLJm5eGFciuoXPxRBYTTenNh8aOLsw4Mct7j-Ojn1TY-bAolBoYSto9RgvtoL069flcuANkq-6sZGvRtIxSRqDp5FM_i-m41lBy-mevBsnk5iq3Ubv6BIqMeeVZRUISATRXuKWv8rNfznGoIsatDpE");'></div>
+<div class="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<p class="text-slate-900 dark:text-white text-base font-bold leading-tight">Jane Doe</p>
+<span class="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase">Admin</span>
+</div>
+<p class="text-slate-500 text-sm font-medium truncate mt-0.5 italic">"Order #2045 needs inventory check..."</p>
+</div>
+</div>
+<div class="shrink-0 flex gap-2">
+<button class="flex items-center justify-center rounded-lg h-9 px-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold gap-1.5">
+<span class="material-symbols-outlined text-base">assignment_ind</span>
+<span>Assign</span>
+</button>
+<button class="flex items-center justify-center rounded-lg h-9 w-9 bg-primary text-slate-900">
+<span class="material-symbols-outlined text-lg">reply</span>
+</button>
+</div>
+</div>
+<div class="px-4 pb-2">
+<p class="text-[10px] text-slate-400 font-medium text-right">2 mins ago</p>
+</div>
+</div>
+<div class="border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+<div class="flex gap-4 px-4 py-4 justify-between items-center">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14 ring-2 ring-primary/20" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuABZhWeBJDDxKprpqdSUX3VNd97v7vbp5pT7eI9Qt0BPg9naMX0l2_-_xUzj-WN7-TL_hvzI9Dnu3nKx9bzCszowOr-_sHq8M8I7qAXy-dna7wesrxN5kbyLRFN_U4DtzG7YY8IK82A0RS6W6Kjb4UBOp4tFzpbDYROuW1eqkBD33WfrXNTnPEQEjRpbOazhXATM4zE4iCofeG0Lry6hbNgZsNEn-JYYOlq2ha6mogR-a5bs9PR12f4aDkT4cbSH9BnY41k99sgdyU");'></div>
+<div class="absolute bottom-0 right-0 h-3.5 w-3.5 bg-slate-300 border-2 border-white dark:border-slate-900 rounded-full"></div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<p class="text-slate-900 dark:text-white text-base font-bold leading-tight">Marcus Thompson</p>
+<span class="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase">Staff</span>
+</div>
+<p class="text-slate-900 dark:text-white text-sm font-bold truncate mt-0.5">I've just finished the kitchen restock.</p>
+</div>
+</div>
+<div class="shrink-0 flex gap-2">
+<button class="flex items-center justify-center rounded-lg h-9 px-3 bg-primary text-slate-900 text-xs font-bold gap-1.5">
+<span class="material-symbols-outlined text-base">reply</span>
+<span>Reply</span>
+</button>
+</div>
+</div>
+<div class="px-4 pb-2">
+<p class="text-[10px] text-primary font-bold text-right">1 new message</p>
+</div>
+</div>
+<div class="border-b border-slate-50 dark:border-slate-800">
+<div class="flex gap-4 bg-white dark:bg-slate-900 px-4 py-4 justify-between items-center">
+<div class="flex items-center gap-4 flex-1">
+<div class="flex items-center justify-center bg-slate-100 dark:bg-slate-800 h-14 w-14 rounded-full ring-2 ring-primary/20">
+<span class="material-symbols-outlined text-slate-500">groups</span>
+</div>
+<div class="flex flex-col min-w-0">
+<p class="text-slate-900 dark:text-white text-base font-bold leading-tight">Night Shift Crew</p>
+<p class="text-slate-500 text-sm font-medium truncate mt-0.5">Sarah: Closing up in 10 minutes!</p>
+</div>
+</div>
+<div class="shrink-0">
+<button class="flex items-center justify-center rounded-lg h-9 px-3 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold gap-1.5">
+<span class="material-symbols-outlined text-base">open_in_new</span>
+<span>Open</span>
+</button>
+</div>
+</div>
+<div class="px-4 pb-2">
+<p class="text-[10px] text-slate-400 font-medium text-right">8:15 PM</p>
+</div>
+</div>
+<div class="border-b border-slate-50 dark:border-slate-800">
+<div class="flex gap-4 bg-white dark:bg-slate-900 px-4 py-4 justify-between items-center">
+<div class="flex items-center gap-4 flex-1">
+<div class="relative">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-14 w-14 ring-2 ring-slate-200" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBNcV6jc5BMD34oNbN3nDP5WX2Esm4iVg5fc1cEu_wLASQoTlpQIbk4T4BJT1QWv0BY3p0-rDp6afL2a9c0MfABqc72y6dYBP8z4cW-ojm_sC7UFdID-VH-GTn-O-3-IsXTtO_rpgNm23Xgpc6kZ2hX-KgrTHPDq7KpJ5ecrMaxxn9ddCggPMbQUt5cDY3hF6qpUwcRPyBdcggUrSYoBhbWTq6zaJYCRkBvxaNbI7IYvgbx0BCuaB-j7_TgSi-4GQEdWeW1PK1FMjw");'></div>
+<div class="absolute bottom-0 right-0 h-3.5 w-3.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
+</div>
+<div class="flex flex-col min-w-0">
+<p class="text-slate-900 dark:text-white text-base font-bold leading-tight">Sarah Wilson</p>
+<p class="text-slate-500 text-sm font-medium truncate mt-0.5">Waiting for the delivery truck.</p>
+</div>
+</div>
+<div class="shrink-0 flex gap-2">
+<button class="flex items-center justify-center rounded-lg h-9 w-9 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined text-lg">reply</span>
+</button>
+</div>
+</div>
+<div class="px-4 pb-2">
+<p class="text-[10px] text-slate-400 font-medium text-right">Yesterday</p>
+</div>
+</div>
+</div>
+<div class="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 w-full max-w-[480px] px-6">
+<button class="flex items-center justify-center h-14 w-full rounded-full bg-slate-900 dark:bg-primary text-white dark:text-slate-900 shadow-2xl gap-3 hover:scale-105 transition-transform active:scale-95">
+<span class="material-symbols-outlined font-bold">campaign</span>
+<span class="font-bold text-sm tracking-wide">Broadcast Message</span>
+</button>
+</div>
+<div class="fixed bottom-0 w-full max-w-[480px] h-20 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-around px-4 z-40">
+<div class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold mt-1">Home</span>
+</div>
+<div class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined">group</span>
+<span class="text-[10px] font-bold mt-1">Customers</span>
+</div>
+<div class="flex flex-col items-center text-primary">
+<span class="material-symbols-outlined fill-[1]">chat</span>
+<span class="text-[10px] font-bold mt-1">Chat</span>
+</div>
+<div class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="text-[10px] font-bold mt-1">Orders</span>
+</div>
+<div class="flex flex-col items-center text-slate-400">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold mt-1">Settings</span>
+</div>
+</div>
+</div>
+
+</body></html>
