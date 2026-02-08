@@ -14,6 +14,8 @@ struct InventoryView: View {
     @State private var editingProduct: Product?
     @State private var showRestockDetail = false
     @State private var selectedRestockBill: RestockBill?
+    @State private var showBarcodeScanner = false
+    @State private var productToPrint: Product?
     
     var filteredProducts: [Product] {
         if searchText.isEmpty {
@@ -21,7 +23,8 @@ struct InventoryView: View {
         } else {
             return viewModel.products.filter {
                 $0.name.lowercased().contains(searchText.lowercased()) ||
-                $0.category.lowercased().contains(searchText.lowercased())
+                $0.category.lowercased().contains(searchText.lowercased()) ||
+                ($0.barcode?.contains(searchText) ?? false)
             }
         }
     }
@@ -41,16 +44,6 @@ struct InventoryView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Custom Header
-                HStack {
-                    Text("Kho hàng hóa")
-                        .font(.headline)
-                        .foregroundStyle(Color.themeTextDark)
-                    Spacer()
-                }
-                .padding()
-                .background(Color.white)
-                
                 // Segmented Control
                 Picker("Chế độ", selection: $selectedTab) {
                     Text("Hàng hóa").tag(0)
@@ -58,7 +51,6 @@ struct InventoryView: View {
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
-                .background(Color.white)
                 
                 // Search Bar
                 HStack {
@@ -66,19 +58,24 @@ struct InventoryView: View {
                         .foregroundStyle(.gray)
                     TextField("Tìm kiếm...", text: $searchText)
                         .textFieldStyle(.plain)
+                    
                     if !searchText.isEmpty {
                         Button(action: { searchText = "" }) {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.gray)
                         }
                     }
+                    
+                    Button(action: { showBarcodeScanner = true }) {
+                        Image(systemName: "barcode.viewfinder")
+                            .foregroundStyle(.gray)
+                    }
                 }
                 .padding(10)
-                .background(Color.gray.opacity(0.1))
+                .background(Color.white)
                 .cornerRadius(10)
                 .padding(.horizontal)
                 .padding(.bottom, 10)
-                .background(Color.white)
                 
                 // Content
                 if selectedTab == 0 {
@@ -87,13 +84,13 @@ struct InventoryView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if filteredProducts.isEmpty {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 16) {
                             Image(systemName: "cube.box")
-                            .font(.system(size: 50))
-                            .foregroundStyle(.gray)
+                                .font(.system(size: 60))
+                                .foregroundStyle(Color.gray.opacity(0.3))
                             Text("Chưa có hàng hóa")
-                                .font(.subheadline)
-                                .foregroundStyle(.gray)
+                                .font(.headline)
+                                .foregroundStyle(Color.gray)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
@@ -101,31 +98,32 @@ struct InventoryView: View {
                             // Header Row
                             HStack {
                                 Text("Sản phẩm")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.gray)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 
                                 Text("Giá bán")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.gray)
                                     .frame(width: 80, alignment: .trailing)
                                 
                                 Text("Giá vốn")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.gray)
                                     .frame(width: 80, alignment: .trailing)
                                 
                                 Text("Kho")
-                                    .font(.caption)
+                                    .font(.subheadline)
                                     .fontWeight(.bold)
                                     .foregroundStyle(.gray)
                                     .frame(width: 50, alignment: .trailing)
                             }
                             .listRowBackground(Color.clear)
                             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                            .padding(.top, 8)
                             
                             ForEach(filteredProducts) { product in
                                 Button(action: {
@@ -138,13 +136,32 @@ struct InventoryView: View {
                                             Image(uiImage: uiImage)
                                                 .resizable()
                                                 .scaledToFill()
-                                                .frame(width: 40, height: 40)
+                                                .frame(width: 44, height: 44)
                                                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        } else if let imageURL = product.imageURL, let url = URL(string: imageURL) {
+                                            AsyncImage(url: url) { phase in
+                                                if let image = phase.image {
+                                                    image
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(width: 44, height: 44)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                } else if phase.error != nil {
+                                                    Image(systemName: "photo.badge.exclamationmark")
+                                                        .resizable()
+                                                        .scaledToFit()
+                                                        .frame(width: 44, height: 44)
+                                                        .foregroundColor(.gray)
+                                                } else {
+                                                    ProgressView()
+                                                        .frame(width: 44, height: 44)
+                                                }
+                                            }
                                         } else {
                                             Image(systemName: product.imageName)
                                                 .font(.title2)
                                                 .foregroundStyle(Color.themePrimary)
-                                                .frame(width: 40, height: 40)
+                                                .frame(width: 44, height: 44)
                                                 .background(Color.themePrimary.opacity(0.1))
                                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                         }
@@ -155,17 +172,17 @@ struct InventoryView: View {
                                                 .font(.subheadline)
                                                 .fontWeight(.medium)
                                                 .foregroundStyle(Color.themeTextDark)
-                                                .lineLimit(1)
+                                                .lineLimit(2)
                                             
                                             Text(product.category)
-                                                .font(.caption2)
+                                                .font(.caption)
                                                 .foregroundStyle(.gray)
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         
                                         // Selling Price
                                         Text(formatCurrency(product.price))
-                                            .font(.caption)
+                                            .font(.subheadline)
                                             .fontWeight(.medium)
                                             .foregroundStyle(Color.themeTextDark)
                                             .frame(width: 80, alignment: .trailing)
@@ -178,13 +195,14 @@ struct InventoryView: View {
                                         
                                         // Stock
                                         Text("\(product.stockQuantity)")
-                                            .font(.caption)
+                                            .font(.headline)
                                             .fontWeight(.bold)
                                             .foregroundStyle(product.stockQuantity > 0 ? Color.themePrimary : Color.red)
                                             .frame(width: 50, alignment: .trailing)
                                     }
-                                    .padding(.vertical, 4)
+                                    .padding(.vertical, 8)
                                 }
+                                .listRowBackground(Color.white)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) {
                                         productToDelete = product
@@ -192,21 +210,32 @@ struct InventoryView: View {
                                     } label: {
                                         Label("Xóa", systemImage: "trash")
                                     }
+                                    
+                                    Button {
+                                        productToPrint = product
+                                    } label: {
+                                        Label("In Mã", systemImage: "printer")
+                                    }
+                                    .tint(.blue)
                                 }
                             }
                         }
-                        .listStyle(.plain)
+                        .listStyle(.insetGrouped)
+                        .scrollContentBackground(.hidden)
+                        .refreshable {
+                            await viewModel.loadData(force: true)
+                        }
                     }
                 } else {
                     // Restock History List
                     if viewModel.restockHistory.isEmpty {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 16) {
                             Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 50))
-                            .foregroundStyle(.gray)
+                                .font(.system(size: 60))
+                                .foregroundStyle(Color.gray.opacity(0.3))
                             Text("Chưa có lịch sử nhập hàng")
-                                .font(.subheadline)
-                                .foregroundStyle(.gray)
+                                .font(.headline)
+                                .foregroundStyle(Color.gray)
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
@@ -232,9 +261,9 @@ struct InventoryView: View {
                                         
                                         VStack(alignment: .trailing, spacing: 4) {
                                             Text(formatCurrency(bill.totalCost))
-                                                .font(.subheadline)
+                                                .font(.headline)
                                                 .fontWeight(.bold)
-                                                .foregroundStyle(.red) // Cost is negative/red usually, but here just color it distinct
+                                                .foregroundStyle(.red)
                                             
                                             Text("\(bill.items.count) mặt hàng")
                                                 .font(.caption)
@@ -245,16 +274,27 @@ struct InventoryView: View {
                                             .font(.caption)
                                             .foregroundStyle(.gray)
                                     }
-                                    .padding(.vertical, 4)
+                                    .padding(.vertical, 8)
                                 }
+                                .listRowBackground(Color.white)
                             }
                         }
-                        .listStyle(.plain)
+                        .listStyle(.insetGrouped)
+                        .scrollContentBackground(.hidden)
+                        .refreshable {
+                            await viewModel.loadData()
+                        }
                     }
                 }
             }
             .background(Color.themeBackgroundLight)
-            .toolbar(.hidden, for: .navigationBar) // Hide system nav bar
+            .navigationTitle("Kho hàng hóa")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    // Removed redundant Plus button as per user request
+                    EmptyView()
+                }
+            }
             .alert("Xác nhận xóa", isPresented: $showDeleteConfirmation, presenting: productToDelete) { product in
                 Button("Xóa", role: .destructive) {
                     if let index = viewModel.products.firstIndex(where: { $0.id == product.id }) {
@@ -273,28 +313,20 @@ struct InventoryView: View {
                 ProductEditView(viewModel: viewModel, mode: .add)
             }
             .sheet(item: $selectedRestockBill) { bill in
-                // Restock Detail View
-                VStack {
-                    Text("Chi tiết phiếu nhập")
-                        .font(.headline)
-                        .padding()
-                    List {
-                        ForEach(bill.items) { item in
-                            HStack {
-                                Text(item.name)
-                                Spacer()
-                                Text("\(item.quantity) x \(formatCurrency(item.unitPrice))")
-                            }
-                        }
-                        HStack {
-                            Text("Tổng cộng")
-                                .fontWeight(.bold)
-                            Spacer()
-                            Text(formatCurrency(bill.totalCost))
-                                .fontWeight(.bold)
-                        }
-                    }
-                }
+                RestockDetailView(
+                    bill: bill,
+                    viewModel: viewModel,
+                    showNewRestock: $showNewRestock
+                )
+            }
+            .sheet(isPresented: $showBarcodeScanner) {
+                BarcodeScannerView(onScan: { code in
+                    searchText = code
+                    showBarcodeScanner = false // Dismiss automatically
+                })
+            }
+            .sheet(item: $productToPrint) { product in
+                BarcodePrintView(product: product)
             }
         }
     }

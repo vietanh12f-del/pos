@@ -8,7 +8,7 @@ struct ChatView: View {
     @Binding var isTabBarVisible: Bool
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack(alignment: .bottom) {
                 Color.themeBackgroundLight.ignoresSafeArea()
                 
@@ -21,6 +21,12 @@ struct ChatView: View {
                             .foregroundStyle(Color.themeTextDark)
                         
                         Spacer()
+                        
+                        Button(action: { showNewChatSheet = true }) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.title2)
+                                .foregroundStyle(Color.themePrimary)
+                        }
                     }
                     .padding(.horizontal)
                     .padding(.bottom)
@@ -55,9 +61,9 @@ struct ChatView: View {
                     }
                 }
             }
+            .navigationTitle("Tin nhắn")
             .navigationBarBackButtonHidden(true)
-        .navigationBarBackButtonHidden(true)
-        .navigationBarHidden(true)
+            .navigationBarHidden(true)
             .sheet(isPresented: $showNewChatSheet) {
                 NewChatView(viewModel: viewModel, orderViewModel: orderViewModel, isPresented: $showNewChatSheet)
             }
@@ -266,6 +272,7 @@ struct ChatDetailView: View {
             // Input Area
             inputArea
         }
+        .navigationTitle(employee.name)
         .navigationBarBackButtonHidden(true)
         .navigationBarHidden(true)
         .background(Color.themeBackgroundLight.ignoresSafeArea())

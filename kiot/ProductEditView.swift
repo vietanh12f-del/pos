@@ -17,13 +17,17 @@ struct ProductEditView: View {
     @State private var importPrice: String = ""
     @State private var additionalCost: String = ""
     @State private var quantity: String = "0"
+    @State private var barcode: String = ""
     @State private var selectedCategory: Category = .others
     @State private var selectedColor: String = "gray"
     @State private var selectedIcon: String = "shippingbox.fill"
     @State private var selectedImageData: Data?
+    @State private var selectedImageURL: String?
     @State private var showCamera = false
+    @State private var showBarcodeScanner = false
     @State private var capturedImage: UIImage?
     @State private var showDeleteConfirmation = false
+    @State private var showPrintBarcode = false
     
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
     let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
@@ -39,6 +43,7 @@ struct ProductEditView: View {
             _importPrice = State(initialValue: "")
             _additionalCost = State(initialValue: "")
             _quantity = State(initialValue: "0")
+            _barcode = State(initialValue: "")
             _selectedCategory = State(initialValue: .others)
             _selectedColor = State(initialValue: "gray")
             _selectedIcon = State(initialValue: "shippingbox.fill")
@@ -48,10 +53,12 @@ struct ProductEditView: View {
             _importPrice = State(initialValue: String(Int(product.costPrice)))
             _additionalCost = State(initialValue: "0")
             _quantity = State(initialValue: String(viewModel.stockLevel(for: product.name)))
+            _barcode = State(initialValue: product.barcode ?? "")
             _selectedCategory = State(initialValue: Category(rawValue: product.category) ?? .others)
             _selectedColor = State(initialValue: product.color)
             _selectedIcon = State(initialValue: product.imageName)
             _selectedImageData = State(initialValue: product.imageData)
+            _selectedImageURL = State(initialValue: product.imageURL)
             if let data = product.imageData, let uiImage = UIImage(data: data) {
                 _capturedImage = State(initialValue: uiImage)
             }
@@ -86,24 +93,53 @@ struct ProductEditView: View {
             
             Form {
                 Section(header: Text("Chi tiết")) {
-                    TextField("Tên hàng", text: $name)
-                    
-                    if case .add = mode {
-                        TextField("Đơn giá nhập", text: $importPrice)
-                            .keyboardType(.decimalPad)
-                        TextField("Chi phí phát sinh", text: $additionalCost)
-                            .keyboardType(.decimalPad)
-                    } else {
-                        TextField("Đơn giá nhập", text: $importPrice)
-                            .keyboardType(.decimalPad)
-                        TextField("Chi phí phát sinh", text: $additionalCost)
-                            .keyboardType(.decimalPad)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Tên hàng")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        TextField("Nhập tên hàng", text: $name)
                     }
                     
-                    TextField("Giá bán dự kiến", text: $price)
-                        .keyboardType(.decimalPad)
-                    TextField("Tồn kho", text: $quantity)
-                        .keyboardType(.numberPad)
+                    if case .add = mode {
+                        CurrencyTextField(title: "Giá vốn", text: $importPrice)
+                        CurrencyTextField(title: "Chi phí phát sinh", text: $additionalCost)
+                    } else {
+                        CurrencyTextField(title: "Giá vốn", text: $importPrice)
+                    }
+                    
+                    CurrencyTextField(title: "Giá bán dự kiến", text: $price)
+                    CurrencyTextField(title: "Tồn kho", text: $quantity)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Mã vạch")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        TextField("Nhập hoặc quét mã", text: $barcode)
+                            .overlay(
+                                HStack {
+                                    Spacer()
+                                    Button(action: { showBarcodeScanner = true }) {
+                                        Image(systemName: "barcode.viewfinder")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                            )
+                    }
+                    
+                    if barcode.isEmpty {
+                        Button("Tạo mã vạch tự động") {
+                            barcode = BarcodeGenerator.shared.generateRandomBarcode()
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    } else {
+                        Button {
+                            showPrintBarcode = true
+                        } label: {
+                            Label("In mã vạch", systemImage: "printer")
+                                .font(.caption)
+                        }
+                    }
                 }
                 
                 Section(header: Text("Danh mục")) {
@@ -171,6 +207,47 @@ struct ProductEditView: View {
                                  Spacer()
                              }
                              .padding(.bottom, 8)
+                        } else if let imageURL = selectedImageURL, let url = URL(string: imageURL) {
+                            HStack {
+                                Spacer()
+                                ZStack(alignment: .topTrailing) {
+                                    AsyncImage(url: url) { phase in
+                                        if let image = phase.image {
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 100, height: 100)
+                                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .stroke(Color.themePrimary, lineWidth: 3)
+                                                )
+                                        } else if phase.error != nil {
+                                            Image(systemName: "photo.badge.exclamationmark")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 100, height: 100)
+                                                .foregroundColor(.gray)
+                                        } else {
+                                            ProgressView()
+                                                .frame(width: 100, height: 100)
+                                        }
+                                    }
+                                    
+                                    Button(action: {
+                                        self.selectedImageURL = nil
+                                        // Note: Clearing URL doesn't delete from server, but will unlink from product on save if supported
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.title2)
+                                            .foregroundStyle(.red)
+                                            .background(Color.white.clipShape(Circle()))
+                                    }
+                                    .offset(x: 10, y: -10)
+                                }
+                                Spacer()
+                            }
+                            .padding(.bottom, 8)
                         }
                         
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 45))], spacing: 12) {
@@ -189,21 +266,22 @@ struct ProductEditView: View {
                             ForEach(icons, id: \.self) { icon in
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 8)
-                                        .fill(selectedIcon == icon && selectedImageData == nil ? Color.themePrimary.opacity(0.2) : Color.gray.opacity(0.1))
+                                        .fill(selectedIcon == icon && selectedImageData == nil && selectedImageURL == nil ? Color.themePrimary.opacity(0.2) : Color.gray.opacity(0.1))
                                         .frame(width: 45, height: 45)
                                     
                                     Image(systemName: icon)
                                         .font(.system(size: 24))
-                                        .foregroundStyle(selectedIcon == icon && selectedImageData == nil ? Color.themePrimary : Color.gray)
+                                        .foregroundStyle(selectedIcon == icon && selectedImageData == nil && selectedImageURL == nil ? Color.themePrimary : Color.gray)
                                 }
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.themePrimary, lineWidth: selectedIcon == icon && selectedImageData == nil ? 2 : 0)
+                                        .stroke(Color.themePrimary, lineWidth: selectedIcon == icon && selectedImageData == nil && selectedImageURL == nil ? 2 : 0)
                                 )
                                 .onTapGesture {
                                     selectedIcon = icon
                                     capturedImage = nil
                                     selectedImageData = nil
+                                    selectedImageURL = nil
                                 }
                             }
                         }
@@ -244,6 +322,27 @@ struct ProductEditView: View {
                      selectedImageData = newImage.jpegData(compressionQuality: 0.8)
                 }
             }
+            .sheet(isPresented: $showBarcodeScanner) {
+                BarcodeScannerView(onScan: { code in
+                    barcode = code
+                    showBarcodeScanner = false
+                })
+            }
+            .sheet(isPresented: $showPrintBarcode) {
+                let tempProduct = Product(
+                    id: { if case .edit(let p) = mode { return p.id } else { return UUID() } }(),
+                    name: name,
+                    price: Double(price) ?? 0,
+                    costPrice: Double(importPrice) ?? 0,
+                    category: selectedCategory.rawValue,
+                    imageName: selectedIcon,
+                    color: selectedColor,
+                    imageData: selectedImageData,
+                    stockQuantity: Int(quantity) ?? 0,
+                    barcode: barcode
+                )
+                BarcodePrintView(product: tempProduct)
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -268,9 +367,9 @@ struct ProductEditView: View {
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
+            viewModel.createProduct(name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode)
         case .edit(let product):
-            viewModel.updateProduct(product, name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData)
+            viewModel.updateProduct(product, name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL)
         }
         dismiss()
     }

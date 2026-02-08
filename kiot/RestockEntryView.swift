@@ -5,156 +5,313 @@ struct RestockEntryView: View {
     @Environment(\.dismiss) var dismiss
     @State private var showManualInput = false
     @State private var showScanner = false
+    @State private var showBarcodeScanner = false
+    @State private var scannedProduct: Product?
+    @State private var showNotFoundAlert = false
     @State private var editingItem: RestockItem?
     
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                VStack(spacing: 0) {
-                    // List of Items
-                    List {
-                        if viewModel.restockItems.isEmpty {
-                            Text("Nhấn mic để nói hoặc thêm thủ công.")
-                                .foregroundStyle(.gray)
-                                .listRowBackground(Color.clear)
-                        } else {
-                            ForEach(viewModel.restockItems) { item in
-                                HStack {
-                                    // Check/Verify Button
-                                    Button(action: {
-                                        viewModel.toggleRestockItemConfirmation(item)
-                                    }) {
-                                        Image(systemName: item.isConfirmed ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(item.isConfirmed ? .green : .gray)
-                                            .font(.title2)
-                                    }
-                                    .buttonStyle(.plain)
-                                    
-                                    VStack(alignment: .leading) {
-                                        Text(item.name)
-                                            .font(.headline)
-                                            .foregroundStyle(Color.themeTextDark)
-                                        Text("\(item.quantity) x \(formatCurrency(item.unitPrice))")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Text(formatCurrency(item.totalCost))
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(Color.themeTextDark)
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    editingItem = item
-                                }
-                            }
-                            .onDelete(perform: viewModel.removeRestockItem)
-                        }
+        ZStack(alignment: .bottom) {
+            // Background
+            Color.themeBackgroundLight.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("Nhập hàng")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                    Spacer()
+                    Button(action: { 
+                        viewModel.cancelVoiceProcessing()
+                        dismiss() 
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title)
+                            .foregroundStyle(Color.gray.opacity(0.5))
                     }
-                    .listStyle(.insetGrouped)
-                    
-                    // Total & Action
-                    VStack(spacing: 16) {
-                        HStack {
-                            Text("Tổng chi phí")
-                                .font(.headline)
-                                .foregroundStyle(.gray)
-                            Spacer()
-                            Text(formatCurrency(viewModel.restockItems.reduce(0) { $0 + $1.totalCost }))
-                                .font(.title)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.themeTextDark)
+                }
+                .padding()
+                .padding(.top, 10)
+                .background(Color.white)
+                
+                // Content
+                if viewModel.restockItems.isEmpty {
+                    VStack(spacing: 20) {
+                        Spacer()
+                        Image(systemName: "cart.badge.plus")
+                            .font(.system(size: 80))
+                            .foregroundStyle(Color.gray.opacity(0.3))
+                        Text("Chưa có hàng hóa nào")
+                            .font(.title3)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.gray)
+                        Text("Nhấn vào mic để nói hoặc dùng các công cụ bên dưới")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.gray.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        Spacer()
+                        Spacer() // Push up a bit
+                    }
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(viewModel.restockItems) { item in
+                                RestockItemCard(item: item, viewModel: viewModel)
+                                    .onTapGesture {
+                                        editingItem = item
+                                    }
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            viewModel.removeRestockItem(at: IndexSet(integer: viewModel.restockItems.firstIndex(where: {$0.id == item.id}) ?? 0))
+                                        } label: {
+                                            Label("Xóa", systemImage: "trash")
+                                        }
+                                    }
+                            }
                         }
-                        .padding(.horizontal)
+                        .padding()
+                        .padding(.bottom, 160) // Space for bottom panel + FABs
+                    }
+                }
+            }
+            
+            // Floating Controls & Bottom Panel
+            VStack(spacing: 0) {
+                Spacer()
+                
+                // Floating Action Buttons (FABs)
+                HStack {
+                    Spacer()
+                    VStack(spacing: 16) {
+                        // Barcode Scanner FAB
+                        Button(action: { showBarcodeScanner = true }) {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 50, height: 50)
+                                .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+                                .overlay(
+                                    Image(systemName: "barcode.viewfinder")
+                                        .font(.title2)
+                                        .foregroundStyle(Color.themePrimary)
+                                )
+                        }
+                        .transition(.scale.combined(with: .opacity))
+
+                        // Scanner FAB
+                        Button(action: { showScanner = true }) {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 50, height: 50)
+                                .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+                                .overlay(
+                                    Image(systemName: "doc.text.viewfinder")
+                                        .font(.title2)
+                                        .foregroundStyle(Color.themePrimary)
+                                )
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                        
+                        // Manual Input FAB
+                        Button(action: { showManualInput = true }) {
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 50, height: 50)
+                                .shadow(color: .black.opacity(0.15), radius: 5, x: 0, y: 2)
+                                .overlay(
+                                    Image(systemName: "keyboard")
+                                        .font(.title2)
+                                        .foregroundStyle(Color.themePrimary)
+                                )
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                        
+                        // Main Mic FAB (Matching SmartOrderEntryView)
+                        VoiceAIButton(viewModel: viewModel, size: 64)
+                    }
+                    .padding(.trailing, 24)
+                    .padding(.bottom, 20)
+                }
+                
+                // Bottom Panel (Total & Complete)
+                VStack(spacing: 16) {
+                    // Total Info
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text("Tổng chi phí")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Text(formatCurrency(viewModel.restockItems.reduce(0) { $0 + $1.totalCost }))
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                        
+                        Spacer()
                         
                         Button(action: {
                             viewModel.completeRestockSession()
                             dismiss()
                         }) {
-                            Text("Hoàn tất nhập hàng")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.themePrimary)
-                                .cornerRadius(16)
+                            HStack {
+                                Text("Hoàn tất")
+                                Image(systemName: "checkmark")
+                            }
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 14)
+                            .background(
+                                Capsule()
+                                    .fill(viewModel.restockItems.isEmpty ? Color.gray : Color.themePrimary)
+                            )
                         }
                         .disabled(viewModel.restockItems.isEmpty)
-                        .padding(.horizontal)
-                        .padding(.bottom)
                     }
-                    .background(Color.white)
-                    .shadow(radius: 5)
                 }
-                
-                // Mic & Manual Input Controls
-                VStack {
-                    Spacer()
-                    
-                    // Mic & Manual Input Controls
-                    HStack {
-                        // Manual Input Button
-                        Button(action: { showManualInput = true }) {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 50, height: 50)
-                                .shadow(radius: 3)
-                                .overlay(Image(systemName: "keyboard").foregroundStyle(Color.themeTextDark))
-                        }
-                        
-                        Spacer()
-                        
-                        // Mic Button
-                        VoiceAIButton(viewModel: viewModel, size: 70)
-                        
-                        Spacer()
-                        
-                        // Scanner Button
-                        Button(action: { showScanner = true }) {
-                            Circle()
-                                .fill(Color.white)
-                                .frame(width: 50, height: 50)
-                                .shadow(radius: 3)
-                                .overlay(Image(systemName: "doc.text.viewfinder").foregroundStyle(Color.themeTextDark))
+                .padding(24)
+                .background(
+                    Color.white
+                        .cornerRadius(24, corners: [.topLeft, .topRight])
+                        .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
+                )
+            }
+            
+            // Voice Overlay
+            VoiceOverlayView(viewModel: viewModel)
+        }
+        .navigationBarHidden(true)
+        .onAppear { viewModel.isRestockMode = true }
+        .onDisappear { 
+            viewModel.isRestockMode = false 
+            viewModel.cancelVoiceProcessing()
+        }
+        .sheet(isPresented: $showManualInput) { ManualRestockItemView(viewModel: viewModel) }
+        .sheet(isPresented: $showScanner) { InvoiceScannerView(viewModel: viewModel) }
+        .sheet(isPresented: $showBarcodeScanner) {
+            BarcodeScannerView(onScan: { code in
+                showBarcodeScanner = false
+                if let product = viewModel.products.first(where: { $0.barcode == code }) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        scannedProduct = product
+                    }
+                } else {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        showNotFoundAlert = true
+                    }
+                }
+            })
+        }
+        .alert("Không tìm thấy sản phẩm", isPresented: $showNotFoundAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Không tìm thấy sản phẩm nào khớp với mã vạch này trong hệ thống.")
+        }
+        .sheet(item: $scannedProduct) { product in
+            ManualRestockItemView(viewModel: viewModel, prefilledProduct: product)
+        }
+        .sheet(item: $editingItem) { item in ManualRestockItemView(viewModel: viewModel, itemToEdit: item) }
+    }
+}
+
+// Helper View for Item Card
+struct RestockItemCard: View {
+    let item: RestockItem
+    @ObservedObject var viewModel: OrderViewModel
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Icon/Image Placeholder
+            ZStack {
+                if let product = viewModel.products.first(where: { $0.name.lowercased() == item.name.lowercased() }),
+                   let imageURL = product.imageURL, let url = URL(string: imageURL) {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } else if phase.error != nil {
+                            ZStack {
+                                Color.themePrimary.opacity(0.1)
+                                Text(String(item.name.prefix(1)).uppercased())
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themePrimary)
+                            }
+                        } else {
+                            ProgressView()
                         }
                     }
-                    .padding(.bottom, 140) // Adjust based on Total section height
-                    .padding(.horizontal, 40)
+                } else if let product = viewModel.products.first(where: { $0.name.lowercased() == item.name.lowercased() }),
+                          let imageData = product.imageData, let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.themePrimary.opacity(0.1))
+                        
+                        Text(String(item.name.prefix(1)).uppercased())
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                    }
                 }
+            }
+            .frame(width: 50, height: 50)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.headline)
+                    .foregroundStyle(Color.themeTextDark)
+                    .lineLimit(1)
                 
-                // Voice Overlay
-                VoiceOverlayView(viewModel: viewModel)
-            }
-            .navigationTitle("Nhập hàng")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Hủy") { dismiss() }
+                HStack(spacing: 8) {
+                    Label("\(item.quantity)", systemImage: "number")
+                    Label(formatCurrency(item.unitPrice), systemImage: "tag")
                 }
+                .font(.caption)
+                .foregroundStyle(.gray)
             }
-            .onAppear {
-                viewModel.isRestockMode = true
-            }
-            .onDisappear {
-                viewModel.isRestockMode = false
-            }
-            .sheet(isPresented: $showManualInput) {
-                ManualRestockItemView(viewModel: viewModel)
-            }
-            .sheet(isPresented: $showScanner) {
-                InvoiceScannerView(viewModel: viewModel)
-            }
-            .sheet(item: $editingItem) { item in
-                ManualRestockItemView(viewModel: viewModel, itemToEdit: item)
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(formatCurrency(item.totalCost))
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themeTextDark)
+                
+                Button(action: {
+                    withAnimation {
+                        viewModel.toggleRestockItemConfirmation(item)
+                    }
+                }) {
+                    Image(systemName: item.isConfirmed ? "checkmark.circle.fill" : "circle")
+                        .font(.title2)
+                        .foregroundStyle(item.isConfirmed ? .green : .gray.opacity(0.3))
+                }
             }
         }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(item.isConfirmed ? Color.green.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
     }
 }
 
 struct ManualRestockItemView: View {
     @ObservedObject var viewModel: OrderViewModel
     var itemToEdit: RestockItem? = nil
+    var prefilledProduct: Product? = nil
     @Environment(\.dismiss) var dismiss
     
     @State private var name = ""
@@ -173,30 +330,15 @@ struct ManualRestockItemView: View {
                             .font(.caption)
                             .foregroundStyle(.gray)
                     }
-                    TextField("Số lượng", text: $quantity)
-                        .keyboardType(.numberPad)
+                    
+                    CurrencyTextField(title: "Số lượng", text: $quantity)
                         .onChange(of: quantity) { _ in updateSellingPrice() }
                     
-                    TextField("Đơn giá nhập", text: $price)
-                        .keyboardType(.decimalPad)
-                        .onChange(of: price) { newValue in
-                            // Filter non-numeric characters first (allow comma and dot)
-                            let filtered = newValue.filter { "0123456789,.".contains($0) }
-                            if filtered != newValue {
-                                price = filtered
-                            }
-                            updateSellingPrice()
-                        }
+                    CurrencyTextField(title: "Đơn giá nhập", text: $price)
+                        .onChange(of: price) { _ in updateSellingPrice() }
                     
-                    TextField("Chi phí phát sinh (Ship, bao bì...)", text: $incurredCost)
-                        .keyboardType(.decimalPad)
-                        .onChange(of: incurredCost) { newValue in
-                            let filtered = newValue.filter { "0123456789,.".contains($0) }
-                            if filtered != newValue {
-                                incurredCost = filtered
-                            }
-                            updateSellingPrice()
-                        }
+                    CurrencyTextField(title: "Chi phí phát sinh (Ship, bao bì...)", text: $incurredCost)
+                        .onChange(of: incurredCost) { _ in updateSellingPrice() }
                     
                     if let p = parseDouble(price), let q = Int(quantity), q > 0 {
                         let extra = parseDouble(incurredCost) ?? 0
@@ -224,8 +366,7 @@ struct ManualRestockItemView: View {
                         .foregroundStyle(.secondary)
                     }
                     
-                    TextField("Giá bán dự kiến (Lãi 30%)", text: $sellingPrice)
-                        .keyboardType(.decimalPad)
+                    CurrencyTextField(title: "Giá bán dự kiến (Lãi 30%)", text: $sellingPrice)
                 }
             }
             .navigationTitle(itemToEdit == nil ? "Thêm hàng nhập" : "Sửa hàng nhập")
@@ -267,6 +408,15 @@ struct ManualRestockItemView: View {
                 if let s = item.suggestedPrice {
                     sellingPrice = String(format: "%.0f", s)
                 }
+            } else if let product = prefilledProduct {
+                name = product.name
+                // Use last known cost price as default import price
+                // If costPrice is 0, use 70% of selling price as a heuristic guess
+                let defaultCost = product.costPrice > 0 ? product.costPrice : product.price * 0.7
+                price = String(format: "%.0f", defaultCost)
+                
+                // Also suggest selling price based on current price
+                sellingPrice = String(format: "%.0f", product.price)
             }
         }
     }

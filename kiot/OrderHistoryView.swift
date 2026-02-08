@@ -17,7 +17,7 @@ struct OrderHistoryView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Color.themeBackgroundLight.ignoresSafeArea()
                 
@@ -60,14 +60,33 @@ struct OrderHistoryView: View {
                                                         .fontWeight(.medium)
                                                         .foregroundStyle(Color.themeTextDark)
                                                         .lineLimit(1)
+                                                    
+                                                    if let creator = bill.creatorName {
+                                                        Text("Người tạo: \(creator)")
+                                                            .font(.caption2)
+                                                            .foregroundStyle(Color.gray)
+                                                    }
                                                 }
                                                 
                                                 Spacer()
                                                 
-                                                Text(formatCurrency(bill.total))
-                                                    .font(.headline)
-                                                    .fontWeight(.bold)
-                                                    .foregroundStyle(Color.themePrimary)
+                                                VStack(alignment: .trailing, spacing: 4) {
+                                                    Text(formatCurrency(bill.total))
+                                                        .font(.headline)
+                                                        .fontWeight(.bold)
+                                                        .foregroundStyle(bill.isPaid ? Color.themePrimary : Color.red)
+                                                    
+                                                    if !bill.isPaid {
+                                                        Text("Chưa nhận tiền")
+                                                            .font(.caption2)
+                                                            .fontWeight(.bold)
+                                                            .foregroundStyle(Color.red)
+                                                            .padding(.horizontal, 6)
+                                                            .padding(.vertical, 2)
+                                                            .background(Color.red.opacity(0.1))
+                                                            .cornerRadius(4)
+                                                    }
+                                                }
                                             }
                                             .padding(.vertical, 8)
                                         }
@@ -96,6 +115,7 @@ struct OrderHistoryView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .refreshable { await viewModel.loadData(force: true) }
                     .scrollContentBackground(.hidden) // Hide default list background
                     .background(Color.themeBackgroundLight) // Use light theme background
                 }

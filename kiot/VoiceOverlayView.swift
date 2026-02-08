@@ -2,10 +2,7 @@ import SwiftUI
 
 struct VoiceOverlayView: View {
     @ObservedObject var viewModel: OrderViewModel
-    @State private var scale: CGFloat = 1.0
-    @State private var opacity: Double = 0.5
-    @State private var orbColor1: Color = .blue
-    @State private var orbColor2: Color = .purple
+    var bottomPadding: CGFloat = 80
     
     var body: some View {
         if viewModel.speechRecognizer.isRecording || viewModel.isProcessingVoice {
@@ -14,7 +11,11 @@ struct VoiceOverlayView: View {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
                     .onTapGesture {
-                        viewModel.toggleRecording()
+                        if viewModel.isProcessingVoice {
+                            viewModel.cancelVoiceProcessing()
+                        } else {
+                            viewModel.toggleRecording()
+                        }
                     }
                 
                 VStack(spacing: 30) {
@@ -41,61 +42,38 @@ struct VoiceOverlayView: View {
                             .padding(.bottom, 10)
                     }
                     
-                    // Beautiful Bubble / Orb Animation
-                    ZStack {
-                        // Outer Glow
-                        Circle()
-                            .fill(
-                                RadialGradient(colors: [orbColor1.opacity(0.6), orbColor2.opacity(0.0)], center: .center, startRadius: 0, endRadius: 80)
-                            )
-                            .frame(width: 160, height: 160)
-                            .scaleEffect(scale)
-                            .opacity(opacity)
-                            .blur(radius: 10)
-                        
-                        // Core Orb
-                        Circle()
-                            .fill(
-                                LinearGradient(colors: [orbColor1, orbColor2], startPoint: .topLeading, endPoint: .bottomTrailing)
-                            )
-                            .frame(width: 80, height: 80)
-                            .shadow(color: orbColor1.opacity(0.5), radius: 20, x: 0, y: 0)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 2)
-                            )
-                    }
-                    .padding(.bottom, 80)
-                    .onAppear {
-                        startAnimation()
-                    }
-                    .onChange(of: viewModel.isProcessingVoice) { isProcessing in
-                        if isProcessing {
-                            withAnimation(.easeInOut(duration: 1.0).repeatForever()) {
-                                orbColor1 = .orange
-                                orbColor2 = .pink
-                                scale = 1.3
-                            }
+                    // Simple Stop Button
+                    Button(action: {
+                        if viewModel.isProcessingVoice {
+                            viewModel.cancelVoiceProcessing()
                         } else {
-                            withAnimation(.easeInOut(duration: 2.0).repeatForever()) {
-                                orbColor1 = .blue
-                                orbColor2 = .purple
-                                scale = 1.1
+                            viewModel.toggleRecording()
+                        }
+                    }) {
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 80, height: 80)
+                                    .shadow(radius: 10)
+                                
+                                Image(systemName: viewModel.isProcessingVoice ? "xmark" : "stop.fill")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(.red)
                             }
+                            
+                            Text(viewModel.isProcessingVoice ? "Hủy" : "Dừng ghi âm")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
                         }
                     }
+                    .padding(.bottom, bottomPadding)
                 }
             }
             .transition(.opacity)
             .animation(.easeInOut, value: viewModel.speechRecognizer.isRecording)
             .animation(.easeInOut, value: viewModel.isProcessingVoice)
-        }
-    }
-    
-    private func startAnimation() {
-        withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-            scale = 1.2
-            opacity = 0.8
         }
     }
 }

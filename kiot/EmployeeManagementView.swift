@@ -46,6 +46,13 @@ struct EmployeeManagementView: View {
             }
         }
         .navigationTitle("Quản lý nhân viên")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { showAddEmployee = true }) {
+                    Image(systemName: "plus")
+                }
+            }
+        }
         .sheet(isPresented: $showAddEmployee) {
             AddEmployeeView(isPresented: $showAddEmployee, onAddSuccess: {
                 await loadEmployees()
@@ -122,7 +129,7 @@ struct AddEmployeeView: View {
                 .foregroundStyle(newEmployeeEmail.isEmpty ? Color.gray : Color.themePrimary)
             }
             .padding()
-            .background(Color.white)
+            .background(Color.themeBackgroundLight)
             
             Form {
                 Section(header: Text("Thông tin nhân viên")) {
@@ -223,7 +230,8 @@ struct EmployeeDetailView: View {
                 }
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("Chi tiết nhân viên")
+        .navigationBarHidden(true)
         .alert("Thành công", isPresented: $showSuccessAlert) {
             Button("OK", role: .cancel) { }
         } message: {

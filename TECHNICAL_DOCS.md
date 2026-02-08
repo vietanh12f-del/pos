@@ -1,8 +1,6 @@
 # Kiot - Smart POS System Documentation
 
-
-## 1. System Overview hehe lala
-
+## 1. System Overview hehe hihi
 
 **Kiot** is a modern, voice-activated Point of Sale (POS) system designed for small cafes and retail stores in Vietnam. It leverages on-device speech recognition and custom Natural Language Processing (NLP) to convert voice commands into structured orders instantly.
 

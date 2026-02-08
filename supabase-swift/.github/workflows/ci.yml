@@ -1,0 +1,358 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "Examples/**"
+      - "*.swift"
+      - "Package.swift"
+      - "Package.resolved"
+      - ".github/workflows/ci.yml"
+      - "Makefile"
+      - "*.xcodeproj/**"
+      - "*.xcworkspace/**"
+      - ".swiftpm/**"
+  pull_request:
+    branches:
+      - "*"
+      - release/*
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "Examples/**"
+      - "*.swift"
+      - "Package.swift"
+      - "Package.resolved"
+      - ".github/workflows/ci.yml"
+      - "Makefile"
+      - "*.xcodeproj/**"
+      - "*.xcworkspace/**"
+      - ".swiftpm/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: xcodebuild (macOS latest)
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        command: [test, ""]
+        platform: [IOS, MACOS]
+        xcode: ["26.2", "16.4"]
+        include:
+          - { command: test, skip_release: 1 }
+        exclude:
+          # Exclude older Xcode MACOS builds to reduce job count
+          # Latest Xcode gets full platform coverage, older only tests iOS (most common)
+          - { xcode: "16.4", platform: MACOS, command: test }
+          - { xcode: "16.4", platform: MACOS, command: "" }
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cache derived data
+        uses: actions/cache@v5
+        with:
+          path: ~/.derivedData
+          key: |
+            deriveddata-xcodebuild-${{ matrix.platform }}-${{ matrix.xcode }}-${{ matrix.command }}-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            deriveddata-xcodebuild-${{ matrix.platform }}-${{ matrix.xcode }}-${{ matrix.command }}-
+            deriveddata-xcodebuild-${{ matrix.platform }}-${{ matrix.xcode }}-
+      - name: Select Xcode ${{ matrix.xcode }}
+        run: sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode }}.app
+      - name: List available devices
+        run: xcrun simctl list devices available
+      - name: Set IgnoreFileSystemDeviceInodeChanges flag
+        run: defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
+      - name: Update mtime for incremental builds
+        uses: chetan/git-restore-mtime-action@v2
+      - name: Debug
+        run: make XCODEBUILD_ARGUMENT="${{ matrix.command }}" CONFIG=Debug PLATFORM="${{ matrix.platform }}" xcodebuild
+      - name: Release
+        if: matrix.skip_release != '1'
+        run: make XCODEBUILD_ARGUMENT="${{ matrix.command }}" CONFIG=Release PLATFORM="${{ matrix.platform }}" xcodebuild
+      - name: Install lcov
+        if: matrix.command == 'test' && matrix.platform == 'IOS' && matrix.xcode == '26.2'
+        run: brew install lcov
+      - name: Export code coverage
+        id: coverage
+        if: matrix.command == 'test' && matrix.platform == 'IOS' && matrix.xcode == '26.2'
+        run: make XCODEBUILD_ARGUMENT="${{ matrix.command }}" CONFIG=Debug PLATFORM="${{ matrix.platform }}" coverage
+      - uses: coverallsapp/github-action@v2.3.7
+        if: steps.coverage.outcome == 'success'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: lcov.info
+
+  macos-legacy:
+    name: xcodebuild (macOS legacy)
+    runs-on: macos-14
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        command: [test, ""]
+        platform: [IOS, MACOS, MAC_CATALYST]
+        xcode: ["15.4"]
+        include:
+          - { command: test, skip_release: 1 }
+    steps:
+      - uses: actions/checkout@v6
+      - name: Select Xcode ${{ matrix.xcode }}
+        run: sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode }}.app
+      - name: List available devices
+        run: xcrun simctl list devices available
+      - name: Cache derived data
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.derivedData
+          key: |
+            deriveddata-xcodebuild-${{ matrix.platform }}-${{ matrix.xcode }}-${{ matrix.command }}-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            deriveddata-xcodebuild-${{ matrix.platform }}-${{ matrix.xcode }}-${{ matrix.command }}-
+            deriveddata-xcodebuild-${{ matrix.platform }}-${{ matrix.xcode }}-
+      - name: Set IgnoreFileSystemDeviceInodeChanges flag
+        run: defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
+      - name: Update mtime for incremental builds
+        uses: chetan/git-restore-mtime-action@v2
+      - name: Debug
+        run: make XCODEBUILD_ARGUMENT="${{ matrix.command }}" CONFIG=Debug PLATFORM="${{ matrix.platform }}" xcodebuild
+      - name: Release
+        if: matrix.skip_release != '1'
+        run: make XCODEBUILD_ARGUMENT="${{ matrix.command }}" CONFIG=Release PLATFORM="${{ matrix.platform }}" xcodebuild
+
+  spm:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        config: [debug, release]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/cache@v5
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+      - run: swift build -c ${{ matrix.config }}
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: "Cache Swift Package"
+        uses: actions/cache@v5
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+      - name: "Build Swift Package"
+        run: swift build
+      - name: "Test Swift Package"
+        run: swift test --skip IntegrationTests
+
+  integration-tests:
+    name: Integration Tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: "Cache Swift Package"
+        uses: actions/cache@v5
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-integration-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-integration-
+      - name: "Setup Supabase CLI"
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: "Start Supabase"
+        working-directory: Tests/IntegrationTests
+        run: supabase start
+      - name: "Reset Database"
+        working-directory: Tests/IntegrationTests
+        run: supabase db reset
+      - name: "Run Integration Tests"
+        env:
+          INTEGRATION_TESTS: 1
+        run: swift test --filter IntegrationTests
+      - name: "Stop Supabase"
+        working-directory: Tests/IntegrationTests
+        if: always()
+        run: supabase stop
+
+  # android:
+  #   name: Android
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - name: "Remove IntegrationTests"
+  #       run: rm -r Tests/IntegrationTests/*
+  #     - name: "Test Swift Package"
+  #       uses: skiptools/swift-android-action@v2
+  #       with:
+  #         # need to copy over the Tests folder because it contains __Snapshots__
+  #         copy-files: Tests
+  #         # tests are not yet passing on Android
+  #         run-tests: false
+
+  library-evolution:
+    name: Library (evolution)
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        xcode: ["16.3"]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cache derived data
+        uses: actions/cache@v5
+        with:
+          path: ~/.derivedData
+          key: |
+            deriveddata-library-evolution-${{ matrix.xcode }}-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            deriveddata-library-evolution-${{ matrix.xcode }}-
+            deriveddata-library-evolution-
+      - name: Select Xcode ${{ matrix.xcode }}
+        run: sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode }}.app
+      - name: Build for library evolution
+        run: make build-for-library-evolution
+
+  examples:
+    name: Examples
+    needs: [macos]
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cache derived data
+        uses: actions/cache@v5
+        with:
+          path: ~/.derivedData
+          key: |
+            deriveddata-examples-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            deriveddata-examples-
+            deriveddata-xcodebuild-IOS-26.2--
+      - name: Select Xcode 26.2
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+      - name: Set IgnoreFileSystemDeviceInodeChanges flag
+        run: defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
+      - name: Update mtime for incremental builds
+        uses: chetan/git-restore-mtime-action@v2
+      - name: Examples
+        run: make DERIVED_DATA_PATH=~/.derivedData SCHEME="Examples" XCODEBUILD_ARGUMENT=build xcodebuild
+      - name: SlackClone
+        run: make DERIVED_DATA_PATH=~/.derivedData SCHEME="SlackClone" XCODEBUILD_ARGUMENT=build xcodebuild
+      - name: UserManagement
+        run: make DERIVED_DATA_PATH=~/.derivedData SCHEME="UserManagement" XCODEBUILD_ARGUMENT=build xcodebuild
+
+  docs:
+    name: Test docs
+    needs: [macos]
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - name: Cache Swift build
+        uses: actions/cache@v5
+        with:
+          path: .build
+          key: |
+            docs-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            docs-${{ runner.os }}-
+      - name: Test docs
+        run: make test-docs
+
+  format-check:
+    name: Format check (changed files only)
+    runs-on: macos-15
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Get changed Swift files
+        id: changed-files
+        run: |
+          # Get list of changed Swift files in this PR
+          git fetch origin ${{ github.base_ref }}
+          CHANGED_FILES=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD | grep '\.swift$' || true)
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No Swift files changed"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "Changed Swift files:"
+            echo "$CHANGED_FILES"
+            echo "$CHANGED_FILES" > changed_files.txt
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+      - name: Check formatting
+        if: steps.changed-files.outputs.has_changes == 'true'
+        run: |
+          # Format only the changed files
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              swift format --in-place "$file"
+            fi
+          done < changed_files.txt
+
+          # Check if formatting made any changes
+          if ! git diff --exit-code; then
+            echo "❌ Some files are not formatted correctly."
+            echo "📝 Please run 'make format' locally on the changed files and commit the changes."
+            echo ""
+            echo "Files that need formatting:"
+            git diff --name-only
+            exit 1
+          else
+            echo "✅ All changed Swift files are properly formatted"
+          fi
+
+  ci-success:
+    name: CI Success
+    if: always()
+    needs: [macos, macos-legacy, spm, linux, integration-tests, library-evolution, examples, docs, format-check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs
+        run: |
+          # Check if any required job failed
+          RESULTS='${{ toJSON(needs) }}'
+          echo "Job results:"
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+
+          # Fail if any job failed (but allow skipped jobs)
+          if echo "$RESULTS" | jq -e 'to_entries[] | select(.value.result == "failure")' > /dev/null; then
+            echo ""
+            echo "❌ One or more CI jobs failed"
+            exit 1
+          elif echo "$RESULTS" | jq -e 'to_entries[] | select(.value.result == "cancelled")' > /dev/null; then
+            echo ""
+            echo "⚠️ One or more CI jobs were cancelled"
+            exit 1
+          else
+            echo ""
+            echo "✅ All CI jobs passed successfully"
+          fi

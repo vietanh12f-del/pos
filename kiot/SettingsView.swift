@@ -7,9 +7,8 @@ struct SettingsView: View {
     @State private var showEditProfile = false
     
     var body: some View {
-        NavigationStack {
-            List {
-                Section(header: Text("Cửa hàng")) {
+        List {
+            Section(header: Text("Cửa hàng")) {
                     if let store = storeManager.currentStore {
                         HStack {
                             VStack(alignment: .leading) {
@@ -30,6 +29,12 @@ struct SettingsView: View {
                         if storeManager.hasPermission(.manageEmployees) {
                              NavigationLink(destination: EmployeeManagementView(tabBarManager: tabBarManager)) {
                                 Text("Quản lý nhân viên")
+                            }
+                        }
+                        
+                        if storeManager.currentMember?.role == .owner {
+                            NavigationLink(destination: StoreBankSettingsView(store: store)) {
+                                Text("Cài đặt tài khoản ngân hàng")
                             }
                         }
                     } else {
@@ -91,9 +96,113 @@ struct SettingsView: View {
                     }
                 }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("Cài đặt")
+            .navigationBarBackButtonHidden(true)
             .sheet(isPresented: $showEditProfile) {
-                EditProfileView(authManager: authManager)
+                NavigationStack {
+                    EditProfileView(authManager: authManager)
+                }
+            }
+        }
+    }
+
+
+struct StoreBankSettingsView: View {
+    let store: Store
+    @State private var bankName: String
+    @State private var bankAccountNumber: String
+    @Environment(\.dismiss) var dismiss
+    @State private var isLoading = false
+    
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
+    }
+
+    // Supported Banks (Common VietQR Banks)
+    private static let supportedBanks = [
+        "Vietcombank (VCB)", "Techcombank (TCB)", "MBBank (MB)", "ACB", "VPBank (VPB)",
+        "BIDV", "VietinBank (CTG)", "TPBank (TPB)", "Sacombank (STB)", "HDBank (HDB)",
+        "Agribank (VBA)", "VIB", "MSB", "SHB", "OCB", "SeABank (SEAB)", "Eximbank (EIB)",
+        "LienVietPostBank (LPB)", "Nam A Bank (NAMAB)", "Shinhan Bank (SHBVN)",
+        "VietCapital Bank (BVB)", "NCB", "KienLongBank (KLB)", "Vietbank (VBB)", "OceanBank (OJB)",
+        "GPBank (GPB)", "Public Bank (PBVN)", "HongLeong Bank (HLBVN)", "Standard Chartered (SCVN)",
+        "CIMB", "UOB", "HSBC", "Woori Bank (WVN)", "Indovina Bank (IVB)", "DongA Bank (DOB)", "SaigonBank (SGB)",
+        "PVComBank (PVC)", "ABBank (ABB)", "BaoViet Bank (BVB)", "PGBank (PGB)", "Vietnam - Russia Bank (VRB)"
+    ].sorted()
+    
+    init(store: Store) {
+        self.store = store
+        // Ensure default value exists in the list to avoid Picker selection error
+        let savedBank = store.bankName ?? ""
+        if !savedBank.isEmpty && StoreBankSettingsView.supportedBanks.contains(savedBank) {
+            _bankName = State(initialValue: savedBank)
+        } else {
+             // If saved bank is invalid or empty, default to VCB or first available
+            _bankName = State(initialValue: "Vietcombank (VCB)")
+        }
+        _bankAccountNumber = State(initialValue: store.bankAccountNumber ?? "")
+    }
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Thông tin nhận tiền (VietQR)")) {
+                Picker("Ngân hàng", selection: $bankName) {
+                    ForEach(StoreBankSettingsView.supportedBanks, id: \.self) { bank in
+                        Text(bank).tag(bank)
+                    }
+                }
+                .pickerStyle(.navigationLink) // Better for long lists
+                    TextField("Số tài khoản", text: $bankAccountNumber)
+                        .keyboardType(.asciiCapableNumberPad) // Better for account numbers
+            }
+            
+            Section(header: Text("Lưu ý"), footer: Text("Thông tin này sẽ được sử dụng để tạo mã QR thanh toán trên hóa đơn.")) {
+                 // Info section or empty
+            }
+        }
+        .navigationTitle("Cài đặt ngân hàng")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Lưu", action: save)
+                    .disabled(isLoading || bankAccountNumber.isEmpty)
+            }
+
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Xong") {
+                    hideKeyboard()
+                }
+            }
+        }
+
+        .overlay {
+            if isLoading {
+                ZStack {
+                    Color.black.opacity(0.1)
+                        .ignoresSafeArea()
+                    ProgressView()
+                }
+            }
+        }
+    }
+    
+    func save() {
+        isLoading = true
+        Task {
+            do {
+                // Update in Supabase
+                try await StoreManager.shared.updateStoreBankInfo(storeId: store.id, bankName: bankName, accountNumber: bankAccountNumber)
+                
+                await MainActor.run {
+                    isLoading = false
+                    dismiss()
+                }
+            } catch {
+                print("Error saving bank info: \(error)")
+                await MainActor.run {
+                    isLoading = false
+                }
             }
         }
     }
@@ -107,6 +216,7 @@ struct EditProfileView: View {
     @State private var email: String
     @State private var address: String
     
+    
     init(authManager: AuthManager) {
         self.authManager = authManager
         _name = State(initialValue: authManager.currentUserProfile?.fullName ?? "")
@@ -115,7 +225,6 @@ struct EditProfileView: View {
     }
     
     var body: some View {
-        NavigationStack {
             Form {
                 Section(header: Text("Thông tin cá nhân")) {
                     TextField("Họ và tên", text: $name)
@@ -154,4 +263,4 @@ struct EditProfileView: View {
             }
         }
     }
-}
+

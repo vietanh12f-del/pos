@@ -16,7 +16,7 @@ struct DailyFinancialStats: Identifiable, Codable {
     }
     
     var netProfit: Double {
-        grossProfit - (operatingCosts + incurredFees)
+        grossProfit - operatingCosts // - incurredFees (Removed as requested)
     }
     
     var profitMargin: Double {

@@ -43,6 +43,9 @@ struct Bill: Identifiable, Codable, Equatable {
     let items: [OrderItem]
     let total: Double
     var totalCost: Double = 0 // Total COGS
+    var isPaid: Bool = true // Payment status
+    var creatorId: UUID? = nil // ID of the user who created the order
+    var creatorName: String? = nil // Name of the user who created the order
     
     var profit: Double {
         total - totalCost
@@ -81,9 +84,11 @@ struct Product: Identifiable, Codable, Hashable {
     var imageName: String
     var color: String
     var imageData: Data?
+    var imageURL: String? // URL for remote image
     var stockQuantity: Int = 0
+    var barcode: String? // New barcode field
     
-    init(id: UUID = UUID(), name: String, price: Double, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, stockQuantity: Int = 0) {
+    init(id: UUID = UUID(), name: String, price: Double, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil) {
         self.id = id
         self.name = name
         self.price = price
@@ -92,7 +97,9 @@ struct Product: Identifiable, Codable, Hashable {
         self.imageName = imageName
         self.color = color
         self.imageData = imageData
+        self.imageURL = imageURL
         self.stockQuantity = stockQuantity
+        self.barcode = barcode
     }
 }
 
@@ -150,6 +157,8 @@ struct Store: Identifiable, Codable, Hashable {
     var address: String?
     var ownerId: UUID
     var createdAt: Date
+    var bankAccountNumber: String?
+    var bankName: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -157,6 +166,8 @@ struct Store: Identifiable, Codable, Hashable {
         case address
         case ownerId = "owner_id"
         case createdAt = "created_at"
+        case bankAccountNumber = "bank_account_number"
+        case bankName = "bank_name"
     }
 }
 

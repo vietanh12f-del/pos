@@ -2,22 +2,80 @@ import SwiftUI
 
 struct StatisticsView: View {
     @ObservedObject var viewModel: OrderViewModel
-    @State private var selectedRange: ReportDateRange = .thisMonth
+    @State private var selectedType: StatType = .month
+    @State private var selectedMonth = Date()
+    @State private var selectedQuarter: Int
+    @State private var selectedYear: Int
     @State private var stats: [DailyFinancialStats] = []
+    
+    enum StatType {
+        case today, week, month, quarter
+    }
+    
+    init(viewModel: OrderViewModel) {
+        self.viewModel = viewModel
+        let calendar = Calendar.current
+        let date = Date()
+        _selectedQuarter = State(initialValue: (calendar.component(.month, from: date) - 1) / 3 + 1)
+        _selectedYear = State(initialValue: calendar.component(.year, from: date))
+    }
     
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    Picker("Khoảng thời gian", selection: $selectedRange) {
-                        Text("Hôm nay").tag(ReportDateRange.today)
-                        Text("Tuần này").tag(ReportDateRange.thisWeek)
-                        Text("Tháng này").tag(ReportDateRange.thisMonth)
+                    Picker("Khoảng thời gian", selection: $selectedType) {
+                        Text("Hôm nay").tag(StatType.today)
+                        Text("Tuần này").tag(StatType.week)
+                        Text("Theo tháng").tag(StatType.month)
+                        Text("Theo quý").tag(StatType.quarter)
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal)
-                    .onChange(of: selectedRange) { _ , _ in
-                        regenerate()
+                    .onChange(of: selectedType) { _ in regenerate() }
+                    
+                    if selectedType == .month {
+                        HStack {
+                            Button(action: { moveMonth(-1) }) {
+                                Image(systemName: "chevron.left")
+                                    .padding()
+                                    .background(Color.white)
+                                    .clipShape(Circle())
+                            }
+                            
+                            Text(monthYearString(selectedMonth))
+                                .font(.headline)
+                                .frame(width: 150)
+                            
+                            Button(action: { moveMonth(1) }) {
+                                Image(systemName: "chevron.right")
+                                    .padding()
+                                    .background(Color.white)
+                                    .clipShape(Circle())
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    } else if selectedType == .quarter {
+                        HStack {
+                            Button(action: { moveQuarter(-1) }) {
+                                Image(systemName: "chevron.left")
+                                    .padding()
+                                    .background(Color.white)
+                                    .clipShape(Circle())
+                            }
+                            
+                            Text("Quý \(selectedQuarter)/\(String(format: "%d", selectedYear))")
+                                .font(.headline)
+                                .frame(width: 150)
+                            
+                            Button(action: { moveQuarter(1) }) {
+                                Image(systemName: "chevron.right")
+                                    .padding()
+                                    .background(Color.white)
+                                    .clipShape(Circle())
+                            }
+                        }
+                        .padding(.vertical, 4)
                     }
                     
                     let totalRevenue = stats.reduce(0) { $0 + $1.revenue }
@@ -33,8 +91,7 @@ struct StatisticsView: View {
                     .padding(.horizontal)
                     
                     HStack(spacing: 12) {
-                        StatCard(title: "Chi phí", value: formatCurrency(totalOpEx), icon: "arrow.up.right", trend: "", isPositive: false)
-                        StatCard(title: "Phát sinh", value: formatCurrency(totalFees), icon: "arrow.up.right", trend: "", isPositive: false)
+                        StatCard(title: "Chi phí vận hành", value: formatCurrency(totalOpEx), icon: "arrow.up.right", trend: "", isPositive: false)
                     }
                     .padding(.horizontal)
                     
@@ -67,12 +124,67 @@ struct StatisticsView: View {
     }
     
     private func regenerate() {
+        let range: ReportDateRange
+        
+        switch selectedType {
+        case .today:
+            range = .today
+        case .week:
+            range = .thisWeek
+        case .month:
+            let calendar = Calendar.current
+            let components = calendar.dateComponents([.year, .month], from: selectedMonth)
+            let start = calendar.date(from: components) ?? selectedMonth
+            let end = calendar.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? selectedMonth
+            range = .custom(start: start, end: end)
+        case .quarter:
+            let calendar = Calendar.current
+            var components = DateComponents()
+            components.year = selectedYear
+            components.month = (selectedQuarter - 1) * 3 + 1
+            components.day = 1
+            let start = calendar.date(from: components) ?? Date()
+            let end = calendar.date(byAdding: .month, value: 3, to: start)?.addingTimeInterval(-1) ?? Date()
+            range = .custom(start: start, end: end)
+        }
+        
         stats = FinancialReportService.shared.generateReport(
             orders: viewModel.pastOrders,
             expenses: viewModel.operatingExpenses,
             restocks: viewModel.restockHistory,
-            range: selectedRange
+            range: range
         )
+    }
+    
+    private func moveMonth(_ value: Int) {
+        if let newDate = Calendar.current.date(byAdding: .month, value: value, to: selectedMonth) {
+            selectedMonth = newDate
+            regenerate()
+        }
+    }
+    
+    private func moveQuarter(_ value: Int) {
+        var newQuarter = selectedQuarter + value
+        var newYear = selectedYear
+        
+        while newQuarter > 4 {
+            newQuarter -= 4
+            newYear += 1
+        }
+        while newQuarter < 1 {
+            newQuarter += 4
+            newYear -= 1
+        }
+        
+        selectedQuarter = newQuarter
+        selectedYear = newYear
+        regenerate()
+    }
+    
+    private func monthYearString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/yyyy"
+        return "Tháng " + formatter.string(from: date)
     }
 }
 
@@ -95,8 +207,7 @@ struct StatisticsRow: View {
             HStack(spacing: 12) {
                 valueBox(title: "Doanh thu", value: stat.revenue, color: .green)
                 valueBox(title: "Giá vốn", value: stat.cogs, color: .red)
-                valueBox(title: "Chi phí", value: stat.operatingCosts, color: .orange)
-                valueBox(title: "Phát sinh", value: stat.incurredFees, color: .pink)
+                valueBox(title: "Chi phí vận hành", value: stat.operatingCosts, color: .orange)
             }
         }
         .padding()
