@@ -59,7 +59,7 @@ struct SettingsView: View {
                             }
                         }
                         
-                        if storeManager.currentMember?.role == .owner {
+                        if storeManager.currentMember?.role == .owner && authManager.selectedRole == "owner" {
                             NavigationLink(destination: StoreBankSettingsView(store: store)) {
                                 Text("Cài đặt tài khoản ngân hàng")
                             }
