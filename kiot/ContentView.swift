@@ -167,7 +167,7 @@ struct ContentView: View {
                 .task(id: storeManager.currentStore?.id) {
                     if storeManager.currentStore != nil {
                         viewModel.clearData()
-                        await viewModel.loadData()
+                        await viewModel.loadData(force: true)
                     }
                 }
                 .alert("Lỗi", isPresented: $viewModel.showErrorAlert) {

@@ -84,15 +84,20 @@ struct InventoryView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else if filteredProducts.isEmpty {
-                        VStack(spacing: 16) {
-                            Image(systemName: "cube.box")
-                                .font(.system(size: 60))
-                                .foregroundStyle(Color.gray.opacity(0.3))
-                            Text("Chưa có hàng hóa")
-                                .font(.headline)
-                                .foregroundStyle(Color.gray)
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                Image(systemName: "cube.box")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(Color.gray.opacity(0.3))
+                                Text("Chưa có hàng hóa")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.gray)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 300)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .refreshable {
+                            await viewModel.loadData(force: true)
+                        }
                     } else {
                         List {
                             // Header Row
@@ -229,15 +234,20 @@ struct InventoryView: View {
                 } else {
                     // Restock History List
                     if viewModel.restockHistory.isEmpty {
-                        VStack(spacing: 16) {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.system(size: 60))
-                                .foregroundStyle(Color.gray.opacity(0.3))
-                            Text("Chưa có lịch sử nhập hàng")
-                                .font(.headline)
-                                .foregroundStyle(Color.gray)
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(Color.gray.opacity(0.3))
+                                Text("Chưa có lịch sử nhập hàng")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.gray)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 300)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .refreshable {
+                            await viewModel.loadData(force: true)
+                        }
                     } else {
                         List {
                             ForEach(filteredRestockHistory) { bill in
@@ -282,7 +292,7 @@ struct InventoryView: View {
                         .listStyle(.insetGrouped)
                         .scrollContentBackground(.hidden)
                         .refreshable {
-                            await viewModel.loadData()
+                            await viewModel.loadData(force: true)
                         }
                     }
                 }
@@ -293,6 +303,11 @@ struct InventoryView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     // Removed redundant Plus button as per user request
                     EmptyView()
+                }
+            }
+            .onAppear {
+                Task {
+                    await viewModel.loadData(force: true)
                 }
             }
             .alert("Xác nhận xóa", isPresented: $showDeleteConfirmation, presenting: productToDelete) { product in

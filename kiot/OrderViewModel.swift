@@ -264,6 +264,8 @@ class OrderViewModel: ObservableObject {
             print("❌ Error fetching products: \(error)")
             self.isDatabaseConnected = false
             self.databaseError = error.localizedDescription
+            self.errorMessage = "Không tải được danh sách hàng hóa từ cơ sở dữ liệu: \(error.localizedDescription)"
+            self.showErrorAlert = true
             // If products fail, we can't do much, but we continue to process others just in case
         }
         

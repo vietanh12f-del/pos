@@ -175,6 +175,39 @@ class StoreManager: ObservableObject {
                 status: .active, 
                 joinedAt: Date()
             )
+            
+            Task {
+                do {
+                    let exists: [StoreMember] = try await client
+                        .from("store_members")
+                        .select()
+                        .match([
+                            "store_id": store.id,
+                            "user_id": store.ownerId
+                        ])
+                        .limit(1)
+                        .execute()
+                        .value
+                    
+                    if exists.isEmpty {
+                        let member = StoreMember(
+                            id: UUID(),
+                            storeId: store.id,
+                            userId: store.ownerId,
+                            role: .owner,
+                            permissions: StorePermission.allCases,
+                            status: .active,
+                            joinedAt: Date()
+                        )
+                        try await client
+                            .from("store_members")
+                            .insert(member)
+                            .execute()
+                    }
+                } catch {
+                    print("Error ensuring owner membership: \(error)")
+                }
+            }
         } else {
             // Fetch membership
             do {
