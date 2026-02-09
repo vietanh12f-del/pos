@@ -149,20 +149,30 @@ struct ContentView: View {
                     // Handle auto-login to last store ONLY on app launch
                     // Check if we are already authenticated but no store selected
                     if authManager.isAuthenticated && storeManager.currentStore == nil {
-                        if let currentStoreId = authManager.currentUserProfile?.currentStoreId {
-                            // We need to fetch stores first if they aren't loaded
-                            if storeManager.myStores.isEmpty && storeManager.memberStores.isEmpty {
-                                Task {
-                                    await storeManager.fetchStores()
-                                    // Now try to select
-                                    if let store = storeManager.myStores.first(where: { $0.id == currentStoreId }) ?? 
+                        Task {
+                            await storeManager.fetchStores()
+                            // Auto-select logic depends on role to avoid selecting wrong previous store
+                            if authManager.selectedRole == "owner" {
+                                if let currentStoreId = authManager.currentUserProfile?.currentStoreId {
+                                    if let store = storeManager.myStores.first(where: { $0.id == currentStoreId }) ??
                                         storeManager.memberStores.first(where: { $0.id == currentStoreId }) {
                                         await storeManager.selectStore(store)
                                     }
                                 }
+                            } else {
+                                // Employee mode: do NOT use previous profile's currentStoreId
+                                // If only one active member store, auto-select it; otherwise require manual selection
+                                if storeManager.memberStores.count == 1, let onlyStore = storeManager.memberStores.first {
+                                    await storeManager.selectStore(onlyStore)
+                                }
                             }
                         }
                     }
+                }
+                .onChange(of: authManager.currentUserProfile?.id) { _ in
+                    // When switching accounts, clear current store to avoid showing previous store
+                    storeManager.currentStore = nil
+                    Task { await storeManager.fetchStores() }
                 }
                 .task(id: storeManager.currentStore?.id) {
                     if storeManager.currentStore != nil {
