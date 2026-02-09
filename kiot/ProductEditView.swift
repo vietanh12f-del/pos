@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import UIKit
 
 struct ProductEditView: View {
     @ObservedObject var viewModel: OrderViewModel
@@ -23,9 +24,11 @@ struct ProductEditView: View {
     @State private var selectedIcon: String = "shippingbox.fill"
     @State private var selectedImageData: Data?
     @State private var selectedImageURL: String?
-    @State private var showCamera = false
     @State private var showBarcodeScanner = false
     @State private var capturedImage: UIImage?
+    @State private var showCameraPicker = false
+    @State private var showLibraryPicker = false
+    @State private var pickerAlertMessage: String?
     @State private var showDeleteConfirmation = false
     @State private var showPrintBarcode = false
     
@@ -207,6 +210,33 @@ struct ProductEditView: View {
                                  Spacer()
                              }
                              .padding(.bottom, 8)
+                        } else if let data = selectedImageData, let uiImage = UIImage(data: data) {
+                            HStack {
+                                Spacer()
+                                ZStack(alignment: .topTrailing) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 100, height: 100)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.themePrimary, lineWidth: 3)
+                                        )
+                                    
+                                    Button(action: {
+                                        self.selectedImageData = nil
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.title2)
+                                            .foregroundStyle(.red)
+                                            .background(Color.white.clipShape(Circle()))
+                                    }
+                                    .offset(x: 10, y: -10)
+                                }
+                                Spacer()
+                            }
+                            .padding(.bottom, 8)
                         } else if let imageURL = selectedImageURL, let url = URL(string: imageURL) {
                             HStack {
                                 Spacer()
@@ -251,13 +281,37 @@ struct ProductEditView: View {
                         }
                         
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 45))], spacing: 12) {
-                            Button(action: { showCamera = true }) {
+                            Button(action: {
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    showCameraPicker = true
+                                } else {
+                                    pickerAlertMessage = "Thiết bị không hỗ trợ camera"
+                                }
+                            }) {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 8)
                                         .fill(Color.gray.opacity(0.1))
                                         .frame(width: 45, height: 45)
                                     
                                     Image(systemName: "camera.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                            }
+                            
+                            Button(action: {
+                                if UIImagePickerController.isSourceTypeAvailable(.photoLibrary) {
+                                    showLibraryPicker = true
+                                } else {
+                                    pickerAlertMessage = "Không thể mở thư viện ảnh"
+                                }
+                            }) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.gray.opacity(0.1))
+                                        .frame(width: 45, height: 45)
+                                    
+                                    Image(systemName: "photo")
                                         .font(.system(size: 24))
                                         .foregroundStyle(Color.themePrimary)
                                 }
@@ -313,14 +367,21 @@ struct ProductEditView: View {
                     Text("Bạn có chắc muốn xóa '\(product.name)'? Hành động này không thể hoàn tác.")
                 }
             }
-            .fullScreenCover(isPresented: $showCamera) {
+            .fullScreenCover(isPresented: $showCameraPicker) {
                 ImagePicker(image: $capturedImage, sourceType: .camera)
+                    .ignoresSafeArea()
+            }
+            .fullScreenCover(isPresented: $showLibraryPicker) {
+                ImagePicker(image: $capturedImage, sourceType: .photoLibrary)
                     .ignoresSafeArea()
             }
             .onChange(of: capturedImage) { newImage in
                 if let newImage {
                      selectedImageData = newImage.jpegData(compressionQuality: 0.8)
                 }
+            }
+            .alert(pickerAlertMessage ?? "", isPresented: Binding(get: { pickerAlertMessage != nil }, set: { _ in pickerAlertMessage = nil })) {
+                Button("OK", role: .cancel) { }
             }
             .sheet(isPresented: $showBarcodeScanner) {
                 BarcodeScannerView(onScan: { code in
