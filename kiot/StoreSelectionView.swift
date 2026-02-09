@@ -108,7 +108,7 @@ struct StoreSelectionView: View {
                                 // Employee View
                                 VStack(spacing: 20) {
                                     if storeManager.memberStores.isEmpty && storeManager.invitedStores.isEmpty {
-                                        EmptyStoreStateView(message: "Bạn chưa là nhân viên của cửa hàng nào.")
+                                        EmptyStoreStateView(message: "Bạn chưa là nhân viên của cửa hàng nào. Hãy nói chủ cửa hàng thêm bạn vào nhé")
                                     } else {
                                         // Member Stores
                                         ForEach(storeManager.memberStores) { store in
