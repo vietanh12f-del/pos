@@ -235,7 +235,7 @@ class StoreManager: ObservableObject {
             return true
             
         } catch {
-            self.errorMessage = "Không tìm thấy người dùng (Email/SĐT) hoặc lỗi mời: \(error.localizedDescription)"
+            self.errorMessage = "Không tìm thấy người dùng (Email/SĐT) hoặc lỗi mời: \(error.localizedDescription)\nHướng dẫn: Nhân viên cần tạo tài khoản ở chế độ Nhân viên trước, sau đó Chủ cửa hàng mời bằng Email hoặc SĐT."
             return false
         }
     }

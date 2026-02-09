@@ -46,8 +46,9 @@ class OrderViewModel: ObservableObject {
         // Simple global calculation (Cash flow based or Accrual?)
         // Let's keep it simple: Revenue - COGS - Expenses (Global)
         // But COGS is tracked in bills.
-        let globalRevenue = pastOrders.reduce(0) { $0 + $1.total }
-        let globalCOGS = pastOrders.reduce(0) { $0 + $1.totalCost }
+        let paidOrders = pastOrders.filter { $0.isPaid }
+        let globalRevenue = paidOrders.reduce(0) { $0 + $1.total }
+        let globalCOGS = paidOrders.reduce(0) { $0 + $1.totalCost }
         let globalOpEx = operatingExpenses.reduce(0) { $0 + $1.amount }
         let globalIncurredFees = restockHistory.reduce(0) { billSum, bill in
             billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
@@ -945,7 +946,7 @@ class OrderViewModel: ObservableObject {
     
     func recalculateStats() {
         // Global Stats
-        revenue = pastOrders.reduce(0) { $0 + $1.total }
+        revenue = pastOrders.filter { $0.isPaid }.reduce(0) { $0 + $1.total }
         orderCount = pastOrders.count
         
         // Total Restock Cost (Import Price + Fees)
@@ -1448,7 +1449,7 @@ class OrderViewModel: ObservableObject {
     func revenue(for date: Date) -> Double {
         let calendar = Calendar.current
         return pastOrders
-            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .filter { $0.isPaid && calendar.isDate($0.createdAt, inSameDayAs: date) }
             .reduce(0) { $0 + $1.total }
     }
     
@@ -1461,9 +1462,8 @@ class OrderViewModel: ObservableObject {
     
     func cogs(for date: Date) -> Double {
         let calendar = Calendar.current
-        //let dailyOrders = pastOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
         return pastOrders
-            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .filter { $0.isPaid && calendar.isDate($0.createdAt, inSameDayAs: date) }
             .reduce(0) { $0 + $1.totalCost }
     }
     
@@ -1492,7 +1492,7 @@ class OrderViewModel: ObservableObject {
     
     func grossProfit(for date: Date) -> Double {
         let calendar = Calendar.current
-        let dailyOrders = pastOrders.filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+        let dailyOrders = pastOrders.filter { $0.isPaid && calendar.isDate($0.createdAt, inSameDayAs: date) }
         return dailyOrders.reduce(0) { $0 + $1.profit }
     }
     

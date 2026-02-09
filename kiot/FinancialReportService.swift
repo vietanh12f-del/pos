@@ -60,9 +60,9 @@ class FinancialReportService {
             return calendar.startOfDay(for: date)
         }
         
-        // 1. Process Orders (Revenue & COGS)
+        // 1. Process Orders (Revenue & COGS) - only count paid orders
         for order in orders {
-            if order.createdAt >= startDate && order.createdAt <= endDate {
+            if order.isPaid && order.createdAt >= startDate && order.createdAt <= endDate {
                 let dateKey = startOfDay(order.createdAt)
                 var stats = statsByDate[dateKey] ?? DailyFinancialStats(date: dateKey)
                 
