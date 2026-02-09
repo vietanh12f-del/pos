@@ -1318,6 +1318,7 @@ struct ContentView: View {
         @Environment(\.dismiss) var dismiss
         @State private var renderedImage: UIImage?
         @State private var showShareSheet = false
+        @State private var showBankSettings = false
         
         var body: some View {
             ZStack {
@@ -1342,12 +1343,16 @@ struct ContentView: View {
                             qrURL: viewModel.vietQRURL(),
                             qrImage: nil,
                             billPayload: viewModel.billPayload(),
-                            showButtons: true, // Interactive mode
+                            showButtons: true,
                             onComplete: { isPaid in
                                 viewModel.completeOrder(isPaid: isPaid)
                                 dismiss()
+                            },
+                            customerName: viewModel.walkInName,
+                            onOpenBankSettings: {
+                                showBankSettings = true
                             }
-                        , customerName: viewModel.walkInName)
+                        )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                     }
@@ -1379,6 +1384,16 @@ struct ContentView: View {
                     ShareSheet(items: [image])
                 }
             }
+            .sheet(isPresented: $showBankSettings) {
+                if let store = StoreManager.shared.currentStore {
+                    NavigationStack {
+                        StoreBankSettingsView(store: store)
+                    }
+                } else {
+                    Text("Chưa chọn cửa hàng")
+                        .padding()
+                }
+            }
         }
         
         func currentDateString() -> String {
@@ -1408,7 +1423,8 @@ struct ContentView: View {
                     billPayload: viewModel.billPayload(),
                     showButtons: false,
                     onComplete: nil,
-                    customerName: viewModel.walkInName
+                    customerName: viewModel.walkInName,
+                    onOpenBankSettings: nil
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -1433,6 +1449,7 @@ struct ContentView: View {
         let showButtons: Bool
         let onComplete: ((Bool) -> Void)?
         let customerName: String
+        let onOpenBankSettings: (() -> Void)?
         
         var body: some View {
             VStack(spacing: 0) {
@@ -1524,33 +1541,53 @@ struct ContentView: View {
                             Text("Quét mã thanh toán")
                                 .font(.subheadline)
                                 .foregroundStyle(Color.gray)
-                            
-                            // Dynamic Bank Info Display
-                            let bankName = StoreManager.shared.currentStore?.bankName ?? "VCB"
-                            let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? "9967861809"
-                            
-                            Text("\(bankName) - \(bankAccount)")
-                                .font(.footnote)
-                                .fontWeight(.medium)
-                                .foregroundStyle(Color.themeTextDark)
+                            let bankName = StoreManager.shared.currentStore?.bankName ?? ""
+                            let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? ""
+                            if bankName.isEmpty || bankAccount.isEmpty {
+                                Text("Chưa cài đặt ngân hàng")
+                                    .font(.footnote)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(Color.red)
+                            } else {
+                                Text("\(bankName) - \(bankAccount)")
+                                    .font(.footnote)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(Color.themeTextDark)
+                            }
                         }
                         Spacer()
-                        if let image = qrImage {
-                            Image(uiImage: image)
-                                .resizable()
-                                .interpolation(.none)
-                                .scaledToFit()
-                                .frame(width: 80, height: 80)
-                        } else if let url = qrURL {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image {
-                                    image.resizable().interpolation(.none).scaledToFit().frame(width: 80, height: 80)
-                                } else {
-                                    ProgressView().frame(width: 80, height: 80)
+                        let bankName = StoreManager.shared.currentStore?.bankName ?? ""
+                        let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? ""
+                        if bankName.isEmpty || bankAccount.isEmpty {
+                            if showButtons {
+                                Button {
+                                    onOpenBankSettings?()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "building.columns")
+                                        Text("Cài đặt ngân hàng")
+                                    }
                                 }
+                                .buttonStyle(.borderedProminent)
                             }
-                        } else if let payload = billPayload {
-                            QRCodeView(payload: payload).frame(width: 80, height: 80)
+                        } else {
+                            if let image = qrImage {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .interpolation(.none)
+                                    .scaledToFit()
+                                    .frame(width: 80, height: 80)
+                            } else if let url = qrURL {
+                                AsyncImage(url: url) { phase in
+                                    if let image = phase.image {
+                                        image.resizable().interpolation(.none).scaledToFit().frame(width: 80, height: 80)
+                                    } else {
+                                        ProgressView().frame(width: 80, height: 80)
+                                    }
+                                }
+                            } else if let payload = billPayload {
+                                QRCodeView(payload: payload).frame(width: 80, height: 80)
+                            }
                         }
                     }
                     .padding()

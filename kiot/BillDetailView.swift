@@ -43,7 +43,8 @@ struct BillDetailView: View {
                     billPayload: nil,
                     showButtons: false,
                     onComplete: nil,
-                    customerName: bill.customerName ?? "Khách lẻ"
+                    customerName: bill.customerName ?? "Khách lẻ",
+                    onOpenBankSettings: nil
                 )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -150,7 +151,8 @@ struct BillDetailView: View {
                 billPayload: nil,
                 showButtons: false,
                 onComplete: nil,
-                customerName: bill.customerName ?? "Khách lẻ"
+                customerName: bill.customerName ?? "Khách lẻ",
+                onOpenBankSettings: nil
             )
             .frame(width: 375)
             .background(Color.white)
@@ -174,21 +176,21 @@ struct BillDetailView: View {
     
     private func generateQRURL(for bill: Bill) -> URL? {
         guard bill.total > 0 else { return nil }
-        
-        let bankName = StoreManager.shared.currentStore?.bankName ?? "VCB"
-        let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? "9967861809"
-        // If bank account is empty, use default
-        let finalBankAccount = bankAccount.isEmpty ? "9967861809" : bankAccount
-        
+        guard let rawBankName = StoreManager.shared.currentStore?.bankName, !rawBankName.isEmpty else { return nil }
+        guard let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber, !bankAccount.isEmpty else { return nil }
+        var bankName = rawBankName
+        if let range = bankName.range(of: "\\((.*?)\\)", options: .regularExpression) {
+            let code = bankName[range]
+            let cleanCode = code.dropFirst().dropLast()
+            bankName = String(cleanCode)
+        }
+        let finalBankAccount = bankAccount
         let amount = Int(bill.total)
         let base = "https://img.vietqr.io/image/\(bankName)-\(finalBankAccount)-compact.png"
-        
         let shortId = bill.id.uuidString.prefix(8)
         let infoBase = "KNOTE \(shortId)"
-        
         let allowed = CharacterSet.urlQueryAllowed
         let encodedInfo = infoBase.addingPercentEncoding(withAllowedCharacters: allowed) ?? "KNOTE"
-        
         let urlString = "\(base)?amount=\(amount)&addInfo=\(encodedInfo)"
         return URL(string: urlString)
     }
