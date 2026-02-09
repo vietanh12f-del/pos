@@ -43,7 +43,7 @@ struct BillDetailView: View {
                     billPayload: nil,
                     showButtons: false,
                     onComplete: nil,
-                    customerName: "Khách lẻ"
+                    customerName: bill.customerName ?? "Khách lẻ"
                 )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -150,7 +150,7 @@ struct BillDetailView: View {
                 billPayload: nil,
                 showButtons: false,
                 onComplete: nil,
-                customerName: "Khách lẻ"
+                customerName: bill.customerName ?? "Khách lẻ"
             )
             .frame(width: 375)
             .background(Color.white)

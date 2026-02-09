@@ -66,6 +66,11 @@ struct OrderHistoryView: View {
                                                             .font(.caption2)
                                                             .foregroundStyle(Color.gray)
                                                     }
+                                                    if let customer = bill.customerName, !customer.isEmpty {
+                                                        Text("Khách: \(customer)")
+                                                            .font(.caption2)
+                                                            .foregroundStyle(Color.gray)
+                                                    }
                                                 }
                                                 
                                                 Spacer()

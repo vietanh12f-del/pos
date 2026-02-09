@@ -1371,7 +1371,8 @@ class OrderViewModel: ObservableObject {
         // Create updated bill (keeping original ID and Date)
         // We use the current items to calculate total
         let newTotal = totalAmount
-        let updatedBill = Bill(id: originalBill.id, createdAt: originalBill.createdAt, items: items, total: newTotal)
+        var updatedBill = Bill(id: originalBill.id, createdAt: originalBill.createdAt, items: items, total: newTotal)
+        updatedBill.customerName = walkInName
         
         // Replace in history
         if let index = pastOrders.firstIndex(where: { $0.id == originalBill.id }) {
@@ -1440,6 +1441,7 @@ class OrderViewModel: ObservableObject {
         currentInput = ""
         showPayment = false
         editingBill = nil
+        walkInName = "Khách lẻ"
     }
     
     // MARK: - Calendar Stats
@@ -1529,6 +1531,7 @@ class OrderViewModel: ObservableObject {
         let cost = items.reduce(0) { $0 + $1.totalCost }
         var bill = Bill(id: UUID(), createdAt: Date(), items: items, total: totalAmount, totalCost: cost)
         bill.isPaid = isPaid
+        bill.customerName = walkInName
         
         // Populate creator info
         if let profile = AuthManager.shared.currentUserProfile {
