@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 import CoreImage.CIFilterBuiltins
 import PhotosUI
+import Combine
+import ImageIO
 
 // MARK: - Theme Colors (Moved to Components.swift)
 
@@ -453,6 +455,9 @@ struct ContentView: View {
         @Namespace private var namespace
         @FocusState private var walkInFocused: Bool
         @State private var keyboardHeight: CGFloat = 0
+        @State private var showCustomerPicker = false
+        @State private var customerSortMode: Int = 0
+        @State private var customerSearch: String = ""
         
         var body: some View {
             ZStack(alignment: .bottom) {
@@ -737,6 +742,16 @@ struct ContentView: View {
                             .background(Color.gray.opacity(0.08))
                             .cornerRadius(12)
                             
+                            Button {
+                                showCustomerPicker = true
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "line.3.horizontal.decrease.circle")
+                                    Text("Chọn tên")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            
                             VoiceAIButton(viewModel: viewModel)
                         }
                         
@@ -916,6 +931,12 @@ struct ContentView: View {
             .onDisappear {
                 viewModel.cancelVoiceProcessing()
             }
+            .onChange(of: viewModel.walkInName) { newName in
+                if newName == "Khách lẻ" {
+                    walkInFocused = false
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+            }
             .sheet(isPresented: $showBarcodeScanner) {
                 BarcodeScannerView(onScan: { code in
                     showBarcodeScanner = false
@@ -986,6 +1007,58 @@ struct ContentView: View {
             .sheet(item: $foundExternalProduct) { info in
                 ExternalProductAddView(info: info, viewModel: viewModel)
             }
+            .sheet(isPresented: $showCustomerPicker) {
+                NavigationStack {
+                    VStack {
+                        Picker("Sắp xếp", selection: $customerSortMode) {
+                            Text("Gần đây").tag(0)
+                            Text("Mua nhiều").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                        .padding(.top)
+                        
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                            TextField("Tìm tên khách", text: $customerSearch)
+                                .textInputAutocapitalization(.words)
+                                .disableAutocorrection(true)
+                        }
+                        .padding(10)
+                        .background(Color.gray.opacity(0.08))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        
+                        List(filteredCustomerStats()) { stat in
+                            Button {
+                                viewModel.walkInName = stat.name
+                                showCustomerPicker = false
+                            } label: {
+                                HStack {
+                                    Text(stat.name)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    VStack(alignment: .trailing) {
+                                        Text("Đã mua: \(stat.count)x")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        Text("Gần nhất: \(formatShortDate(stat.lastDate))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
+                    }
+                    .navigationTitle("Chọn tên khách")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showCustomerPicker = false }
+                        }
+                    }
+                }
+            }
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { output in
                     if let value = output.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
                         keyboardHeight = value.cgRectValue.height
@@ -997,6 +1070,53 @@ struct ContentView: View {
         }
     }
     
+    // Helpers for SmartOrderEntryView (customer picker)
+    extension SmartOrderEntryView {
+        struct CustomerStat: Identifiable {
+            let id = UUID()
+            let name: String
+            let count: Int
+            let lastDate: Date
+        }
+        
+        func buildCustomerStats() -> [CustomerStat] {
+            var stats: [String: (count: Int, last: Date)] = [:]
+            for bill in viewModel.pastOrders {
+                guard let name = bill.customerName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { continue }
+                let entry = stats[name] ?? (0, Date(timeIntervalSince1970: 0))
+                let newCount = entry.count + 1
+                let newLast = max(entry.last, bill.createdAt)
+                stats[name] = (newCount, newLast)
+            }
+            return stats.map { CustomerStat(name: $0.key, count: $0.value.count, lastDate: $0.value.last) }
+        }
+        
+        func filteredCustomerStats() -> [CustomerStat] {
+            let all = buildCustomerStats()
+            let filtered: [CustomerStat]
+            if customerSearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                filtered = all
+            } else {
+                let q = customerSearch.lowercased()
+                filtered = all.filter { $0.name.lowercased().contains(q) }
+            }
+            if customerSortMode == 1 {
+                return filtered.sorted { lhs, rhs in
+                    if lhs.count == rhs.count { return lhs.lastDate > rhs.lastDate }
+                    return lhs.count > rhs.count
+                }
+            } else {
+                return filtered.sorted { $0.lastDate > $1.lastDate }
+            }
+        }
+        
+        func formatShortDate(_ date: Date) -> String {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "vi_VN")
+            formatter.dateFormat = "dd/MM"
+            return formatter.string(from: date)
+        }
+    }
     struct ProductCustomizeView: View {
         let product: Product
         @ObservedObject var viewModel: OrderViewModel
@@ -1387,7 +1507,10 @@ struct ContentView: View {
                             onCaptureReceipt: {
                                 showReceiptCamera = true
                             },
-                            receiptImageURL: viewModel.paymentReceiptImageURL
+                            receiptImageURL: viewModel.paymentReceiptImageURL,
+                            onPickedReceiptImage: { img in
+                                receiptImage = img
+                            }
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -1443,8 +1566,19 @@ struct ContentView: View {
                         let fileName = StorageManager.shared.generateImageName()
                         do {
                             let url = try await StorageManager.shared.uploadReceiptImage(data: data, fileName: fileName)
+                            // Build and upload preview (smaller) for faster viewing in history
+                            let target = CGSize(width: 800, height: 800)
+                            let down = BillReceiptView.CachedImageLoader.downsample(data: data, to: target, scale: UIScreen.main.scale) ?? img
+                            let previewData = down.jpegData(compressionQuality: 0.8) ?? data
+                            let previewURL = try await StorageManager.shared.uploadReceiptPreviewImage(data: previewData, fileName: fileName)
                             await MainActor.run {
                                 viewModel.paymentReceiptImageURL = url
+                            }
+                            if let u = URL(string: url) {
+                                BillReceiptView.ImageCache.shared.insert(img, for: u)
+                            }
+                            if let pu = URL(string: previewURL) {
+                                BillReceiptView.ImageCache.shared.insert(down, for: pu)
                             }
                             if let bill = viewModel.editingBill {
                                 var updated = bill
@@ -1453,6 +1587,20 @@ struct ContentView: View {
                             }
                         } catch {
                             print("❌ Error uploading receipt: \(error)")
+                        }
+                    }
+                }
+            }
+            .onChange(of: viewModel.paymentReceiptImageURL) { urlString in
+                guard let urlString, let u = URL(string: urlString) else { return }
+                if BillReceiptView.ImageCache.shared.image(for: u) == nil {
+                    Task {
+                        if let (data, _) = try? await URLSession.shared.data(from: u) {
+                            let target = UIScreen.main.bounds.size
+                            let img = BillReceiptView.CachedImageLoader.downsample(data: data, to: target, scale: UIScreen.main.scale) ?? UIImage(data: data)
+                            if let img {
+                                BillReceiptView.ImageCache.shared.insert(img, for: u)
+                            }
                         }
                     }
                 }
@@ -1489,7 +1637,8 @@ struct ContentView: View {
                     customerName: viewModel.walkInName,
                     onOpenBankSettings: nil,
                     onCaptureReceipt: nil,
-                    receiptImageURL: nil
+                    receiptImageURL: nil,
+                    onPickedReceiptImage: nil
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -1517,6 +1666,12 @@ struct ContentView: View {
         let onOpenBankSettings: (() -> Void)?
         let onCaptureReceipt: (() -> Void)?
         let receiptImageURL: String?
+        let onPickedReceiptImage: ((UIImage) -> Void)?
+        @State private var receiptPickerItem: PhotosPickerItem?
+        @State private var showReceiptPreview = false
+        @State private var previewURL: URL?
+        @StateObject private var previewLoader = CachedImageLoader()
+        @StateObject private var originalLoader = CachedImageLoader()
         
         var body: some View {
             VStack(spacing: 0) {
@@ -1680,28 +1835,34 @@ struct ContentView: View {
                             }
                         }
                         Spacer()
-                        if let urlString = receiptImageURL, let url = URL(string: urlString) {
-                            AsyncImage(url: url) { phase in
-                                if let image = phase.image {
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                } else if phase.error != nil {
-                                    ZStack {
-                                        Color.gray.opacity(0.1)
-                                        Image(systemName: "photo")
-                                            .foregroundStyle(Color.gray)
+                        if let urlString = receiptImageURL,
+                           let original = URL(string: urlString) {
+                            let preview = URL(string: urlString.replacingOccurrences(of: ".jpg", with: "-preview.jpg")) ?? original
+                            Button {
+                                previewURL = preview
+                                showReceiptPreview = true
+                            } label: {
+                                ZStack {
+                                    if let ui = previewLoader.image ?? originalLoader.image {
+                                        Image(uiImage: ui)
+                                            .resizable()
+                                            .scaledToFill()
+                                    } else {
+                                        ProgressView()
                                     }
-                                } else {
-                                    ProgressView()
+                                }
+                                .frame(width: 64, height: 64)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                                .onAppear {
+                                    previewLoader.load(url: preview, targetSize: CGSize(width: 400, height: 400))
+                                    originalLoader.load(url: original, targetSize: CGSize(width: 400, height: 400))
                                 }
                             }
-                            .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                            )
+                            .buttonStyle(.plain)
                         } else {
                             ZStack {
                                 Color.gray.opacity(0.08)
@@ -1718,17 +1879,73 @@ struct ContentView: View {
                         Button {
                             onCaptureReceipt?()
                         } label: {
-                            HStack {
-                                Image(systemName: "camera.fill")
-                                Text("Mở camera")
-                            }
+                            Image(systemName: "camera.fill")
                         }
                         .buttonStyle(.borderedProminent)
+                        .labelStyle(.iconOnly)
+                        
+                        PhotosPicker(selection: $receiptPickerItem, matching: .images) {
+                            Image(systemName: "photo")
+                        }
+                        .buttonStyle(.bordered)
+                        .labelStyle(.iconOnly)
                     }
                 }
                 .padding()
                 .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
                 .padding(.horizontal).padding(.bottom)
+                .onChange(of: receiptPickerItem) { item in
+                    guard let item else { return }
+                    Task {
+                        if let data = try? await item.loadTransferable(type: Data.self),
+                           let img = UIImage(data: data) {
+                            onPickedReceiptImage?(img)
+                            receiptPickerItem = nil
+                        }
+                    }
+                }
+                .sheet(isPresented: $showReceiptPreview) {
+                    NavigationStack {
+                        ZStack {
+                            Color.black.opacity(0.9).ignoresSafeArea()
+                            if let preview = previewURL {
+                                if let ui = previewLoader.image ?? originalLoader.image ?? BillReceiptView.ImageCache.shared.image(for: preview) {
+                                    Image(uiImage: ui)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                } else {
+                                    ProgressView()
+                                        .tint(.white)
+                                        .task {
+                                            previewLoader.load(url: preview, targetSize: CGSize(width: 800, height: 800))
+                                            if let urlString = receiptImageURL, let original = URL(string: urlString) {
+                                                originalLoader.load(url: original, targetSize: CGSize(width: 800, height: 800))
+                                            }
+                                        }
+                                }
+                            }
+                        }
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Đóng") { showReceiptPreview = false }
+                            }
+                        }
+                    }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                }
+                .task(id: receiptImageURL) {
+                    if let s = receiptImageURL {
+                        let previewString = s.replacingOccurrences(of: ".jpg", with: "-preview.jpg")
+                        if let pu = URL(string: previewString) {
+                            previewLoader.load(url: pu, targetSize: CGSize(width: 800, height: 800))
+                        }
+                        if let ou = URL(string: s) {
+                            originalLoader.load(url: ou, targetSize: CGSize(width: 800, height: 800))
+                        }
+                    }
+                }
                 
                 if showButtons {
                     HStack {
@@ -1772,12 +1989,60 @@ struct ContentView: View {
         
         
         
+        final class ImageCache {
+            static let shared = ImageCache()
+            private let cache = NSCache<NSURL, UIImage>()
+            func image(for url: URL) -> UIImage? {
+                cache.object(forKey: url as NSURL)
+            }
+            func insert(_ image: UIImage, for url: URL) {
+                cache.setObject(image, forKey: url as NSURL)
+            }
+        }
+        
+        final class CachedImageLoader: ObservableObject {
+            @Published var image: UIImage?
+            
+            func load(url: URL, targetSize: CGSize? = nil) {
+                if let cached = ImageCache.shared.image(for: url) {
+                    image = cached
+                    return
+                }
+                Task {
+                    do {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        let target = targetSize ?? UIScreen.main.bounds.size
+                        let ui = Self.downsample(data: data, to: target, scale: UIScreen.main.scale) ?? UIImage(data: data)
+                        await MainActor.run {
+                            image = ui
+                        }
+                        if let ui {
+                            ImageCache.shared.insert(ui, for: url)
+                        }
+                    } catch {
+                    }
+                }
+            }
+            
+            static func downsample(data: Data, to size: CGSize, scale: CGFloat) -> UIImage? {
+                let cfData = data as CFData
+                guard let source = CGImageSourceCreateWithData(cfData, nil) else { return nil }
+                let maxDimension = Int(max(size.width, size.height) * scale)
+                let options: [NSString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceThumbnailMaxPixelSize: maxDimension,
+                    kCGImageSourceCreateThumbnailWithTransform: true
+                ]
+                guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+                return UIImage(cgImage: cgImage)
+            }
+        }
+        
         
         struct DottedLine: Shape {
             func path(in rect: CGRect) -> Path {
                 var path = Path()
                 path.move(to: CGPoint(x: 0, y: 0))
-                path.addLine(to: CGPoint(x: rect.width, y: 0))
                 return path
             }
         }

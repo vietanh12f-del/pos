@@ -46,7 +46,8 @@ struct BillDetailView: View {
                     customerName: bill.customerName ?? "Khách lẻ",
                     onOpenBankSettings: nil,
                     onCaptureReceipt: nil,
-                    receiptImageURL: bill.paymentReceiptURL
+                    receiptImageURL: bill.paymentReceiptURL,
+                    onPickedReceiptImage: nil
                 )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -156,7 +157,8 @@ struct BillDetailView: View {
                 customerName: bill.customerName ?? "Khách lẻ",
                 onOpenBankSettings: nil,
                 onCaptureReceipt: nil,
-                receiptImageURL: bill.paymentReceiptURL
+                receiptImageURL: bill.paymentReceiptURL,
+                onPickedReceiptImage: nil
             )
             .frame(width: 375)
             .background(Color.white)

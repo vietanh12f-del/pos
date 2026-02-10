@@ -59,6 +59,29 @@ class StorageManager {
         return publicURL.absoluteString
     }
     
+    // Upload smaller preview image for receipts
+    func uploadReceiptPreviewImage(data: Data, fileName: String) async throws -> String {
+        let path = "\(fileName)-preview.jpg"
+        
+        try await client.storage
+            .from(receiptBucket)
+            .upload(
+                path,
+                data: data,
+                options: FileOptions(
+                    cacheControl: "3600",
+                    contentType: "image/jpeg",
+                    upsert: true
+                )
+            )
+        
+        let publicURL = try client.storage
+            .from(receiptBucket)
+            .getPublicURL(path: path)
+        
+        return publicURL.absoluteString
+    }
+    
     // Helper to generate unique filename
     func generateImageName() -> String {
         return UUID().uuidString
