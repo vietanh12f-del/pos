@@ -707,15 +707,15 @@ struct ContentView: View {
                     VStack(spacing: 16) {
                         HStack {
                             HStack(spacing: 12) {
+                                Text("Tóm tắt đơn hàng")
+                                    .font(.headline)
+                                
                                 Text("\(viewModel.items.reduce(0) { $0 + $1.quantity })")
                                     .font(.headline)
                                     .frame(width: 32, height: 32)
                                     .background(Color.themePrimary.opacity(0.2))
-                                    .foregroundStyle(Color.themePrimary) // Should be darker
+                                    .foregroundStyle(Color.themePrimary)
                                     .cornerRadius(8)
-                                
-                                Text("Tóm tắt đơn hàng")
-                                    .font(.headline)
                             }
                             Spacer()
                             Text(formatCurrency(viewModel.totalAmount))
