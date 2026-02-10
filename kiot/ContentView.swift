@@ -559,13 +559,13 @@ struct ContentView: View {
                                                 Image(uiImage: uiImage)
                                                     .resizable()
                                                     .scaledToFill()
-                                                    .frame(width: 40, height: 40)
+                                                    .frame(width: 20, height: 20)
                                                     .clipShape(Circle())
                                             } else {
                                                 Image(systemName: product.imageName)
-                                                    .font(.title2)
+                                                    .font(.headline)
                                                     .foregroundStyle(Color.themePrimary)
-                                                    .frame(width: 40, height: 40)
+                                                    .frame(width: 20, height: 20)
                                                     .background(Color.themePrimary.opacity(0.1))
                                                     .clipShape(Circle())
                                             }
@@ -601,6 +601,7 @@ struct ContentView: View {
                             }
                             .listStyle(.plain)
                             .background(Color.white)
+                            .padding(.bottom, 320) // Reserve space for bottom summary
                         }
                     } else {
                         
@@ -665,7 +666,7 @@ struct ContentView: View {
                                 }
                             }
                             .padding()
-                            .padding(.bottom, 100) // Space for bottom sheet
+                            .padding(.bottom, 320) // Reserve space for bottom summary
                         }
                         .background(Color.themeBackgroundLight)
                     }
@@ -693,11 +694,7 @@ struct ContentView: View {
                     .zIndex(1) // Ensure it stays on top
                 }
                 
-                VoiceAIButton(viewModel: viewModel)
-                    .padding(.bottom, 320)
-                    .padding(.trailing, 20)
-                    .frame(maxWidth: .infinity, alignment: .bottomTrailing)
-                    .zIndex(2)
+                
                 
                 // Order Summary Sheet (Always visible at bottom)
                 VStack(spacing: 0) {
@@ -727,94 +724,115 @@ struct ContentView: View {
                                 .foregroundStyle(Color.themePrimary)
                         }
                         
-                        HStack(spacing: 8) {
-                            Image(systemName: "person.fill")
-                                .foregroundStyle(.gray)
-                            TextField("Tên khách lẻ", text: $viewModel.walkInName)
-                                .textInputAutocapitalization(.words)
-                                .disableAutocorrection(true)
-                                .focused($walkInFocused)
-                        }
-                        .padding(12)
-                        .background(Color.gray.opacity(0.08))
-                        .cornerRadius(12)
-                        
-                        // Horizontal Item List
-                        ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
                             HStack(spacing: 8) {
+                                Image(systemName: "person.fill")
+                                    .foregroundStyle(.gray)
+                                TextField("Tên khách lẻ", text: $viewModel.walkInName)
+                                    .textInputAutocapitalization(.words)
+                                    .disableAutocorrection(true)
+                                    .focused($walkInFocused)
+                            }
+                            .padding(12)
+                            .background(Color.gray.opacity(0.08))
+                            .cornerRadius(12)
+                            
+                            VoiceAIButton(viewModel: viewModel)
+                        }
+                        
+                        ScrollView {
+                            VStack(spacing: 8) {
                                 ForEach(viewModel.items) { item in
-                                    HStack(spacing: 8) {
+                                    HStack(spacing: 12) {
                                         if let data = item.imageData, let uiImage = UIImage(data: data) {
                                             Image(uiImage: uiImage)
                                                 .resizable()
                                                 .scaledToFill()
-                                                .frame(width: 32, height: 32)
-                                                .clipShape(Circle())
-                                                .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                                                .frame(width: 36, height: 36)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
                                         } else {
                                             Image(systemName: item.systemImage ?? "cart.circle.fill")
-                                                .font(.system(size: 16))
+                                                .font(.system(size: 18))
                                                 .foregroundStyle(Color.themePrimary)
-                                                .frame(width: 32, height: 32)
+                                                .frame(width: 36, height: 36)
                                                 .background(Color.themePrimary.opacity(0.1))
-                                                .clipShape(Circle())
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
                                         }
                                         
-                                        VStack(alignment: .leading, spacing: 2) {
+                                        VStack(alignment: .leading, spacing: 4) {
                                             Text(item.name)
-                                                .font(.caption)
-                                                .fontWeight(.bold)
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
                                                 .foregroundStyle(Color.themeTextDark)
-                                            Text("\(item.quantity)x")
-                                                .font(.caption2)
-                                                .foregroundStyle(Color.gray)
                                             
-                                            if item.discount > 0 {
-                                                Text("-\(Int(item.discount/1000))k")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.red)
+                                            HStack(spacing: 8) {
+                                                Text(formatCurrency(item.price))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                                if item.discount > 0 {
+                                                    Text("-\(Int(item.discount/1000))k")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.red)
+                                                }
+                                            }
+                                        }
+                                        
+                                        Spacer()
+                                        
+                                        VStack(alignment: .trailing, spacing: 6) {
+                                            Text(formatCurrency(item.total))
+                                                .font(.subheadline)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(Color.themePrimary)
+                                            
+                                            HStack(spacing: 12) {
+                                                Button {
+                                                    viewModel.updateItem(item, newQuantity: item.quantity - 1)
+                                                } label: {
+                                                    Image(systemName: "minus.circle.fill")
+                                                        .font(.title3)
+                                                        .foregroundStyle(Color.gray)
+                                                }
+                                                
+                                                Text("\(item.quantity)")
+                                                    .font(.headline)
+                                                    .frame(minWidth: 24)
+                                                
+                                                Button {
+                                                    viewModel.updateItem(item, newQuantity: item.quantity + 1)
+                                                } label: {
+                                                    Image(systemName: "plus.circle.fill")
+                                                        .font(.title3)
+                                                        .foregroundStyle(Color.themePrimary)
+                                                }
+                                                
+                                                Button {
+                                                    viewModel.removeItem(item)
+                                                } label: {
+                                                    Image(systemName: "trash.circle.fill")
+                                                        .font(.title3)
+                                                        .foregroundStyle(.red)
+                                                }
                                             }
                                         }
                                     }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 6)
+                                    .padding(12)
                                     .background(Color.white)
-                                    .cornerRadius(20)
+                                    .cornerRadius(12)
                                     .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 20)
+                                        RoundedRectangle(cornerRadius: 12)
                                             .stroke(Color.gray.opacity(0.1), lineWidth: 1)
                                     )
                                     .contentShape(Rectangle())
                                     .onTapGesture {
                                         editingItem = item
                                     }
-                                    .contextMenu {
-                                        Button {
-                                            editingItem = item
-                                        } label: {
-                                            Label("Sửa chi tiết", systemImage: "pencil")
-                                        }
-                                        
-                                        Divider()
-                                        
-                                        Button("+ Tăng") {
-                                            viewModel.updateItem(item, newQuantity: item.quantity + 1)
-                                        }
-                                        
-                                        Button("- Giảm") {
-                                            viewModel.updateItem(item, newQuantity: item.quantity - 1)
-                                        }
-                                        
-                                        Button("Xóa", role: .destructive) {
-                                            viewModel.removeItem(item)
-                                        }
-                                    }
                                 }
                                 
-                                // Manual Add Button
                                 Button(action: { showManualInput = true }) {
-                                    HStack(spacing: 4) {
+                                    HStack(spacing: 6) {
                                         Image(systemName: "plus")
                                             .font(.caption)
                                         Text("Thêm hàng")
@@ -828,6 +846,7 @@ struct ContentView: View {
                                 }
                             }
                         }
+                        .frame(height: 160)
                         
                         Button(action: {
                             if viewModel.editingBill != nil {
@@ -1240,7 +1259,7 @@ struct ContentView: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .aspectRatio(1, contentMode: .fit)
+                        .frame(height: 90)
                         .cornerRadius(16)
                         .clipped()
                 } else if let urlString = product.imageURL, let url = URL(string: urlString) {
@@ -1249,14 +1268,14 @@ struct ContentView: View {
                             image
                                 .resizable()
                                 .scaledToFill()
-                                .aspectRatio(1, contentMode: .fit)
+                                .frame(height: 90)
                                 .cornerRadius(16)
                                 .clipped()
                         } else if phase.error != nil {
                             // Error loading
                             RoundedRectangle(cornerRadius: 16)
                                 .fill(colorForString(product.color).opacity(0.1))
-                                .aspectRatio(1, contentMode: .fit)
+                                .frame(height: 90)
                                 .overlay(
                                     Image(systemName: "exclamationmark.triangle")
                                         .resizable()
@@ -1269,7 +1288,7 @@ struct ContentView: View {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 16)
                                     .fill(Color.gray.opacity(0.1))
-                                    .aspectRatio(1, contentMode: .fit)
+                                    .frame(height: 90)
                                 ProgressView()
                             }
                         }
@@ -1277,7 +1296,7 @@ struct ContentView: View {
                 } else {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(colorForString(product.color).opacity(0.1))
-                        .aspectRatio(1, contentMode: .fit)
+                        .frame(height: 90)
                         .overlay(
                             Image(systemName: product.imageName)
                                 .resizable()
