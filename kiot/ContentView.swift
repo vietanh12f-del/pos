@@ -1348,6 +1348,9 @@ struct ContentView: View {
         @State private var renderedImage: UIImage?
         @State private var showShareSheet = false
         @State private var showBankSettings = false
+        @State private var showReceiptCamera = false
+        @State private var receiptImage: UIImage?
+        @State private var isUploadingReceipt = false
         
         var body: some View {
             ZStack {
@@ -1380,7 +1383,11 @@ struct ContentView: View {
                             customerName: viewModel.walkInName,
                             onOpenBankSettings: {
                                 showBankSettings = true
-                            }
+                            },
+                            onCaptureReceipt: {
+                                showReceiptCamera = true
+                            },
+                            receiptImageURL: viewModel.paymentReceiptImageURL
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -1423,6 +1430,33 @@ struct ContentView: View {
                         .padding()
                 }
             }
+            .fullScreenCover(isPresented: $showReceiptCamera) {
+                ImagePicker(image: $receiptImage)
+                    .ignoresSafeArea()
+            }
+            .onChange(of: receiptImage) { img in
+                guard let img else { return }
+                Task {
+                    isUploadingReceipt = true
+                    defer { isUploadingReceipt = false }
+                    if let data = img.jpegData(compressionQuality: 0.8) {
+                        let fileName = StorageManager.shared.generateImageName()
+                        do {
+                            let url = try await StorageManager.shared.uploadReceiptImage(data: data, fileName: fileName)
+                            await MainActor.run {
+                                viewModel.paymentReceiptImageURL = url
+                            }
+                            if let bill = viewModel.editingBill {
+                                var updated = bill
+                                updated.paymentReceiptURL = url
+                                try await viewModel.updateOrder(updated)
+                            }
+                        } catch {
+                            print("❌ Error uploading receipt: \(error)")
+                        }
+                    }
+                }
+            }
         }
         
         func currentDateString() -> String {
@@ -1453,7 +1487,9 @@ struct ContentView: View {
                     showButtons: false,
                     onComplete: nil,
                     customerName: viewModel.walkInName,
-                    onOpenBankSettings: nil
+                    onOpenBankSettings: nil,
+                    onCaptureReceipt: nil,
+                    receiptImageURL: nil
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -1479,6 +1515,8 @@ struct ContentView: View {
         let onComplete: ((Bool) -> Void)?
         let customerName: String
         let onOpenBankSettings: (() -> Void)?
+        let onCaptureReceipt: (() -> Void)?
+        let receiptImageURL: String?
         
         var body: some View {
             VStack(spacing: 0) {
@@ -1622,6 +1660,74 @@ struct ContentView: View {
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
                 }
+                .padding(.horizontal).padding(.bottom)
+                
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Chụp hình chuyển khoản")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.gray)
+                            if let url = receiptImageURL, !url.isEmpty {
+                                Text("Đã lưu ảnh xác nhận")
+                                    .font(.footnote)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(.green)
+                            } else {
+                                Text("Chưa có ảnh xác nhận")
+                                    .font(.footnote)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                        Spacer()
+                        if let urlString = receiptImageURL, let url = URL(string: urlString) {
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image {
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                } else if phase.error != nil {
+                                    ZStack {
+                                        Color.gray.opacity(0.1)
+                                        Image(systemName: "photo")
+                                            .foregroundStyle(Color.gray)
+                                    }
+                                } else {
+                                    ProgressView()
+                                }
+                            }
+                            .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            )
+                        } else {
+                            ZStack {
+                                Color.gray.opacity(0.08)
+                                Image(systemName: "photo")
+                                    .foregroundStyle(Color.gray)
+                            }
+                            .frame(width: 64, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        Button {
+                            onCaptureReceipt?()
+                        } label: {
+                            HStack {
+                                Image(systemName: "camera.fill")
+                                Text("Mở camera")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+                .padding()
+                .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
                 .padding(.horizontal).padding(.bottom)
                 
                 if showButtons {

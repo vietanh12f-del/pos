@@ -47,6 +47,7 @@ struct Bill: Identifiable, Codable, Equatable {
     var creatorId: UUID? = nil // ID of the user who created the order
     var creatorName: String? = nil // Name of the user who created the order
     var customerName: String? = nil // Walk-in customer name (edited in order)
+    var paymentReceiptURL: String? = nil // URL to payment receipt image
     
     var profit: Double {
         total - totalCost

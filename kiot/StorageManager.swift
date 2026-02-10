@@ -7,6 +7,7 @@ class StorageManager {
     private let client = SupabaseConfig.client
     
     private let productBucket = "product-images"
+    private let receiptBucket = "payment-receipts"
     
     // Upload image to Supabase Storage and return public URL
     func uploadProductImage(data: Data, fileName: String) async throws -> String {
@@ -32,6 +33,29 @@ class StorageManager {
             .from(productBucket)
             .getPublicURL(path: path)
             
+        return publicURL.absoluteString
+    }
+    
+    // Upload payment receipt image
+    func uploadReceiptImage(data: Data, fileName: String) async throws -> String {
+        let path = "\(fileName).jpg"
+        
+        try await client.storage
+            .from(receiptBucket)
+            .upload(
+                path,
+                data: data,
+                options: FileOptions(
+                    cacheControl: "3600",
+                    contentType: "image/jpeg",
+                    upsert: true
+                )
+            )
+        
+        let publicURL = try client.storage
+            .from(receiptBucket)
+            .getPublicURL(path: path)
+        
         return publicURL.absoluteString
     }
     

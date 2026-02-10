@@ -8,6 +8,7 @@ class OrderViewModel: ObservableObject {
     @Published var items: [OrderItem] = []
     @Published var showPayment: Bool = false
     @Published var walkInName: String = "Khách lẻ"
+    @Published var paymentReceiptImageURL: String? = nil
     
     @Published var priceHistory: [String: Double] = [:]
     @Published var inventory: [String: Int] = [:]
@@ -1376,6 +1377,7 @@ class OrderViewModel: ObservableObject {
         let newTotal = totalAmount
         var updatedBill = Bill(id: originalBill.id, createdAt: originalBill.createdAt, items: items, total: newTotal)
         updatedBill.customerName = walkInName
+        updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? originalBill.paymentReceiptURL
         
         // Replace in history
         if let index = pastOrders.firstIndex(where: { $0.id == originalBill.id }) {
@@ -1445,6 +1447,7 @@ class OrderViewModel: ObservableObject {
         showPayment = false
         editingBill = nil
         walkInName = "Khách lẻ"
+        paymentReceiptImageURL = nil
     }
     
     // MARK: - Calendar Stats
@@ -1534,6 +1537,7 @@ class OrderViewModel: ObservableObject {
         var bill = Bill(id: UUID(), createdAt: Date(), items: items, total: totalAmount, totalCost: cost)
         bill.isPaid = isPaid
         bill.customerName = walkInName
+        bill.paymentReceiptURL = paymentReceiptImageURL
         
         // Populate creator info
         if let profile = AuthManager.shared.currentUserProfile {

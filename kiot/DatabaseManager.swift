@@ -491,8 +491,9 @@ struct OrderDTO: Codable {
     let creator_id: UUID?
     let creator_name: String?
     let customer_name: String?
+    let receipt_image_url: String?
     
-    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?) {
+    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?) {
         self.id = id
         self.total_amount = total_amount
         self.created_at = created_at
@@ -502,6 +503,7 @@ struct OrderDTO: Codable {
         self.creator_id = creator_id
         self.creator_name = creator_name
         self.customer_name = customer_name
+        self.receipt_image_url = receipt_image_url
     }
     
     init(from domain: Bill) {
@@ -514,6 +516,7 @@ struct OrderDTO: Codable {
         self.creator_id = domain.creatorId
         self.creator_name = domain.creatorName
         self.customer_name = domain.customerName
+        self.receipt_image_url = domain.paymentReceiptURL
     }
     
     func toDomain() -> Bill {
@@ -525,11 +528,12 @@ struct OrderDTO: Codable {
         bill.creatorId = creator_id
         bill.creatorName = creator_name
         bill.customerName = customer_name
+        bill.paymentReceiptURL = receipt_image_url
         return bill
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name)
+        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url)
     }
 }
 
