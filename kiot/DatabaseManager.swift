@@ -490,8 +490,9 @@ struct OrderDTO: Codable {
     let is_paid: Bool?
     let creator_id: UUID?
     let creator_name: String?
+    let customer_name: String?
     
-    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?) {
+    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?) {
         self.id = id
         self.total_amount = total_amount
         self.created_at = created_at
@@ -500,6 +501,7 @@ struct OrderDTO: Codable {
         self.is_paid = is_paid
         self.creator_id = creator_id
         self.creator_name = creator_name
+        self.customer_name = customer_name
     }
     
     init(from domain: Bill) {
@@ -511,6 +513,7 @@ struct OrderDTO: Codable {
         self.is_paid = domain.isPaid
         self.creator_id = domain.creatorId
         self.creator_name = domain.creatorName
+        self.customer_name = domain.customerName
     }
     
     func toDomain() -> Bill {
@@ -521,11 +524,12 @@ struct OrderDTO: Codable {
         bill.isPaid = is_paid ?? true
         bill.creatorId = creator_id
         bill.creatorName = creator_name
+        bill.customerName = customer_name
         return bill
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name)
+        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name)
     }
 }
 
