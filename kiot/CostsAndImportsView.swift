@@ -20,17 +20,15 @@ struct CostsAndImportsView: View {
         storeManager.hasPermission(.viewExpenses)
     }
     
-    private var canViewImportCosts: Bool {
-        storeManager.hasPermission(.viewExpenses) || storeManager.hasPermission(.viewInventory)
-    }
+    // Nhập hàng bị bỏ, chỉ còn chi phí vận hành
     
     var body: some View {
         NavigationStack {
-            if canViewOperatingCosts || canViewImportCosts {
+            if canViewOperatingCosts {
                 VStack(spacing: 0) {
                     // Header
                     HStack {
-                        Text("CHI PHÍ & NHẬP HÀNG")
+                        Text("CHI PHÍ")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(Color.themeTextDark)
                         Spacer()
@@ -52,45 +50,15 @@ struct CostsAndImportsView: View {
                     .padding()
                     .background(Color.white)
                     
-                    // Custom Segmented Control
-                    HStack(spacing: 0) {
-                        if canViewOperatingCosts {
-                            CostsTabButton(title: "Vận hành", isSelected: selectedSubTab == 0) { selectedSubTab = 0 }
-                        }
-                        
-                        if canViewImportCosts {
-                            CostsTabButton(title: "Phát sinh", isSelected: selectedSubTab == 1) { selectedSubTab = 1 }
-                        }
-                    }
-                    .background(Color.white)
-                    .onChange(of: canViewOperatingCosts) { newValue in
-                        if !newValue && selectedSubTab == 0 { selectedSubTab = 1 }
-                    }
-                    .onAppear {
-                        // Validate initial selection
-                        if selectedSubTab == 0 && !canViewOperatingCosts {
-                            selectedSubTab = 1
-                        } else if selectedSubTab == 1 && !canViewImportCosts {
-                            selectedSubTab = 0
-                        }
-                    }
+                    // Bỏ phân tab, luôn hiển thị Chi phí vận hành
                     
-                    // Content
-                    if selectedSubTab == 0 {
-                        if canViewOperatingCosts {
-                            OperatingCostsList(viewModel: viewModel)
-                        } else {
-                            AccessDeniedView(title: "Vận hành")
-                        }
+                    if canViewOperatingCosts {
+                        OperatingCostsList(viewModel: viewModel)
                     } else {
-                        if canViewImportCosts {
-                            ImportCostsList(viewModel: viewModel)
-                        } else {
-                            AccessDeniedView(title: "Phát sinh")
-                        }
+                        AccessDeniedView(title: "Vận hành")
                     }
                 }
-                .navigationTitle("Chi phí & Nhập hàng")
+                .navigationTitle("Chi phí")
                 .navigationBarHidden(true)
                 .background(Color(UIColor.systemGroupedBackground))
                 .sheet(isPresented: $showExportSheet) {

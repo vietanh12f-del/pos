@@ -60,7 +60,7 @@ struct ContentView: View {
                         
                         CostsAndImportsView(viewModel: viewModel, selectedSubTab: $costsSubTab, showNewOperatingExpense: $showNewOperatingExpense)
                             .tabItem {
-                                Label("Chi Phí & Nhập Hàng", systemImage: "banknote.fill")
+                                Label("Chi Phí", systemImage: "banknote.fill")
                             }
                             .tag(4)
                         
