@@ -10,7 +10,6 @@ struct InventoryView: View {
     @State private var searchText: String = ""
     @State private var showDeleteConfirmation = false
     @State private var productToDelete: Product?
-    @State private var showProductEdit = false
     @State private var editingProduct: Product?
     @State private var showRestockDetail = false
     @State private var selectedRestockBill: RestockBill?
@@ -131,81 +130,77 @@ struct InventoryView: View {
                             .padding(.top, 8)
                             
                             ForEach(filteredProducts) { product in
-                                Button(action: {
-                                    editingProduct = product
-                                    showProductEdit = true
-                                }) {
-                                    HStack(spacing: 12) {
-                                        // Image
-                                        if let imageData = product.imageData, let uiImage = UIImage(data: imageData) {
-                                            Image(uiImage: uiImage)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 44, height: 44)
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                        } else if let imageURL = product.imageURL, let url = URL(string: imageURL) {
-                                            AsyncImage(url: url) { phase in
-                                                if let image = phase.image {
-                                                    image
-                                                        .resizable()
-                                                        .scaledToFill()
-                                                        .frame(width: 44, height: 44)
-                                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                                } else if phase.error != nil {
-                                                    Image(systemName: "photo.badge.exclamationmark")
-                                                        .resizable()
-                                                        .scaledToFit()
-                                                        .frame(width: 44, height: 44)
-                                                        .foregroundColor(.gray)
-                                                } else {
-                                                    ProgressView()
-                                                        .frame(width: 44, height: 44)
-                                                }
+                                HStack(spacing: 12) {
+                                    if let imageData = product.imageData, let uiImage = UIImage(data: imageData) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 44, height: 44)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    } else if let imageURL = product.imageURL, let url = URL(string: imageURL) {
+                                        AsyncImage(url: url) { phase in
+                                            if let image = phase.image {
+                                                image
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 44, height: 44)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                            } else if phase.error != nil {
+                                                Image(systemName: "photo.badge.exclamationmark")
+                                                    .resizable()
+                                                    .scaledToFit()
+                                                    .frame(width: 44, height: 44)
+                                                    .foregroundColor(.gray)
+                                            } else {
+                                                ProgressView()
+                                                    .frame(width: 44, height: 44)
                                             }
-                                        } else {
-                                            Image(systemName: product.imageName)
-                                                .font(.title2)
-                                                .foregroundStyle(Color.themePrimary)
-                                                .frame(width: 44, height: 44)
-                                                .background(Color.themePrimary.opacity(0.1))
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
                                         }
-                                        
-                                        // Name & Category
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(product.name)
-                                                .font(.subheadline)
-                                                .fontWeight(.medium)
-                                                .foregroundStyle(Color.themeTextDark)
-                                                .lineLimit(2)
-                                            
-                                            Text(product.category)
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        
-                                        // Selling Price
-                                        Text(formatCurrency(product.price))
+                                    } else {
+                                        Image(systemName: product.imageName)
+                                            .font(.title2)
+                                            .foregroundStyle(Color.themePrimary)
+                                            .frame(width: 44, height: 44)
+                                            .background(Color.themePrimary.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(product.name)
                                             .font(.subheadline)
                                             .fontWeight(.medium)
                                             .foregroundStyle(Color.themeTextDark)
-                                            .frame(width: 80, alignment: .trailing)
+                                            .lineLimit(2)
                                         
-                                        // Cost Price
-                                        Text(formatCurrency(product.costPrice))
+                                        Text(product.category)
                                             .font(.caption)
                                             .foregroundStyle(.gray)
-                                            .frame(width: 80, alignment: .trailing)
-                                        
-                                        // Stock
-                                        Text("\(product.stockQuantity)")
-                                            .font(.headline)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(product.stockQuantity > 0 ? Color.themePrimary : Color.red)
-                                            .frame(width: 50, alignment: .trailing)
                                     }
-                                    .padding(.vertical, 8)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    
+                                    Text(formatCurrency(product.price))
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(Color.themeTextDark)
+                                        .frame(width: 80, alignment: .trailing)
+                                    
+                                    Text(formatCurrency(product.costPrice))
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                        .frame(width: 80, alignment: .trailing)
+                                    
+                                    Text("\(product.stockQuantity)")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(product.stockQuantity > 0 ? Color.themePrimary : Color.red)
+                                        .frame(width: 50, alignment: .trailing)
+                                }
+                                .padding(.vertical, 8)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withTransaction(Transaction(animation: nil)) {
+                                        editingProduct = product
+                                    }
                                 }
                                 .listRowBackground(Color.white)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -256,40 +251,41 @@ struct InventoryView: View {
                     } else {
                         List {
                             ForEach(filteredRestockHistory) { bill in
-                                Button(action: {
-                                    selectedRestockBill = bill
-                                    showRestockDetail = true
-                                }) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("Nhập hàng")
-                                                .font(.subheadline)
-                                                .fontWeight(.medium)
-                                                .foregroundStyle(Color.themeTextDark)
-                                            
-                                            Text(formatDate(bill.createdAt))
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
-                                        }
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Nhập hàng")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(Color.themeTextDark)
                                         
-                                        Spacer()
-                                        
-                                        VStack(alignment: .trailing, spacing: 4) {
-                                            Text(formatCurrency(bill.totalCost))
-                                                .font(.headline)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(.red)
-                                            
-                                            Text("\(bill.items.count) mặt hàng")
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
-                                        }
-                                        
-                                        Image(systemName: "chevron.right")
+                                        Text(formatDate(bill.createdAt))
                                             .font(.caption)
                                             .foregroundStyle(.gray)
                                     }
-                                    .padding(.vertical, 8)
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text(formatCurrency(bill.totalCost))
+                                            .font(.headline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(.red)
+                                        
+                                        Text("\(bill.items.count) mặt hàng")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                .padding(.vertical, 8)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withTransaction(Transaction(animation: nil)) {
+                                        selectedRestockBill = bill
+                                    }
                                 }
                                 .listRowBackground(Color.white)
                             }
@@ -338,6 +334,8 @@ struct InventoryView: View {
             }
             .sheet(item: $editingProduct) { product in
                 ProductEditView(viewModel: viewModel, mode: .edit(product))
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showingAddProduct) {
                 ProductEditView(viewModel: viewModel, mode: .add)
@@ -348,6 +346,8 @@ struct InventoryView: View {
                     viewModel: viewModel,
                     showNewRestock: $showNewRestock
                 )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showBarcodeScanner) {
                 BarcodeScannerView(onScan: { code in
