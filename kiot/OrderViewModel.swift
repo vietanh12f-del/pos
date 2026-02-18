@@ -27,6 +27,7 @@ class OrderViewModel: ObservableObject {
     // Voice & AI
     @Published var isProcessingVoice: Bool = false
     @Published var useGPT: Bool = true // Toggle for AI parser
+    @Published var isRecordingCustomerName: Bool = false
 
 
     // Alerting
@@ -129,7 +130,14 @@ class OrderViewModel: ObservableObject {
             .sink { [weak self] newText in
                 // Only update if we have new text (even if recording just stopped)
                 if !newText.isEmpty {
-                    self?.currentInput = newText
+                    if self?.isRecordingCustomerName == true {
+                        let name = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !name.isEmpty {
+                            self?.walkInName = name
+                        }
+                    } else {
+                        self?.currentInput = newText
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -139,10 +147,14 @@ class OrderViewModel: ObservableObject {
             .dropFirst()
             .sink { [weak self] isRecording in
                 if !isRecording {
-                    // Recording stopped (manual or auto)
-                    // Wait slightly for final transcript
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                        self?.processInput()
+                    if self?.isRecordingCustomerName == true {
+                        self?.isRecordingCustomerName = false
+                    } else {
+                        // Recording stopped (manual or auto)
+                        // Wait slightly for final transcript
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            self?.processInput()
+                        }
                     }
                 }
             }

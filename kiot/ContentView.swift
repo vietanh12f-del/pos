@@ -695,7 +695,7 @@ struct ContentView: View {
                 }
                 
                 // Voice Transcript Overlay
-                if viewModel.speechRecognizer.isRecording || !viewModel.currentInput.isEmpty {
+                if (viewModel.speechRecognizer.isRecording && !viewModel.isRecordingCustomerName) || !viewModel.currentInput.isEmpty {
                     VStack {
                         Text(viewModel.currentInput.isEmpty ? "Đang chờ nói...\nVí dụ: 3 hoa cúc 50k" : viewModel.currentInput)
                             .font(.headline)
@@ -755,6 +755,23 @@ struct ContentView: View {
                                     .textInputAutocapitalization(.words)
                                     .disableAutocorrection(true)
                                     .focused($walkInFocused)
+                                Spacer()
+                                Button {
+                                    if viewModel.speechRecognizer.isRecording {
+                                        viewModel.speechRecognizer.stopRecording()
+                                        viewModel.isRecordingCustomerName = false
+                                    } else {
+                                        do {
+                                            try viewModel.speechRecognizer.startRecording()
+                                            viewModel.isRecordingCustomerName = true
+                                        } catch { }
+                                    }
+                                } label: {
+                                    Image(systemName: viewModel.isRecordingCustomerName ? "waveform" : "mic.fill")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(viewModel.isRecordingCustomerName ? Color.red : .gray)
                             }
                             .padding(12)
                             .background(Color.gray.opacity(0.08))
