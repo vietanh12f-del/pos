@@ -7,6 +7,9 @@ struct StatisticsView: View {
     @State private var selectedQuarter: Int
     @State private var selectedYear: Int
     @State private var stats: [DailyFinancialStats] = []
+    @State private var productSearch: String = ""
+    @State private var keyboardHeight: CGFloat = 0
+    @FocusState private var searchFocused: Bool
     
     enum StatType {
         case today, week, month, quarter
@@ -22,6 +25,7 @@ struct StatisticsView: View {
     
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 16) {
                     Picker("Khoảng thời gian", selection: $selectedType) {
@@ -84,6 +88,8 @@ struct StatisticsView: View {
                     let totalFees = stats.reduce(0) { $0 + $1.incurredFees }
                     let totalNet = stats.reduce(0) { $0 + $1.netProfit }
                     
+                    Color.clear.frame(height: 0).id("page-top")
+                    
                     HStack(spacing: 12) {
                         StatCard(title: "Doanh thu", value: formatCurrency(totalRevenue), icon: "arrow.down.left", trend: "", isPositive: true)
                         StatCard(title: "Giá vốn", value: formatCurrency(totalCOGS), icon: "arrow.up.right", trend: "", isPositive: false)
@@ -113,13 +119,130 @@ struct StatisticsView: View {
                                 .padding(.horizontal)
                         }
                     }
+                    
+                    VStack(spacing: 12) {
+                        HStack {
+                            Text("Sản phẩm đã bán")
+                                .font(.headline)
+                                .foregroundStyle(Color.themeTextDark)
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.gray)
+                            TextField("Tìm sản phẩm", text: $productSearch)
+                                .textInputAutocapitalization(.never)
+                                .focused($searchFocused)
+                            if !productSearch.isEmpty {
+                                Button(action: { productSearch = "" }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                        
+                        Color.clear.frame(height: 0).id("sold-top")
+                        
+                        let sold = viewModel.soldProductsTotals(range: currentRange(), search: productSearch)
+                        ForEach(sold, id: \.name) { item in
+                            HStack {
+                                Text(item.name)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Spacer()
+                                Text("\(item.quantity)")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.gray)
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
+                            .background(Color.white)
+                            .cornerRadius(10)
+                            .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 2)
+                        }
+                        Color.clear.frame(height: keyboardHeight + 40)
+                    }
+                }
+                .padding(.bottom, keyboardHeight + 20)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                searchFocused = false
+                withAnimation {
+                    proxy.scrollTo("sold-top", anchor: .top)
                 }
             }
             .background(Color.themeBackgroundLight)
             .navigationTitle("Thống Kê")
+            .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: searchFocused) { focused in
+                if focused {
+                    withAnimation {
+                        proxy.scrollTo("sold-top", anchor: .center)
+                    }
+                }
+            }
+            .onAppear {
+                searchFocused = false
+                keyboardHeight = 0
+                withAnimation {
+                    proxy.scrollTo("page-top", anchor: .top)
+                }
+            }
+            .onDisappear {
+                searchFocused = false
+                keyboardHeight = 0
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
+            }
         }
         .onAppear {
             regenerate()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { output in
+            if let value = output.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
+                keyboardHeight = value.cgRectValue.height
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardHeight = 0
+        }
+    }
+    
+    private func currentRange() -> ReportDateRange {
+        switch selectedType {
+        case .today:
+            return .today
+        case .week:
+            return .thisWeek
+        case .month:
+            let calendar = Calendar.current
+            let components = calendar.dateComponents([.year, .month], from: selectedMonth)
+            let start = calendar.date(from: components) ?? selectedMonth
+            let end = calendar.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? selectedMonth
+            return .custom(start: start, end: end)
+        case .quarter:
+            let calendar = Calendar.current
+            var components = DateComponents()
+            components.year = selectedYear
+            components.month = (selectedQuarter - 1) * 3 + 1
+            components.day = 1
+            let start = calendar.date(from: components) ?? Date()
+            let end = calendar.date(byAdding: .month, value: 3, to: start)?.addingTimeInterval(-1) ?? Date()
+            return .custom(start: start, end: end)
         }
     }
     

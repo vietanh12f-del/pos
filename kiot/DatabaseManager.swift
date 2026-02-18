@@ -33,6 +33,8 @@ protocol DatabaseService {
     func saveProfile(_ profile: UserProfile) async throws
     
     func deleteStore(_ id: UUID) async throws
+    
+    func saveUserFeedback(_ feedback: UserFeedback) async throws
 }
 
 // MARK: - Supabase Implementation
@@ -171,6 +173,23 @@ class SupabaseDatabaseService: DatabaseService {
             .from("orders")
             .delete()
             .eq("id", value: id)
+            .execute()
+    }
+    
+    // MARK: - Feedback
+    func saveUserFeedback(_ feedback: UserFeedback) async throws {
+        let storeId = StoreManager.shared.currentStore?.id
+        let userId = SupabaseConfig.client.auth.currentUser?.id
+        let dto = UserFeedbackDTO(
+            id: feedback.id,
+            content: feedback.content,
+            created_at: feedback.createdAt,
+            user_id: userId,
+            store_id: storeId
+        )
+        try await client
+            .from("user_feedback")
+            .insert(dto)
             .execute()
     }
     
@@ -327,6 +346,7 @@ class SupabaseDatabaseService: DatabaseService {
     func saveOrder(_ bill: Bill) async throws { print("⚠️ saveOrder: Mocked success") }
     func updateOrder(_ bill: Bill) async throws { print("⚠️ updateOrder: Mocked success") }
     func deleteOrder(_ id: UUID) async throws { print("⚠️ deleteOrder: Mocked success") }
+    func saveUserFeedback(_ feedback: UserFeedback) async throws { print("⚠️ saveUserFeedback: Mocked success") }
     
     func fetchRestockHistory() async throws -> [RestockBill] { return [] }
     func fetchRestockBill(id: UUID) async throws -> RestockBill? { return nil }
@@ -644,4 +664,12 @@ struct RestockItemDTO: Codable {
     func toDomain() -> RestockItem {
         return RestockItem(id: UUID(), name: product_name, quantity: quantity, unitPrice: unit_price)
     }
+}
+
+struct UserFeedbackDTO: Codable {
+    let id: UUID
+    let content: String
+    let created_at: Date
+    let user_id: UUID?
+    let store_id: UUID?
 }

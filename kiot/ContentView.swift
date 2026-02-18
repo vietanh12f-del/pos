@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var showAddEmployee: Bool = false
     @State private var costsSubTab: Int = 0 // State for Costs & Imports sub-tab
     @State private var showNewOperatingExpense: Bool = false // Sheet state for Operating Expense
+    @State private var isKeyboardVisibleGlobal: Bool = false
     
     init() {
         // Default TabBar
@@ -76,7 +77,7 @@ struct ContentView: View {
                             }
                             .tag(7)
                         
-                        SettingsView(tabBarManager: tabBarManager)
+                        SettingsView(tabBarManager: tabBarManager, isTabBarVisible: $isTabBarVisible)
                             .tabItem {
                                 Label("Cài Đặt", systemImage: "gearshape.fill")
                             }
@@ -92,7 +93,7 @@ struct ContentView: View {
                     .toolbar(.hidden, for: .tabBar)
                     // Add padding to prevent content from being hidden behind the custom tab bar
                     // Height = 50 (button) + 12 (top) + 8 (bottom) = 70 + Safe Area
-                    .padding(.bottom, isTabBarVisible ? (70 + geometry.safeAreaInsets.bottom) : 0)
+                    .padding(.bottom, isTabBarVisible ? (isKeyboardVisibleGlobal ? 10 : (70 + geometry.safeAreaInsets.bottom)) : 0)
                     
                     // Custom Tab Bar
                     if isTabBarVisible {
@@ -187,6 +188,12 @@ struct ContentView: View {
                 } message: {
                     Text(viewModel.errorMessage)
                 }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                    isKeyboardVisibleGlobal = true
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                    isKeyboardVisibleGlobal = false
+                }
             }
         }
     }
@@ -199,6 +206,7 @@ struct ContentView: View {
         @Binding var showNewOrder: Bool
         @Binding var selectedTab: Int
         @State private var selectedDate = Date()
+        @State private var isKeyboardVisible = false
         
         var body: some View {
             NavigationStack {
@@ -458,6 +466,7 @@ struct ContentView: View {
         @State private var showCustomerPicker = false
         @State private var customerSortMode: Int = 0
         @State private var customerSearch: String = ""
+        @State private var isKeyboardVisible: Bool = false
         
         var body: some View {
             ZStack(alignment: .bottom) {
@@ -606,7 +615,11 @@ struct ContentView: View {
                             }
                             .listStyle(.plain)
                             .background(Color.white)
-                            .padding(.bottom, 320) // Reserve space for bottom summary
+                            .padding(.bottom, isKeyboardVisible ? keyboardHeight + 20 : 320)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            }
                         }
                     } else {
                         
@@ -671,7 +684,11 @@ struct ContentView: View {
                                 }
                             }
                             .padding()
-                            .padding(.bottom, 320) // Reserve space for bottom summary
+                            .padding(.bottom, isKeyboardVisible ? keyboardHeight + 20 : 320)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                            }
                         }
                         .background(Color.themeBackgroundLight)
                     }
@@ -680,7 +697,7 @@ struct ContentView: View {
                 // Voice Transcript Overlay
                 if viewModel.speechRecognizer.isRecording || !viewModel.currentInput.isEmpty {
                     VStack {
-                        Text(viewModel.currentInput.isEmpty ? "Đang nghe..." : viewModel.currentInput)
+                        Text(viewModel.currentInput.isEmpty ? "Đang chờ nói...\nVí dụ: 3 hoa cúc 50k" : viewModel.currentInput)
                             .font(.headline)
                             .fontWeight(.medium)
                             .foregroundStyle(Color.themeTextDark)
@@ -693,10 +710,11 @@ struct ContentView: View {
                             )
                             .padding(.horizontal, 40)
                     }
-                    .padding(.bottom, 340) // Position above FAB
+                    .padding(.bottom, 340)
+                    .allowsHitTesting(false)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .animation(.spring(), value: viewModel.currentInput)
-                    .zIndex(1) // Ensure it stays on top
+                    .zIndex(1)
                 }
                 
                 

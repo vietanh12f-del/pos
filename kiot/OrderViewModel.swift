@@ -1629,4 +1629,51 @@ class OrderViewModel: ObservableObject {
             items.remove(at: index)
         }
     }
+    
+    func soldProductsTotals(range: ReportDateRange? = nil, search: String? = nil) -> [(name: String, quantity: Int)] {
+        var totals: [String: (display: String, qty: Int)] = [:]
+        
+        let orders: [Bill]
+        if let r = range {
+            let calendar = Calendar.current
+            let now = Date()
+            let startDate: Date
+            let endDate: Date
+            switch r {
+            case .today:
+                startDate = calendar.startOfDay(for: now)
+                endDate = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now
+            case .thisWeek:
+                let comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+                startDate = calendar.date(from: comps) ?? now
+                endDate = calendar.date(byAdding: .day, value: 7, to: startDate)?.addingTimeInterval(-1) ?? now
+            case .thisMonth:
+                let comps = calendar.dateComponents([.year, .month], from: now)
+                startDate = calendar.date(from: comps) ?? now
+                endDate = calendar.date(byAdding: .month, value: 1, to: startDate)?.addingTimeInterval(-1) ?? now
+            case .custom(let start, let end):
+                startDate = start
+                endDate = end
+            }
+            orders = pastOrders.filter { $0.isPaid && $0.createdAt >= startDate && $0.createdAt <= endDate }
+        } else {
+            orders = pastOrders.filter { $0.isPaid }
+        }
+        
+        for bill in orders {
+            for item in bill.items {
+                let key = item.name.lowercased()
+                var entry = totals[key] ?? (display: item.name, qty: 0)
+                entry.qty += item.quantity
+                totals[key] = entry
+            }
+        }
+        var result = totals.values.map { (name: $0.display, quantity: $0.qty) }
+        if let s = search, !s.isEmpty {
+            let q = s.lowercased()
+            result = result.filter { $0.name.lowercased().contains(q) }
+        }
+        result.sort { $0.quantity > $1.quantity }
+        return result
+    }
 }

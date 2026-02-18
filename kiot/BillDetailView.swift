@@ -194,7 +194,7 @@ struct BillDetailView: View {
         let amount = Int(bill.total)
         let base = "https://img.vietqr.io/image/\(bankName)-\(finalBankAccount)-compact.png"
         let shortId = bill.id.uuidString.prefix(8)
-        let infoBase = "KNOTE \(shortId)"
+        let infoBase = "SmartKiot \(shortId)"
         let allowed = CharacterSet.urlQueryAllowed
         let encodedInfo = infoBase.addingPercentEncoding(withAllowedCharacters: allowed) ?? "KNOTE"
         let urlString = "\(base)?amount=\(amount)&addInfo=\(encodedInfo)"

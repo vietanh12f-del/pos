@@ -227,6 +227,11 @@ struct InventoryView: View {
                         }
                         .listStyle(.insetGrouped)
                         .scrollContentBackground(.hidden)
+                        .scrollDismissesKeyboard(.interactively)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        }
                         .refreshable {
                             await viewModel.loadData(force: true)
                         }
@@ -291,6 +296,11 @@ struct InventoryView: View {
                         }
                         .listStyle(.insetGrouped)
                         .scrollContentBackground(.hidden)
+                        .scrollDismissesKeyboard(.interactively)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        }
                         .refreshable {
                             await viewModel.loadData(force: true)
                         }
@@ -299,6 +309,11 @@ struct InventoryView: View {
             }
             .background(Color.themeBackgroundLight)
             .navigationTitle("Kho hàng hóa")
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     // Removed redundant Plus button as per user request

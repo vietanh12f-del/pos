@@ -1,11 +1,23 @@
 import SwiftUI
 import Supabase
+import Combine
 
 struct SettingsView: View {
     @ObservedObject var tabBarManager: CustomTabBarManager
+    @Binding var isTabBarVisible: Bool
     @StateObject private var authManager = AuthManager.shared
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var showEditProfile = false
+    @State private var feedbackText: String = ""
+    @State private var isSubmittingFeedback: Bool = false
+    @State private var feedbackStatus: String?
+    private let database = SupabaseDatabaseService()
+    @FocusState private var feedbackFocused: Bool
+    @State private var keyboardHeight: CGFloat = 0
+    
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
     
     
     var body: some View {
@@ -117,6 +129,77 @@ struct SettingsView: View {
                         Text("1.0.0")
                             .foregroundStyle(.gray)
                     }
+                    
+                    Section(header: Text("Góp ý & Hỗ trợ")) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Ý kiến đóng góp")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            TextEditor(text: $feedbackText)
+                                .frame(minHeight: 100)
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2)))
+                                .focused($feedbackFocused)
+                            if let status = feedbackStatus {
+                                Text(status)
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            }
+                            Button {
+                                isSubmittingFeedback = true
+                                let fb = UserFeedback(
+                                    id: UUID(),
+                                    content: feedbackText,
+                                    createdAt: Date(),
+                                    userId: SupabaseConfig.client.auth.currentUser?.id,
+                                    storeId: StoreManager.shared.currentStore?.id
+                                )
+                                Task {
+                                    do {
+                                        try await database.saveUserFeedback(fb)
+                                        await MainActor.run {
+                                            feedbackStatus = "Đã gửi góp ý. Cảm ơn bạn!"
+                                            feedbackText = ""
+                                            isSubmittingFeedback = false
+                                            hideKeyboard()
+                                            isTabBarVisible = true
+                                        }
+                                    } catch {
+                                        await MainActor.run {
+                                            feedbackStatus = "Gửi góp ý thất bại. Thử lại sau."
+                                            isSubmittingFeedback = false
+                                        }
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    if isSubmittingFeedback {
+                                        ProgressView().tint(.white)
+                                    }
+                                    Text("Gửi góp ý")
+                                        .fontWeight(.bold)
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isSubmittingFeedback || feedbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Liên hệ hỗ trợ")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            HStack {
+                                Image(systemName: "phone.fill")
+                                Text("0879855898")
+                                Spacer()
+                                Button("Gọi") {
+                                    if let url = URL(string: "tel://0879855898") {
+                                        UIApplication.shared.open(url)
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                    }
                 }
                 
             }
@@ -126,6 +209,25 @@ struct SettingsView: View {
                 NavigationStack {
                     EditProfileView(authManager: authManager)
                 }
+            }
+            .scrollDismissesKeyboard(.immediately)
+            .onChange(of: feedbackFocused) { focused in
+                withAnimation {
+                    isTabBarVisible = !focused
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: keyboardHeight)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notif in
+                if let rect = (notif.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect) {
+                    keyboardHeight = rect.height
+                } else {
+                    keyboardHeight = 300 // fallback
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                keyboardHeight = 0
             }
         }
     }

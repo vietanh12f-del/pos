@@ -59,8 +59,14 @@ struct ChatView: View {
                         .padding()
                         .padding(.bottom, 80) // Space for TabBar
                     }
+                    .scrollDismissesKeyboard(.interactively)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
                 }
             }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle("Tin nhắn")
             .navigationBarBackButtonHidden(true)
             .navigationBarHidden(true)

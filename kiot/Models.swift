@@ -77,6 +77,14 @@ struct OperatingExpense: Identifiable, Codable, Equatable {
     var createdAt: Date
 }
 
+struct UserFeedback: Identifiable, Codable, Equatable {
+    let id: UUID
+    var content: String
+    var createdAt: Date
+    var userId: UUID?
+    var storeId: UUID?
+}
+
 struct Product: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
