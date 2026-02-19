@@ -208,6 +208,93 @@ struct ContentView: View {
         @State private var selectedDate = Date()
         @State private var isKeyboardVisible = false
         
+        var searchContentView2: some View {
+            Group {
+                if viewModel.searchSuggestions.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 50))
+                            .foregroundStyle(.gray.opacity(0.5))
+                        Text("Không tìm thấy sản phẩm nào")
+                            .font(.headline)
+                            .foregroundStyle(.gray)
+                        Text("\"\(viewModel.searchText)\"")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                        
+                        Button("Xóa tìm kiếm") {
+                            viewModel.searchText = ""
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.gray)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.white)
+                } else {
+                    List {
+                        ForEach(viewModel.searchSuggestions) { product in
+                            Button(action: {
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                                viewModel.addProduct(product)
+                                viewModel.searchText = ""
+                            }) {
+                                HStack(spacing: 12) {
+                                    if let data = product.imageData, let uiImage = UIImage(data: data) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 20, height: 20)
+                                            .clipShape(Circle())
+                                    } else {
+                                        Image(systemName: product.imageName)
+                                            .font(.headline)
+                                            .foregroundStyle(Color.themePrimary)
+                                            .frame(width: 20, height: 20)
+                                            .background(Color.themePrimary.opacity(0.1))
+                                            .clipShape(Circle())
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(product.name)
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        
+                                        Text(product.category)
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text(formatCurrency(product.price))
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.themePrimary)
+                                        
+                                        let stock = viewModel.stockLevel(for: product.name)
+                                        Text("Kho: \(stock)")
+                                            .font(.caption)
+                                            .foregroundStyle(stock > 0 ? .gray : .red)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .background(Color.white)
+                    .padding(.bottom, 320)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
+            }
+        }
+        
         var body: some View {
             NavigationStack {
                 ZStack(alignment: .top) {
@@ -477,9 +564,427 @@ struct ContentView: View {
         @State private var customerSearch: String = ""
         @State private var isKeyboardVisible: Bool = false
         
+        var searchContentViewOrder: some View {
+            Group {
+                if viewModel.searchSuggestions.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 50))
+                            .foregroundStyle(.gray.opacity(0.5))
+                        Text("Không tìm thấy sản phẩm nào")
+                            .font(.headline)
+                            .foregroundStyle(.gray)
+                        Text("\"\(viewModel.searchText)\"")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                        
+                        Button("Xóa tìm kiếm") {
+                            viewModel.searchText = ""
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.gray)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.white)
+                } else {
+                    List {
+                        ForEach(viewModel.searchSuggestions) { product in
+                            Button(action: {
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                                viewModel.addProduct(product)
+                                viewModel.searchText = ""
+                            }) {
+                                HStack(spacing: 12) {
+                                    if let data = product.imageData, let uiImage = UIImage(data: data) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 20, height: 20)
+                                            .clipShape(Circle())
+                                    } else {
+                                        Image(systemName: product.imageName)
+                                            .font(.headline)
+                                            .foregroundStyle(Color.themePrimary)
+                                            .frame(width: 20, height: 20)
+                                            .background(Color.themePrimary.opacity(0.1))
+                                            .clipShape(Circle())
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(product.name)
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        
+                                        Text(product.category)
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text(formatCurrency(product.price))
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.themePrimary)
+                                        
+                                        let stock = viewModel.stockLevel(for: product.name)
+                                        Text("Kho: \(stock)")
+                                            .font(.caption)
+                                            .foregroundStyle(stock > 0 ? .gray : .red)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .background(Color.white)
+                    .padding(.bottom, 16)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
+            }
+        }
+        
+        var browsingContentViewOrder: some View {
+            VStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(Category.allCases, id: \.self) { category in
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    viewModel.selectedCategory = category
+                                }
+                                let generator = UIImpactFeedbackGenerator(style: .light)
+                                generator.impactOccurred()
+                            }) {
+                                Text(category.displayName)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        ZStack {
+                                            if viewModel.selectedCategory == category {
+                                                Capsule()
+                                                    .fill(Color.themePrimary)
+                                                    .matchedGeometryEffect(id: "catPill", in: namespace)
+                                                    .shadow(color: Color.themePrimary.opacity(0.3), radius: 4, x: 0, y: 2)
+                                            } else {
+                                                Capsule()
+                                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                            }
+                                        }
+                                    )
+                                    .foregroundStyle(viewModel.selectedCategory == category ? Color.themeTextDark : Color.gray)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+                .background(Color.white)
+                
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        ForEach(viewModel.filteredProducts) { product in
+                            Button(action: {
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                                viewModel.addProduct(product)
+                            }) {
+                                ProductCard(product: product, stockLevel: viewModel.stockLevel(for: product.name))
+                            }
+                            .buttonStyle(ScaleButtonStyle())
+                            .simultaneousGesture(
+                                LongPressGesture()
+                                    .onEnded { _ in
+                                        let generator = UIImpactFeedbackGenerator(style: .heavy)
+                                        generator.impactOccurred()
+                                        customizingProduct = product
+                                    }
+                            )
+                        }
+                    }
+                    .padding()
+                    .padding(.bottom, 16)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
+                .background(Color.themeBackgroundLight)
+            }
+        }
+        
+        var voiceOverlayViewOrder: some View {
+            Group {
+                if (viewModel.speechRecognizer.isRecording && !viewModel.isRecordingCustomerName) || !viewModel.currentInput.isEmpty {
+                    VStack {
+                        Text(viewModel.currentInput.isEmpty ? "Đang chờ nói...\nVí dụ: 3 hoa cúc 50k" : viewModel.currentInput)
+                            .font(.headline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color.themeTextDark)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(Color.white)
+                                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                            )
+                            .padding(.horizontal, 40)
+                    }
+                    .padding(.bottom, 340)
+                    .allowsHitTesting(false)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(.spring(), value: viewModel.currentInput)
+                    .zIndex(1)
+                }
+            }
+        }
+        
+        var orderSummarySheetViewOrder: some View {
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 40, height: 5)
+                    .padding(.vertical, 10)
+                
+                VStack(spacing: 16) {
+                    HStack {
+                        HStack(spacing: 12) {
+                            Text("Tóm tắt đơn hàng")
+                                .font(.headline)
+                            
+                            Text("\(viewModel.items.reduce(0) { $0 + $1.quantity })")
+                                .font(.headline)
+                                .frame(width: 32, height: 32)
+                                .background(Color.themePrimary.opacity(0.2))
+                                .foregroundStyle(Color.themePrimary)
+                                .cornerRadius(8)
+                        }
+                        Spacer()
+                        Text(formatCurrency(viewModel.totalAmount))
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                    }
+                    
+                    HStack(spacing: 12) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.fill")
+                                .foregroundStyle(.gray)
+                            TextField("Tên khách lẻ", text: $viewModel.walkInName)
+                                .textInputAutocapitalization(.words)
+                                .disableAutocorrection(true)
+                                .focused($walkInFocused)
+                                .submitLabel(.done)
+                                .onSubmit {
+                                    walkInFocused = false
+                                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                }
+                            Spacer()
+                            Button {
+                                if viewModel.speechRecognizer.isRecording {
+                                    viewModel.speechRecognizer.stopRecording()
+                                    viewModel.isRecordingCustomerName = false
+                                } else {
+                                    do {
+                                        try viewModel.speechRecognizer.startRecording()
+                                        viewModel.isRecordingCustomerName = true
+                                    } catch { }
+                                }
+                            } label: {
+                                Image(systemName: viewModel.isRecordingCustomerName ? "waveform" : "mic.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(viewModel.isRecordingCustomerName ? Color.red : .gray)
+                        }
+                        .padding(12)
+                        .background(Color.gray.opacity(0.08))
+                        .cornerRadius(12)
+                        
+                        Button {
+                            showCustomerPicker = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "line.3.horizontal.decrease.circle")
+                                Text("Chọn tên")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        VoiceAIButton(viewModel: viewModel)
+                    }
+                    
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            ForEach(viewModel.items) { item in
+                                HStack(spacing: 12) {
+                                    if let data = item.imageData, let uiImage = UIImage(data: data) {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 36, height: 36)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                                    } else {
+                                        Image(systemName: item.systemImage ?? "cart.circle.fill")
+                                            .font(.system(size: 18))
+                                            .foregroundStyle(Color.themePrimary)
+                                            .frame(width: 36, height: 36)
+                                            .background(Color.themePrimary.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.name)
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Color.themeTextDark)
+                                            .onTapGesture {
+                                                if let idx = viewModel.products.firstIndex(where: { $0.name == item.name }) {
+                                                    nameWheelSelectionIndex = idx
+                                                } else {
+                                                    nameWheelSelectionIndex = 0
+                                                }
+                                                nameWheelItem = item
+                                            }
+                                        
+                                        HStack(spacing: 8) {
+                                            Text(formatCurrency(item.price))
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                                .onTapGesture {
+                                                    let base = max(0, Int(item.price))
+                                                    priceWheelSelection = (base / 5000) * 5000
+                                                    priceWheelMax = priceWheelSelection + 500_000
+                                                    priceEditItem = item
+                                                }
+                                            if item.discount > 0 {
+                                                Text("-\(Int(item.discount/1000))k")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.red)
+                                            }
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 6) {
+                                        Text(formatCurrency(item.total))
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.themePrimary)
+                                        
+                                        HStack(spacing: 12) {
+                                            Button {
+                                                viewModel.updateItem(item, newQuantity: item.quantity - 1)
+                                            } label: {
+                                                Image(systemName: "minus.circle.fill")
+                                                    .font(.title3)
+                                                    .foregroundStyle(Color.gray)
+                                            }
+                                            
+                                            Text("\(item.quantity)")
+                                                .font(.headline)
+                                                .frame(minWidth: 24)
+                                                .onTapGesture {
+                                                    wheelItem = item
+                                                    wheelSelection = item.quantity
+                                                    wheelMax = item.quantity + 1000
+                                                }
+                                            
+                                            Button {
+                                                viewModel.updateItem(item, newQuantity: item.quantity + 1)
+                                            } label: {
+                                                Image(systemName: "plus.circle.fill")
+                                                    .font(.title3)
+                                                    .foregroundStyle(Color.themePrimary)
+                                            }
+                                            
+                                            Button {
+                                                viewModel.removeItem(item)
+                                            } label: {
+                                                Image(systemName: "trash.circle.fill")
+                                                    .font(.title3)
+                                                    .foregroundStyle(.red)
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    editingItem = item
+                                }
+                            }
+                            
+                            Button(action: { showManualInput = true }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "plus")
+                                        .font(.caption)
+                                    Text("Thêm hàng")
+                                        .font(.caption)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.themePrimary.opacity(0.2))
+                                .foregroundStyle(Color.themePrimary)
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                    .frame(height: 160)
+                    
+                    Button(action: {
+                        if viewModel.editingBill != nil {
+                            viewModel.saveEditedOrder()
+                            dismiss()
+                        } else {
+                            let warnings = viewModel.checkStockWarnings()
+                            if !warnings.isEmpty {
+                                stockWarnings = warnings
+                                showStockWarning = true
+                            } else {
+                                viewModel.showPayment = true
+                            }
+                        }
+                    }) {
+                        HStack {
+                            Text(viewModel.editingBill != nil ? "Lưu thay đổi" : "Thanh toán")
+                            Image(systemName: viewModel.editingBill != nil ? "checkmark" : "arrow.right")
+                        }
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.themePrimary)
+                        .foregroundStyle(Color.themeTextDark)
+                        .cornerRadius(16)
+                    }
+                    .disabled(viewModel.items.isEmpty)
+                    .opacity(viewModel.items.isEmpty ? 0.6 : 1)
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 30 + (walkInFocused ? keyboardHeight : 0))
+            }
+        }
+        
         var body: some View {
-            ZStack(alignment: .bottom) {
-                VStack(spacing: 0) {
+            VStack(spacing: 0) {
                     // Header
                     VStack(spacing: 0) {
                         HStack {
@@ -548,419 +1053,29 @@ struct ContentView: View {
                     .background(Color.white)
                     
                     if !viewModel.searchText.isEmpty {
-                        if viewModel.searchSuggestions.isEmpty {
-                            VStack(spacing: 16) {
-                                Image(systemName: "magnifyingglass")
-                                    .font(.system(size: 50))
-                                    .foregroundStyle(.gray.opacity(0.5))
-                                Text("Không tìm thấy sản phẩm nào")
-                                    .font(.headline)
-                                    .foregroundStyle(.gray)
-                                Text("\"\(viewModel.searchText)\"")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.gray)
-                                
-                                Button("Xóa tìm kiếm") {
-                                    viewModel.searchText = ""
-                                }
-                                .buttonStyle(.bordered)
-                                .tint(.gray)
-                            }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(Color.white)
-                        } else {
-                            List {
-                                ForEach(viewModel.searchSuggestions) { product in
-                                    Button(action: {
-                                        let generator = UIImpactFeedbackGenerator(style: .medium)
-                                        generator.impactOccurred()
-                                        viewModel.addProduct(product)
-                                        viewModel.searchText = ""
-                                    }) {
-                                        HStack(spacing: 12) {
-                                            if let data = product.imageData, let uiImage = UIImage(data: data) {
-                                                Image(uiImage: uiImage)
-                                                    .resizable()
-                                                    .scaledToFill()
-                                                    .frame(width: 20, height: 20)
-                                                    .clipShape(Circle())
-                                            } else {
-                                                Image(systemName: product.imageName)
-                                                    .font(.headline)
-                                                    .foregroundStyle(Color.themePrimary)
-                                                    .frame(width: 20, height: 20)
-                                                    .background(Color.themePrimary.opacity(0.1))
-                                                    .clipShape(Circle())
-                                            }
-                                            
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(product.name)
-                                                    .font(.body)
-                                                    .fontWeight(.medium)
-                                                    .foregroundStyle(Color.themeTextDark)
-                                                
-                                                Text(product.category)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.gray)
-                                            }
-                                            
-                                            Spacer()
-                                            
-                                            VStack(alignment: .trailing, spacing: 4) {
-                                                Text(formatCurrency(product.price))
-                                                    .font(.subheadline)
-                                                    .fontWeight(.bold)
-                                                    .foregroundStyle(Color.themePrimary)
-                                                
-                                                let stock = viewModel.stockLevel(for: product.name)
-                                                Text("Kho: \(stock)")
-                                                    .font(.caption)
-                                                    .foregroundStyle(stock > 0 ? .gray : .red)
-                                            }
-                                        }
-                                        .padding(.vertical, 4)
-                                    }
-                                }
-                            }
-                            .listStyle(.plain)
-                            .background(Color.white)
-                            .padding(.bottom, isKeyboardVisible ? keyboardHeight + 20 : 320)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                            }
-                        }
+                        searchContentViewOrder
                     } else {
-                        
-                        // Categories
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(Category.allCases, id: \.self) { category in
-                                    Button(action: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                            viewModel.selectedCategory = category
-                                        }
-                                        let generator = UIImpactFeedbackGenerator(style: .light)
-                                        generator.impactOccurred()
-                                    }) {
-                                        Text(category.displayName)
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 8)
-                                            .background(
-                                                ZStack {
-                                                    if viewModel.selectedCategory == category {
-                                                        Capsule()
-                                                            .fill(Color.themePrimary)
-                                                            .matchedGeometryEffect(id: "catPill", in: namespace)
-                                                            .shadow(color: Color.themePrimary.opacity(0.3), radius: 4, x: 0, y: 2)
-                                                    } else {
-                                                        Capsule()
-                                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                                    }
-                                                }
-                                            )
-                                            .foregroundStyle(viewModel.selectedCategory == category ? Color.themeTextDark : Color.gray)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.vertical, 8)
-                        }
-                        .background(Color.white)
-                        
-                        // Grid
-                        ScrollView {
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                                ForEach(viewModel.filteredProducts) { product in
-                                    Button(action: {
-                                        let generator = UIImpactFeedbackGenerator(style: .medium)
-                                        generator.impactOccurred()
-                                        viewModel.addProduct(product)
-                                    }) {
-                                        ProductCard(product: product, stockLevel: viewModel.stockLevel(for: product.name))
-                                    }
-                                    .buttonStyle(ScaleButtonStyle())
-                                    .simultaneousGesture(
-                                        LongPressGesture()
-                                            .onEnded { _ in
-                                                let generator = UIImpactFeedbackGenerator(style: .heavy)
-                                                generator.impactOccurred()
-                                                customizingProduct = product
-                                            }
-                                    )
-                                }
-                            }
-                            .padding()
-                            .padding(.bottom, isKeyboardVisible ? keyboardHeight + 20 : 320)
+                        browsingContentViewOrder
+                    }
+                    
+                    orderSummarySheetViewOrder
+                }
+            .overlay(
+                voiceOverlayViewOrder
+            )
+            .overlay(
+                Group {
+                    if walkInFocused {
+                        Color.clear
+                            .ignoresSafeArea(.all)
                             .contentShape(Rectangle())
                             .onTapGesture {
+                                walkInFocused = false
                                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             }
-                        }
-                        .background(Color.themeBackgroundLight)
                     }
                 }
-                
-                // Voice Transcript Overlay
-                if (viewModel.speechRecognizer.isRecording && !viewModel.isRecordingCustomerName) || !viewModel.currentInput.isEmpty {
-                    VStack {
-                        Text(viewModel.currentInput.isEmpty ? "Đang chờ nói...\nVí dụ: 3 hoa cúc 50k" : viewModel.currentInput)
-                            .font(.headline)
-                            .fontWeight(.medium)
-                            .foregroundStyle(Color.themeTextDark)
-                            .multilineTextAlignment(.center)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.white)
-                                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-                            )
-                            .padding(.horizontal, 40)
-                    }
-                    .padding(.bottom, 340)
-                    .allowsHitTesting(false)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .animation(.spring(), value: viewModel.currentInput)
-                    .zIndex(1)
-                }
-                
-                
-                
-                // Order Summary Sheet (Always visible at bottom)
-                VStack(spacing: 0) {
-                    // Handle
-                    Capsule()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 40, height: 5)
-                        .padding(.vertical, 10)
-                    
-                    VStack(spacing: 16) {
-                        HStack {
-                            HStack(spacing: 12) {
-                                Text("Tóm tắt đơn hàng")
-                                    .font(.headline)
-                                
-                                Text("\(viewModel.items.reduce(0) { $0 + $1.quantity })")
-                                    .font(.headline)
-                                    .frame(width: 32, height: 32)
-                                    .background(Color.themePrimary.opacity(0.2))
-                                    .foregroundStyle(Color.themePrimary)
-                                    .cornerRadius(8)
-                            }
-                            Spacer()
-                            Text(formatCurrency(viewModel.totalAmount))
-                                .font(.title3)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.themePrimary)
-                        }
-                        
-                        HStack(spacing: 12) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "person.fill")
-                                    .foregroundStyle(.gray)
-                                TextField("Tên khách lẻ", text: $viewModel.walkInName)
-                                    .textInputAutocapitalization(.words)
-                                    .disableAutocorrection(true)
-                                    .focused($walkInFocused)
-                                Spacer()
-                                Button {
-                                    if viewModel.speechRecognizer.isRecording {
-                                        viewModel.speechRecognizer.stopRecording()
-                                        viewModel.isRecordingCustomerName = false
-                                    } else {
-                                        do {
-                                            try viewModel.speechRecognizer.startRecording()
-                                            viewModel.isRecordingCustomerName = true
-                                        } catch { }
-                                    }
-                                } label: {
-                                    Image(systemName: viewModel.isRecordingCustomerName ? "waveform" : "mic.fill")
-                                        .font(.system(size: 14, weight: .semibold))
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(viewModel.isRecordingCustomerName ? Color.red : .gray)
-                            }
-                            .padding(12)
-                            .background(Color.gray.opacity(0.08))
-                            .cornerRadius(12)
-                            
-                            Button {
-                                showCustomerPicker = true
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "line.3.horizontal.decrease.circle")
-                                    Text("Chọn tên")
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            
-                            VoiceAIButton(viewModel: viewModel)
-                        }
-                        
-                        ScrollView {
-                            VStack(spacing: 8) {
-                                ForEach(viewModel.items) { item in
-                                    HStack(spacing: 12) {
-                                        if let data = item.imageData, let uiImage = UIImage(data: data) {
-                                            Image(uiImage: uiImage)
-                                                .resizable()
-                                                .scaledToFill()
-                                                .frame(width: 36, height: 36)
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
-                                        } else {
-                                            Image(systemName: item.systemImage ?? "cart.circle.fill")
-                                                .font(.system(size: 18))
-                                                .foregroundStyle(Color.themePrimary)
-                                                .frame(width: 36, height: 36)
-                                                .background(Color.themePrimary.opacity(0.1))
-                                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                        }
-                                        
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(item.name)
-                                                .font(.subheadline)
-                                                .fontWeight(.semibold)
-                                                .foregroundStyle(Color.themeTextDark)
-                                                .onTapGesture {
-                                                    if let idx = viewModel.products.firstIndex(where: { $0.name == item.name }) {
-                                                        nameWheelSelectionIndex = idx
-                                                    } else {
-                                                        nameWheelSelectionIndex = 0
-                                                    }
-                                                    nameWheelItem = item
-                                                }
-                                            
-                                            HStack(spacing: 8) {
-                                                Text(formatCurrency(item.price))
-                                                    .font(.caption)
-                                                    .foregroundStyle(.gray)
-                                                    .onTapGesture {
-                                                        let base = max(0, Int(item.price))
-                                                        priceWheelSelection = (base / 5000) * 5000
-                                                        priceWheelMax = priceWheelSelection + 500_000
-                                                        priceEditItem = item
-                                                    }
-                                                if item.discount > 0 {
-                                                    Text("-\(Int(item.discount/1000))k")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.red)
-                                                }
-                                            }
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        VStack(alignment: .trailing, spacing: 6) {
-                                            Text(formatCurrency(item.total))
-                                                .font(.subheadline)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(Color.themePrimary)
-                                            
-                                            HStack(spacing: 12) {
-                                                Button {
-                                                    viewModel.updateItem(item, newQuantity: item.quantity - 1)
-                                                } label: {
-                                                    Image(systemName: "minus.circle.fill")
-                                                        .font(.title3)
-                                                        .foregroundStyle(Color.gray)
-                                                }
-                                                
-                                                Text("\(item.quantity)")
-                                                    .font(.headline)
-                                                    .frame(minWidth: 24)
-                                                    .onTapGesture {
-                                                        wheelItem = item
-                                                        wheelSelection = item.quantity
-                                                        wheelMax = item.quantity + 1000
-                                                    }
-                                                
-                                                Button {
-                                                    viewModel.updateItem(item, newQuantity: item.quantity + 1)
-                                                } label: {
-                                                    Image(systemName: "plus.circle.fill")
-                                                        .font(.title3)
-                                                        .foregroundStyle(Color.themePrimary)
-                                                }
-                                                
-                                                Button {
-                                                    viewModel.removeItem(item)
-                                                } label: {
-                                                    Image(systemName: "trash.circle.fill")
-                                                        .font(.title3)
-                                                        .foregroundStyle(.red)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    .padding(12)
-                                    .background(Color.white)
-                                    .cornerRadius(12)
-                                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                    )
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        editingItem = item
-                                    }
-                                }
-                                
-                                Button(action: { showManualInput = true }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "plus")
-                                            .font(.caption)
-                                        Text("Thêm hàng")
-                                            .font(.caption)
-                                    }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(Color.themePrimary.opacity(0.2))
-                                    .foregroundStyle(Color.themePrimary)
-                                    .cornerRadius(8)
-                                }
-                            }
-                        }
-                        .frame(height: 160)
-                        
-                        Button(action: {
-                            if viewModel.editingBill != nil {
-                                viewModel.saveEditedOrder()
-                                dismiss()
-                            } else {
-                                let warnings = viewModel.checkStockWarnings()
-                                if !warnings.isEmpty {
-                                    stockWarnings = warnings
-                                    showStockWarning = true
-                                } else {
-                                    viewModel.showPayment = true
-                                }
-                            }
-                        }) {
-                            HStack {
-                                Text(viewModel.editingBill != nil ? "Lưu thay đổi" : "Thanh toán")
-                                Image(systemName: viewModel.editingBill != nil ? "checkmark" : "arrow.right")
-                            }
-                            .fontWeight(.bold)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.themePrimary)
-                            .foregroundStyle(Color.themeTextDark)
-                            .cornerRadius(16)
-                        }
-                        .disabled(viewModel.items.isEmpty)
-                        .opacity(viewModel.items.isEmpty ? 0.6 : 1)
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 30 + (walkInFocused ? keyboardHeight : 0))
-                }
-                .background(Color.white)
-                .cornerRadius(24, corners: [.topLeft, .topRight])
-                .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
-            }
+            )
             .ignoresSafeArea(.all, edges: .bottom)
             .navigationTitle("Tạo đơn hàng")
             .navigationBarHidden(true)
