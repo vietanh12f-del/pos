@@ -16,6 +16,93 @@ struct InventoryView: View {
     @State private var showBarcodeScanner = false
     @State private var productToPrint: Product?
     
+    enum DateFilterMode: String, CaseIterable, Identifiable {
+        case all, today, yesterday, week, month, quarter, year, custom
+        var id: String { rawValue }
+    }
+    @State private var dateFilterMode: DateFilterMode = .all
+    @State private var customStartDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var customEndDate: Date = Date()
+    @State private var showCustomDateSheet: Bool = false
+    
+    private var dateFilterLabel: String {
+        switch dateFilterMode {
+        case .all: return "Tất cả"
+        case .today: return "Hôm nay"
+        case .yesterday: return "Hôm qua"
+        case .week: return "Tuần"
+        case .month: return "Tháng"
+        case .quarter: return "Quý"
+        case .year: return "Năm"
+        case .custom: return "Tùy chọn"
+        }
+    }
+    
+    private func selectedDateRange(now: Date = Date()) -> (Date, Date)? {
+        let cal = Calendar.current
+        switch dateFilterMode {
+        case .all:
+            return nil
+        case .today:
+            let start = cal.startOfDay(for: now)
+            let end = cal.date(byAdding: .day, value: 1, to: start)!.addingTimeInterval(-1)
+            return (start, end)
+        case .yesterday:
+            let start = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: now))!
+            let end = cal.date(byAdding: .day, value: 1, to: start)!.addingTimeInterval(-1)
+            return (start, end)
+        case .week:
+            if let interval = cal.dateInterval(of: .weekOfYear, for: now) {
+                let start = interval.start
+                let end = min(interval.end, now)
+                return (start, end)
+            }
+            return nil
+        case .month:
+            if let interval = cal.dateInterval(of: .month, for: now) {
+                let start = interval.start
+                let end = min(interval.end, now)
+                return (start, end)
+            }
+            return nil
+        case .quarter:
+            let month = cal.component(.month, from: now)
+            let year = cal.component(.year, from: now)
+            let quarterStartMonth = [1,4,7,10].last { $0 <= month } ?? 1
+            var comps = DateComponents()
+            comps.year = year
+            comps.month = quarterStartMonth
+            comps.day = 1
+            let start = cal.date(from: comps) ?? cal.startOfDay(for: now)
+            let endMonth = quarterStartMonth + 2
+            var endComps = DateComponents()
+            endComps.year = year
+            endComps.month = endMonth
+            endComps.day = cal.range(of: .day, in: .month, for: cal.date(from: endComps) ?? now)?.count ?? 30
+            let quarterEndFull = cal.date(from: endComps) ?? now
+            let end = min(quarterEndFull, now)
+            return (start, end)
+        case .year:
+            if let interval = cal.dateInterval(of: .year, for: now) {
+                let start = interval.start
+                let end = min(interval.end, now)
+                return (start, end)
+            }
+            return nil
+        case .custom:
+            let start = cal.startOfDay(for: customStartDate)
+            let end = max(customEndDate, start)
+            return (start, end)
+        }
+    }
+    
+    private func isDateInSelectedRange(_ date: Date) -> Bool {
+        if let (start, end) = selectedDateRange() {
+            return date >= start && date <= end
+        }
+        return true
+    }
+    
     private func highlightedInventoryName(_ name: String) -> AttributedString {
         var s = AttributedString(name)
         if let r = s.range(of: "sữa", options: .caseInsensitive) {
@@ -39,12 +126,11 @@ struct InventoryView: View {
     }
     
     var filteredRestockHistory: [RestockBill] {
-        // Simple search for restock history? Maybe by ID or items?
-        // For now just return all, or filter by items names if needed.
+        let byDate = viewModel.restockHistory.filter { isDateInSelectedRange($0.createdAt) }
         if searchText.isEmpty {
-            return viewModel.restockHistory
+            return byDate
         } else {
-            return viewModel.restockHistory.filter { bill in
+            return byDate.filter { bill in
                 bill.items.contains { $0.name.lowercased().contains(searchText.lowercased()) }
             }
         }
@@ -243,6 +329,34 @@ struct InventoryView: View {
                     }
                 } else {
                     // Restock History List
+                    HStack {
+                        Menu {
+                            Button("Hôm nay") { dateFilterMode = .today }
+                            Button("Hôm qua") { dateFilterMode = .yesterday }
+                            Button("Tuần") { dateFilterMode = .week }
+                            Button("Tháng") { dateFilterMode = .month }
+                            Button("Quý") { dateFilterMode = .quarter }
+                            Button("Năm") { dateFilterMode = .year }
+                            Button("Tùy chọn") { dateFilterMode = .custom; showCustomDateSheet = true }
+                            Divider()
+                            Button("Tất cả") { dateFilterMode = .all }
+                        } label: {
+                            Label("Lọc: \(dateFilterLabel)", systemImage: "calendar")
+                                .foregroundColor(.orange)
+                        }
+                        if dateFilterMode == .custom {
+                            Text("\(formatDate(customStartDate)) → \(formatDate(customEndDate))")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(Color.white)
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    .padding(.bottom, 6)
+                    
                     if viewModel.restockHistory.isEmpty {
                         ScrollView {
                             VStack(spacing: 16) {
@@ -416,6 +530,25 @@ struct InventoryView: View {
                     searchText = code
                     showBarcodeScanner = false // Dismiss automatically
                 })
+            }
+            .sheet(isPresented: $showCustomDateSheet) {
+                VStack(spacing: 12) {
+                    Text("Chọn khoảng thời gian")
+                        .font(.headline)
+                    DatePicker("Từ ngày", selection: $customStartDate, displayedComponents: .date)
+                    DatePicker("Đến ngày", selection: $customEndDate, displayedComponents: .date)
+                    HStack {
+                        Button("Đóng") { showCustomDateSheet = false }
+                        Spacer()
+                        Button("Áp dụng") {
+                            dateFilterMode = .custom
+                            showCustomDateSheet = false
+                        }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(320)])
             }
             .sheet(item: $productToPrint) { product in
                 BarcodePrintView(product: product)
