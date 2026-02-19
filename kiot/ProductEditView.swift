@@ -31,6 +31,15 @@ struct ProductEditView: View {
     @State private var pickerAlertMessage: String?
     @State private var showDeleteConfirmation = false
     @State private var showPrintBarcode = false
+    @State private var showCostWheel = false
+    @State private var costWheelSelection = 0
+    @State private var costWheelMax = 5000000
+    @State private var showPriceWheel = false
+    @State private var priceWheelSelection = 0
+    @State private var priceWheelMax = 10000000
+    @State private var showStockWheel = false
+    @State private var stockWheelSelection = 0
+    @State private var stockWheelMax = 1000
     
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
     let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
@@ -100,18 +109,84 @@ struct ProductEditView: View {
                         Text("Tên hàng")
                             .font(.caption)
                             .foregroundStyle(.gray)
-                        TextField("Nhập tên hàng", text: $name)
+                        HStack(spacing: 8) {
+                            TextField("Nhập tên hàng", text: $name)
+                            Button {
+                                if viewModel.isRecordingManualProductName {
+                                    viewModel.speechRecognizer.stopRecording()
+                                    let spoken = viewModel.manualRecordedName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !spoken.isEmpty { name = spoken }
+                                    viewModel.isRecordingManualProductName = false
+                                } else {
+                                    do {
+                                        try viewModel.speechRecognizer.startRecording()
+                                        viewModel.isRecordingManualProductName = true
+                                        viewModel.manualRecordedName = ""
+                                    } catch { }
+                                }
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill((viewModel.isRecordingManualProductName ? Color.red : Color.gray).opacity(0.15))
+                                        .frame(width: 34, height: 34)
+                                    Image(systemName: viewModel.isRecordingManualProductName ? "waveform" : "mic.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundStyle(viewModel.isRecordingManualProductName ? Color.red : .gray)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                        }
+                        .onReceive(viewModel.$manualRecordedName) { newText in
+                            if viewModel.isRecordingManualProductName {
+                                let t = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !t.isEmpty { name = t }
+                            }
+                        }
+                    }
+                    
+                    HStack {
+                        Text("Giá vốn")
+                        Spacer()
+                        Button {
+                            if let v = Double(importPrice) { costWheelSelection = Int(v) }
+                            showCostWheel = true
+                        } label: {
+                            Text(formatCurrency(Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))))
+                                .fontWeight(.semibold)
+                        }
                     }
                     
                     if case .add = mode {
-                        CurrencyTextField(title: "Giá vốn", text: $importPrice)
                         CurrencyTextField(title: "Chi phí phát sinh", text: $additionalCost)
-                    } else {
-                        CurrencyTextField(title: "Giá vốn", text: $importPrice)
                     }
                     
-                    CurrencyTextField(title: "Giá bán dự kiến", text: $price)
-                    CurrencyTextField(title: "Tồn kho", text: $quantity)
+                    HStack {
+                        Text("Giá bán dự kiến")
+                        Spacer()
+                        Button {
+                            if let v = Double(price) { priceWheelSelection = Int(v) }
+                            showPriceWheel = true
+                        } label: {
+                            Text(formatCurrency(Double(priceWheelSelection > 0 ? priceWheelSelection : (Int(Double(price) ?? 0)))))
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    
+                    HStack {
+                        Text("Tồn kho")
+                        Spacer()
+                        Button {
+                            stockWheelSelection = Int(quantity) ?? stockWheelSelection
+                            if stockWheelSelection > stockWheelMax - 50 {
+                                stockWheelMax = stockWheelSelection + 500
+                            }
+                            showStockWheel = true
+                        } label: {
+                            Text(quantity)
+                                .fontWeight(.semibold)
+                        }
+                    }
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Mã vạch")
@@ -403,6 +478,95 @@ struct ProductEditView: View {
                     barcode: barcode
                 )
                 BarcodePrintView(product: tempProduct)
+            }
+            .sheet(isPresented: $showCostWheel) {
+                VStack(spacing: 12) {
+                    Text("Sửa giá vốn")
+                        .font(.headline)
+                    Picker("", selection: $costWheelSelection) {
+                        ForEach(Array(stride(from: 0, through: costWheelMax, by: 5000)), id: \.self) { v in
+                            Text(formatCurrency(Double(v))).tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: costWheelSelection) { v in
+                        if v > costWheelMax - (5000 * 5) {
+                            costWheelMax += 5000 * 100
+                        }
+                    }
+                    HStack {
+                        Button("Đóng") { showCostWheel = false }
+                        Spacer()
+                        Button("Lưu") {
+                            importPrice = String(costWheelSelection)
+                            showCostWheel = false
+                        }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(300)])
+            }
+            .sheet(isPresented: $showPriceWheel) {
+                VStack(spacing: 12) {
+                    Text("Sửa giá bán")
+                        .font(.headline)
+                    Picker("", selection: $priceWheelSelection) {
+                        ForEach(Array(stride(from: 0, through: priceWheelMax, by: 5000)), id: \.self) { v in
+                            Text(formatCurrency(Double(v))).tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: priceWheelSelection) { v in
+                        if v > priceWheelMax - (5000 * 5) {
+                            priceWheelMax += 5000 * 100
+                        }
+                    }
+                    HStack {
+                        Button("Đóng") { showPriceWheel = false }
+                        Spacer()
+                        Button("Lưu") {
+                            price = String(priceWheelSelection)
+                            showPriceWheel = false
+                        }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(300)])
+            }
+            .sheet(isPresented: $showStockWheel) {
+                VStack(spacing: 12) {
+                    Text("Sửa tồn kho")
+                        .font(.headline)
+                    Picker("", selection: $stockWheelSelection) {
+                        ForEach(Array(0...stockWheelMax), id: \.self) { v in
+                            Text("\(v)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: stockWheelSelection) { v in
+                        if v > stockWheelMax - 10 {
+                            stockWheelMax += 500
+                        }
+                    }
+                    .onAppear {
+                        if stockWheelSelection > stockWheelMax - 50 {
+                            stockWheelMax = stockWheelSelection + 500
+                        }
+                    }
+                    HStack {
+                        Button("Đóng") { showStockWheel = false }
+                        Spacer()
+                        Button("Lưu") {
+                            quantity = String(stockWheelSelection)
+                            showStockWheel = false
+                        }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(300)])
             }
         }
         .toolbar(.hidden, for: .navigationBar)

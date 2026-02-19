@@ -533,136 +533,120 @@ struct ManualRestockItemView: View {
             }
         }
         .sheet(isPresented: $showQuantityWheel) {
-            NavigationStack {
-                Form {
-                    Section {
-                        Picker("Số lượng", selection: $quantityWheelSelection) {
-                            ForEach(Array(1...quantityWheelMax), id: \.self) { q in
-                                Text("\(q)").tag(q)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .onChange(of: quantityWheelSelection) { q in
-                            if q > quantityWheelMax - 10 {
-                                quantityWheelMax += 500
-                            }
-                        }
+            VStack(spacing: 12) {
+                Text("Sửa số lượng")
+                    .font(.headline)
+                Picker("", selection: $quantityWheelSelection) {
+                    ForEach(Array(1...quantityWheelMax), id: \.self) { q in
+                        Text("\(q)").tag(q)
                     }
                 }
-                .navigationTitle("Sửa số lượng")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Đóng") { showQuantityWheel = false }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Lưu") {
-                            quantity = String(quantityWheelSelection)
-                            updateSellingPrice()
-                            showQuantityWheel = false
-                        }
+                .pickerStyle(.wheel)
+                .onChange(of: quantityWheelSelection) { q in
+                    if q > quantityWheelMax - 10 {
+                        quantityWheelMax += 500
                     }
                 }
+                HStack {
+                    Button("Đóng") { showQuantityWheel = false }
+                    Spacer()
+                    Button("Lưu") {
+                        quantity = String(quantityWheelSelection)
+                        updateSellingPrice()
+                        showQuantityWheel = false
+                    }
+                }
+                .font(.headline)
             }
+            .padding()
             .presentationDetents([.height(300)])
         }
         .sheet(isPresented: $showUnitPriceWheel) {
-            NavigationStack {
-                Form {
-                    Section {
-                        Picker("Đơn giá nhập (đ)", selection: $unitPriceWheelSelection) {
-                            ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: 5000)), id: \.self) { v in
-                                Text(formatCurrency(Double(v))).tag(v)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .onChange(of: unitPriceWheelSelection) { v in
-                            if v > unitPriceWheelMax - (5000 * 5) {
-                                unitPriceWheelMax += 5000 * 100
-                            }
-                        }
+            VStack(spacing: 12) {
+                Text("Sửa đơn giá")
+                    .font(.headline)
+                Picker("", selection: $unitPriceWheelSelection) {
+                    ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: 5000)), id: \.self) { v in
+                        Text(formatCurrency(Double(v))).tag(v)
                     }
                 }
-                .navigationTitle("Sửa đơn giá")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Đóng") { showUnitPriceWheel = false }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Lưu") {
-                            price = String(unitPriceWheelSelection)
-                            let defaultSuggested = Double(unitPriceWheelSelection) * 1.3
-                            sellingPrice = String(Int(defaultSuggested))
-                            sellingPriceWheelSelection = Int(defaultSuggested)
-                            showUnitPriceWheel = false
-                        }
+                .pickerStyle(.wheel)
+                .onChange(of: unitPriceWheelSelection) { v in
+                    if v > unitPriceWheelMax - (5000 * 5) {
+                        unitPriceWheelMax += 5000 * 100
                     }
                 }
+                HStack {
+                    Button("Đóng") { showUnitPriceWheel = false }
+                    Spacer()
+                    Button("Lưu") {
+                        price = String(unitPriceWheelSelection)
+                        let defaultSuggested = Double(unitPriceWheelSelection) * 1.3
+                        sellingPrice = String(Int(defaultSuggested))
+                        sellingPriceWheelSelection = Int(defaultSuggested)
+                        showUnitPriceWheel = false
+                    }
+                }
+                .font(.headline)
             }
+            .padding()
             .presentationDetents([.height(300)])
         }
         .sheet(isPresented: $showAdditionalCostWheel) {
-            NavigationStack {
-                Form {
-                    Section {
-                        Picker("Chi phí phát sinh (đ)", selection: $additionalCostWheelSelection) {
-                            ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: 5000)), id: \.self) { v in
-                                Text(formatCurrency(Double(v))).tag(v)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .onChange(of: additionalCostWheelSelection) { v in
-                            if v > additionalCostWheelMax - (5000 * 5) {
-                                additionalCostWheelMax += 5000 * 100
-                            }
-                        }
+            VStack(spacing: 12) {
+                Text("Sửa chi phí")
+                    .font(.headline)
+                Picker("", selection: $additionalCostWheelSelection) {
+                    ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: 5000)), id: \.self) { v in
+                        Text(formatCurrency(Double(v))).tag(v)
                     }
                 }
-                .navigationTitle("Sửa chi phí")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Đóng") { showAdditionalCostWheel = false }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Lưu") {
-                            incurredCost = String(additionalCostWheelSelection)
-                            updateSellingPrice()
-                            showAdditionalCostWheel = false
-                        }
+                .pickerStyle(.wheel)
+                .onChange(of: additionalCostWheelSelection) { v in
+                    if v > additionalCostWheelMax - (5000 * 5) {
+                        additionalCostWheelMax += 5000 * 100
                     }
                 }
+                HStack {
+                    Button("Đóng") { showAdditionalCostWheel = false }
+                    Spacer()
+                    Button("Lưu") {
+                        incurredCost = String(additionalCostWheelSelection)
+                        updateSellingPrice()
+                        showAdditionalCostWheel = false
+                    }
+                }
+                .font(.headline)
             }
+            .padding()
             .presentationDetents([.height(300)])
         }
         .sheet(isPresented: $showSellingPriceWheel) {
-            NavigationStack {
-                Form {
-                    Section {
-                        Picker("Giá bán dự kiến (đ)", selection: $sellingPriceWheelSelection) {
-                            ForEach(Array(stride(from: 0, through: sellingPriceWheelMax, by: 5000)), id: \.self) { v in
-                                Text(formatCurrency(Double(v))).tag(v)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .onChange(of: sellingPriceWheelSelection) { v in
-                            if v > sellingPriceWheelMax - (5000 * 5) {
-                                sellingPriceWheelMax += 5000 * 100
-                            }
-                        }
+            VStack(spacing: 12) {
+                Text("Sửa giá bán")
+                    .font(.headline)
+                Picker("", selection: $sellingPriceWheelSelection) {
+                    ForEach(Array(stride(from: 0, through: sellingPriceWheelMax, by: 5000)), id: \.self) { v in
+                        Text(formatCurrency(Double(v))).tag(v)
                     }
                 }
-                .navigationTitle("Sửa giá bán")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Đóng") { showSellingPriceWheel = false }
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Lưu") {
-                            sellingPrice = String(sellingPriceWheelSelection)
-                            showSellingPriceWheel = false
-                        }
+                .pickerStyle(.wheel)
+                .onChange(of: sellingPriceWheelSelection) { v in
+                    if v > sellingPriceWheelMax - (5000 * 5) {
+                        sellingPriceWheelMax += 5000 * 100
                     }
                 }
+                HStack {
+                    Button("Đóng") { showSellingPriceWheel = false }
+                    Spacer()
+                    Button("Lưu") {
+                        sellingPrice = String(sellingPriceWheelSelection)
+                        showSellingPriceWheel = false
+                    }
+                }
+                .font(.headline)
             }
+            .padding()
             .presentationDetents([.height(300)])
         }
     }
