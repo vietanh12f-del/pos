@@ -319,26 +319,97 @@ struct ManualRestockItemView: View {
     @State private var price = ""
     @State private var incurredCost = ""
     @State private var sellingPrice = ""
+    @State private var showQuantityWheel = false
+    @State private var showUnitPriceWheel = false
+    @State private var showAdditionalCostWheel = false
+    @State private var showSellingPriceWheel = false
+    @State private var quantityWheelSelection = 1
+    @State private var quantityWheelMax = 500
+    @State private var unitPriceWheelSelection = 0
+    @State private var unitPriceWheelMax = 5000000
+    @State private var additionalCostWheelSelection = 0
+    @State private var additionalCostWheelMax = 1000000
+    @State private var sellingPriceWheelSelection = 0
+    @State private var sellingPriceWheelMax = 10000000
     
     var body: some View {
         NavigationStack {
             Form {
                 Section(header: Text("Chi tiết hàng hóa")) {
-                    TextField("Tên hàng", text: $name)
+                    HStack(spacing: 8) {
+                        TextField("Tên hàng", text: $name)
+                        Button {
+                            if viewModel.isRecordingManualProductName {
+                                viewModel.speechRecognizer.stopRecording()
+                                let spoken = viewModel.manualRecordedName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !spoken.isEmpty { name = spoken }
+                            } else {
+                                do {
+                                    try viewModel.speechRecognizer.startRecording()
+                                    viewModel.isRecordingManualProductName = true
+                                    viewModel.manualRecordedName = ""
+                                } catch { }
+                            }
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill((viewModel.isRecordingManualProductName ? Color.red : Color.gray).opacity(0.15))
+                                    .frame(width: 34, height: 34)
+                                Image(systemName: viewModel.isRecordingManualProductName ? "waveform" : "mic.fill")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(viewModel.isRecordingManualProductName ? Color.red : .gray)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                    }
+                    .onReceive(viewModel.$manualRecordedName) { newText in
+                        if viewModel.isRecordingManualProductName {
+                            let t = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !t.isEmpty { name = t }
+                        }
+                    }
                     if !name.isEmpty {
                         Text("Tồn hiện tại: \(viewModel.stockLevel(for: name))")
                             .font(.caption)
                             .foregroundStyle(.gray)
                     }
                     
-                    CurrencyTextField(title: "Số lượng", text: $quantity)
-                        .onChange(of: quantity) { _ in updateSellingPrice() }
+                    HStack {
+                        Text("Số lượng")
+                        Spacer()
+                        Button {
+                            if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
+                            showQuantityWheel = true
+                        } label: {
+                            Text(quantity.isEmpty ? "\(quantityWheelSelection)" : quantity)
+                                .fontWeight(.semibold)
+                        }
+                    }
                     
-                    CurrencyTextField(title: "Đơn giá nhập", text: $price)
-                        .onChange(of: price) { _ in updateSellingPrice() }
+                    HStack {
+                        Text("Đơn giá nhập")
+                        Spacer()
+                        Button {
+                            if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
+                            showUnitPriceWheel = true
+                        } label: {
+                            Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                .fontWeight(.semibold)
+                        }
+                    }
                     
-                    CurrencyTextField(title: "Chi phí phát sinh (Ship, bao bì...)", text: $incurredCost)
-                        .onChange(of: incurredCost) { _ in updateSellingPrice() }
+                    HStack {
+                        Text("Chi phí phát sinh")
+                        Spacer()
+                        Button {
+                            if let v = parseDouble(incurredCost) { additionalCostWheelSelection = Int(v) }
+                            showAdditionalCostWheel = true
+                        } label: {
+                            Text(formatCurrency(parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)))
+                                .fontWeight(.semibold)
+                        }
+                    }
                     
                     if let p = parseDouble(price), let q = Int(quantity), q > 0 {
                         let extra = parseDouble(incurredCost) ?? 0
@@ -366,7 +437,43 @@ struct ManualRestockItemView: View {
                         .foregroundStyle(.secondary)
                     }
                     
-                    CurrencyTextField(title: "Giá bán dự kiến (Lãi 30%)", text: $sellingPrice)
+                    HStack {
+                        Text("Giá bán dự kiến")
+                        Spacer()
+                        Button {
+                            let base = parseDouble(sellingPrice) ?? ((parseDouble(price) ?? Double(unitPriceWheelSelection)) * 1.3)
+                            sellingPriceWheelSelection = Int(base)
+                            showSellingPriceWheel = true
+                        } label: {
+                            Text(
+                                formatCurrency(
+                                    ((parseDouble(sellingPrice) ?? Double(sellingPriceWheelSelection)) > 0)
+                                    ? (parseDouble(sellingPrice) ?? Double(sellingPriceWheelSelection))
+                                    : ((parseDouble(price) ?? Double(unitPriceWheelSelection)) * 1.3)
+                                )
+                            )
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    
+                    if let p = parseDouble(price), let q = Int(quantity), q > 0 {
+                        let extra = parseDouble(incurredCost) ?? 0
+                        let total = (p * Double(q)) + extra
+                        let unitCost = total / Double(q)
+                        HStack {
+                            Text("Gợi ý (Lãi 30%)")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(unitCost * 1.3))
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                    } else {
+                        Text("Gợi ý (Lãi 30%): nhập giá/SL để xem")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
                 }
             }
             .navigationTitle(itemToEdit == nil ? "Thêm hàng nhập" : "Sửa hàng nhập")
@@ -394,7 +501,7 @@ struct ManualRestockItemView: View {
                             dismiss()
                         }
                     }
-                    .disabled(name.isEmpty || price.isEmpty || quantity.isEmpty)
+                    .disabled(name.isEmpty)
                 }
             }
         }
@@ -408,6 +515,10 @@ struct ManualRestockItemView: View {
                 if let s = item.suggestedPrice {
                     sellingPrice = String(format: "%.0f", s)
                 }
+                quantityWheelSelection = item.quantity
+                unitPriceWheelSelection = Int(item.unitPrice)
+                additionalCostWheelSelection = Int(item.additionalCost)
+                sellingPriceWheelSelection = Int(item.suggestedPrice ?? 0)
             } else if let product = prefilledProduct {
                 name = product.name
                 // Use last known cost price as default import price
@@ -415,15 +526,152 @@ struct ManualRestockItemView: View {
                 let defaultCost = product.costPrice > 0 ? product.costPrice : product.price * 0.7
                 price = String(format: "%.0f", defaultCost)
                 
-                // Also suggest selling price based on current price
-                sellingPrice = String(format: "%.0f", product.price)
+                let defaultSuggested = defaultCost * 1.3
+                sellingPrice = String(format: "%.0f", defaultSuggested)
+                unitPriceWheelSelection = Int(defaultCost)
+                sellingPriceWheelSelection = Int(defaultSuggested)
             }
+        }
+        .sheet(isPresented: $showQuantityWheel) {
+            NavigationStack {
+                Form {
+                    Section {
+                        Picker("Số lượng", selection: $quantityWheelSelection) {
+                            ForEach(Array(1...quantityWheelMax), id: \.self) { q in
+                                Text("\(q)").tag(q)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: quantityWheelSelection) { q in
+                            if q > quantityWheelMax - 10 {
+                                quantityWheelMax += 500
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Sửa số lượng")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { showQuantityWheel = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Lưu") {
+                            quantity = String(quantityWheelSelection)
+                            updateSellingPrice()
+                            showQuantityWheel = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.height(300)])
+        }
+        .sheet(isPresented: $showUnitPriceWheel) {
+            NavigationStack {
+                Form {
+                    Section {
+                        Picker("Đơn giá nhập (đ)", selection: $unitPriceWheelSelection) {
+                            ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: 5000)), id: \.self) { v in
+                                Text(formatCurrency(Double(v))).tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: unitPriceWheelSelection) { v in
+                            if v > unitPriceWheelMax - (5000 * 5) {
+                                unitPriceWheelMax += 5000 * 100
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Sửa đơn giá")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { showUnitPriceWheel = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Lưu") {
+                            price = String(unitPriceWheelSelection)
+                            let defaultSuggested = Double(unitPriceWheelSelection) * 1.3
+                            sellingPrice = String(Int(defaultSuggested))
+                            sellingPriceWheelSelection = Int(defaultSuggested)
+                            showUnitPriceWheel = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.height(300)])
+        }
+        .sheet(isPresented: $showAdditionalCostWheel) {
+            NavigationStack {
+                Form {
+                    Section {
+                        Picker("Chi phí phát sinh (đ)", selection: $additionalCostWheelSelection) {
+                            ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: 5000)), id: \.self) { v in
+                                Text(formatCurrency(Double(v))).tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: additionalCostWheelSelection) { v in
+                            if v > additionalCostWheelMax - (5000 * 5) {
+                                additionalCostWheelMax += 5000 * 100
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Sửa chi phí")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { showAdditionalCostWheel = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Lưu") {
+                            incurredCost = String(additionalCostWheelSelection)
+                            updateSellingPrice()
+                            showAdditionalCostWheel = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.height(300)])
+        }
+        .sheet(isPresented: $showSellingPriceWheel) {
+            NavigationStack {
+                Form {
+                    Section {
+                        Picker("Giá bán dự kiến (đ)", selection: $sellingPriceWheelSelection) {
+                            ForEach(Array(stride(from: 0, through: sellingPriceWheelMax, by: 5000)), id: \.self) { v in
+                                Text(formatCurrency(Double(v))).tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: sellingPriceWheelSelection) { v in
+                            if v > sellingPriceWheelMax - (5000 * 5) {
+                                sellingPriceWheelMax += 5000 * 100
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Sửa giá bán")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { showSellingPriceWheel = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Lưu") {
+                            sellingPrice = String(sellingPriceWheelSelection)
+                            showSellingPriceWheel = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.height(300)])
         }
     }
     
     func updateSellingPrice() {
-        if let p = parseDouble(price), let q = Int(quantity), q > 0 {
-            let extra = parseDouble(incurredCost) ?? 0
+        let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
+        let q = Int(quantity) ?? quantityWheelSelection
+        if q > 0 {
+            let extra = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
             let total = (p * Double(q)) + extra
             let unitCost = total / Double(q)
             let suggested = unitCost * 1.3

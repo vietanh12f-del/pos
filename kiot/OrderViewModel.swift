@@ -28,6 +28,8 @@ class OrderViewModel: ObservableObject {
     @Published var isProcessingVoice: Bool = false
     @Published var useGPT: Bool = true // Toggle for AI parser
     @Published var isRecordingCustomerName: Bool = false
+    @Published var isRecordingManualProductName: Bool = false
+    @Published var manualRecordedName: String = ""
 
 
     // Alerting
@@ -135,6 +137,11 @@ class OrderViewModel: ObservableObject {
                         if !name.isEmpty {
                             self?.walkInName = name
                         }
+                    } else if self?.isRecordingManualProductName == true {
+                        let productName = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !productName.isEmpty {
+                            self?.manualRecordedName = productName
+                        }
                     } else {
                         self?.currentInput = newText
                     }
@@ -149,6 +156,8 @@ class OrderViewModel: ObservableObject {
                 if !isRecording {
                     if self?.isRecordingCustomerName == true {
                         self?.isRecordingCustomerName = false
+                    } else if self?.isRecordingManualProductName == true {
+                        self?.isRecordingManualProductName = false
                     } else {
                         // Recording stopped (manual or auto)
                         // Wait slightly for final transcript
