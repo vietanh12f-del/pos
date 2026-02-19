@@ -328,9 +328,18 @@ struct InventoryView: View {
                                     
                                     HStack {
                                         Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
+                                        Button {
+                                            viewModel.editRestockBill(bill)
+                                            DispatchQueue.main.async {
+                                                showNewRestock = true
+                                            }
+                                        } label: {
+                                            Text("Sửa")
+                                                .font(.headline)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.orange)
+                                        .controlSize(.small)
                                     }
                                 }
                                 .padding(.vertical, 8)
