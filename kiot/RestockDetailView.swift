@@ -133,25 +133,19 @@ struct RestockDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sửa") {
-                        // Trigger edit mode
-                        // 1. Dismiss this detail view
+                    Button {
                         dismiss()
-                        
-                        // 2. Trigger edit in ViewModel (which reverts inventory and loads items)
                         viewModel.editRestockBill(bill)
-                        
-                        // 3. Open the RestockEntryView
-                        // We need a slight delay or binding update to ensure the sheet opens after dismiss
-                        // But since showNewRestock is a binding passed from InventoryView, setting it true here 
-                        // might conflict with the dismissal of this sheet if they are managed by the same parent state?
-                        // Actually, 'selectedRestockBill' controls THIS sheet. 'showNewRestock' controls the OTHER sheet.
-                        // If we set showNewRestock = true immediately, SwiftUI might complain about presenting a sheet while dismissing another.
-                        // Let's try executing it on the main thread with a slight delay.
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                             showNewRestock = true
                         }
+                    } label: {
+                        Text("Sửa")
+                            .font(.headline)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .controlSize(.large)
                 }
                 
                 ToolbarItem(placement: .topBarLeading) {
