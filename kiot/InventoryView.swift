@@ -16,6 +16,16 @@ struct InventoryView: View {
     @State private var showBarcodeScanner = false
     @State private var productToPrint: Product?
     
+    private func highlightedInventoryName(_ name: String) -> AttributedString {
+        var s = AttributedString(name)
+        if let r = s.range(of: "sữa", options: .caseInsensitive) {
+            s[r].foregroundColor = .red
+            s[r].backgroundColor = .yellow
+            s[r].font = .subheadline
+        }
+        return s
+    }
+    
     var filteredProducts: [Product] {
         if searchText.isEmpty {
             return viewModel.products
@@ -251,34 +261,77 @@ struct InventoryView: View {
                     } else {
                         List {
                             ForEach(filteredRestockHistory) { bill in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Nhập hàng")
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(Color.themeTextDark)
-                                        
-                                        Text(formatDate(bill.createdAt))
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Nhập hàng")
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(Color.themeTextDark)
+                                            Text(formatDate(bill.createdAt))
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        Spacer()
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            Text(formatCurrency(bill.totalCost))
+                                                .font(.headline)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(.red)
+                                            Text("\(bill.items.count) mặt hàng")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(bill.items.prefix(3)) { item in
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                Text(highlightedInventoryName(item.name))
+                                                    .font(.subheadline)
+                                                    .fontWeight(.medium)
+                                                HStack(spacing: 8) {
+                                                    Text("Giá nhập \(formatCurrency(item.unitPrice))")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.white)
+                                                        .padding(.horizontal, 10)
+                                                        .padding(.vertical, 6)
+                                                        .background(Color.blue.opacity(0.75))
+                                                        .clipShape(Capsule())
+                                                    Text("Số lượng \(item.quantity)")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.white)
+                                                        .padding(.horizontal, 10)
+                                                        .padding(.vertical, 6)
+                                                        .background(Color.purple.opacity(0.75))
+                                                        .clipShape(Capsule())
+                                                    Text("Chi phí \(formatCurrency(item.additionalCost))")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.white)
+                                                        .padding(.horizontal, 10)
+                                                        .padding(.vertical, 6)
+                                                        .background((item.additionalCost > 0 ? Color.orange : Color.gray).opacity(0.75))
+                                                        .clipShape(Capsule())
+                                                }
+                                            }
+                                            .padding(.vertical, 4)
+                                        }
+                                        if bill.items.count > 3 {
+                                            Text("… xem thêm \(bill.items.count - 3) mặt hàng")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                    .padding(.leading, 20)
+                                    
+                                    HStack {
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
                                             .font(.caption)
                                             .foregroundStyle(.gray)
                                     }
-                                    
-                                    Spacer()
-                                    
-                                    VStack(alignment: .trailing, spacing: 4) {
-                                        Text(formatCurrency(bill.totalCost))
-                                            .font(.headline)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(.red)
-                                        
-                                        Text("\(bill.items.count) mặt hàng")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                    }
-                                    
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundStyle(.gray)
                                 }
                                 .padding(.vertical, 8)
                                 .contentShape(Rectangle())

@@ -46,7 +46,7 @@ struct RestockDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             // Name and Total
                             HStack {
-                                Text(item.name)
+                                Text(highlightedName(item.name))
                                     .font(.headline)
                                 Spacer()
                                 Text(formatCurrency(item.totalCost))
@@ -161,5 +161,14 @@ struct RestockDetailView: View {
                 }
             }
         }
+    }
+    
+    private func highlightedName(_ name: String) -> AttributedString {
+        var s = AttributedString(name)
+        if let r = s.range(of: "sữa", options: .caseInsensitive) {
+            s[r].foregroundColor = .red
+            s[r].backgroundColor = .yellow
+        }
+        return s
     }
 }
