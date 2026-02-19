@@ -800,11 +800,17 @@ struct ContentView: View {
                                     } catch { }
                                 }
                             } label: {
-                                Image(systemName: viewModel.isRecordingCustomerName ? "waveform" : "mic.fill")
-                                    .font(.system(size: 14, weight: .semibold))
+                                ZStack {
+                                    Circle()
+                                        .fill((viewModel.isRecordingCustomerName ? Color.red : Color.gray).opacity(0.15))
+                                        .frame(width: 40, height: 40)
+                                    Image(systemName: viewModel.isRecordingCustomerName ? "waveform" : "mic.fill")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundStyle(viewModel.isRecordingCustomerName ? Color.red : .gray)
+                                }
                             }
                             .buttonStyle(.plain)
-                            .foregroundStyle(viewModel.isRecordingCustomerName ? Color.red : .gray)
+                            .contentShape(Rectangle())
                         }
                         .padding(12)
                         .background(Color.gray.opacity(0.08))
