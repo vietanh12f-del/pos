@@ -120,59 +120,7 @@ struct StatisticsView: View {
                         }
                     }
                     
-                    VStack(spacing: 12) {
-                        HStack {
-                            Text("Sản phẩm đã bán")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                        
-                        HStack(spacing: 8) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.gray)
-                            TextField("Tìm sản phẩm", text: $productSearch)
-                                .textInputAutocapitalization(.never)
-                                .focused($searchFocused)
-                            if !productSearch.isEmpty {
-                                Button(action: { productSearch = "" }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundStyle(.gray)
-                                }
-                            }
-                        }
-                        .padding(12)
-                        .background(Color.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
-                        )
-                        .cornerRadius(12)
-                        .padding(.horizontal)
-                        
-                        Color.clear.frame(height: 0).id("sold-top")
-                        
-                        let sold = viewModel.soldProductsTotals(range: currentRange(), search: productSearch)
-                        ForEach(sold, id: \.name) { item in
-                            HStack {
-                                Text(item.name)
-                                    .font(.subheadline)
-                                    .foregroundStyle(Color.themeTextDark)
-                                Spacer()
-                                Text("\(item.quantity)")
-                                    .font(.subheadline)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.gray)
-                            }
-                            .padding(.horizontal)
-                            .padding(.vertical, 8)
-                            .background(Color.white)
-                            .cornerRadius(10)
-                            .shadow(color: Color.black.opacity(0.02), radius: 5, x: 0, y: 2)
-                        }
-                        Color.clear.frame(height: keyboardHeight + 40)
-                    }
+                    // (Đã di chuyển phần \"Sản phẩm đã bán\" sang Lịch sử đơn hàng)
                 }
                 .padding(.bottom, keyboardHeight + 20)
             }

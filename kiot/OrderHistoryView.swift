@@ -3,6 +3,10 @@ import SwiftUI
 struct OrderHistoryView: View {
     @ObservedObject var viewModel: OrderViewModel
     @State private var selectedBill: Bill?
+    @State private var showSoldSearch: Bool = false
+    @State private var soldSearchText: String = ""
+    @State private var soldStartDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var soldEndDate: Date = Date()
     
     init(viewModel: OrderViewModel) {
         self.viewModel = viewModel
@@ -126,8 +130,97 @@ struct OrderHistoryView: View {
                 }
             }
             .navigationTitle("Lịch sử đơn hàng")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSoldSearch = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.headline)
+                    }
+                }
+            }
             .sheet(item: $selectedBill) { bill in
                 BillDetailView(bill: bill, viewModel: viewModel)
+            }
+            .sheet(isPresented: $showSoldSearch) {
+                NavigationStack {
+                    VStack(spacing: 12) {
+                        Text("Sản phẩm đã bán")
+                            .font(.headline)
+                            .foregroundStyle(Color.themeTextDark)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(.gray)
+                            DatePicker("Từ", selection: $soldStartDate, displayedComponents: .date)
+                            DatePicker("Đến", selection: $soldEndDate, displayedComponents: .date)
+                        }
+                        .padding(12)
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.gray)
+                            TextField("Tìm theo tên sản phẩm", text: $soldSearchText)
+                                .textInputAutocapitalization(.never)
+                                .disableAutocorrection(true)
+                            if !soldSearchText.isEmpty {
+                                Button(action: { soldSearchText = "" }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                        
+                        let sold = viewModel.soldProductsTotals(
+                            range: .custom(start: soldStartDate, end: soldEndDate),
+                            search: soldSearchText
+                        )
+                        
+                        List {
+                            ForEach(sold, id: \.name) { item in
+                                HStack {
+                                    Text(item.name)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.themeTextDark)
+                                    Spacer()
+                                    Text("\(item.quantity)")
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.gray)
+                                }
+                                .padding(.vertical, 6)
+                            }
+                        }
+                        .listStyle(.plain)
+                    }
+                    .navigationTitle("Tìm kiếm")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Đóng") { showSoldSearch = false }
+                        }
+                    }
+                    .background(Color.themeBackgroundLight)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         }
     }
