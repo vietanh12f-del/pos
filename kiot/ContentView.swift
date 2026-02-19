@@ -463,6 +463,15 @@ struct ContentView: View {
         @Namespace private var namespace
         @FocusState private var walkInFocused: Bool
         @State private var keyboardHeight: CGFloat = 0
+        @State private var priceEditItem: OrderItem?
+        @State private var priceInput: String = ""
+        @State private var priceWheelSelection: Int = 0
+        @State private var priceWheelMax: Int = 100_000
+        @State private var wheelItem: OrderItem?
+        @State private var wheelSelection: Int = 1
+        @State private var wheelMax: Int = 100
+        @State private var nameWheelItem: OrderItem?
+        @State private var nameWheelSelectionIndex: Int = 0
         @State private var showCustomerPicker = false
         @State private var customerSortMode: Int = 0
         @State private var customerSearch: String = ""
@@ -815,11 +824,25 @@ struct ContentView: View {
                                                 .font(.subheadline)
                                                 .fontWeight(.semibold)
                                                 .foregroundStyle(Color.themeTextDark)
+                                                .onTapGesture {
+                                                    if let idx = viewModel.products.firstIndex(where: { $0.name == item.name }) {
+                                                        nameWheelSelectionIndex = idx
+                                                    } else {
+                                                        nameWheelSelectionIndex = 0
+                                                    }
+                                                    nameWheelItem = item
+                                                }
                                             
                                             HStack(spacing: 8) {
                                                 Text(formatCurrency(item.price))
                                                     .font(.caption)
                                                     .foregroundStyle(.gray)
+                                                    .onTapGesture {
+                                                        let base = max(0, Int(item.price))
+                                                        priceWheelSelection = (base / 5000) * 5000
+                                                        priceWheelMax = priceWheelSelection + 500_000
+                                                        priceEditItem = item
+                                                    }
                                                 if item.discount > 0 {
                                                     Text("-\(Int(item.discount/1000))k")
                                                         .font(.caption)
@@ -848,6 +871,11 @@ struct ContentView: View {
                                                 Text("\(item.quantity)")
                                                     .font(.headline)
                                                     .frame(minWidth: 24)
+                                                    .onTapGesture {
+                                                        wheelItem = item
+                                                        wheelSelection = item.quantity
+                                                        wheelMax = item.quantity + 1000
+                                                    }
                                                 
                                                 Button {
                                                     viewModel.updateItem(item, newQuantity: item.quantity + 1)
@@ -957,6 +985,101 @@ struct ContentView: View {
             }
             .sheet(item: $customizingProduct) { product in
                 ProductCustomizeView(product: product, viewModel: viewModel)
+            }
+            .sheet(item: $priceEditItem) { item in
+                NavigationStack {
+                    Form {
+                        Section {
+                            Picker("Đơn giá (đ)", selection: $priceWheelSelection) {
+                                ForEach(Array(stride(from: 0, through: priceWheelMax, by: 5000)), id: \.self) { v in
+                                    Text(formatCurrency(Double(v))).tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: priceWheelSelection) { v in
+                                if v > priceWheelMax - (5000 * 5) {
+                                    priceWheelMax += 5000 * 100
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle("Sửa giá")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Hủy") { priceEditItem = nil }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Lưu") {
+                                viewModel.updateItemFull(item, name: item.name, price: Double(priceWheelSelection), quantity: item.quantity, discount: item.discount, imageData: item.imageData)
+                                priceEditItem = nil
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.height(300)])
+            }
+            .sheet(item: $nameWheelItem) { item in
+                NavigationStack {
+                    Form {
+                        Section {
+                            Picker("Tên hàng", selection: $nameWheelSelectionIndex) {
+                                ForEach(Array(viewModel.products.enumerated()), id: \.offset) { (i, p) in
+                                    Text(p.name).tag(i)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                        }
+                    }
+                    .navigationTitle("Sửa tên hàng")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Hủy") { nameWheelItem = nil }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Lưu") {
+                                let products = viewModel.products
+                                if products.indices.contains(nameWheelSelectionIndex) {
+                                    let selected = products[nameWheelSelectionIndex]
+                                    viewModel.updateItemFull(item, name: selected.name, price: selected.price, quantity: item.quantity, discount: item.discount, imageData: selected.imageData)
+                                    nameWheelItem = nil
+                                }
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.height(300)])
+            }
+            .sheet(item: $wheelItem) { item in
+                NavigationStack {
+                    Form {
+                        Section {
+                            Picker("Số lượng", selection: $wheelSelection) {
+                                ForEach(Array(1...wheelMax), id: \.self) { q in
+                                    Text("\(q)").tag(q)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: wheelSelection) { q in
+                                if q > wheelMax - 10 {
+                                    wheelMax += 500
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle("Sửa số lượng")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Hủy") { wheelItem = nil }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Lưu") {
+                                viewModel.updateItem(item, newQuantity: wheelSelection)
+                                wheelItem = nil
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.height(300)])
             }
             .onChange(of: viewModel.currentInput) { newValue in
                 if !newValue.isEmpty && !viewModel.speechRecognizer.isRecording {
