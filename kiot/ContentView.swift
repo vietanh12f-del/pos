@@ -1196,6 +1196,11 @@ struct ContentView: View {
                 }
                 .presentationDetents([.height(300)])
             }
+            .onAppear {
+                if viewModel.editingBill == nil {
+                    viewModel.walkInName = "Khách lẻ"
+                }
+            }
             .onChange(of: viewModel.currentInput) { newValue in
                 if !newValue.isEmpty && !viewModel.speechRecognizer.isRecording {
                     viewModel.processInput()
