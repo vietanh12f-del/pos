@@ -62,7 +62,7 @@ struct VoiceOverlayView: View {
                                     .foregroundColor(.red)
                             }
                             
-                            Text(viewModel.isProcessingVoice ? "Hủy" : "Nói hàng nhập... Ví dụ Nhập 3 hoa ly 20k")
+                            Text(viewModel.isProcessingVoice ? "Hủy" : "Nhập hàng bằng giọng nói\nVí dụ: Nhập 3 hoa ly 20k")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                                 .foregroundColor(.white)
