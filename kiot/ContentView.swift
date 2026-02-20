@@ -731,41 +731,61 @@ struct ContentView: View {
                                 Text("Đang chờ nói...")
                                     .font(.headline)
                                     .fontWeight(.medium)
-                                    .foregroundStyle(Color.themeTextDark)
+                                    .foregroundStyle(.white)
                                 HStack(spacing: 4) {
                                     Text("Ví dụ:")
                                         .font(.subheadline)
-                                        .foregroundStyle(.gray)
+                                        .foregroundStyle(Color.white.opacity(0.85))
                                     Text("Bán 3 hoa cúc 50k")
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
-                                        .foregroundStyle(Color.themePrimary)
+                                        .foregroundStyle(.white)
                                 }
                             }
                             .multilineTextAlignment(.center)
                             .padding()
                             .background(
                                 RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.white)
-                                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.themePrimary, Color.green.opacity(0.85)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                    )
+                                    .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
                             )
                             .padding(.horizontal, 40)
                         } else {
                             Text(viewModel.currentInput)
                                 .font(.headline)
                                 .fontWeight(.medium)
-                                .foregroundStyle(Color.themeTextDark)
+                                .foregroundStyle(.white)
                                 .multilineTextAlignment(.center)
                                 .padding()
                                 .background(
                                     RoundedRectangle(cornerRadius: 20)
-                                        .fill(Color.white)
-                                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color.themePrimary, Color.green.opacity(0.85)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                        )
+                                        .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
                                 )
                                 .padding(.horizontal, 40)
                         }
                     }
-                    .padding(.bottom, 340)
+                    .padding(.bottom, 40)
                     .allowsHitTesting(false)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .animation(.spring(), value: viewModel.currentInput)

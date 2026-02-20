@@ -9,21 +9,7 @@ struct VoiceAIButton: View {
         let isActiveRecording = viewModel.speechRecognizer.isRecording && !viewModel.isRecordingCustomerName
         Button(action: { viewModel.toggleRecording() }) {
             ZStack {
-                if isActiveRecording {
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.purple.opacity(0.5), .blue.opacity(0.0)],
-                                center: .center,
-                                startRadius: size * 0.5,
-                                endRadius: size * 1.5
-                            )
-                        )
-                        .frame(width: size * 2.5, height: size * 2.5)
-                        .scaleEffect(isActiveRecording ? 1.1 : 0.8)
-                        .opacity(isActiveRecording ? 1 : 0)
-                        .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isActiveRecording)
-                }
+                
                 
                 Circle()
                     .fill(
