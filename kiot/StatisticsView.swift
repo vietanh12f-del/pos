@@ -10,6 +10,8 @@ struct StatisticsView: View {
     @State private var productSearch: String = ""
     @State private var keyboardHeight: CGFloat = 0
     @FocusState private var searchFocused: Bool
+    @State private var showExportSheet: Bool = false
+    @State private var exportURL: URL?
     
     enum StatType {
         case today, week, month, quarter
@@ -25,9 +27,43 @@ struct StatisticsView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollViewReader { proxy in
-            ScrollView {
-                VStack(spacing: 16) {
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Thống Kê")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                    Spacer()
+                    Button {
+                        let range = currentRange()
+                        if let url = viewModel.exportFinancialReport(range: range) {
+                            exportURL = url
+                            let exists = FileManager.default.fileExists(atPath: url.path)
+                            if exists {
+                                showExportSheet = true
+                            } else {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    showExportSheet = true
+                                }
+                            }
+                        }
+                    } label: {
+                        Text("Xuất báo cáo")
+                            .font(.body)
+                            .fontWeight(.semibold)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.themePrimary)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color.white)
+                Divider()
+                
+                ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 16) {
+                    
                     Picker("Khoảng thời gian", selection: $selectedType) {
                         Text("Hôm nay").tag(StatType.today)
                         Text("Tuần này").tag(StatType.week)
@@ -121,34 +157,34 @@ struct StatisticsView: View {
                     }
                     
                     // (Đã di chuyển phần \"Sản phẩm đã bán\" sang Lịch sử đơn hàng)
+                    }
+                    .padding(.bottom, keyboardHeight + 20)
                 }
-                .padding(.bottom, keyboardHeight + 20)
-            }
+                }
             .scrollDismissesKeyboard(.interactively)
             .contentShape(Rectangle())
             .onTapGesture {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 searchFocused = false
-                withAnimation {
-                    proxy.scrollTo("sold-top", anchor: .top)
-                }
             }
             .background(Color.themeBackgroundLight)
-            .navigationTitle("Thống Kê")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showExportSheet) {
+                if let url = exportURL {
+                    ShareSheet(items: [url])
+                } else {
+                    Text("Vui lòng tải lại")
+                        .padding()
+                }
+            }
             .onChange(of: searchFocused) { focused in
                 if focused {
-                    withAnimation {
-                        proxy.scrollTo("sold-top", anchor: .center)
-                    }
                 }
             }
             .onAppear {
                 searchFocused = false
                 keyboardHeight = 0
-                withAnimation {
-                    proxy.scrollTo("page-top", anchor: .top)
-                }
             }
             .onDisappear {
                 searchFocused = false
@@ -156,7 +192,7 @@ struct StatisticsView: View {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             }
-        }
+            }
         .onAppear {
             regenerate()
         }

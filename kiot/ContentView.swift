@@ -726,10 +726,22 @@ struct ContentView: View {
             Group {
                 if (viewModel.speechRecognizer.isRecording && !viewModel.isRecordingCustomerName) || !viewModel.currentInput.isEmpty {
                     VStack {
-                        Text(viewModel.currentInput.isEmpty ? "Đang chờ nói...\nVí dụ: 3 hoa cúc 50k" : viewModel.currentInput)
-                            .font(.headline)
-                            .fontWeight(.medium)
-                            .foregroundStyle(Color.themeTextDark)
+                        if viewModel.currentInput.isEmpty {
+                            VStack(spacing: 6) {
+                                Text("Đang chờ nói...")
+                                    .font(.headline)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(Color.themeTextDark)
+                                HStack(spacing: 4) {
+                                    Text("Ví dụ:")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray)
+                                    Text("Bán 3 hoa cúc 50k")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                            }
                             .multilineTextAlignment(.center)
                             .padding()
                             .background(
@@ -738,6 +750,20 @@ struct ContentView: View {
                                     .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
                             )
                             .padding(.horizontal, 40)
+                        } else {
+                            Text(viewModel.currentInput)
+                                .font(.headline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(Color.themeTextDark)
+                                .multilineTextAlignment(.center)
+                                .padding()
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .fill(Color.white)
+                                        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+                                )
+                                .padding(.horizontal, 40)
+                        }
                     }
                     .padding(.bottom, 340)
                     .allowsHitTesting(false)

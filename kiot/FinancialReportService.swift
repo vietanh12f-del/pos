@@ -119,6 +119,14 @@ class FinancialReportService {
             csvText.append(line)
         }
         
+        let totalRevenue = stats.reduce(0) { $0 + $1.revenue }
+        let totalCOGS = stats.reduce(0) { $0 + $1.cogs }
+        let totalOpEx = stats.reduce(0) { $0 + $1.operatingCosts }
+        let totalFees = stats.reduce(0) { $0 + $1.incurredFees }
+        let totalNet = stats.reduce(0) { $0 + $1.netProfit }
+        let totalMargin = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0
+        csvText.append("TỔNG,\(totalRevenue),\(totalCOGS),\(totalOpEx),\(totalFees),\(totalNet),\(String(format: "%.2f", totalMargin))%\n")
+        
         do {
             try csvText.write(to: path, atomically: true, encoding: .utf8)
             return path
