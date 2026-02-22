@@ -201,6 +201,7 @@ enum StorePermission: String, Codable, CaseIterable, Hashable {
     case viewInventory = "view_inventory"
     case viewExpenses = "view_expenses"
     case viewReports = "view_reports"
+    case viewCustomization = "view_customization"
     case manageEmployees = "manage_employees"
     case deleteEmployee = "delete_employee"
     
@@ -211,6 +212,7 @@ enum StorePermission: String, Codable, CaseIterable, Hashable {
         case .viewInventory: return "Xem Kho hàng"
         case .viewExpenses: return "Xem Chi phí"
         case .viewReports: return "Xem Báo cáo"
+        case .viewCustomization: return "Xem Tuỳ chỉnh"
         case .manageEmployees: return "Quản lý Nhân viên"
         case .deleteEmployee: return "Xóa Nhân viên"
         }

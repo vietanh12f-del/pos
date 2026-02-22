@@ -71,6 +71,9 @@ struct SettingsView: View {
                             NavigationLink(destination: StoreBankSettingsView(store: store)) {
                                 Text("Cài đặt tài khoản ngân hàng")
                             }
+                        }
+                        
+                        if storeManager.hasPermission(.viewCustomization) {
                             NavigationLink(destination: CustomizationSettingsView()) {
                                 Text("Tuỳ chỉnh")
                             }
