@@ -14,13 +14,22 @@ class StoreManager: ObservableObject {
     @Published var currentMember: StoreMember?
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var priceStep: Int = 5000
     
     private let client = SupabaseConfig.client
     
     init() {
+        let saved = UserDefaults.standard.integer(forKey: "priceStep")
+        priceStep = saved >= 1000 ? saved : 5000
         Task {
             await fetchStores()
         }
+    }
+    
+    func setPriceStep(_ step: Int) {
+        let s = max(1000, step)
+        priceStep = s
+        UserDefaults.standard.set(s, forKey: "priceStep")
     }
     
     func fetchStores() async {

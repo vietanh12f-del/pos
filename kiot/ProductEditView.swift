@@ -484,14 +484,15 @@ struct ProductEditView: View {
                     Text("Sửa giá vốn")
                         .font(.headline)
                     Picker("", selection: $costWheelSelection) {
-                        ForEach(Array(stride(from: 0, through: costWheelMax, by: 5000)), id: \.self) { v in
+                        ForEach(Array(stride(from: 0, through: costWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
                             Text(formatCurrency(Double(v))).tag(v)
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: costWheelSelection) { v in
-                        if v > costWheelMax - (5000 * 5) {
-                            costWheelMax += 5000 * 100
+                    .onChange(of: costWheelSelection) { _, newValue in
+                        let step = StoreManager.shared.priceStep
+                        if newValue > costWheelMax - (step * 5) {
+                            costWheelMax += step * 100
                         }
                     }
                     HStack {
@@ -512,14 +513,15 @@ struct ProductEditView: View {
                     Text("Sửa giá bán")
                         .font(.headline)
                     Picker("", selection: $priceWheelSelection) {
-                        ForEach(Array(stride(from: 0, through: priceWheelMax, by: 5000)), id: \.self) { v in
+                        ForEach(Array(stride(from: 0, through: priceWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
                             Text(formatCurrency(Double(v))).tag(v)
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: priceWheelSelection) { v in
-                        if v > priceWheelMax - (5000 * 5) {
-                            priceWheelMax += 5000 * 100
+                    .onChange(of: priceWheelSelection) { _, newValue in
+                        let step = StoreManager.shared.priceStep
+                        if newValue > priceWheelMax - (step * 5) {
+                            priceWheelMax += step * 100
                         }
                     }
                     HStack {

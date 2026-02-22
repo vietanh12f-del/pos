@@ -566,14 +566,15 @@ struct ManualRestockItemView: View {
                 Text("Sửa đơn giá")
                     .font(.headline)
                 Picker("", selection: $unitPriceWheelSelection) {
-                    ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: 5000)), id: \.self) { v in
+                    ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
                         Text(formatCurrency(Double(v))).tag(v)
                     }
                 }
                 .pickerStyle(.wheel)
-                .onChange(of: unitPriceWheelSelection) { v in
-                    if v > unitPriceWheelMax - (5000 * 5) {
-                        unitPriceWheelMax += 5000 * 100
+                .onChange(of: unitPriceWheelSelection) { _, newValue in
+                    let step = StoreManager.shared.priceStep
+                    if newValue > unitPriceWheelMax - (step * 5) {
+                        unitPriceWheelMax += step * 100
                     }
                 }
                 HStack {
@@ -597,14 +598,15 @@ struct ManualRestockItemView: View {
                 Text("Sửa chi phí")
                     .font(.headline)
                 Picker("", selection: $additionalCostWheelSelection) {
-                    ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: 5000)), id: \.self) { v in
+                    ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
                         Text(formatCurrency(Double(v))).tag(v)
                     }
                 }
                 .pickerStyle(.wheel)
-                .onChange(of: additionalCostWheelSelection) { v in
-                    if v > additionalCostWheelMax - (5000 * 5) {
-                        additionalCostWheelMax += 5000 * 100
+                .onChange(of: additionalCostWheelSelection) { _, newValue in
+                    let step = StoreManager.shared.priceStep
+                    if newValue > additionalCostWheelMax - (step * 5) {
+                        additionalCostWheelMax += step * 100
                     }
                 }
                 HStack {
@@ -626,14 +628,15 @@ struct ManualRestockItemView: View {
                 Text("Sửa giá bán")
                     .font(.headline)
                 Picker("", selection: $sellingPriceWheelSelection) {
-                    ForEach(Array(stride(from: 0, through: sellingPriceWheelMax, by: 5000)), id: \.self) { v in
+                    ForEach(Array(stride(from: 0, through: sellingPriceWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
                         Text(formatCurrency(Double(v))).tag(v)
                     }
                 }
                 .pickerStyle(.wheel)
-                .onChange(of: sellingPriceWheelSelection) { v in
-                    if v > sellingPriceWheelMax - (5000 * 5) {
-                        sellingPriceWheelMax += 5000 * 100
+                .onChange(of: sellingPriceWheelSelection) { _, newValue in
+                    let step = StoreManager.shared.priceStep
+                    if newValue > sellingPriceWheelMax - (step * 5) {
+                        sellingPriceWheelMax += step * 100
                     }
                 }
                 HStack {

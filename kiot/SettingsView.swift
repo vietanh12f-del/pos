@@ -71,6 +71,9 @@ struct SettingsView: View {
                             NavigationLink(destination: StoreBankSettingsView(store: store)) {
                                 Text("Cài đặt tài khoản ngân hàng")
                             }
+                            NavigationLink(destination: CustomizationSettingsView()) {
+                                Text("Tuỳ chỉnh")
+                            }
                         }
                     } else {
                          Button("Chọn cửa hàng") {
@@ -333,6 +336,57 @@ struct StoreBankSettingsView: View {
     }
 }
 
+struct CustomizationSettingsView: View {
+    var body: some View {
+        List {
+            Section {
+                NavigationLink(destination: PriceSettingsView()) {
+                    Text("Khoảng cách giá")
+                }
+            }
+        }
+        .navigationTitle("Tuỳ chỉnh")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct PriceSettingsView: View {
+    @ObservedObject private var storeManager = StoreManager.shared
+    @State private var selectedStep: Int
+    @Environment(\.dismiss) var dismiss
+    
+    init() {
+        let initial = StoreManager.shared.priceStep
+        _selectedStep = State(initialValue: initial)
+    }
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Khoảng cách giá (đ)")) {
+                Picker("", selection: $selectedStep) {
+                    ForEach(Array(stride(from: 1000, through: 200_000, by: 1000)), id: \.self) { v in
+                        Text("\(v)").tag(v)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(height: 200)
+                Text("Áp dụng cho các bánh xe chỉnh giá")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+        }
+        .navigationTitle("Khoảng cách giá")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Lưu") {
+                    storeManager.setPriceStep(selectedStep)
+                    dismiss()
+                }
+            }
+        }
+    }
+}
 struct EditProfileView: View {
     @ObservedObject var authManager: AuthManager
     @Environment(\.dismiss) var dismiss

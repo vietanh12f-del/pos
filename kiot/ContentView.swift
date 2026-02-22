@@ -1158,14 +1158,15 @@ struct ContentView: View {
                     Form {
                         Section {
                             Picker("Đơn giá (đ)", selection: $priceWheelSelection) {
-                                ForEach(Array(stride(from: 0, through: priceWheelMax, by: 5000)), id: \.self) { v in
+                                ForEach(Array(stride(from: 0, through: priceWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
                                     Text(formatCurrency(Double(v))).tag(v)
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: priceWheelSelection) { v in
-                                if v > priceWheelMax - (5000 * 5) {
-                                    priceWheelMax += 5000 * 100
+                            .onChange(of: priceWheelSelection) { _, newValue in
+                                let step = StoreManager.shared.priceStep
+                                if newValue > priceWheelMax - (step * 5) {
+                                    priceWheelMax += step * 100
                                 }
                             }
                         }
