@@ -15,6 +15,7 @@ class StoreManager: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var priceStep: Int = 5000
+    private var memberRealtimeChannel: RealtimeChannelV2?
     
     private let client = SupabaseConfig.client
     
@@ -228,6 +229,7 @@ class StoreManager: ObservableObject {
                     .execute()
                     .value
                 self.currentMember = membership
+                await setupMemberRealtimeSubscription(storeId: store.id, userId: membership.userId)
             } catch {
                 print("Error fetching membership: \(error)")
             }
@@ -357,6 +359,23 @@ class StoreManager: ObservableObject {
             return false
         }
     }
+    
+    func getEmployeeCount(storeId: UUID) async -> Int {
+        struct Row: Decodable { let id: UUID }
+        do {
+            let rows: [Row] = try await client
+                .from("store_members")
+                .select("id")
+                .eq("store_id", value: storeId)
+                .eq("role", value: "employee")
+                .eq("status", value: "active")
+                .execute()
+                .value
+            return rows.count
+        } catch {
+            return 0
+        }
+    }
 
     func updateEmployeePermissions(memberId: UUID, permissions: [StorePermission]) async -> Bool {
         do {
@@ -369,6 +388,61 @@ class StoreManager: ObservableObject {
         } catch {
             self.errorMessage = "Lỗi cập nhật quyền: \(error.localizedDescription)"
             return false
+        }
+    }
+    
+    func updateEmployeePosition(memberId: UUID, positionTitle: String) async -> Bool {
+        do {
+            try await client
+                .from("store_members")
+                .update(["position_title": positionTitle])
+                .eq("id", value: memberId)
+                .execute()
+            return true
+        } catch {
+            self.errorMessage = "Lỗi cập nhật chức vụ: \(error.localizedDescription)"
+            return false
+        }
+    }
+    
+    @MainActor
+    private func setupMemberRealtimeSubscription(storeId: UUID, userId: UUID) async {
+        if let channel = memberRealtimeChannel {
+            await channel.unsubscribe()
+        }
+        
+        let channel = client.channel("member-changes-\(storeId)")
+        let filter = "store_id=eq.\(storeId)&user_id=eq.\(userId)"
+        let _ = channel.onPostgresChange(UpdateAction.self, schema: "public", table: "store_members", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            Task { @MainActor in
+                do {
+                    let updated = try change.decodeRecord(as: StoreMember.self, decoder: JSONDecoder())
+                    if self.currentMember?.id == updated.id {
+                        self.currentMember = updated
+                    }
+                } catch {
+                    print("Error decoding membership update: \(error)")
+                }
+            }
+        }
+        let _ = channel.onPostgresChange(InsertAction.self, schema: "public", table: "store_members", filter: filter) { [weak self] change in
+            guard let self = self else { return }
+            Task { @MainActor in
+                do {
+                    let inserted = try change.decodeRecord(as: StoreMember.self, decoder: JSONDecoder())
+                    self.currentMember = inserted
+                } catch {
+                    print("Error decoding membership insert: \(error)")
+                }
+            }
+        }
+        
+        do {
+            try await channel.subscribeWithError()
+            self.memberRealtimeChannel = channel
+        } catch {
+            print("Realtime subscribe error: \(error)")
         }
     }
     

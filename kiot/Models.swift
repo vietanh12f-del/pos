@@ -231,6 +231,7 @@ struct StoreMember: Identifiable, Codable, Hashable {
     let userId: UUID
     var role: StoreRole
     var permissions: [StorePermission]?
+    var positionTitle: String?
     var status: MemberStatus?
     var joinedAt: Date
     
@@ -240,6 +241,7 @@ struct StoreMember: Identifiable, Codable, Hashable {
         case userId = "user_id"
         case role
         case permissions
+        case positionTitle = "position_title"
         case status
         case joinedAt = "joined_at"
     }

@@ -35,6 +35,12 @@ struct SettingsView: View {
                             .font(.headline)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.themeTextDark)
+                        if authManager.selectedRole == "employee" {
+                            let pos = storeManager.currentMember?.positionTitle
+                            Text("Chức vụ: \(pos ?? "—")")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                        }
                     }
                     Spacer()
                     Text("Đang hoạt động")

@@ -206,14 +206,13 @@ class AuthManager: ObservableObject {
         self.errorMessage = nil
         
         do {
-            // Using generic OAuth flow
-            // Note: You need to configure the redirect URL in Supabase Dashboard -> Auth -> URL Configuration
-            // Redirect URL should be something like: kiot://login-callback
-            // In newer Supabase versions, this method returns a Session and handles the flow internally (using ASWebAuthenticationSession)
             _ = try await client.auth.signInWithOAuth(
                 provider: .google,
-                redirectTo: URL(string: "kiot://login-callback")
-            )
+                redirectTo: URL(string: "kiot://login-callback"),
+                queryParams: [("prompt", "select_account")]
+            ) { (session: ASWebAuthenticationSession) in
+                session.prefersEphemeralWebBrowserSession = true
+            }
             
             self.isLoading = false
             return true

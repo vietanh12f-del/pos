@@ -163,11 +163,7 @@ struct ContentView: View {
                                     }
                                 }
                             } else {
-                                // Employee mode: do NOT use previous profile's currentStoreId
-                                // If only one active member store, auto-select it; otherwise require manual selection
-                                if storeManager.memberStores.count == 1, let onlyStore = storeManager.memberStores.first {
-                                    await storeManager.selectStore(onlyStore)
-                                }
+                                // Employee mode: always require manual store selection (never auto-select)
                             }
                         }
                     }

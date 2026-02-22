@@ -28,6 +28,11 @@ struct EmployeeManagementView: View {
                                     Text(employee.member.role.displayName)
                                         .font(.caption)
                                         .foregroundColor(.gray)
+                                    if AuthManager.shared.selectedRole == "owner" {
+                                        Text("Chức vụ: \((employee.member.positionTitle?.isEmpty == false) ? (employee.member.positionTitle ?? "") : "—")")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
                                 }
                                 Spacer()
                                 if employee.member.status == .invited {
@@ -71,7 +76,8 @@ struct EmployeeManagementView: View {
 
     func loadEmployees() async {
         let rawEmployees = await storeManager.getEmployees()
-        employees = rawEmployees.map { EmployeeViewModel(id: $0.0.id, member: $0.0, name: $0.1) }
+        let filtered = rawEmployees.filter { $0.0.role != .owner }
+        employees = filtered.map { EmployeeViewModel(id: $0.0.id, member: $0.0, name: $0.1) }
     }
     
     func deleteEmployee(at offsets: IndexSet) {
@@ -171,6 +177,10 @@ struct EmployeeDetailView: View {
     @Environment(\.dismiss) var dismiss
     @State private var permissions: Set<StorePermission> = []
     @State private var showSuccessAlert = false
+    @State private var positionTitle: String = ""
+    @State private var showEditPosition = false
+    @StateObject private var speech = SpeechRecognizer()
+    @State private var isSavingPosition = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -199,10 +209,27 @@ struct EmployeeDetailView: View {
             .background(Color.white)
             
             Form {
-                Section(header: Text("Thông tin")) {
-                    Text("Tên: \(name)")
-                    Text("Vai trò: \(member.role.displayName)")
-                    Text("Trạng thái: \(member.status?.rawValue ?? "Unknown")")
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(name)
+                            .font(.headline)
+                            .foregroundStyle(Color.themeTextDark)
+                        
+                        PlainInfoRow(
+                            icon: "person.badge.key",
+                            title: "Chức vụ",
+                            value: positionTitle.isEmpty ? "—" : positionTitle,
+                            actionTitle: "Sửa",
+                            action: { showEditPosition = true }
+                        )
+                        
+                        PlainInfoRow(
+                            icon: statusIcon(member.status),
+                            title: "Trạng thái",
+                            value: statusText(member.status),
+                            valueColor: statusColor(member.status)
+                        )
+                    }
                 }
                 
                 Section(header: Text("Quyền hạn")) {
@@ -237,10 +264,138 @@ struct EmployeeDetailView: View {
         } message: {
             Text("Đã cập nhật quyền hạn thành công.")
         }
+        .sheet(isPresented: $showEditPosition) {
+            NavigationStack {
+                Form {
+                    Section(header: Text("Chức vụ")) {
+                        HStack {
+                            Image(systemName: "person.badge.key")
+                                .foregroundStyle(.gray)
+                            TextField("Nhập chức vụ", text: $positionTitle)
+                                .textInputAutocapitalization(.words)
+                                .disableAutocorrection(true)
+                        }
+                        HStack(spacing: 12) {
+                            Button {
+                                if speech.isRecording {
+                                    speech.stopRecording()
+                                } else {
+                                    try? speech.startRecording()
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: speech.isRecording ? "waveform" : "mic.fill")
+                                    Text(speech.isRecording ? "Đang ghi" : "Nhập bằng giọng nói")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            
+                            Menu {
+                                Button("Chủ") { positionTitle = "Chủ" }
+                                Button("Kế toán") { positionTitle = "Kế toán" }
+                                Button("Quản lý sản xuất") { positionTitle = "Quản lý sản xuất" }
+                                Button("Nhân viên sản xuất") { positionTitle = "Nhân viên sản xuất" }
+                                Button("Nhân viên bán hàng") { positionTitle = "Nhân viên bán hàng" }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "list.bullet")
+                                    Text("Tham khảo")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+                .navigationTitle("Sửa chức vụ")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Hủy") { showEditPosition = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Lưu") {
+                            isSavingPosition = true
+                            Task {
+                                let success = await storeManager.updateEmployeePosition(memberId: member.id, positionTitle: positionTitle)
+                                await MainActor.run {
+                                    isSavingPosition = false
+                                    if success {
+                                        showEditPosition = false
+                                    }
+                                }
+                            }
+                        }
+                        .disabled(positionTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSavingPosition)
+                    }
+                }
+                .onChange(of: speech.transcript) { _, newText in
+                    positionTitle = newText
+                }
+            }
+        }
         .onAppear {
             if let memberPermissions = member.permissions {
                 permissions = Set(memberPermissions)
             }
+            positionTitle = member.positionTitle ?? ""
         }
+    }
+}
+
+struct PlainInfoRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    var valueColor: Color? = nil
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(.gray)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Text(value)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(valueColor ?? Color.themeTextDark)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
+
+private func statusText(_ status: MemberStatus?) -> String {
+    switch status {
+    case .active: return "Đang làm"
+    case .invited: return "Đã mời"
+    case .declined: return "Từ chối"
+    default: return "Không rõ"
+    }
+}
+
+private func statusColor(_ status: MemberStatus?) -> Color {
+    switch status {
+    case .active: return .green
+    case .invited: return .orange
+    case .declined: return .red
+    default: return .gray
+    }
+}
+
+private func statusIcon(_ status: MemberStatus?) -> String {
+    switch status {
+    case .active: return "checkmark.seal.fill"
+    case .invited: return "envelope.open.fill"
+    case .declined: return "xmark.seal.fill"
+    default: return "questionmark.circle.fill"
     }
 }
