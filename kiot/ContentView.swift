@@ -691,7 +691,7 @@ struct ContentView: View {
                 .background(Color.white)
                 
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                         ForEach(viewModel.filteredProducts) { product in
                             Button(action: {
                                 let generator = UIImpactFeedbackGenerator(style: .medium)
