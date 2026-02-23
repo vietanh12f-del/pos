@@ -871,6 +871,7 @@ struct ContentView: View {
                         VoiceAIButton(viewModel: viewModel)
                     }
                     
+                    ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 8) {
                             ForEach(viewModel.items) { item in
@@ -931,7 +932,7 @@ struct ContentView: View {
                                             .fontWeight(.bold)
                                             .foregroundStyle(Color.themePrimary)
                                         
-                                        HStack(spacing: 12) {
+                                        HStack(spacing: 18) {
                                             Button {
                                                 viewModel.updateItem(item, newQuantity: item.quantity - 1)
                                             } label: {
@@ -941,8 +942,9 @@ struct ContentView: View {
                                             }
                                             
                                             Text("\(item.quantity)")
-                                                .font(.headline)
-                                                .frame(minWidth: 24)
+                                                .font(.title2)
+                                                .frame(minWidth: 36)
+                                                .padding(.horizontal, 6)
                                                 .onTapGesture {
                                                     wheelItem = item
                                                     wheelSelection = item.quantity
@@ -976,6 +978,7 @@ struct ContentView: View {
                                         .stroke(Color.gray.opacity(0.1), lineWidth: 1)
                                 )
                                 .contentShape(Rectangle())
+                                .id(item.id)
                                 .onTapGesture {
                                     editingItem = item
                                 }
@@ -997,6 +1000,21 @@ struct ContentView: View {
                         }
                     }
                     .frame(height: 160)
+                    .onChange(of: viewModel.items.count) { _, _ in
+                        if let id = viewModel.lastFocusedItemId ?? viewModel.items.last?.id {
+                            withAnimation {
+                                proxy.scrollTo(id, anchor: .bottom)
+                            }
+                        }
+                    }
+                    .onChange(of: viewModel.lastFocusedItemId) { _, newId in
+                        if let id = newId {
+                            withAnimation {
+                                proxy.scrollTo(id, anchor: .center)
+                            }
+                        }
+                    }
+                    }
                     
                     Button(action: {
                         if viewModel.editingBill != nil {

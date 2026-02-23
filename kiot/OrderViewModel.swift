@@ -6,6 +6,7 @@ import Supabase
 class OrderViewModel: ObservableObject {
     @Published var currentInput: String = ""
     @Published var items: [OrderItem] = []
+    @Published var lastFocusedItemId: UUID?
     @Published var showPayment: Bool = false
     @Published var walkInName: String = "Khách lẻ"
     @Published var paymentReceiptImageURL: String? = nil
@@ -103,8 +104,10 @@ class OrderViewModel: ObservableObject {
     func addProduct(_ product: Product) {
         if let index = items.firstIndex(where: { $0.name == product.name && $0.price == product.price && $0.systemImage == product.imageName }) {
             items[index].quantity += 1
+            lastFocusedItemId = items[index].id
         } else {
             items.append(OrderItem(name: product.name, quantity: 1, price: product.price, costPrice: product.costPrice, imageData: product.imageData, systemImage: product.imageName))
+            lastFocusedItemId = items.last?.id
         }
     }
     
@@ -1614,6 +1617,7 @@ class OrderViewModel: ObservableObject {
     func addItem(_ name: String, price: Double, quantity: Int, discount: Double = 0, imageData: Data? = nil) {
         if let index = items.firstIndex(where: { $0.name == name && $0.price == price && $0.discount == discount && $0.imageData == imageData }) {
             items[index].quantity += quantity
+            lastFocusedItemId = items[index].id
         } else {
             // Find cost price
             var cost: Double = 0
@@ -1621,6 +1625,7 @@ class OrderViewModel: ObservableObject {
                 cost = product.costPrice
             }
             items.append(OrderItem(name: name, quantity: quantity, price: price, costPrice: cost, discount: discount, imageData: imageData, systemImage: "cart.circle.fill"))
+            lastFocusedItemId = items.last?.id
         }
     }
     
