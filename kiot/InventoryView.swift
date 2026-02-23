@@ -266,7 +266,9 @@ struct InventoryView: View {
                                             .font(.subheadline)
                                             .fontWeight(.medium)
                                             .foregroundStyle(Color.themeTextDark)
-                                            .lineLimit(2)
+                                            .lineLimit(nil)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .layoutPriority(1)
                                         
                                         Text(product.category)
                                             .font(.caption)
