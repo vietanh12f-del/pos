@@ -12,7 +12,16 @@ class AuthManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var currentUserProfile: UserProfile?
     @Published var needsProfileCreation: Bool = false
-    @Published var selectedRole: String = "owner" // "owner" or "employee" - User preference
+    @Published var selectedRole: String = "owner" {
+        didSet {
+            if let userId = client.auth.currentUser?.id {
+                let key = "preferred_role_\(userId.uuidString)"
+                UserDefaults.standard.set(selectedRole, forKey: key)
+            } else {
+                UserDefaults.standard.set(selectedRole, forKey: "preferred_role_default")
+            }
+        }
+    }
     
     private let client = SupabaseConfig.client
     
@@ -37,6 +46,10 @@ class AuthManager: ObservableObject {
             } else {
                 self.isAuthenticated = true
                 print("✅ User is authenticated: \(session.user.id)")
+                let key = "preferred_role_\(session.user.id.uuidString)"
+                if let saved = UserDefaults.standard.string(forKey: key) ?? UserDefaults.standard.string(forKey: "preferred_role_default") {
+                    self.selectedRole = saved
+                }
                 await checkProfile(userId: session.user.id)
             }
         } catch {
