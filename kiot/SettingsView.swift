@@ -352,6 +352,9 @@ struct CustomizationSettingsView: View {
                 NavigationLink(destination: PriceSettingsView()) {
                     Text("Khoảng cách giá")
                 }
+                NavigationLink(destination: ReceiptHeaderSettingsView()) {
+                    Text("Tên cửa hàng trên hoá đơn")
+                }
             }
         }
         .navigationTitle("Tuỳ chỉnh")
@@ -394,6 +397,117 @@ struct PriceSettingsView: View {
                 }
             }
         }
+    }
+}
+
+struct ReceiptHeaderSettingsView: View {
+    @ObservedObject private var storeManager = StoreManager.shared
+    @Environment(\.dismiss) var dismiss
+    @StateObject private var speech = SpeechRecognizer()
+    @State private var line1: String = ""
+    @State private var line2: String = ""
+    @State private var line3: String = ""
+    @State private var line4: String = ""
+    @State private var activeField: Int? = nil
+    
+    init() {
+        if let storeId = StoreManager.shared.currentStore?.id {
+            let lines = StoreManager.shared.receiptHeaderLines(for: storeId)
+            _line1 = State(initialValue: lines.count > 0 ? lines[0] : "")
+            _line2 = State(initialValue: lines.count > 1 ? lines[1] : "")
+            _line3 = State(initialValue: lines.count > 2 ? lines[2] : "")
+            _line4 = State(initialValue: lines.count > 3 ? lines[3] : "")
+        }
+    }
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Tên cửa hàng hiển thị trên hoá đơn")) {
+                HStack {
+                    TextField("Ví dụ: Cửa Hàng Hoa Tươi", text: $line1)
+                    Button {
+                        toggleRecording(for: 1)
+                    } label: {
+                        Image(systemName: speech.isRecording && activeField == 1 ? "waveform" : "mic.fill")
+                    }
+                    .buttonStyle(.bordered)
+                }
+                HStack {
+                    TextField("Ví dụ: ĐẠI THẮNG", text: $line2)
+                    Button {
+                        toggleRecording(for: 2)
+                    } label: {
+                        Image(systemName: speech.isRecording && activeField == 2 ? "waveform" : "mic.fill")
+                    }
+                    .buttonStyle(.bordered)
+                }
+                HStack {
+                    TextField("Ví dụ: SĐT: 0834926779", text: $line3)
+                    Button {
+                        toggleRecording(for: 3)
+                    } label: {
+                        Image(systemName: speech.isRecording && activeField == 3 ? "waveform" : "mic.fill")
+                    }
+                    .buttonStyle(.bordered)
+                }
+                HStack {
+                    TextField("Ví dụ: Đ/C: 8/7N Nguyễn Thị Sóc...", text: $line4)
+                    Button {
+                        toggleRecording(for: 4)
+                    } label: {
+                        Image(systemName: speech.isRecording && activeField == 4 ? "waveform" : "mic.fill")
+                    }
+                    .buttonStyle(.bordered)
+                }
+                Text("Bạn có thể nhập bằng giọng nói cho từng dòng.")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+        }
+        .navigationTitle("Tên cửa hàng")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Lưu") {
+                    save()
+                    dismiss()
+                }
+                .disabled(storeManager.currentStore == nil)
+            }
+        }
+        .onReceive(speech.$transcript) { t in
+            guard let idx = activeField, !t.isEmpty else { return }
+            let spoken = t.trimmingCharacters(in: .whitespacesAndNewlines)
+            switch idx {
+            case 1: line1 = spoken
+            case 2: line2 = spoken
+            case 3: line3 = spoken
+            case 4: line4 = spoken
+            default: break
+            }
+        }
+        .onReceive(speech.$isRecording.dropFirst()) { rec in
+            if !rec {
+                activeField = nil
+            }
+        }
+    }
+    
+    private func toggleRecording(for field: Int) {
+        if speech.isRecording {
+            speech.stopRecording()
+            activeField = nil
+        } else {
+            activeField = field
+            do {
+                try speech.startRecording()
+            } catch { }
+        }
+    }
+    
+    private func save() {
+        guard let storeId = storeManager.currentStore?.id else { return }
+        storeManager.setReceiptHeaderLines(storeId: storeId, line1: line1, line2: line2, line3: line3, line4: line4)
     }
 }
 struct EditProfileView: View {

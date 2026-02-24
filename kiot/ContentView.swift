@@ -2021,6 +2021,18 @@ struct ContentView: View {
         var body: some View {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
+                        let headerLines = StoreManager.shared.currentStoreReceiptHeaderLines().filter { !$0.isEmpty }
+                        if !headerLines.isEmpty {
+                            VStack(spacing: 2) {
+                                ForEach(headerLines, id: \.self) { line in
+                                    Text(line)
+                                        .font(.headline)
+                                        .foregroundStyle(Color.themeTextDark)
+                                        .multilineTextAlignment(.center)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        }
                         Text(customerName)
                         .font(.title3)
                         .fontWeight(.bold)

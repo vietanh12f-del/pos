@@ -32,6 +32,28 @@ class StoreManager: ObservableObject {
         priceStep = s
         UserDefaults.standard.set(s, forKey: "priceStep")
     }
+
+    func receiptHeaderLines(for storeId: UUID) -> [String] {
+        let defaults = UserDefaults.standard
+        let l1 = defaults.string(forKey: "receipt_header_\(storeId.uuidString)_line1") ?? ""
+        let l2 = defaults.string(forKey: "receipt_header_\(storeId.uuidString)_line2") ?? ""
+        let l3 = defaults.string(forKey: "receipt_header_\(storeId.uuidString)_line3") ?? ""
+        let l4 = defaults.string(forKey: "receipt_header_\(storeId.uuidString)_line4") ?? ""
+        return [l1, l2, l3, l4]
+    }
+
+    func setReceiptHeaderLines(storeId: UUID, line1: String, line2: String, line3: String, line4: String) {
+        let defaults = UserDefaults.standard
+        defaults.set(line1, forKey: "receipt_header_\(storeId.uuidString)_line1")
+        defaults.set(line2, forKey: "receipt_header_\(storeId.uuidString)_line2")
+        defaults.set(line3, forKey: "receipt_header_\(storeId.uuidString)_line3")
+        defaults.set(line4, forKey: "receipt_header_\(storeId.uuidString)_line4")
+    }
+
+    func currentStoreReceiptHeaderLines() -> [String] {
+        guard let storeId = currentStore?.id else { return [] }
+        return receiptHeaderLines(for: storeId)
+    }
     
     func fetchStores() async {
         guard let userId = SupabaseConfig.client.auth.currentUser?.id else { return }
