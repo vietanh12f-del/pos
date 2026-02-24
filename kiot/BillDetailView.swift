@@ -8,6 +8,10 @@ struct BillDetailView: View {
     @State private var renderedImage: UIImage?
     @State private var showShareSheet = false
     @State private var isPaid: Bool = true
+    @State private var showReceiptCamera = false
+    @State private var receiptImage: UIImage? = nil
+    @State private var isUploadingReceipt = false
+    @State private var receiptImageURLString: String? = nil
     
     var body: some View {
         VStack {
@@ -45,9 +49,9 @@ struct BillDetailView: View {
                     onComplete: nil,
                     customerName: bill.customerName ?? "Khách lẻ",
                     onOpenBankSettings: nil,
-                    onCaptureReceipt: nil,
-                    receiptImageURL: bill.paymentReceiptURL,
-                    onPickedReceiptImage: nil
+                    onCaptureReceipt: { showReceiptCamera = true },
+                    receiptImageURL: receiptImageURLString,
+                    onPickedReceiptImage: { img in receiptImage = img }
                 )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -115,6 +119,7 @@ struct BillDetailView: View {
         .background(Color.themeBackgroundLight)
         .onAppear {
             isPaid = bill.isPaid
+            receiptImageURLString = bill.paymentReceiptURL
         }
         .alert("Xóa đơn hàng?", isPresented: $showDeleteConfirmation) {
             Button("Hủy", role: .cancel) { }
@@ -128,6 +133,41 @@ struct BillDetailView: View {
         .sheet(isPresented: $showShareSheet) {
             if let image = renderedImage {
                 ShareSheet(items: [image])
+            }
+        }
+        .fullScreenCover(isPresented: $showReceiptCamera) {
+            ImagePicker(image: $receiptImage)
+                .ignoresSafeArea()
+        }
+        .onChange(of: receiptImage) { img in
+            guard let img else { return }
+            Task {
+                isUploadingReceipt = true
+                defer { isUploadingReceipt = false }
+                if let data = img.jpegData(compressionQuality: 0.8) {
+                    let fileName = StorageManager.shared.generateImageName()
+                    do {
+                        let url = try await StorageManager.shared.uploadReceiptImage(data: data, fileName: fileName)
+                        let target = CGSize(width: 800, height: 800)
+                        let down = BillReceiptView.CachedImageLoader.downsample(data: data, to: target, scale: UIScreen.main.scale) ?? img
+                        let previewData = down.jpegData(compressionQuality: 0.8) ?? data
+                        let previewURL = try await StorageManager.shared.uploadReceiptPreviewImage(data: previewData, fileName: fileName)
+                        if let u = URL(string: url) {
+                            BillReceiptView.ImageCache.shared.insert(img, for: u)
+                        }
+                        if let pu = URL(string: previewURL) {
+                            BillReceiptView.ImageCache.shared.insert(down, for: pu)
+                        }
+                        var updated = bill
+                        updated.paymentReceiptURL = url
+                        try await viewModel.updateOrder(updated)
+                        await MainActor.run {
+                            receiptImageURLString = url
+                        }
+                    } catch {
+                        print("❌ Error uploading receipt: \(error)")
+                    }
+                }
             }
         }
     }
