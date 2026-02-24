@@ -2029,6 +2029,8 @@ struct ContentView: View {
                                         .font(.headline)
                                         .foregroundStyle(Color.themeTextDark)
                                         .multilineTextAlignment(.center)
+                                        .lineLimit(nil)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .center)
@@ -2037,9 +2039,13 @@ struct ContentView: View {
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.themeTextDark)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(dateString)
                         .font(.subheadline)
                         .foregroundStyle(Color.gray)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
@@ -2070,20 +2076,28 @@ struct ContentView: View {
                                 Text(item.name)
                                     .fontWeight(.medium)
                                     .foregroundStyle(Color.themeTextDark)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 Text("\(item.quantity) x \(formatCurrency(item.price))")
                                     .font(.subheadline)
                                     .foregroundStyle(Color.gray)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 
                                 if item.discount > 0 {
                                     Text("-\(formatCurrency(item.discount))")
                                         .font(.caption)
                                         .foregroundStyle(.red)
+                                        .lineLimit(nil)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
                             Spacer()
                             Text(formatCurrency(item.total))
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.themeTextDark)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -2103,6 +2117,8 @@ struct ContentView: View {
                             Text(formatCurrency(totalAmount))
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.themeTextDark)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         HStack {
                             Text("VAT (\(Int(vatRate))%)")
@@ -2111,6 +2127,8 @@ struct ContentView: View {
                             Text(formatCurrency(vatAmount))
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.themeTextDark)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     HStack {
@@ -2123,6 +2141,8 @@ struct ContentView: View {
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.themePrimary)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding()
@@ -2140,11 +2160,15 @@ struct ContentView: View {
                                     .font(.footnote)
                                     .fontWeight(.medium)
                                     .foregroundStyle(Color.red)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
                             } else {
                                 Text("\(bankName) - \(bankAccount)")
                                     .font(.footnote)
                                     .fontWeight(.medium)
                                     .foregroundStyle(Color.themeTextDark)
+                                    .lineLimit(nil)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         Spacer()
@@ -2168,17 +2192,17 @@ struct ContentView: View {
                                     .resizable()
                                     .interpolation(.none)
                                     .scaledToFit()
-                                    .frame(width: 80, height: 80)
+                                    .frame(width: 200, height: 200)
                             } else if let url = qrURL {
                                 AsyncImage(url: url) { phase in
                                     if let image = phase.image {
-                                        image.resizable().interpolation(.none).scaledToFit().frame(width: 80, height: 80)
+                                        image.resizable().interpolation(.none).scaledToFit().frame(width: 200, height: 200)
                                     } else {
-                                        ProgressView().frame(width: 80, height: 80)
+                                        ProgressView().frame(width: 200, height: 200)
                                     }
                                 }
                             } else if let payload = billPayload {
-                                QRCodeView(payload: payload).frame(width: 80, height: 80)
+                                QRCodeView(payload: payload).frame(width: 200, height: 200)
                             }
                         }
                     }
@@ -2187,39 +2211,58 @@ struct ContentView: View {
                 }
                 .padding(.horizontal).padding(.bottom)
                 
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Chụp hình chuyển khoản")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.gray)
-                            if let url = receiptImageURL, !url.isEmpty {
-                                Text("Đã lưu ảnh xác nhận")
-                                    .font(.footnote)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(.green)
-                            } else {
-                                Text("Chưa có ảnh xác nhận")
-                                    .font(.footnote)
-                                    .foregroundStyle(.gray)
+                if showButtons {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Chụp hình chuyển khoản")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.gray)
+                                if let url = receiptImageURL, !url.isEmpty {
+                                    Text("Đã lưu ảnh xác nhận")
+                                        .font(.footnote)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Text("Chưa có ảnh xác nhận")
+                                        .font(.footnote)
+                                        .foregroundStyle(.gray)
+                                }
                             }
-                        }
-                        Spacer()
-                        if let urlString = receiptImageURL,
-                           let original = URL(string: urlString) {
-                            let preview = URL(string: urlString.replacingOccurrences(of: ".jpg", with: "-preview.jpg")) ?? original
-                            Button {
-                                previewURL = preview
-                                showReceiptPreview = true
-                            } label: {
-                                ZStack {
-                                    if let ui = previewLoader.image ?? originalLoader.image {
-                                        Image(uiImage: ui)
-                                            .resizable()
-                                            .scaledToFill()
-                                    } else {
-                                        ProgressView()
+                            Spacer()
+                            if let urlString = receiptImageURL,
+                               let original = URL(string: urlString) {
+                                let preview = URL(string: urlString.replacingOccurrences(of: ".jpg", with: "-preview.jpg")) ?? original
+                                Button {
+                                    previewURL = preview
+                                    showReceiptPreview = true
+                                } label: {
+                                    ZStack {
+                                        if let ui = previewLoader.image ?? originalLoader.image {
+                                            Image(uiImage: ui)
+                                                .resizable()
+                                                .scaledToFill()
+                                        } else {
+                                            ProgressView()
+                                        }
                                     }
+                                    .frame(width: 64, height: 64)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .onAppear {
+                                        previewLoader.load(url: preview, targetSize: CGSize(width: 400, height: 400))
+                                        originalLoader.load(url: original, targetSize: CGSize(width: 400, height: 400))
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                ZStack {
+                                    Color.gray.opacity(0.08)
+                                    Image(systemName: "photo")
+                                        .foregroundStyle(Color.gray)
                                 }
                                 .frame(width: 64, height: 64)
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -2227,92 +2270,75 @@ struct ContentView: View {
                                     RoundedRectangle(cornerRadius: 8)
                                         .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                                 )
-                                .onAppear {
-                                    previewLoader.load(url: preview, targetSize: CGSize(width: 400, height: 400))
-                                    originalLoader.load(url: original, targetSize: CGSize(width: 400, height: 400))
-                                }
                             }
-                            .buttonStyle(.plain)
-                        } else {
-                            ZStack {
-                                Color.gray.opacity(0.08)
+                            Button {
+                                onCaptureReceipt?()
+                            } label: {
+                                Image(systemName: "camera.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .labelStyle(.iconOnly)
+                            
+                            PhotosPicker(selection: $receiptPickerItem, matching: .images) {
                                 Image(systemName: "photo")
-                                    .foregroundStyle(Color.gray)
                             }
-                            .frame(width: 64, height: 64)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        Button {
-                            onCaptureReceipt?()
-                        } label: {
-                            Image(systemName: "camera.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .labelStyle(.iconOnly)
-                        
-                        PhotosPicker(selection: $receiptPickerItem, matching: .images) {
-                            Image(systemName: "photo")
-                        }
-                        .buttonStyle(.bordered)
-                        .labelStyle(.iconOnly)
-                    }
-                }
-                .padding()
-                .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
-                .padding(.horizontal).padding(.bottom)
-                .onChange(of: receiptPickerItem) { item in
-                    guard let item else { return }
-                    Task {
-                        if let data = try? await item.loadTransferable(type: Data.self),
-                           let img = UIImage(data: data) {
-                            onPickedReceiptImage?(img)
-                            receiptPickerItem = nil
+                            .buttonStyle(.bordered)
+                            .labelStyle(.iconOnly)
                         }
                     }
-                }
-                .sheet(isPresented: $showReceiptPreview) {
-                    NavigationStack {
-                        ZStack {
-                            Color.black.opacity(0.9).ignoresSafeArea()
-                            if let preview = previewURL {
-                                if let ui = previewLoader.image ?? originalLoader.image ?? BillReceiptView.ImageCache.shared.image(for: preview) {
-                                    Image(uiImage: ui)
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                } else {
-                                    ProgressView()
-                                        .tint(.white)
-                                        .task {
-                                            previewLoader.load(url: preview, targetSize: CGSize(width: 800, height: 800))
-                                            if let urlString = receiptImageURL, let original = URL(string: urlString) {
-                                                originalLoader.load(url: original, targetSize: CGSize(width: 800, height: 800))
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
+                    .padding(.horizontal).padding(.bottom)
+                    .onChange(of: receiptPickerItem) { item in
+                        guard let item else { return }
+                        Task {
+                            if let data = try? await item.loadTransferable(type: Data.self),
+                               let img = UIImage(data: data) {
+                                onPickedReceiptImage?(img)
+                                receiptPickerItem = nil
+                            }
+                        }
+                    }
+                    .sheet(isPresented: $showReceiptPreview) {
+                        NavigationStack {
+                            ZStack {
+                                Color.black.opacity(0.9).ignoresSafeArea()
+                                if let preview = previewURL {
+                                    if let ui = previewLoader.image ?? originalLoader.image ?? BillReceiptView.ImageCache.shared.image(for: preview) {
+                                        Image(uiImage: ui)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    } else {
+                                        ProgressView()
+                                            .tint(.white)
+                                            .task {
+                                                previewLoader.load(url: preview, targetSize: CGSize(width: 800, height: 800))
+                                                if let urlString = receiptImageURL, let original = URL(string: urlString) {
+                                                    originalLoader.load(url: original, targetSize: CGSize(width: 800, height: 800))
+                                                }
                                             }
-                                        }
+                                    }
+                                }
+                            }
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) {
+                                    Button("Đóng") { showReceiptPreview = false }
                                 }
                             }
                         }
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("Đóng") { showReceiptPreview = false }
-                            }
-                        }
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
                     }
-                    .presentationDetents([.medium, .large])
-                    .presentationDragIndicator(.visible)
-                }
-                .task(id: receiptImageURL) {
-                    if let s = receiptImageURL {
-                        let previewString = s.replacingOccurrences(of: ".jpg", with: "-preview.jpg")
-                        if let pu = URL(string: previewString) {
-                            previewLoader.load(url: pu, targetSize: CGSize(width: 800, height: 800))
-                        }
-                        if let ou = URL(string: s) {
-                            originalLoader.load(url: ou, targetSize: CGSize(width: 800, height: 800))
+                    .task(id: receiptImageURL) {
+                        if let s = receiptImageURL {
+                            let previewString = s.replacingOccurrences(of: ".jpg", with: "-preview.jpg")
+                            if let pu = URL(string: previewString) {
+                                previewLoader.load(url: pu, targetSize: CGSize(width: 800, height: 800))
+                            }
+                            if let ou = URL(string: s) {
+                                originalLoader.load(url: ou, targetSize: CGSize(width: 800, height: 800))
+                            }
                         }
                     }
                 }

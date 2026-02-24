@@ -45,7 +45,7 @@ struct BillDetailView: View {
                     qrURL: generateQRURL(for: bill),
                     qrImage: nil,
                     billPayload: nil,
-                    showButtons: false,
+                    showButtons: true,
                     onComplete: nil,
                     customerName: bill.customerName ?? "Khách lẻ",
                     onOpenBankSettings: nil,
