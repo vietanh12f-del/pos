@@ -2092,13 +2092,26 @@ struct ContentView: View {
                 DottedLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4])).frame(height: 1).foregroundStyle(.gray.opacity(0.3)).padding(.horizontal)
                 
                 VStack(spacing: 8) {
-                    HStack {
-                        Text("Tổng tiền hàng")
-                            .foregroundStyle(Color.gray)
-                        Spacer()
-                        Text(formatCurrency(totalAmount))
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.themeTextDark)
+                    let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
+                    let vatRate = StoreManager.shared.currentStoreVATRate()
+                    let vatAmount = vatEnabled ? (totalAmount * vatRate / 100.0) : 0
+                    if vatEnabled {
+                        HStack {
+                            Text("Tổng tiền hàng")
+                                .foregroundStyle(Color.gray)
+                            Spacer()
+                            Text(formatCurrency(totalAmount))
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
+                        }
+                        HStack {
+                            Text("VAT (\(Int(vatRate))%)")
+                                .foregroundStyle(Color.gray)
+                            Spacer()
+                            Text(formatCurrency(vatAmount))
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
+                        }
                     }
                     HStack {
                         Text("Tổng cộng")
@@ -2106,7 +2119,7 @@ struct ContentView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(Color.themeTextDark)
                         Spacer()
-                        Text(formatCurrency(totalAmount))
+                        Text(formatCurrency(totalAmount + vatAmount))
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.themePrimary)

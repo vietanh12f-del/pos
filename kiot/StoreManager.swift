@@ -54,6 +54,33 @@ class StoreManager: ObservableObject {
         guard let storeId = currentStore?.id else { return [] }
         return receiptHeaderLines(for: storeId)
     }
+
+    func vatEnabled(for storeId: UUID) -> Bool {
+        let defaults = UserDefaults.standard
+        return defaults.bool(forKey: "vat_enabled_\(storeId.uuidString)")
+    }
+
+    func vatRate(for storeId: UUID) -> Double {
+        let defaults = UserDefaults.standard
+        let v = defaults.double(forKey: "vat_rate_\(storeId.uuidString)")
+        return v > 0 ? v : 10
+    }
+
+    func setVATSettings(storeId: UUID, enabled: Bool, rate: Double) {
+        let defaults = UserDefaults.standard
+        defaults.set(enabled, forKey: "vat_enabled_\(storeId.uuidString)")
+        defaults.set(max(0, min(rate, 50)), forKey: "vat_rate_\(storeId.uuidString)")
+    }
+
+    func currentStoreVATEnabled() -> Bool {
+        guard let storeId = currentStore?.id else { return false }
+        return vatEnabled(for: storeId)
+    }
+
+    func currentStoreVATRate() -> Double {
+        guard let storeId = currentStore?.id else { return 0 }
+        return vatRate(for: storeId)
+    }
     
     func fetchStores() async {
         guard let userId = SupabaseConfig.client.auth.currentUser?.id else { return }

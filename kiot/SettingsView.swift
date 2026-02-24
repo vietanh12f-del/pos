@@ -355,6 +355,9 @@ struct CustomizationSettingsView: View {
                 NavigationLink(destination: ReceiptHeaderSettingsView()) {
                     Text("Tên cửa hàng trên hoá đơn")
                 }
+                NavigationLink(destination: VATSettingsView()) {
+                    Text("Cài đặt VAT")
+                }
             }
         }
         .navigationTitle("Tuỳ chỉnh")
@@ -508,6 +511,61 @@ struct ReceiptHeaderSettingsView: View {
     private func save() {
         guard let storeId = storeManager.currentStore?.id else { return }
         storeManager.setReceiptHeaderLines(storeId: storeId, line1: line1, line2: line2, line3: line3, line4: line4)
+    }
+}
+
+struct VATSettingsView: View {
+    @ObservedObject private var storeManager = StoreManager.shared
+    @Environment(\.dismiss) var dismiss
+    @State private var enabled: Bool = false
+    @State private var rateText: String = "10"
+    
+    init() {
+        if let storeId = StoreManager.shared.currentStore?.id {
+            let e = StoreManager.shared.vatEnabled(for: storeId)
+            let r = StoreManager.shared.vatRate(for: storeId)
+            _enabled = State(initialValue: e)
+            _rateText = State(initialValue: String(format: "%.0f", r))
+        }
+    }
+    
+    var rateValue: Double {
+        Double(rateText) ?? 0
+    }
+    
+    var body: some View {
+        Form {
+            Section(header: Text("VAT trong hoá đơn")) {
+                Toggle("Bật VAT", isOn: $enabled)
+                HStack {
+                    Text("VAT (%)")
+                    Spacer()
+                    TextField("0–50", text: $rateText)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 100)
+                }
+                Text("Nếu tắt, hoá đơn chỉ hiển thị Tổng cộng.")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+        }
+        .navigationTitle("Cài đặt VAT")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Lưu") {
+                    save()
+                    dismiss()
+                }
+                .disabled(storeManager.currentStore == nil)
+            }
+        }
+    }
+    
+    private func save() {
+        guard let storeId = storeManager.currentStore?.id else { return }
+        storeManager.setVATSettings(storeId: storeId, enabled: enabled, rate: rateValue)
     }
 }
 struct EditProfileView: View {
