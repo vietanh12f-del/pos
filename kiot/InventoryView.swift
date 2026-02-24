@@ -15,6 +15,9 @@ struct InventoryView: View {
     @State private var selectedRestockBill: RestockBill?
     @State private var showBarcodeScanner = false
     @State private var productToPrint: Product?
+    @State private var showPrintOptions = false
+    @State private var printImage: UIImage?
+    @State private var showPrintShareSheet = false
     
     enum DateFilterMode: String, CaseIterable, Identifiable {
         case all, today, yesterday, week, month, quarter, year, custom
@@ -171,6 +174,31 @@ struct InventoryView: View {
                 .cornerRadius(10)
                 .padding(.horizontal)
                 .padding(.bottom, 10)
+                
+                HStack {
+                    Spacer()
+                    Button {
+                        showPrintOptions = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "printer")
+                            Text("In")
+                        }
+                        .font(.headline)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .confirmationDialog("Chọn kiểu in", isPresented: $showPrintOptions, titleVisibility: .visible) {
+                        Button("In toàn bộ sản phẩm") {
+                            renderInventoryFullImage()
+                        }
+                        Button("In bill điền tay để scan nhập hàng") {
+                            renderInventoryBlankImage()
+                        }
+                        Button("Hủy", role: .cancel) { }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
                 
                 // Content
                 if selectedTab == 0 {
@@ -555,6 +583,200 @@ struct InventoryView: View {
             .sheet(item: $productToPrint) { product in
                 BarcodePrintView(product: product)
             }
+            .sheet(isPresented: $showPrintShareSheet) {
+                if let img = printImage {
+                    ShareSheet(items: [img])
+                }
+            }
         }
+    }
+}
+
+// MARK: - Print Helpers
+private extension InventoryView {
+    func renderInventoryFullImage() {
+        let view = InventoryFullPrintView(products: viewModel.products)
+            .frame(width: 375)
+            .background(Color.white)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        if let image = renderer.uiImage {
+            printImage = image
+            showPrintShareSheet = true
+        }
+    }
+    
+    func renderInventoryBlankImage() {
+        let view = InventoryBlankPrintView(products: viewModel.products)
+            .frame(width: 375)
+            .background(Color.white)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        if let image = renderer.uiImage {
+            printImage = image
+            showPrintShareSheet = true
+        }
+    }
+}
+
+// MARK: - Print Views
+struct InventoryFullPrintView: View {
+    let products: [Product]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Danh sách sản phẩm")
+                .font(.headline)
+                .foregroundStyle(Color.themeTextDark)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            HStack {
+                Text("Sản phẩm").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Giá bán").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 90, alignment: .trailing)
+                Text("Giá vốn").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 90, alignment: .trailing)
+                Text("Kho").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 60, alignment: .trailing)
+            }
+            
+            ForEach(products) { p in
+                HStack(alignment: .top, spacing: 8) {
+                    Text(p.name)
+                        .foregroundStyle(Color.themeTextDark)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(formatCurrency(p.price))
+                        .foregroundStyle(Color.themeTextDark)
+                        .frame(width: 90, alignment: .trailing)
+                    Text(formatCurrency(p.costPrice))
+                        .foregroundStyle(.gray)
+                        .frame(width: 90, alignment: .trailing)
+                    Text("\(p.stockQuantity)")
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding()
+        .background(Color.white)
+    }
+}
+
+struct InventoryBlankPrintView: View {
+    let products: [Product]
+    private var todayString: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter.string(from: Date())
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Phiếu nhập trống")
+                .font(.headline)
+                .foregroundStyle(Color.themeTextDark)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            HStack(spacing: 8) {
+                Text("Ngày:")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                Spacer()
+            }
+            .overlay(alignment: .bottom) {
+                GeometryReader { geo in
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: geo.size.height - 0.5))
+                        p.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - 0.5))
+                    }
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                    .foregroundStyle(Color.gray.opacity(0.4))
+                }
+            }
+            
+            HStack(spacing: 0) {
+                Text("Sản phẩm")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                Text("Số lượng")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 80, alignment: .trailing)
+                Divider()
+                Text("Đơn giá")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 80, alignment: .trailing)
+                Divider()
+                Text("Chi phí")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .frame(width: 80, alignment: .trailing)
+            }
+            .overlay(alignment: .bottom) {
+                GeometryReader { geo in
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: geo.size.height - 0.5))
+                        p.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - 0.5))
+                    }
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                    .foregroundStyle(Color.gray.opacity(0.4))
+                }
+            }
+            
+            ForEach(products) { p in
+                HStack(alignment: .top, spacing: 0) {
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        Text(p.name)
+                            .foregroundStyle(Color.themeTextDark)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 6)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                }
+                .overlay(alignment: .bottom) {
+                    GeometryReader { geo in
+                        Path { p in
+                            p.move(to: CGPoint(x: 0, y: geo.size.height - 0.5))
+                            p.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - 0.5))
+                        }
+                        .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                        .foregroundStyle(Color.gray.opacity(0.3))
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                .background(Color.white)
+        )
     }
 }
