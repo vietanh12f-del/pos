@@ -150,33 +150,32 @@ struct InventoryView: View {
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
                 
-                // Search Bar
+                // Search Bar + Print
                 HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.gray)
-                    TextField("Tìm kiếm...", text: $searchText)
-                        .textFieldStyle(.plain)
-                    
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = "" }) {
-                            Image(systemName: "xmark.circle.fill")
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.gray)
+                        TextField("Tìm kiếm...", text: $searchText)
+                            .textFieldStyle(.plain)
+                        
+                        if !searchText.isEmpty {
+                            Button(action: { searchText = "" }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                        
+                        Button(action: { showBarcodeScanner = true }) {
+                            Image(systemName: "barcode.viewfinder")
                                 .foregroundStyle(.gray)
                         }
                     }
+                    .padding(10)
+                    .background(Color.white)
+                    .cornerRadius(10)
                     
-                    Button(action: { showBarcodeScanner = true }) {
-                        Image(systemName: "barcode.viewfinder")
-                            .foregroundStyle(.gray)
-                    }
-                }
-                .padding(10)
-                .background(Color.white)
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .padding(.bottom, 10)
-                
-                HStack {
                     Spacer()
+                    
                     Button {
                         showPrintOptions = true
                     } label: {
@@ -198,7 +197,9 @@ struct InventoryView: View {
                     }
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 8)
+                .padding(.bottom, 10)
+                
+                
                 
                 // Content
                 if selectedTab == 0 {
