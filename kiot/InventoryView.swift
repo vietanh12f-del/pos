@@ -197,7 +197,7 @@ struct InventoryView: View {
                     }
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 10)
+                .padding(.bottom, 0)
                 
                 
                 
@@ -252,7 +252,7 @@ struct InventoryView: View {
                             }
                             .listRowBackground(Color.clear)
                             .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                            .padding(.top, 8)
+                            .padding(.top, 0)
                             
                             ForEach(filteredProducts) { product in
                                 HStack(spacing: 12) {
@@ -347,7 +347,7 @@ struct InventoryView: View {
                                 }
                             }
                         }
-                        .listStyle(.insetGrouped)
+                        .listStyle(.plain)
                         .scrollContentBackground(.hidden)
                         .scrollDismissesKeyboard(.interactively)
                         .contentShape(Rectangle())
