@@ -53,36 +53,42 @@ struct RestockIntent: AppIntent {
 @available(iOS 16.0, *)
 struct AppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        AppShortcut(
-            intent: CreateOrderIntent(),
-            phrases: [
-                "Tạo đơn hàng trong \(.applicationName)",
-                "Bán hàng \(.applicationName)",
-                "Order \(.applicationName)"
-            ],
-            shortTitle: "Tạo Đơn Hàng",
-            systemImageName: "cart.fill"
+        var shortcuts: [AppShortcut] = []
+        shortcuts.append(
+            AppShortcut(
+                intent: CreateOrderIntent(),
+                phrases: [
+                    "Tạo đơn hàng trong \(.applicationName)",
+                    "Bán hàng \(.applicationName)",
+                    "Order \(.applicationName)"
+                ],
+                shortTitle: "Tạo Đơn Hàng",
+                systemImageName: "cart.fill"
+            )
         )
-        
-        AppShortcut(
-            intent: RestockIntent(),
-            phrases: [
-                "Nhập hàng \(.applicationName)",
-                "Restock \(.applicationName)",
-                "Thêm kho \(.applicationName)"
-            ],
-            shortTitle: "Nhập Hàng",
-            systemImageName: "archivebox.fill"
+        shortcuts.append(
+            AppShortcut(
+                intent: RestockIntent(),
+                phrases: [
+                    "Nhập hàng \(.applicationName)",
+                    "Restock \(.applicationName)",
+                    "Thêm kho \(.applicationName)"
+                ],
+                shortTitle: "Nhập Hàng",
+                systemImageName: "archivebox.fill"
+            )
         )
-        
-        AppShortcut(
-            intent: VoiceOrderIntent(),
-            phrases: [
-                "Tạo đơn nhanh \(.applicationName)",
-                "Kiot Voice \(.applicationName)"
-            ],
-            shortTitle: "Kiot Voice Order",
-            systemImageName: "mic.fill"
+        shortcuts.append(
+            AppShortcut(
+                intent: VoiceOrderIntent(),
+                phrases: [
+                    "Tạo đơn nhanh \(.applicationName)",
+                    "Kiot Voice \(.applicationName)"
+                ],
+                shortTitle: "Kiot Voice Order",
+                systemImageName: "mic.fill"
+            )
         )
+        return shortcuts
     }
 }
