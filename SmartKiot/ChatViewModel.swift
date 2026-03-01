@@ -187,8 +187,10 @@ class ChatViewModel: ObservableObject {
                 
                 // Update conversation last message
                 if let index = conversations.firstIndex(where: { $0.id == conversationId }) {
-                    conversations[index].lastMessage = text
-                    conversations[index].lastMessageTime = Date()
+                    var conv = conversations.remove(at: index)
+                    conv.lastMessage = text
+                    conv.lastMessageTime = Date()
+                    conversations.insert(conv, at: 0)
                 }
             }
             
@@ -252,6 +254,39 @@ class ChatViewModel: ObservableObject {
     }
     
     @MainActor
+    func removeLocalConversation(with otherId: UUID) {
+        conversations.removeAll { $0.participantId == otherId }
+        messages.removeValue(forKey: otherId)
+    }
+    
+    func deleteConversation(with otherId: UUID) async -> Bool {
+        let myId = currentUserId
+        do {
+            try await client
+                .from("messages")
+                .delete()
+                .eq("sender_id", value: myId)
+                .eq("receiver_id", value: otherId)
+                .execute()
+            
+            try await client
+                .from("messages")
+                .delete()
+                .eq("sender_id", value: otherId)
+                .eq("receiver_id", value: myId)
+                .execute()
+            
+            await MainActor.run {
+                removeLocalConversation(with: otherId)
+            }
+            return true
+        } catch {
+            print("Error deleting conversation: \(error)")
+            return false
+        }
+    }
+    
+    @MainActor
     func fetchConversations() async {
         // In a real app, we would query a 'conversations' table or distinct messages
         // For now, let's just ensure we have the 'messages' table or create it if needed (not possible here easily)
@@ -303,7 +338,7 @@ class ChatViewModel: ObservableObject {
                 }
             }
             
-            self.conversations = newConversations
+            self.conversations = newConversations.sorted { $0.lastMessageTime > $1.lastMessageTime }
             self.messages = newMessages
             
         } catch {

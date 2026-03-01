@@ -6,9 +6,10 @@ struct ChatView: View {
     @Binding var showNewChatSheet: Bool
     @State private var searchText = ""
     @Binding var isTabBarVisible: Bool
+    @State private var navPath: [ChatRoute] = []
     
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             ZStack(alignment: .bottom) {
                 Color.themeBackgroundLight.ignoresSafeArea()
                 
@@ -52,6 +53,13 @@ struct ChatView: View {
                                 if let employee = viewModel.getEmployee(id: conversation.participantId) {
                                     NavigationLink(destination: ChatDetailView(viewModel: viewModel, orderViewModel: orderViewModel, conversation: conversation, employee: employee, isTabBarVisible: $isTabBarVisible)) {
                                         ConversationRow(employee: employee, conversation: conversation)
+                                            .contextMenu {
+                                                Button(role: .destructive) {
+                                                    Task { _ = await viewModel.deleteConversation(with: employee.id) }
+                                                } label: {
+                                                    Text("Xoá chat")
+                                                }
+                                            }
                                     }
                                 }
                             }
@@ -71,12 +79,36 @@ struct ChatView: View {
             .navigationBarBackButtonHidden(true)
             .navigationBarHidden(true)
             .sheet(isPresented: $showNewChatSheet) {
-                NewChatView(viewModel: viewModel, orderViewModel: orderViewModel, isPresented: $showNewChatSheet)
+                EmployeePickerChatView(viewModel: viewModel, orderViewModel: orderViewModel, isPresented: $showNewChatSheet)
+            }
+            .navigationDestination(for: ChatRoute.self) { route in
+                ChatDetailView(viewModel: viewModel, orderViewModel: orderViewModel, conversation: route.conversation, employee: route.employee, isTabBarVisible: $isTabBarVisible)
             }
         }
         .onAppear {
             isTabBarVisible = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenConversation"))) { notif in
+            if let payload = notif.object as? [String: Any],
+               let conv = payload["conversation"] as? ChatConversation,
+               let emp = payload["employee"] as? Employee {
+                navPath.append(ChatRoute(conversation: conv, employee: emp))
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshConversations"))) { _ in
+            Task { await viewModel.fetchConversations() }
+        }
+    }
+}
+
+struct ChatRoute: Hashable, Identifiable {
+    let id: UUID
+    let conversation: ChatConversation
+    let employee: Employee
+    init(conversation: ChatConversation, employee: Employee) {
+        self.id = conversation.id
+        self.conversation = conversation
+        self.employee = employee
     }
 }
 
@@ -139,6 +171,101 @@ struct ConversationRow: View {
         .background(Color.white)
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.03), radius: 5, x: 0, y: 2)
+    }
+}
+
+struct EmployeePickerChatView: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @ObservedObject var orderViewModel: OrderViewModel
+    @Binding var isPresented: Bool
+    @ObservedObject private var storeManager = StoreManager.shared
+    @State private var employees: [(StoreMember, String)] = []
+    @State private var selectedIds: Set<UUID> = []
+    @State private var navigateToChat = false
+    @State private var navConversation: ChatConversation?
+    @State private var navEmployee: Employee?
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                List {
+                    Section {
+                        ForEach(employees, id: \.0.id) { item in
+                            HStack {
+                                Button(action: {
+                                    if selectedIds.contains(item.0.userId) {
+                                        selectedIds.remove(item.0.userId)
+                                    } else {
+                                        selectedIds.insert(item.0.userId)
+                                    }
+                                }) {
+                                    Image(systemName: selectedIds.contains(item.0.userId) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(selectedIds.contains(item.0.userId) ? Color.themePrimary : Color.gray)
+                                }
+                                Text(item.1)
+                                Spacer()
+                                Text(item.0.role.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                    }
+                }
+                
+                Button(action: createChats) {
+                    Text("Chat")
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(selectedIds.isEmpty ? Color.gray.opacity(0.4) : Color.themePrimary)
+                        .cornerRadius(12)
+                }
+                .disabled(selectedIds.isEmpty)
+                .padding()
+            }
+            .navigationTitle("Chọn nhân viên")
+            .navigationBarItems(trailing: Button("Đóng") { isPresented = false })
+            .background(
+                NavigationLink(
+                    destination: destinationView(),
+                    isActive: $navigateToChat
+                ) { EmptyView() }
+            )
+            .onAppear {
+                Task {
+                    let raw = await storeManager.getEmployees()
+                    let filtered = raw.filter { $0.0.status == .active || $0.0.status == nil }
+                    employees = filtered
+                }
+            }
+        }
+    }
+    
+    private func createChats() {
+        var firstEmployee: Employee?
+        var firstConversation: ChatConversation?
+        for item in employees where selectedIds.contains(item.0.userId) {
+            let emp = Employee(id: item.0.userId, name: item.1, phoneNumber: "", avatar: "", isOnline: false, role: "employee")
+            let conv = viewModel.startChat(with: emp)
+            if firstEmployee == nil {
+                firstEmployee = emp
+                firstConversation = conv
+            }
+        }
+        if let emp = firstEmployee, let conv = firstConversation {
+            NotificationCenter.default.post(name: NSNotification.Name("OpenConversation"), object: ["conversation": conv, "employee": emp])
+        }
+        isPresented = false
+    }
+    
+    @ViewBuilder
+    private func destinationView() -> some View {
+        if let emp = navEmployee, let conv = navConversation {
+            ChatDetailView(viewModel: viewModel, orderViewModel: orderViewModel, conversation: conv, employee: emp, isTabBarVisible: .constant(false))
+        } else {
+            EmptyView()
+        }
     }
 }
 
@@ -241,6 +368,7 @@ struct ChatDetailView: View {
     // Order Integration
     @State private var showOrderSheet = false
     @State private var selectedBill: Bill?
+    @State private var showDeleteAlert = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -266,6 +394,14 @@ struct ChatDetailView: View {
                 Image(systemName: "info.circle")
                     .foregroundStyle(Color.themePrimary)
                     .padding()
+                
+                Button {
+                    showDeleteAlert = true
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.red)
+                        .padding()
+                }
             }
             .background(Color.white)
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
@@ -287,12 +423,25 @@ struct ChatDetailView: View {
         }
         .onDisappear {
             isTabBarVisible = true
+            NotificationCenter.default.post(name: NSNotification.Name("RefreshConversations"), object: nil)
         }
         .sheet(isPresented: $showOrderSheet) {
             SmartOrderEntryView(viewModel: orderViewModel)
         }
         .sheet(item: $selectedBill) { bill in
             BillDetailView(bill: bill, viewModel: orderViewModel)
+        }
+        .alert("Xoá cuộc chat này?", isPresented: $showDeleteAlert) {
+            Button("Xoá", role: .destructive) {
+                Task {
+                    let ok = await viewModel.deleteConversation(with: employee.id)
+                    if ok {
+                        NotificationCenter.default.post(name: NSNotification.Name("RefreshConversations"), object: nil)
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+            Button("Huỷ", role: .cancel) { }
         }
         .onChange(of: orderViewModel.lastCreatedBill) { bill in
             if showOrderSheet, let bill = bill {

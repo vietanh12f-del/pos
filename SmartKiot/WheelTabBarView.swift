@@ -256,7 +256,7 @@ struct WheelTabBarView: View {
                     let label: String = {
                         switch selectedTab {
                         case 0, 1: return "Lên đơn"
-                        case 5: return "Thêm Chat"
+                        case 5: return "Thêm chat"
                         case 6: return "Thêm nhân viên"
                         default: return "Tạo mới"
                         }
