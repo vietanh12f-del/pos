@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct EmployeeViewModel: Identifiable {
     let id: UUID
@@ -50,6 +51,9 @@ struct EmployeeManagementView: View {
                 }
             }
         }
+        .refreshable {
+            await loadEmployees()
+        }
         .navigationTitle("Quản lý nhân viên")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -65,12 +69,22 @@ struct EmployeeManagementView: View {
         }
         .onAppear {
             tabBarManager.customFabAction = { showAddEmployee = true }
-            Task {
-                await loadEmployees()
+            if employees.isEmpty {
+                Task {
+                    await loadEmployees()
+                }
             }
         }
         .onDisappear {
             tabBarManager.customFabAction = nil
+        }
+        .onChange(of: showAddEmployee) { showing in
+            if showing == false {
+                Task { await loadEmployees() }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshEmployees"))) { _ in
+            Task { await loadEmployees() }
         }
     }
 

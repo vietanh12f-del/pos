@@ -257,7 +257,7 @@ struct WheelTabBarView: View {
                         switch selectedTab {
                         case 0, 1: return "Lên đơn"
                         case 5: return "Thêm Chat"
-                        case 6: return "Thêm NV"
+                        case 6: return "Thêm nhân viên"
                         default: return "Tạo mới"
                         }
                     }()

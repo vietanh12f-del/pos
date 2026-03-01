@@ -120,7 +120,7 @@ struct ContentView: View {
                 }
                 .sheet(isPresented: $showAddEmployee) {
                     AddEmployeeView(isPresented: $showAddEmployee, onAddSuccess: {
-                        // Refresh employees if needed, but since this is global, we might not need to trigger update in EmployeeManagementView immediately unless it's open
+                        NotificationCenter.default.post(name: NSNotification.Name("RefreshEmployees"), object: nil)
                     })
                 }
                 .onChange(of: viewModel.editingBill) { bill in

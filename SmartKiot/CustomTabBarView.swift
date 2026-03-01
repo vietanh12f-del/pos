@@ -58,7 +58,7 @@ struct CustomTabBarView: View {
         case 3: return "Nhập hàng"
         case 5: return "Tạo Chat"
         case 4: return "Thêm chi phí"
-        case 6: return "Thêm NV"
+        case 6: return "Thêm nhân viên"
         default: return "Lên đơn"
         }
     }
