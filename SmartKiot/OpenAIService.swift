@@ -18,7 +18,7 @@ struct GPTItem: Codable {
 class OpenAIService {
     static let shared = OpenAIService()
     
-    private let apiKey = ""
+    private let apiKey = "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"
     private let url = URL(string: "https://api.openai.com/v1/chat/completions")!
     
     func parseOrder(text: String, currentMode: String = "order") async throws -> GPTResponse {
