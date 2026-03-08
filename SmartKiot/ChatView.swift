@@ -215,7 +215,13 @@ struct EmployeePickerChatView: View {
                                     Image(systemName: selectedIds.contains(item.0.userId) ? "checkmark.circle.fill" : "circle")
                                         .foregroundStyle(selectedIds.contains(item.0.userId) ? Color.themePrimary : Color.gray)
                                 }
-                                Text(item.1)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.1)
+                                        .foregroundStyle(Color.themeTextDark)
+                                    Text((item.0.positionTitle?.isEmpty == false) ? (item.0.positionTitle ?? "") : "—")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
                                 Spacer()
                                 Text(item.0.role.displayName)
                                     .font(.caption)
