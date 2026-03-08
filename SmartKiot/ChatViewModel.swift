@@ -7,7 +7,10 @@ class ChatViewModel: ObservableObject {
     @Published var conversations: [ChatConversation] = []
     @Published var messages: [UUID: [ChatMessage]] = [:] // Key: Conversation ID (or Participant ID for simplicity)
     @Published var employees: [Employee] = []
+    @Published private(set) var hiddenConversations: Set<UUID> = []
+    private let hiddenKey = "hidden_conversations_v1"
     
+   
     // Current User
     var currentUserId: UUID {
         return AuthManager.shared.currentUserProfile?.id ?? UUID()
@@ -16,6 +19,7 @@ class ChatViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init() {
+        loadHiddenConversations()
         // loadMockData() // Disabled for real implementation
         Task {
             await fetchConversations()
@@ -66,6 +70,11 @@ class ChatViewModel: ObservableObject {
     @MainActor
     private func handleIncomingMessage(_ message: ChatMessage) async {
         let senderId = message.senderId
+        
+        if hiddenConversations.contains(senderId) {
+            hiddenConversations.remove(senderId)
+            saveHiddenConversations()
+        }
         
         // 1. Check if conversation exists
         if let index = conversations.firstIndex(where: { $0.participantId == senderId }) {
@@ -278,12 +287,36 @@ class ChatViewModel: ObservableObject {
             
             await MainActor.run {
                 removeLocalConversation(with: otherId)
+                hideConversation(with: otherId)
             }
             return true
         } catch {
             print("Error deleting conversation: \(error)")
+            await MainActor.run {
+                // As a fallback (e.g. RLS prevents deleting received messages), hide this conversation locally
+                removeLocalConversation(with: otherId)
+                hideConversation(with: otherId)
+            }
             return false
         }
+    }
+    
+    @MainActor
+    private func hideConversation(with otherId: UUID) {
+        hiddenConversations.insert(otherId)
+        saveHiddenConversations()
+    }
+    
+    private func loadHiddenConversations() {
+        if let arr = UserDefaults.standard.array(forKey: hiddenKey) as? [String] {
+            let ids = arr.compactMap { UUID(uuidString: $0) }
+            hiddenConversations = Set(ids)
+        }
+    }
+    
+    private func saveHiddenConversations() {
+        let arr = hiddenConversations.map { $0.uuidString }
+        UserDefaults.standard.set(arr, forKey: hiddenKey)
     }
     
     @MainActor
@@ -310,6 +343,7 @@ class ChatViewModel: ObservableObject {
             var convMap: [UUID: [ChatMessage]] = [:]
             for msg in response {
                 let otherId = (msg.senderId == myId) ? msg.receiverId : msg.senderId
+                if hiddenConversations.contains(otherId) { continue }
                 if convMap[otherId] == nil {
                     convMap[otherId] = []
                 }
