@@ -9,6 +9,8 @@ class ChatViewModel: ObservableObject {
     @Published var employees: [Employee] = []
     @Published private(set) var hiddenConversations: Set<UUID> = []
     private let hiddenKey = "hidden_conversations_v1"
+    @Published private(set) var deleteCutoff: [UUID: Date] = [:] // otherId -> hide messages older than this time
+    private let cutoffKey = "delete_cutoff_v1"
     
    
     // Current User
@@ -20,6 +22,7 @@ class ChatViewModel: ObservableObject {
     
     init() {
         loadHiddenConversations()
+        loadDeleteCutoff()
         // loadMockData() // Disabled for real implementation
         Task {
             await fetchConversations()
@@ -74,6 +77,11 @@ class ChatViewModel: ObservableObject {
         if hiddenConversations.contains(senderId) {
             hiddenConversations.remove(senderId)
             saveHiddenConversations()
+        }
+        
+        // Ignore messages older than local delete cutoff for this peer
+        if let cutoff = deleteCutoff[senderId], message.timestamp < cutoff {
+            return
         }
         
         // 1. Check if conversation exists
@@ -187,6 +195,11 @@ class ChatViewModel: ObservableObject {
             
             // Optimistic UI Update
             await MainActor.run {
+                // Unhide conversation if previously hidden locally
+                if hiddenConversations.contains(receiverId) {
+                    hiddenConversations.remove(receiverId)
+                    saveHiddenConversations()
+                }
                 if var msgs = messages[conversationId] {
                     msgs.append(msg)
                     messages[conversationId] = msgs
@@ -236,6 +249,11 @@ class ChatViewModel: ObservableObject {
             
             // Optimistic UI Update
             await MainActor.run {
+                // Unhide conversation if previously hidden locally
+                if hiddenConversations.contains(receiverId) {
+                    hiddenConversations.remove(receiverId)
+                    saveHiddenConversations()
+                }
                 if var msgs = messages[conversationId] {
                     msgs.append(msg)
                     messages[conversationId] = msgs
@@ -269,36 +287,14 @@ class ChatViewModel: ObservableObject {
     }
     
     func deleteConversation(with otherId: UUID) async -> Bool {
-        let myId = currentUserId
-        do {
-            try await client
-                .from("messages")
-                .delete()
-                .eq("sender_id", value: myId)
-                .eq("receiver_id", value: otherId)
-                .execute()
-            
-            try await client
-                .from("messages")
-                .delete()
-                .eq("sender_id", value: otherId)
-                .eq("receiver_id", value: myId)
-                .execute()
-            
-            await MainActor.run {
-                removeLocalConversation(with: otherId)
-                hideConversation(with: otherId)
-            }
-            return true
-        } catch {
-            print("Error deleting conversation: \(error)")
-            await MainActor.run {
-                // As a fallback (e.g. RLS prevents deleting received messages), hide this conversation locally
-                removeLocalConversation(with: otherId)
-                hideConversation(with: otherId)
-            }
-            return false
+        // Local-only delete: apply cutoff so this user doesn't see history; peer still sees
+        await MainActor.run {
+            deleteCutoff[otherId] = Date()
+            saveDeleteCutoff()
+            removeLocalConversation(with: otherId)
+            hideConversation(with: otherId)
         }
+        return true
     }
     
     @MainActor
@@ -317,6 +313,26 @@ class ChatViewModel: ObservableObject {
     private func saveHiddenConversations() {
         let arr = hiddenConversations.map { $0.uuidString }
         UserDefaults.standard.set(arr, forKey: hiddenKey)
+    }
+    
+    private func loadDeleteCutoff() {
+        if let dict = UserDefaults.standard.dictionary(forKey: cutoffKey) as? [String: Double] {
+            var result: [UUID: Date] = [:]
+            for (k, v) in dict {
+                if let id = UUID(uuidString: k) {
+                    result[id] = Date(timeIntervalSince1970: v)
+                }
+            }
+            deleteCutoff = result
+        }
+    }
+    
+    private func saveDeleteCutoff() {
+        var dict: [String: Double] = [:]
+        for (id, date) in deleteCutoff {
+            dict[id.uuidString] = date.timeIntervalSince1970
+        }
+        UserDefaults.standard.set(dict, forKey: cutoffKey)
     }
     
     @MainActor
@@ -344,6 +360,7 @@ class ChatViewModel: ObservableObject {
             for msg in response {
                 let otherId = (msg.senderId == myId) ? msg.receiverId : msg.senderId
                 if hiddenConversations.contains(otherId) { continue }
+                if let cutoff = deleteCutoff[otherId], msg.timestamp < cutoff { continue }
                 if convMap[otherId] == nil {
                     convMap[otherId] = []
                 }
@@ -355,8 +372,13 @@ class ChatViewModel: ObservableObject {
             var newMessages: [UUID: [ChatMessage]] = [:]
             
             for (otherId, msgs) in convMap {
-                // Sort messages
-                let sortedMsgs = msgs.sorted { $0.timestamp < $1.timestamp }
+                // Sort and apply cutoff
+                let cutoff = deleteCutoff[otherId]
+                let sortedMsgs = msgs
+                    .filter { cutoff == nil || $0.timestamp >= cutoff! }
+                    .sorted { $0.timestamp < $1.timestamp }
+                
+                if sortedMsgs.isEmpty { continue }
                 let lastMsg = sortedMsgs.last
                 
                 // We need to fetch the profile for 'otherId' to display name/avatar
