@@ -368,6 +368,8 @@ struct ChatDetailView: View {
     // Order Integration
     @State private var selectedBill: Bill?
     @State private var showDeleteAlert = false
+    @State private var inputBarHeight: CGFloat = 0
+    @State private var isAtBottom: Bool = true
     
     var body: some View {
         VStack(spacing: 0) {
@@ -407,7 +409,34 @@ struct ChatDetailView: View {
             
             // Messages List
             ScrollViewReader { proxy in
-                messageList(proxy: proxy)
+                ZStack(alignment: .bottomTrailing) {
+                    messageList(proxy: proxy)
+                        .onAppear {
+                            if let last = viewModel.messages[conversation.id]?.last {
+                                withAnimation {
+                                    proxy.scrollTo(last.id, anchor: .bottom)
+                                }
+                            }
+                        }
+                    
+                    if !isAtBottom {
+                        Button {
+                            if let last = viewModel.messages[conversation.id]?.last {
+                                withAnimation {
+                                    proxy.scrollTo(last.id, anchor: .bottom)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundStyle(Color.themePrimary)
+                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                        }
+                        .padding(.trailing, 12)
+                        .padding(.bottom, 12)
+                        .accessibilityLabel("Cuộn tới tin nhắn mới nhất")
+                    }
+                }
             }
             
             // Input Area
@@ -472,6 +501,7 @@ struct ChatDetailView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 let msgs = viewModel.messages[conversation.id] ?? []
+                let lastId = msgs.last?.id
                 ForEach(msgs) { msg in
                     MessageBubble(
                         message: msg,
@@ -482,6 +512,17 @@ struct ChatDetailView: View {
                             }
                         }
                     )
+                    .id(msg.id)
+                    .onAppear {
+                        if msg.id == lastId {
+                            isAtBottom = true
+                        }
+                    }
+                    .onDisappear {
+                        if msg.id == lastId {
+                            isAtBottom = false
+                        }
+                    }
                 }
             }
             .padding()
