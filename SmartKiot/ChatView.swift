@@ -527,7 +527,7 @@ struct ChatDetailView: View {
                             }
                         }
                     )
-                    .padding(.top, index == 0 ? 0 : ((msgs[index - 1].senderId == msg.senderId) ? 1 : 4))
+                    .padding(.top, index == 0 ? 0 : ((msgs[index - 1].senderId == msg.senderId) ? 0 : 2))
                     .id(msg.id)
                     .onAppear {
                         if msg.id == lastId {
@@ -609,13 +609,12 @@ struct MessageBubble: View {
                 .buttonStyle(PlainButtonStyle())
             } else {
                 // Text Message
-                VStack(alignment: isCurrentUser ? .trailing : .leading, spacing: 4) {
+                VStack(alignment: isCurrentUser ? .trailing : .leading, spacing: 0) {
                     Text(message.text)
                         .padding()
                         .background(isCurrentUser ? Color.themePrimary : Color.white)
                         .foregroundStyle(isCurrentUser ? Color.white : Color.themeTextDark)
                         .cornerRadius(16)
-                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
                 }
             }
             
