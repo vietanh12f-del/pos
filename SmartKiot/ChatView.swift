@@ -366,7 +366,6 @@ struct ChatDetailView: View {
     @Environment(\.presentationMode) var presentationMode
     
     // Order Integration
-    @State private var showOrderSheet = false
     @State private var selectedBill: Bill?
     @State private var showDeleteAlert = false
     
@@ -425,9 +424,6 @@ struct ChatDetailView: View {
             isTabBarVisible = true
             NotificationCenter.default.post(name: NSNotification.Name("RefreshConversations"), object: nil)
         }
-        .sheet(isPresented: $showOrderSheet) {
-            SmartOrderEntryView(viewModel: orderViewModel)
-        }
         .sheet(item: $selectedBill) { bill in
             BillDetailView(bill: bill, viewModel: orderViewModel)
         }
@@ -443,28 +439,10 @@ struct ChatDetailView: View {
             }
             Button("Huỷ", role: .cancel) { }
         }
-        .onChange(of: orderViewModel.lastCreatedBill) { bill in
-            if showOrderSheet, let bill = bill {
-                // Send order message
-                viewModel.sendOrderMessage(conversationId: conversation.id, bill: bill)
-                showOrderSheet = false
-                orderViewModel.lastCreatedBill = nil // Reset
-            }
-        }
     }
     
     private var inputArea: some View {
         HStack(spacing: 12) {
-            // Plus Button for Actions
-            Button(action: { showOrderSheet = true }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Color.themePrimary)
-                    .padding(10)
-                    .background(Color.themePrimary.opacity(0.1))
-                    .clipShape(Circle())
-            }
-            
             TextField("Nhập tin nhắn...", text: $messageText)
                 .padding(12)
                 .background(Color.gray.opacity(0.1))
@@ -498,14 +476,6 @@ struct ChatDetailView: View {
                     MessageBubble(
                         message: msg,
                         isCurrentUser: msg.senderId == viewModel.currentUserId,
-                        detectOrder: { text in
-                            orderViewModel.parseItem(from: text)
-                        },
-                        onProcessOrder: { item in
-                            orderViewModel.reset()
-                            orderViewModel.items.append(item)
-                            showOrderSheet = true
-                        },
                         onViewOrder: { orderId in
                             if let bill = orderViewModel.pastOrders.first(where: { $0.id == orderId }) {
                                 selectedBill = bill
@@ -529,11 +499,7 @@ struct ChatDetailView: View {
 struct MessageBubble: View {
     let message: ChatMessage
     let isCurrentUser: Bool
-    var detectOrder: ((String) -> OrderItem?)? = nil
-    var onProcessOrder: ((OrderItem) -> Void)? = nil
     var onViewOrder: ((UUID) -> Void)? = nil
-    
-    @State private var detectedItem: OrderItem?
     
     var body: some View {
         HStack {
@@ -591,39 +557,10 @@ struct MessageBubble: View {
                         .foregroundStyle(isCurrentUser ? Color.white : Color.themeTextDark)
                         .cornerRadius(16)
                         .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-                    
-                    if let item = detectedItem {
-                        Button(action: { onProcessOrder?(item) }) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "wand.and.stars")
-                                    .font(.caption)
-                                Text("Tạo đơn: \(item.quantity) \(item.name)")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.blue.opacity(0.1))
-                            .foregroundStyle(Color.blue)
-                            .cornerRadius(12)
-                        }
-                        .padding(.top, 2)
-                    }
                 }
             }
             
             if !isCurrentUser { Spacer() }
-        }
-        .onAppear {
-            if (message.messageType ?? "text") == "text" && detectOrder != nil {
-                // Run in background to avoid blocking main thread during scroll
-                Task {
-                    let item = detectOrder?(message.text)
-                    await MainActor.run {
-                        self.detectedItem = item
-                    }
-                }
-            }
         }
     }
 }
