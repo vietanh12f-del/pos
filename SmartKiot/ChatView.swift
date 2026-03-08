@@ -514,10 +514,10 @@ struct ChatDetailView: View {
     @ViewBuilder
     private func messageList(proxy: ScrollViewProxy) -> some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: 0) {
                 let msgs = viewModel.messages[conversation.id] ?? []
                 let lastId = msgs.last?.id
-                ForEach(msgs) { msg in
+                ForEach(Array(msgs.enumerated()), id: \.1.id) { index, msg in
                     MessageBubble(
                         message: msg,
                         isCurrentUser: msg.senderId == viewModel.currentUserId,
@@ -527,6 +527,7 @@ struct ChatDetailView: View {
                             }
                         }
                     )
+                    .padding(.top, index == 0 ? 0 : ((msgs[index - 1].senderId == msg.senderId) ? 1 : 4))
                     .id(msg.id)
                     .onAppear {
                         if msg.id == lastId {
@@ -540,7 +541,9 @@ struct ChatDetailView: View {
                     }
                 }
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .padding(.bottom, 0)
         }
         .onChange(of: viewModel.messages[conversation.id]?.count) { _, _ in
             if let lastMsg = viewModel.messages[conversation.id]?.last {
