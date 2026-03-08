@@ -247,7 +247,28 @@ struct EmployeePickerChatView: View {
                 Task {
                     let raw = await storeManager.getEmployees()
                     let filtered = raw.filter { $0.0.status == .active || $0.0.status == nil }
-                    employees = filtered
+                    if let myId = AuthManager.shared.currentUserProfile?.id {
+                        var mapped: [(StoreMember, String)] = filtered.map { item in
+                            if item.0.userId == myId && item.0.role == .owner {
+                                return (item.0, "\(item.1) (tôi)")
+                            } else {
+                                return item
+                            }
+                        }
+                        // Đưa tài khoản của tôi (nếu là chủ) lên đầu danh sách
+                        mapped.sort { a, b in
+                            let isAUserOwner = (a.0.userId == myId && a.0.role == .owner)
+                            let isBUserOwner = (b.0.userId == myId && b.0.role == .owner)
+                            if isAUserOwner != isBUserOwner {
+                                return isAUserOwner && !isBUserOwner
+                            }
+                            // fallback giữ nguyên thứ tự cũ
+                            return false
+                        }
+                        employees = mapped
+                    } else {
+                        employees = filtered
+                    }
                 }
             }
         }
