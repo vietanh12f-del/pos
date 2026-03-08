@@ -359,7 +359,8 @@ class ChatViewModel: ObservableObject {
             var convMap: [UUID: [ChatMessage]] = [:]
             for msg in response {
                 let otherId = (msg.senderId == myId) ? msg.receiverId : msg.senderId
-                if hiddenConversations.contains(otherId) { continue }
+                // Always allow self-conversation to appear, even if previously hidden
+                if hiddenConversations.contains(otherId), otherId != myId { continue }
                 if let cutoff = deleteCutoff[otherId], msg.timestamp < cutoff { continue }
                 if convMap[otherId] == nil {
                     convMap[otherId] = []
@@ -391,6 +392,24 @@ class ChatViewModel: ObservableObject {
                     )
                     newConversations.append(conv)
                     newMessages[conv.id] = sortedMsgs
+                }
+            }
+            
+            // Ensure self-conversation always exists in the list
+            if newConversations.first(where: { $0.participantId == myId }) == nil {
+                _ = await fetchEmployeeProfile(id: myId) // cache self profile if not exists
+                let selfConv = ChatConversation(
+                    participantId: myId,
+                    lastMessage: "",
+                    lastMessageTime: Date(),
+                    unreadCount: 0
+                )
+                newConversations.insert(selfConv, at: 0)
+                newMessages[selfConv.id] = newMessages[selfConv.id] ?? []
+                // Unhide self conversation if it was hidden
+                if hiddenConversations.contains(myId) {
+                    hiddenConversations.remove(myId)
+                    saveHiddenConversations()
                 }
             }
             
