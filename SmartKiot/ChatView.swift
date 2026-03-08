@@ -23,6 +23,14 @@ struct ChatView: View {
                         
                         Spacer()
                         
+                        Button(action: {
+                            Task { await viewModel.fetchConversations() }
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.title2)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                        
                         Button(action: { showNewChatSheet = true }) {
                             Image(systemName: "square.and.pencil")
                                 .font(.title2)
@@ -66,6 +74,9 @@ struct ChatView: View {
                         }
                         .padding()
                         .padding(.bottom, 80) // Space for TabBar
+                    }
+                    .refreshable {
+                        await viewModel.fetchConversations()
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .contentShape(Rectangle())
