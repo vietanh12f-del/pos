@@ -75,6 +75,21 @@ struct OrderHistoryView: View {
                                                             .font(.caption2)
                                                             .foregroundStyle(Color.gray)
                                                     }
+                                                    if viewModel.hasHistory(for: bill.id) {
+                                                        HStack(spacing: 6) {
+                                                            Image(systemName: "clock.arrow.circlepath")
+                                                                .font(.caption2)
+                                                                .foregroundStyle(.orange)
+                                                            Text("Đã chỉnh sửa")
+                                                                .font(.caption2)
+                                                                .fontWeight(.bold)
+                                                                .foregroundStyle(.orange)
+                                                        }
+                                                        .padding(.horizontal, 6)
+                                                        .padding(.vertical, 2)
+                                                        .background(Color.orange.opacity(0.08))
+                                                        .cornerRadius(6)
+                                                    }
                                                 }
                                                 
                                                 Spacer()

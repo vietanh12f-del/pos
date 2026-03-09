@@ -14,6 +14,7 @@ class OrderViewModel: ObservableObject {
     @Published var priceHistory: [String: Double] = [:]
     @Published var inventory: [String: Int] = [:]
     @Published var pastOrders: [Bill] = []
+    @Published var billEditHistory: [UUID: [BillEditEntry]] = [:]
     
     // Navigation Triggers
     @Published var shouldShowRestockSheet = false
@@ -21,6 +22,15 @@ class OrderViewModel: ObservableObject {
     @Published var showOrderSuccessToast: Bool = false
     
     @Published var lastCreatedBill: Bill?
+    
+    struct BillEditEntry: Codable, Identifiable {
+        let id: UUID
+        let date: Date
+        let oldTotal: Double
+        let newTotal: Double
+        let editorName: String?
+    }
+    private let editHistoryKey = "bill_edit_history_v1"
     
     // Cache control
     private var loadedStoreId: UUID?
@@ -128,6 +138,7 @@ class OrderViewModel: ObservableObject {
     init() {
         // Recalculate stats
         recalculateStats()
+        loadEditHistory()
         
         // Listen to transcript changes
         speechRecognizer.$transcript
@@ -190,6 +201,64 @@ class OrderViewModel: ObservableObject {
                 self?.processInput()
             }
         }
+    }
+    
+    func loadEditHistory() {
+        if let data = UserDefaults.standard.data(forKey: editHistoryKey),
+           let decoded = try? JSONDecoder().decode([UUID: [BillEditEntry]].self, from: data) {
+            billEditHistory = decoded
+        }
+    }
+    
+    func saveEditHistory() {
+        if let data = try? JSONEncoder().encode(billEditHistory) {
+            UserDefaults.standard.set(data, forKey: editHistoryKey)
+        }
+    }
+    
+    func addEditHistory(for original: Bill, updated: Bill) {
+        let entry = BillEditEntry(
+            id: UUID(),
+            date: Date(),
+            oldTotal: original.total,
+            newTotal: updated.total,
+            editorName: AuthManager.shared.currentUserProfile?.fullName
+        )
+        var arr = billEditHistory[original.id] ?? []
+        arr.append(entry)
+        billEditHistory[original.id] = arr
+        saveEditHistory()
+    }
+    
+    func history(for billId: UUID) -> [BillEditEntry] {
+        billEditHistory[billId] ?? []
+    }
+    
+    func hasHistory(for billId: UUID) -> Bool {
+        !(billEditHistory[billId]?.isEmpty ?? true)
+    }
+    
+    @MainActor
+    func finalizeEditedPayment() async {
+        guard let original = editingBill else { return }
+        let newTotal = totalAmount
+        var updatedBill = Bill(id: original.id, createdAt: original.createdAt, items: items, total: newTotal)
+        updatedBill.customerName = walkInName
+        updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? original.paymentReceiptURL
+        addEditHistory(for: original, updated: updatedBill)
+        if let index = pastOrders.firstIndex(where: { $0.id == original.id }) {
+            pastOrders[index] = updatedBill
+        }
+        Task {
+            do {
+                try await database.deleteOrder(original.id)
+                try await database.saveOrder(updatedBill)
+            } catch {
+                print("❌ Error saving edited payment: \(error)")
+            }
+        }
+        recalculateStats()
+        reset()
     }
     
     func toggleRecording() {

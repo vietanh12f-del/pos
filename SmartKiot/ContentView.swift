@@ -1018,8 +1018,7 @@ struct ContentView: View {
                     
                     Button(action: {
                         if viewModel.editingBill != nil {
-                            viewModel.saveEditedOrder()
-                            dismiss()
+                            viewModel.showPayment = true
                         } else {
                             let warnings = viewModel.checkStockWarnings()
                             if !warnings.isEmpty {
@@ -1031,8 +1030,8 @@ struct ContentView: View {
                         }
                     }) {
                         HStack {
-                            Text(viewModel.editingBill != nil ? "Lưu thay đổi" : "Thanh toán")
-                            Image(systemName: viewModel.editingBill != nil ? "checkmark" : "arrow.right")
+                            Text(viewModel.editingBill != nil ? "Sửa thanh toán" : "Thanh toán")
+                            Image(systemName: viewModel.editingBill != nil ? "pencil" : "arrow.right")
                         }
                         .fontWeight(.bold)
                         .frame(maxWidth: .infinity)
@@ -1841,10 +1840,17 @@ struct ContentView: View {
                             qrURL: viewModel.vietQRURL(),
                             qrImage: nil,
                             billPayload: viewModel.billPayload(),
-                            showButtons: true,
+                            showButtons: viewModel.editingBill == nil,
                             onComplete: { isPaid in
-                                viewModel.completeOrder(isPaid: isPaid)
-                                dismiss()
+                                if viewModel.editingBill != nil {
+                                    Task { 
+                                        await viewModel.finalizeEditedPayment()
+                                        dismiss()
+                                    }
+                                } else {
+                                    viewModel.completeOrder(isPaid: isPaid)
+                                    dismiss()
+                                }
                             },
                             customerName: viewModel.walkInName,
                             onOpenBankSettings: {
@@ -1866,14 +1872,21 @@ struct ContentView: View {
                     Spacer()
                     
                     HStack(spacing: 20) {
-                        ActionButton(icon: "trash", title: "Hủy đơn", color: .red) {
+                        ActionButton(icon: "trash", title: viewModel.editingBill != nil ? "Hủy sửa" : "Hủy đơn", color: .red) {
                             viewModel.reset()
                             dismiss()
                         }
-                        ActionButton(icon: "plus", title: "Tạo đơn mới") {
-                            // Default to unpaid when creating new order
-                            viewModel.completeOrder(isPaid: false)
-                            dismiss()
+                        ActionButton(icon: viewModel.editingBill != nil ? "square.and.pencil" : "plus", title: viewModel.editingBill != nil ? "Lưu sửa" : "Tạo đơn mới") {
+                            if viewModel.editingBill != nil {
+                                Task { 
+                                    await viewModel.finalizeEditedPayment()
+                                    dismiss()
+                                }
+                            } else {
+                                // Default to unpaid when creating new order
+                                viewModel.completeOrder(isPaid: false)
+                                dismiss()
+                            }
                         }
                         ActionButton(icon: "square.and.arrow.up", title: "Chia sẻ") {
                             renderImage()
@@ -2321,7 +2334,7 @@ struct ContentView: View {
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    if showButtons || discountValue > 0 {
+                    if (onEditDiscount != nil) || discountValue > 0 {
                         HStack {
                             Text("Giảm giá")
                                 .foregroundStyle(Color.gray)
@@ -2332,7 +2345,7 @@ struct ContentView: View {
                                 .lineLimit(nil)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .onTapGesture {
-                                    if showButtons { onEditDiscount?() }
+                                    onEditDiscount?()
                                 }
                         }
                     }

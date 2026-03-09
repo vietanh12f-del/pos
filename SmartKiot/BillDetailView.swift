@@ -12,6 +12,7 @@ struct BillDetailView: View {
     @State private var receiptImage: UIImage? = nil
     @State private var isUploadingReceipt = false
     @State private var receiptImageURLString: String? = nil
+    @State private var showEditHistory = false
     
     var body: some View {
         VStack {
@@ -56,6 +57,27 @@ struct BillDetailView: View {
                 )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+                
+                if viewModel.hasHistory(for: bill.id) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Đã chỉnh sửa")
+                            .font(.subheadline)
+                            .foregroundStyle(.orange)
+                        Button {
+                            showEditHistory = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "clock.arrow.circlepath")
+                                Text("Xem lịch sử chỉnh sửa")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
+                }
                 
                 // Payment Status Toggle
                 Button(action: {
@@ -136,6 +158,9 @@ struct BillDetailView: View {
                 ShareSheet(items: [image])
             }
         }
+        .sheet(isPresented: $showEditHistory) {
+            EditHistorySheet(entries: viewModel.history(for: bill.id))
+        }
         .fullScreenCover(isPresented: $showReceiptCamera) {
             ImagePicker(image: $receiptImage)
                 .ignoresSafeArea()
@@ -211,6 +236,46 @@ struct BillDetailView: View {
             if let image = renderer.uiImage {
                 renderedImage = image
                 showShareSheet = true
+            }
+        }
+    }
+    
+    struct EditHistoryRow: View {
+        let entry: OrderViewModel.BillEditEntry
+        var body: some View {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(format(entry.date))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text("\(formatCurrency(entry.oldTotal)) → \(formatCurrency(entry.newTotal))")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                Spacer()
+                if let name = entry.editorName, !name.isEmpty {
+                    Text(name).font(.caption).foregroundStyle(.gray)
+                }
+            }
+            .padding(.vertical, 6)
+        }
+        private func format(_ date: Date) -> String {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "vi_VN")
+            f.dateFormat = "dd/MM/yyyy HH:mm"
+            return f.string(from: date)
+        }
+    }
+    
+    struct EditHistorySheet: View {
+        let entries: [OrderViewModel.BillEditEntry]
+        var body: some View {
+            NavigationStack {
+                List(entries.sorted { $0.date > $1.date }) { e in
+                    EditHistoryRow(entry: e)
+                }
+                .navigationTitle("Lịch sử chỉnh sửa")
+                .navigationBarTitleDisplayMode(.inline)
             }
         }
     }
