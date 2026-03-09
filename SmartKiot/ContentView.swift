@@ -1816,6 +1816,7 @@ struct ContentView: View {
         @State private var showReceiptCamera = false
         @State private var receiptImage: UIImage?
         @State private var isUploadingReceipt = false
+        @State private var showDiscountSheet = false
         
         var body: some View {
             ZStack {
@@ -1855,7 +1856,8 @@ struct ContentView: View {
                             receiptImageURL: viewModel.paymentReceiptImageURL,
                             onPickedReceiptImage: { img in
                                 receiptImage = img
-                            }
+                            },
+                            onEditDiscount: { showDiscountSheet = true }
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -1950,6 +1952,9 @@ struct ContentView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showDiscountSheet) {
+                DiscountEditorView(viewModel: viewModel, dismiss: { showDiscountSheet = false })
+            }
         }
         
         func currentDateString() -> String {
@@ -1983,7 +1988,8 @@ struct ContentView: View {
                     onOpenBankSettings: nil,
                     onCaptureReceipt: nil,
                     receiptImageURL: nil,
-                    onPickedReceiptImage: nil
+                    onPickedReceiptImage: nil,
+                    onEditDiscount: nil
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -1995,6 +2001,101 @@ struct ContentView: View {
                     showShareSheet = true
                 }
             }
+        }
+    }
+    
+    struct DiscountEditorView: View {
+        @ObservedObject var viewModel: OrderViewModel
+        let dismiss: () -> Void
+        
+        var body: some View {
+            VStack(spacing: 12) {
+                Text("Chỉnh giảm giá")
+                    .font(.headline)
+                Picker("Loại", selection: $viewModel.discountMode) {
+                    Text("Phần trăm").tag(OrderViewModel.DiscountMode.percent)
+                    Text("Theo giá").tag(OrderViewModel.DiscountMode.finalPrice)
+                    Text("Số tiền").tag(OrderViewModel.DiscountMode.amount)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                
+                HStack {
+                    VStack {
+                        Text("Phần trăm")
+                            .font(.caption)
+                        Picker("", selection: $viewModel.discountPercent) {
+                            ForEach(0...100, id: \.self) { v in
+                                Text("\(v)%").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        .disabled(viewModel.discountMode != .percent)
+                    }
+                    VStack {
+                        Text("Theo giá")
+                            .font(.caption)
+                        Picker("", selection: Binding<Int>(
+                            get: {
+                                let base = Int((viewModel.discountFinalPriceTarget ?? viewModel.totalAmount) / 1000.0)
+                                return max(0, base)
+                            },
+                            set: { thousands in
+                                let target = Double(thousands) * 1000.0
+                                viewModel.discountFinalPriceTarget = min(max(0, target), viewModel.subtotalAmount)
+                            }
+                        )) {
+                            let maxT = Int(max(0, viewModel.subtotalAmount) / 1000.0)
+                            ForEach(0...max(maxT, 0), id: \.self) { v in
+                                Text(formatCurrency(Double(v) * 1000.0)).tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        .disabled(viewModel.discountMode != .finalPrice)
+                    }
+                    VStack {
+                        Text("Số tiền")
+                            .font(.caption)
+                        Picker("", selection: Binding<Int>(
+                            get: {
+                                Int(viewModel.discountAmountValue / 1000.0)
+                            },
+                            set: { thousands in
+                                let v = Double(thousands) * 1000.0
+                                viewModel.discountAmountValue = min(max(0, v), viewModel.subtotalAmount)
+                            }
+                        )) {
+                            let maxA = Int(max(0, viewModel.subtotalAmount) / 1000.0)
+                            ForEach(0...max(maxA, 0), id: \.self) { v in
+                                Text(formatCurrency(Double(v) * 1000.0)).tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+                        .disabled(viewModel.discountMode != .amount)
+                    }
+                }
+                .frame(height: 180)
+                .padding(.horizontal)
+                
+                HStack {
+                    Button("Giá ban đầu") {
+                        viewModel.discountMode = .amount
+                        viewModel.discountPercent = 0
+                        viewModel.discountAmountValue = 0
+                        viewModel.discountFinalPriceTarget = nil
+                    }
+                    .frame(maxWidth: .infinity)
+                    Button("Xong") {
+                        dismiss()
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.horizontal)
+            }
+            .padding(.vertical, 12)
         }
     }
     
@@ -2012,6 +2113,7 @@ struct ContentView: View {
         let onCaptureReceipt: (() -> Void)?
         let receiptImageURL: String?
         let onPickedReceiptImage: ((UIImage) -> Void)?
+        let onEditDiscount: (() -> Void)?
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
         @State private var previewURL: URL?
@@ -2109,6 +2211,8 @@ struct ContentView: View {
                     let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
                     let vatRate = StoreManager.shared.currentStoreVATRate()
                     let vatAmount = vatEnabled ? (totalAmount * vatRate / 100.0) : 0
+                    let subtotal = items.reduce(0) { $0 + $1.total }
+                    let discountValue = max(0, subtotal - totalAmount)
                     if vatEnabled {
                         HStack {
                             Text("Tổng tiền hàng")
@@ -2143,6 +2247,21 @@ struct ContentView: View {
                             .foregroundStyle(Color.themePrimary)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if showButtons || discountValue > 0 {
+                        HStack {
+                            Text("Giảm giá")
+                                .foregroundStyle(Color.gray)
+                            Spacer()
+                            Text("-" + formatCurrency(discountValue))
+                                .fontWeight(.bold)
+                                .foregroundStyle(.red)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .onTapGesture {
+                                    if showButtons { onEditDiscount?() }
+                                }
+                        }
                     }
                 }
                 .padding()
@@ -2474,6 +2593,7 @@ struct ContentView: View {
         
         
         
+        // DiscountEditorView moved to top-level under ContentView for wider visibility
         
         
     }

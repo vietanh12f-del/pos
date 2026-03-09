@@ -593,8 +593,40 @@ class OrderViewModel: ObservableObject {
         }
     }
 
-    var totalAmount: Double {
+    enum DiscountMode: String, Codable {
+        case percent
+        case amount
+        case finalPrice
+    }
+    
+    @Published var discountMode: DiscountMode = .amount
+    @Published var discountPercent: Int = 0            // 0...100
+    @Published var discountAmountValue: Double = 0     // VND
+    @Published var discountFinalPriceTarget: Double? = nil // VND
+    
+    var subtotalAmount: Double {
         items.reduce(0) { $0 + $1.total }
+    }
+    
+    var billLevelDiscount: Double {
+        let subtotal = subtotalAmount
+        switch discountMode {
+        case .percent:
+            let v = Double(discountPercent)
+            return max(0, min(100, v)) * subtotal / 100.0
+        case .amount:
+            return max(0, min(discountAmountValue, subtotal))
+        case .finalPrice:
+            if let target = discountFinalPriceTarget {
+                return max(0, subtotal - max(0, min(target, subtotal)))
+            } else {
+                return 0
+            }
+        }
+    }
+    
+    var totalAmount: Double {
+        max(0, subtotalAmount - billLevelDiscount)
     }
     
     func processInput() {
@@ -1472,6 +1504,10 @@ class OrderViewModel: ObservableObject {
         editingBill = nil
         walkInName = "Khách lẻ"
         paymentReceiptImageURL = nil
+        discountMode = .amount
+        discountPercent = 0
+        discountAmountValue = 0
+        discountFinalPriceTarget = nil
     }
     
     // MARK: - Calendar Stats
