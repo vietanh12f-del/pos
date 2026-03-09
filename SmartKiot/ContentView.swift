@@ -2050,6 +2050,8 @@ struct ContentView: View {
                         }
                         .padding(6)
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture { viewModel.discountMode = .percent }
                     VStack {
                         Text("Theo giá")
                             .font(.caption)
@@ -2089,6 +2091,8 @@ struct ContentView: View {
                         }
                         .padding(6)
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture { viewModel.discountMode = .finalPrice }
                     VStack {
                         Text("Số tiền")
                             .font(.caption)
@@ -2127,6 +2131,8 @@ struct ContentView: View {
                         }
                         .padding(6)
                     }
+                    .contentShape(Rectangle())
+                    .onTapGesture { viewModel.discountMode = .amount }
                 }
                 .frame(height: 180)
                 .padding(.horizontal)
