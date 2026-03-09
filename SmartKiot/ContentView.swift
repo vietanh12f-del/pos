@@ -2136,6 +2136,22 @@ struct ContentView: View {
                 }
                 .frame(height: 180)
                 .padding(.horizontal)
+                .onChange(of: viewModel.discountFinalPriceTarget) { newTarget in
+                    let subtotal = viewModel.subtotalAmount
+                    let target = min(max(0, newTarget ?? subtotal), subtotal)
+                    let amount = max(0, subtotal - target)
+                    if viewModel.discountAmountValue != amount {
+                        viewModel.discountAmountValue = amount
+                    }
+                }
+                .onChange(of: viewModel.discountAmountValue) { newAmount in
+                    let subtotal = viewModel.subtotalAmount
+                    let amount = min(max(0, newAmount), subtotal)
+                    let target = max(0, subtotal - amount)
+                    if viewModel.discountFinalPriceTarget != target {
+                        viewModel.discountFinalPriceTarget = target
+                    }
+                }
                 
                 HStack {
                     Button("Giá ban đầu") {
