@@ -4,6 +4,7 @@ import Supabase
 
 class ChatViewModel: ObservableObject {
     private let client = SupabaseConfig.client
+    private var autoRefreshCancellable: AnyCancellable?
     private struct GroupNameUpdate: Encodable { let name: String? }
     @Published var conversations: [ChatConversation] = []
     @Published var messages: [UUID: [ChatMessage]] = [:] // Key: Conversation ID (or Participant ID for simplicity)
@@ -42,6 +43,22 @@ class ChatViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+    }
+    
+    func startAutoRefresh() {
+        autoRefreshCancellable?.cancel()
+        autoRefreshCancellable = Timer.publish(every: 5, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                Task { [weak self] in
+                    await self?.fetchConversations()
+                }
+            }
+    }
+    
+    func stopAutoRefresh() {
+        autoRefreshCancellable?.cancel()
+        autoRefreshCancellable = nil
     }
     
     // MARK: - Realtime Subscription
@@ -321,6 +338,7 @@ class ChatViewModel: ObservableObject {
                 )
                 
                 // Ensure local conversation exists
+                var localConvId: UUID?
                 await MainActor.run {
                     if conversations.first(where: { $0.participantId == rid }) == nil {
                         let conv = ChatConversation(
@@ -331,16 +349,20 @@ class ChatViewModel: ObservableObject {
                         )
                         conversations.insert(conv, at: 0)
                         messages[conv.id] = []
+                        localConvId = conv.id
+                    } else if let idx = conversations.firstIndex(where: { $0.participantId == rid }) {
+                        localConvId = conversations[idx].id
                     }
                 }
                 
                 // Optimistic update
                 await MainActor.run {
-                    if var msgs = messages[rid] {
+                    let key = localConvId ?? rid
+                    if var msgs = messages[key] {
                         msgs.append(msg)
-                        messages[rid] = msgs
+                        messages[key] = msgs
                     } else {
-                        messages[rid] = [msg]
+                        messages[key] = [msg]
                     }
                     if let index = conversations.firstIndex(where: { $0.participantId == rid }) {
                         var conv = conversations.remove(at: index)

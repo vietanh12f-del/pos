@@ -120,7 +120,9 @@ struct ChatView: View {
         }
         .onAppear {
             isTabBarVisible = true
+            viewModel.startAutoRefresh()
         }
+        .onDisappear { viewModel.stopAutoRefresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenConversation"))) { notif in
             if let payload = notif.object as? [String: Any],
                let conv = payload["conversation"] as? ChatConversation,
