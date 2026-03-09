@@ -592,6 +592,8 @@ struct GroupChatDetailById: View {
     @State private var loadedMembers: [Employee] = []
     @Environment(\.presentationMode) var presentationMode
     @State private var messageText: String = ""
+    @State private var showDeleteAlert = false
+    @State private var showLeaveAlert = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -611,6 +613,23 @@ struct GroupChatDetailById: View {
                         .lineLimit(1)
                 }
                 Spacer()
+                if group.ownerId == AuthManager.shared.currentUserProfile?.id {
+                    Button {
+                        showDeleteAlert = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                            .padding()
+                    }
+                } else {
+                    Button {
+                        showLeaveAlert = true
+                    } label: {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .foregroundStyle(Color.themePrimary)
+                            .padding()
+                    }
+                }
             }
             .background(Color.white)
             .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
@@ -665,6 +684,32 @@ struct GroupChatDetailById: View {
         }
         .onDisappear { isTabBarVisible = true }
         .background(Color.themeBackgroundLight.ignoresSafeArea())
+        .alert("Xoá nhóm chat?", isPresented: $showDeleteAlert) {
+            Button("Huỷ", role: .cancel) { }
+            Button("Xoá", role: .destructive) {
+                Task {
+                    if await viewModel.deleteGroup(groupId: group.id) {
+                        NotificationCenter.default.post(name: NSNotification.Name("RefreshConversations"), object: nil)
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+        } message: {
+            Text("Hành động này sẽ xoá nhóm và toàn bộ tin nhắn nhóm cho mọi thành viên.")
+        }
+        .alert("Rời nhóm chat?", isPresented: $showLeaveAlert) {
+            Button("Huỷ", role: .cancel) { }
+            Button("Rời nhóm", role: .destructive) {
+                Task {
+                    if await viewModel.leaveGroup(groupId: group.id) {
+                        NotificationCenter.default.post(name: NSNotification.Name("RefreshConversations"), object: nil)
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
+        } message: {
+            Text("Bạn sẽ rời nhóm và không nhận tin nhắn nhóm này nữa.")
+        }
     }
     
     private func send() {

@@ -677,4 +677,42 @@ class ChatViewModel: ObservableObject {
             }
         }
     }
+    
+    func deleteGroup(groupId: UUID) async -> Bool {
+        do {
+            try await client
+                .from("chat_groups")
+                .delete()
+                .eq("id", value: groupId)
+                .execute()
+            await MainActor.run {
+                self.groups.removeAll { $0.id == groupId }
+                self.groupMessages.removeValue(forKey: groupId)
+            }
+            return true
+        } catch {
+            print("Error deleting group: \(error)")
+            return false
+        }
+    }
+    
+    func leaveGroup(groupId: UUID) async -> Bool {
+        let myId = currentUserId
+        do {
+            try await client
+                .from("chat_group_members")
+                .delete()
+                .eq("group_id", value: groupId)
+                .eq("user_id", value: myId)
+                .execute()
+            await MainActor.run {
+                self.groups.removeAll { $0.id == groupId }
+                self.groupMessages.removeValue(forKey: groupId)
+            }
+            return true
+        } catch {
+            print("Error leaving group: \(error)")
+            return false
+        }
+    }
 }
