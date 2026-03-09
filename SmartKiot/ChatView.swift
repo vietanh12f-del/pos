@@ -8,6 +8,16 @@ struct ChatView: View {
     @Binding var isTabBarVisible: Bool
     @State private var navPath: [ChatRoute] = []
     
+    private var sortedConversations: [ChatConversation] {
+        let me = viewModel.currentUserId
+        return viewModel.conversations.sorted { a, b in
+            let aIsMe = a.participantId == me
+            let bIsMe = b.participantId == me
+            if aIsMe != bIsMe { return aIsMe }
+            return a.lastMessageTime > b.lastMessageTime
+        }
+    }
+    
     var body: some View {
         NavigationStack(path: $navPath) {
             ZStack(alignment: .bottom) {
@@ -68,7 +78,7 @@ struct ChatView: View {
                                 }
                             }
                             
-                            ForEach(viewModel.conversations) { conversation in
+                            ForEach(sortedConversations) { conversation in
                                 if let employee = viewModel.getEmployee(id: conversation.participantId) {
                                     NavigationLink(destination: ChatDetailView(viewModel: viewModel, orderViewModel: orderViewModel, conversation: conversation, employee: employee, isTabBarVisible: $isTabBarVisible)) {
                                         ConversationRow(employee: employee, conversation: conversation)
