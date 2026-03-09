@@ -4,6 +4,7 @@ import Supabase
 
 class ChatViewModel: ObservableObject {
     private let client = SupabaseConfig.client
+    private struct GroupNameUpdate: Encodable { let name: String? }
     @Published var conversations: [ChatConversation] = []
     @Published var messages: [UUID: [ChatMessage]] = [:] // Key: Conversation ID (or Participant ID for simplicity)
     @Published var employees: [Employee] = []
@@ -712,6 +713,27 @@ class ChatViewModel: ObservableObject {
             return true
         } catch {
             print("Error leaving group: \(error)")
+            return false
+        }
+    }
+    
+    func updateGroupName(groupId: UUID, newName: String?) async -> Bool {
+        do {
+            try await client
+                .from("chat_groups")
+                .update(GroupNameUpdate(name: newName))
+                .eq("id", value: groupId)
+                .execute()
+            await MainActor.run {
+                if let index = self.groups.firstIndex(where: { $0.id == groupId }) {
+                    var g = self.groups[index]
+                    g.name = newName
+                    self.groups[index] = g
+                }
+            }
+            return true
+        } catch {
+            print("Error updating group name: \(error)")
             return false
         }
     }

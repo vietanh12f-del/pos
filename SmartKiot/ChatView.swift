@@ -594,6 +594,8 @@ struct GroupChatDetailById: View {
     @State private var messageText: String = ""
     @State private var showDeleteAlert = false
     @State private var showLeaveAlert = false
+    @State private var showRenameSheet = false
+    @State private var renameText: String = ""
     
     var body: some View {
         VStack(spacing: 0) {
@@ -604,7 +606,8 @@ struct GroupChatDetailById: View {
                         .padding()
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(group.name ?? "Nhóm")
+                    let displayName = viewModel.groups.first(where: { $0.id == group.id })?.name ?? group.name ?? "Nhóm"
+                    Text(displayName)
                         .font(.headline)
                         .foregroundStyle(Color.themeTextDark)
                     Text(loadedMembers.isEmpty ? "Đang tải..." : loadedMembers.map { $0.name }.joined(separator: ", "))
@@ -613,6 +616,15 @@ struct GroupChatDetailById: View {
                         .lineLimit(1)
                 }
                 Spacer()
+                // Cho phép tất cả thành viên mở đổi tên; RLS sẽ quyết định quyền cập nhật
+                Button {
+                    renameText = viewModel.groups.first(where: { $0.id == group.id })?.name ?? group.name ?? ""
+                    showRenameSheet = true
+                } label: {
+                    Image(systemName: "pencil")
+                        .foregroundStyle(Color.themePrimary)
+                        .padding()
+                }
                 if group.ownerId == AuthManager.shared.currentUserProfile?.id {
                     Button {
                         showDeleteAlert = true
@@ -709,6 +721,36 @@ struct GroupChatDetailById: View {
             }
         } message: {
             Text("Bạn sẽ rời nhóm và không nhận tin nhắn nhóm này nữa.")
+        }
+        .sheet(isPresented: $showRenameSheet) {
+            VStack(spacing: 16) {
+                Text("Đổi tên nhóm")
+                    .font(.headline)
+                TextField("Tên nhóm", text: $renameText)
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                HStack {
+                    Button("Huỷ") { showRenameSheet = false }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                    Button("Lưu") {
+                        Task {
+                            let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if await viewModel.updateGroupName(groupId: group.id, newName: trimmed.isEmpty ? nil : trimmed) {
+                                NotificationCenter.default.post(name: NSNotification.Name("RefreshConversations"), object: nil)
+                                showRenameSheet = false
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                }
+                .padding(.horizontal)
+                Spacer()
+            }
+            .presentationDetents([.height(240)])
         }
     }
     
