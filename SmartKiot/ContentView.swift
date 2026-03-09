@@ -2033,6 +2033,23 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .disabled(viewModel.discountMode != .percent)
                     }
+                    .padding(8)
+                    .background(viewModel.discountMode == .percent ? Color.themePrimary.opacity(0.08) : Color.gray.opacity(0.06))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(viewModel.discountMode == .percent ? Color.themePrimary : Color.gray.opacity(0.2), lineWidth: viewModel.discountMode == .percent ? 2 : 1)
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        Group {
+                            if viewModel.discountMode == .percent {
+                                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.themePrimary)
+                            } else {
+                                Image(systemName: "circle").foregroundStyle(Color.gray.opacity(0.3))
+                            }
+                        }
+                        .padding(6)
+                    }
                     VStack {
                         Text("Theo giá")
                             .font(.caption)
@@ -2055,6 +2072,23 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                         .disabled(viewModel.discountMode != .finalPrice)
                     }
+                    .padding(8)
+                    .background(viewModel.discountMode == .finalPrice ? Color.themePrimary.opacity(0.08) : Color.gray.opacity(0.06))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(viewModel.discountMode == .finalPrice ? Color.themePrimary : Color.gray.opacity(0.2), lineWidth: viewModel.discountMode == .finalPrice ? 2 : 1)
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        Group {
+                            if viewModel.discountMode == .finalPrice {
+                                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.themePrimary)
+                            } else {
+                                Image(systemName: "circle").foregroundStyle(Color.gray.opacity(0.3))
+                            }
+                        }
+                        .padding(6)
+                    }
                     VStack {
                         Text("Số tiền")
                             .font(.caption)
@@ -2075,6 +2109,23 @@ struct ContentView: View {
                         .pickerStyle(.wheel)
                         .frame(maxWidth: .infinity)
                         .disabled(viewModel.discountMode != .amount)
+                    }
+                    .padding(8)
+                    .background(viewModel.discountMode == .amount ? Color.themePrimary.opacity(0.08) : Color.gray.opacity(0.06))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(viewModel.discountMode == .amount ? Color.themePrimary : Color.gray.opacity(0.2), lineWidth: viewModel.discountMode == .amount ? 2 : 1)
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        Group {
+                            if viewModel.discountMode == .amount {
+                                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.themePrimary)
+                            } else {
+                                Image(systemName: "circle").foregroundStyle(Color.gray.opacity(0.3))
+                            }
+                        }
+                        .padding(6)
                     }
                 }
                 .frame(height: 180)
