@@ -57,6 +57,17 @@ struct ChatView: View {
                     // Conversation List
                     ScrollView {
                         LazyVStack(spacing: 16) {
+                            // Groups Section
+                            if !viewModel.groups.isEmpty {
+                                ForEach(viewModel.groups, id: \.id) { group in
+                                    NavigationLink {
+                                        GroupChatDetailById(viewModel: viewModel, group: group, isTabBarVisible: $isTabBarVisible)
+                                    } label: {
+                                        GroupRow(group: group)
+                                    }
+                                }
+                            }
+                            
                             ForEach(viewModel.conversations) { conversation in
                                 if let employee = viewModel.getEmployee(id: conversation.participantId) {
                                     NavigationLink(destination: ChatDetailView(viewModel: viewModel, orderViewModel: orderViewModel, conversation: conversation, employee: employee, isTabBarVisible: $isTabBarVisible)) {
@@ -77,6 +88,7 @@ struct ChatView: View {
                     }
                     .refreshable {
                         await viewModel.fetchConversations()
+                        await viewModel.fetchGroups()
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .contentShape(Rectangle())
@@ -107,7 +119,10 @@ struct ChatView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshConversations"))) { _ in
-            Task { await viewModel.fetchConversations() }
+            Task {
+                await viewModel.fetchConversations()
+                await viewModel.fetchGroups()
+            }
         }
     }
 }
@@ -265,20 +280,24 @@ struct EmployeePickerChatView: View {
     }
     
     private func createChats() {
-        var firstEmployee: Employee?
-        var firstConversation: ChatConversation?
-        for item in employees where selectedIds.contains(item.0.userId) {
-            let emp = Employee(id: item.0.userId, name: item.1, phoneNumber: "", avatar: "", isOnline: false, role: "employee")
-            let conv = viewModel.startChat(with: emp)
-            if firstEmployee == nil {
-                firstEmployee = emp
-                firstConversation = conv
+        let selected = employees.filter { selectedIds.contains($0.0.userId) }
+        if selected.count >= 2 {
+            let ids = selected.map { $0.0.userId }
+            Task {
+                let gid = await viewModel.createGroupChat(memberIds: ids, name: nil)
+                if gid != nil {
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshConversations"), object: nil)
+                }
+            }
+            isPresented = false
+        } else if selected.count == 1 {
+            if let item = selected.first {
+                let emp = Employee(id: item.0.userId, name: item.1, phoneNumber: "", avatar: "", isOnline: false, role: "employee")
+                let conv = viewModel.startChat(with: emp)
+                NotificationCenter.default.post(name: NSNotification.Name("OpenConversation"), object: ["conversation": conv, "employee": emp])
+                isPresented = false
             }
         }
-        if let emp = firstEmployee, let conv = firstConversation {
-            NotificationCenter.default.post(name: NSNotification.Name("OpenConversation"), object: ["conversation": conv, "employee": emp])
-        }
-        isPresented = false
     }
     
     @ViewBuilder
@@ -563,6 +582,124 @@ struct ChatDetailView: View {
                 }
             }
         }
+    }
+}
+
+struct GroupChatDetailById: View {
+    @ObservedObject var viewModel: ChatViewModel
+    let group: ChatGroup
+    @Binding var isTabBarVisible: Bool
+    @State private var loadedMembers: [Employee] = []
+    @Environment(\.presentationMode) var presentationMode
+    @State private var messageText: String = ""
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button(action: { presentationMode.wrappedValue.dismiss() }) {
+                    Image(systemName: "chevron.left")
+                        .foregroundStyle(Color.themeTextDark)
+                        .padding()
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.name ?? "Nhóm")
+                        .font(.headline)
+                        .foregroundStyle(Color.themeTextDark)
+                    Text(loadedMembers.isEmpty ? "Đang tải..." : loadedMembers.map { $0.name }.joined(separator: ", "))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            .background(Color.white)
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+            
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    let msgs = viewModel.groupMessages[group.id] ?? []
+                    ForEach(msgs, id: \.id) { m in
+                        HStack {
+                            if m.senderId == viewModel.currentUserId { Spacer() }
+                            Text(m.text)
+                                .padding()
+                                .background(m.senderId == viewModel.currentUserId ? Color.themePrimary : Color.white)
+                                .foregroundStyle(m.senderId == viewModel.currentUserId ? .white : Color.themeTextDark)
+                                .cornerRadius(16)
+                            if m.senderId != viewModel.currentUserId { Spacer() }
+                        }
+                    }
+                }
+                .padding()
+            }
+            
+            HStack(spacing: 12) {
+                TextField("Nhập tin nhắn...", text: $messageText)
+                    .padding(12)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(20)
+                
+                Button {
+                    send()
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Color.themePrimary)
+                        .padding(10)
+                }
+                .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding()
+            .background(Color.white)
+            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: -2)
+        }
+        .navigationBarBackButtonHidden(true)
+        .navigationBarHidden(true)
+        .onAppear {
+            isTabBarVisible = false
+            Task {
+                let emps = await viewModel.getGroupMembers(groupId: group.id)
+                loadedMembers = emps
+                await viewModel.fetchGroupMessages(groupId: group.id)
+            }
+        }
+        .onDisappear { isTabBarVisible = true }
+        .background(Color.themeBackgroundLight.ignoresSafeArea())
+    }
+    
+    private func send() {
+        let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        viewModel.sendGroupMessage(groupId: group.id, text: text)
+        messageText = ""
+    }
+}
+
+struct GroupRow: View {
+    let group: ChatGroup
+    var body: some View {
+        HStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(Color.themePrimary.opacity(0.1))
+                    .frame(width: 50, height: 50)
+                Image(systemName: "person.3.fill")
+                    .foregroundStyle(Color.themePrimary)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(group.name ?? "Nhóm")
+                    .font(.headline)
+                    .foregroundStyle(Color.themeTextDark)
+                Text("Nhóm chat")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            Spacer()
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.03), radius: 5, x: 0, y: 2)
     }
 }
 

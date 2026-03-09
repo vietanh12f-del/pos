@@ -7,6 +7,8 @@ class ChatViewModel: ObservableObject {
     @Published var conversations: [ChatConversation] = []
     @Published var messages: [UUID: [ChatMessage]] = [:] // Key: Conversation ID (or Participant ID for simplicity)
     @Published var employees: [Employee] = []
+    @Published var groups: [ChatGroup] = []
+    @Published var groupMessages: [UUID: [GroupMessage]] = [:]
     @Published private(set) var hiddenConversations: Set<UUID> = []
     private let hiddenKey = "hidden_conversations_v1"
     @Published private(set) var deleteCutoff: [UUID: Date] = [:] // otherId -> hide messages older than this time
@@ -26,6 +28,7 @@ class ChatViewModel: ObservableObject {
         // loadMockData() // Disabled for real implementation
         Task {
             await fetchConversations()
+            await fetchGroups()
         }
         
         // Wait for User Profile to be ready before subscribing to Realtime
@@ -59,6 +62,24 @@ class ChatViewModel: ObservableObject {
         )
         
         await channel.subscribe()
+        
+        let groupChannel = client.channel("public:chat_group_messages")
+        let groupChanges = groupChannel.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "chat_group_messages"
+        )
+        await groupChannel.subscribe()
+        Task {
+            for await change in groupChanges {
+                do {
+                    let gm = try change.record.decode(as: GroupMessage.self)
+                    await handleIncomingGroupMessage(gm)
+                } catch {
+                    print("Error decoding realtime group message: \(error)")
+                }
+            }
+        }
         
         for await change in changes {
             do {
@@ -119,6 +140,13 @@ class ChatViewModel: ObservableObject {
                 messages[newConv.id] = [message]
             }
         }
+    }
+    
+    @MainActor
+    private func handleIncomingGroupMessage(_ message: GroupMessage) async {
+        var arr = groupMessages[message.groupId] ?? []
+        arr.append(message)
+        groupMessages[message.groupId] = arr
     }
     
     // MARK: - Supabase Integration
@@ -280,6 +308,60 @@ class ChatViewModel: ObservableObject {
         }
     }
     
+    func sendBroadcast(to receiverIds: [UUID], text: String) {
+        Task {
+            for rid in receiverIds {
+                let msg = ChatMessage(
+                    senderId: currentUserId,
+                    receiverId: rid,
+                    text: text,
+                    timestamp: Date(),
+                    isRead: false
+                )
+                
+                // Ensure local conversation exists
+                await MainActor.run {
+                    if conversations.first(where: { $0.participantId == rid }) == nil {
+                        let conv = ChatConversation(
+                            participantId: rid,
+                            lastMessage: "",
+                            lastMessageTime: Date(),
+                            unreadCount: 0
+                        )
+                        conversations.insert(conv, at: 0)
+                        messages[conv.id] = []
+                    }
+                }
+                
+                // Optimistic update
+                await MainActor.run {
+                    if var msgs = messages[rid] {
+                        msgs.append(msg)
+                        messages[rid] = msgs
+                    } else {
+                        messages[rid] = [msg]
+                    }
+                    if let index = conversations.firstIndex(where: { $0.participantId == rid }) {
+                        var conv = conversations.remove(at: index)
+                        conv.lastMessage = text
+                        conv.lastMessageTime = msg.timestamp
+                        conversations.insert(conv, at: 0)
+                    }
+                }
+                
+                // Persist to DB
+                do {
+                    try await client
+                        .from("messages")
+                        .insert(msg)
+                        .execute()
+                } catch {
+                    print("Error broadcasting to \(rid): \(error)")
+                }
+            }
+        }
+    }
+    
     @MainActor
     func removeLocalConversation(with otherId: UUID) {
         conversations.removeAll { $0.participantId == otherId }
@@ -333,6 +415,31 @@ class ChatViewModel: ObservableObject {
             dict[id.uuidString] = date.timeIntervalSince1970
         }
         UserDefaults.standard.set(dict, forKey: cutoffKey)
+    }
+    
+    func createGroupChat(memberIds: [UUID], name: String? = nil) async -> UUID? {
+        let myId = currentUserId
+        let uniqueMembers = Array(Set(memberIds + [myId]))
+        let group = ChatGroup(id: UUID(), name: name, ownerId: myId, createdAt: Date())
+        do {
+            try await client
+                .from("chat_groups")
+                .insert(group)
+                .execute()
+            
+            var members: [ChatGroupMember] = []
+            for uid in uniqueMembers {
+                members.append(ChatGroupMember(id: UUID(), groupId: group.id, userId: uid, addedAt: Date()))
+            }
+            try await client
+                .from("chat_group_members")
+                .insert(members)
+                .execute()
+            return group.id
+        } catch {
+            print("Error creating group: \(error)")
+            return nil
+        }
     }
     
     @MainActor
@@ -456,5 +563,118 @@ class ChatViewModel: ObservableObject {
     
     func getEmployee(id: UUID) -> Employee? {
         return employees.first { $0.id == id }
+    }
+    
+    @MainActor
+    func fetchGroups() async {
+        guard let myId = AuthManager.shared.currentUserProfile?.id else { return }
+        do {
+            let memberships: [ChatGroupMember] = try await client
+                .from("chat_group_members")
+                .select()
+                .eq("user_id", value: myId)
+                .execute()
+                .value
+            
+            let groupIds = memberships.map { $0.groupId }
+            if groupIds.isEmpty {
+                self.groups = []
+                return
+            }
+            let gs: [ChatGroup] = try await client
+                .from("chat_groups")
+                .select()
+                .in("id", values: groupIds)
+                .order("created_at", ascending: false)
+                .execute()
+                .value
+            self.groups = gs
+        } catch {
+            print("Error fetching groups: \(error)")
+        }
+    }
+    
+    @MainActor
+    func getGroupMembers(groupId: UUID) async -> [Employee] {
+        // Prefer RPC to avoid RLS recursion limits; fallback to direct select for owners
+        do {
+            let profiles: [UserProfile] = try await client
+                .rpc("get_group_members", params: ["g_id": groupId])
+                .execute()
+                .value
+            let emps: [Employee] = profiles.map {
+                Employee(
+                    id: $0.id,
+                    name: $0.fullName,
+                    phoneNumber: $0.phoneNumber ?? "",
+                    avatar: $0.avatarUrl ?? "person.circle.fill",
+                    isOnline: true,
+                    role: "User"
+                )
+            }
+            return emps
+        } catch {
+            print("RPC get_group_members not available or failed: \(error)")
+            do {
+                let rows: [ChatGroupMember] = try await client
+                    .from("chat_group_members")
+                    .select()
+                    .eq("group_id", value: groupId)
+                    .execute()
+                    .value
+                var result: [Employee] = []
+                for r in rows {
+                    if let emp = await fetchEmployeeProfile(id: r.userId) {
+                        result.append(emp)
+                    }
+                }
+                return result
+            } catch {
+                print("Error fetching group members: \(error)")
+                return []
+            }
+        }
+    }
+    
+    @MainActor
+    func fetchGroupMessages(groupId: UUID) async {
+        do {
+            let rows: [GroupMessage] = try await client
+                .from("chat_group_messages")
+                .select()
+                .eq("group_id", value: groupId)
+                .order("created_at", ascending: true)
+                .execute()
+                .value
+            groupMessages[groupId] = rows
+        } catch {
+            print("Error fetching group messages: \(error)")
+        }
+    }
+    
+    func sendGroupMessage(groupId: UUID, text: String) {
+        Task {
+            let msg = GroupMessage(
+                groupId: groupId,
+                senderId: currentUserId,
+                text: text,
+                timestamp: Date(),
+                messageType: nil,
+                orderId: nil
+            )
+            await MainActor.run {
+                var arr = groupMessages[groupId] ?? []
+                arr.append(msg)
+                groupMessages[groupId] = arr
+            }
+            do {
+                try await client
+                    .from("chat_group_messages")
+                    .insert(msg)
+                    .execute()
+            } catch {
+                print("Error sending group message: \(error)")
+            }
+        }
     }
 }

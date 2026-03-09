@@ -278,3 +278,51 @@ struct ChatConversation: Identifiable, Hashable {
     var lastMessageTime: Date
     var unreadCount: Int
 }
+
+struct ChatGroup: Identifiable, Codable, Hashable {
+    let id: UUID
+    var name: String?
+    let ownerId: UUID
+    let createdAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case ownerId = "owner_id"
+        case createdAt = "created_at"
+    }
+}
+
+struct ChatGroupMember: Identifiable, Codable, Hashable {
+    let id: UUID
+    let groupId: UUID
+    let userId: UUID
+    let addedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case groupId = "group_id"
+        case userId = "user_id"
+        case addedAt = "added_at"
+    }
+}
+
+struct GroupMessage: Identifiable, Codable, Hashable {
+    var id: UUID = UUID()
+    let groupId: UUID
+    let senderId: UUID
+    let text: String
+    let timestamp: Date
+    var messageType: String?
+    var orderId: UUID?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case groupId = "group_id"
+        case senderId = "sender_id"
+        case text = "content"
+        case timestamp = "created_at"
+        case messageType = "message_type"
+        case orderId = "order_id"
+    }
+}
