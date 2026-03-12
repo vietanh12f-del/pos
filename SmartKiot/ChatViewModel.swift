@@ -43,6 +43,16 @@ class ChatViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+        
+        NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { [weak self] in
+                print("🌤️ ChatViewModel: Re-subscribing realtime on foreground")
+                await self?.subscribeToRealtime()
+            }
+        }
+        NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
+            print("🌙 ChatViewModel: App entered background; realtime may pause. Rely on APNs for notifications.")
+        }
     }
     
     func startAutoRefresh() {
