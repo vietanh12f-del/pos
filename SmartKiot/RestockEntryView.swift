@@ -36,44 +36,93 @@ struct RestockEntryView: View {
                 .padding(.top, 10)
                 .background(Color.white)
                 
-                // Content
-                if viewModel.restockItems.isEmpty {
-                    VStack(spacing: 20) {
-                        Spacer()
-                        Image(systemName: "cart.badge.plus")
-                            .font(.system(size: 80))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        Text("Chưa có hàng hóa nào")
-                            .font(.title3)
-                            .fontWeight(.medium)
-                            .foregroundStyle(Color.gray)
-                        Text("Nhấn vào mic để nói hoặc dùng các công cụ bên dưới")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.gray.opacity(0.8))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                        Spacer()
-                        Spacer() // Push up a bit
-                    }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(viewModel.restockItems) { item in
-                                RestockItemCard(item: item, viewModel: viewModel)
-                                    .onTapGesture {
-                                        editingItem = item
-                                    }
-                                    .contextMenu {
-                                        Button(role: .destructive) {
-                                            viewModel.removeRestockItem(at: IndexSet(integer: viewModel.restockItems.firstIndex(where: {$0.id == item.id}) ?? 0))
-                                        } label: {
-                                            Label("Xóa", systemImage: "trash")
-                                        }
-                                    }
+                // Content: Inventory section (categories + 3-column grid)
+                VStack(spacing: 0) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(Category.allCases, id: \.self) { cat in
+                                Button {
+                                    viewModel.selectedCategory = cat
+                                } label: {
+                                    Text(cat.displayName)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(viewModel.selectedCategory == cat ? Color.themePrimary.opacity(0.15) : Color.gray.opacity(0.1))
+                                        .foregroundStyle(viewModel.selectedCategory == cat ? Color.themePrimary : Color.themeTextDark)
+                                        .cornerRadius(16)
+                                }
                             }
                         }
-                        .padding()
-                        .padding(.bottom, 160) // Space for bottom panel + FABs
+                        .padding(.horizontal)
+                        .padding(.vertical, 10)
+                        .background(Color.white)
+                    }
+                    
+                    HStack {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                        TextField("Tìm sản phẩm...", text: $viewModel.searchText)
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                        if !viewModel.searchText.isEmpty {
+                            Button { viewModel.searchText = "" } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                            }
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            ForEach(viewModel.products.filter { p in
+                                let matchCat = viewModel.selectedCategory == .all || p.category.lowercased() == viewModel.selectedCategory.displayName.lowercased()
+                                let s = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if s.isEmpty {
+                                    return matchCat
+                                } else {
+                                    let q = s.lowercased()
+                                    return matchCat && (p.name.lowercased().contains(q) || p.category.lowercased().contains(q) || (p.barcode?.contains(s) ?? false))
+                                }
+                            }) { p in
+                                VStack(spacing: 8) {
+                                    HStack {
+                                        Text(formatCurrency(p.price))
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.themePrimary)
+                                        Spacer()
+                                    }
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 12).fill(Color.white)
+                                        VStack(spacing: 6) {
+                                            Text(p.name)
+                                                .font(.subheadline)
+                                                .foregroundStyle(Color.themeTextDark)
+                                                .lineLimit(2)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            HStack {
+                                                Text("Kho: \(p.stockQuantity)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                                Spacer()
+                                            }
+                                        }
+                                        .padding(10)
+                                    }
+                                    .onTapGesture { scannedProduct = p }
+                                    .frame(height: 110)
+                                }
+                                .padding(.horizontal, 4)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 10)
+                        .padding(.bottom, 160) // Space for bottom summary + FABs
                     }
                 }
             }
@@ -135,48 +184,109 @@ struct RestockEntryView: View {
                     .padding(.bottom, 20)
                 }
                 
-                // Bottom Panel (Total & Complete)
-                VStack(spacing: 16) {
-                    // Total Info
+                // Bottom Summary (no total and button, editable list)
+                VStack(spacing: 12) {
+                    Capsule()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 40, height: 5)
+                        .padding(.top, 10)
+                    
                     HStack {
-                        VStack(alignment: .leading) {
-                            Text("Tổng chi phí")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            Text(formatCurrency(viewModel.restockItems.reduce(0) { $0 + $1.totalCost }))
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.themePrimary)
-                        }
-                        
+                        Text("Tóm tắt nhập hàng")
+                            .font(.headline)
                         Spacer()
-                        
-                        Button(action: {
-                            viewModel.completeRestockSession()
-                            dismiss()
-                        }) {
-                            HStack {
-                                Text("Hoàn tất")
-                                Image(systemName: "checkmark")
-                            }
-                            .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 14)
-                            .background(
-                                Capsule()
-                                    .fill(viewModel.restockItems.isEmpty ? Color.gray : Color.themePrimary)
-                            )
+                        Text("\(viewModel.restockItems.reduce(0) { $0 + $1.quantity })")
+                            .font(.headline)
+                            .foregroundStyle(Color.themePrimary)
+                    }
+                    .padding(.horizontal)
+                    
+                    if viewModel.restockItems.isEmpty {
+                        VStack(spacing: 12) {
+                            Text("Chưa có hàng hóa nào")
+                                .foregroundStyle(.gray)
                         }
-                        .disabled(viewModel.restockItems.isEmpty)
+                        .padding(.vertical, 8)
+                    } else {
+                        ScrollView {
+                            VStack(spacing: 8) {
+                                ForEach(viewModel.restockItems) { item in
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(item.name)
+                                                .font(.subheadline)
+                                                .foregroundStyle(Color.themeTextDark)
+                                            HStack(spacing: 10) {
+                                                Text("SL: \(item.quantity)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                                Text("Đơn giá: \(formatCurrency(item.unitPrice))")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                                if item.additionalCost > 0 {
+                                                    Text("Phí: \(formatCurrency(item.additionalCost))")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.gray)
+                                                }
+                                            }
+                                        }
+                                        Spacer()
+                                        Button {
+                                            editingItem = item
+                                        } label: {
+                                            Text("Sửa")
+                                                .font(.subheadline).fontWeight(.bold)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 6)
+                                                .background(Capsule().fill(Color.themePrimary))
+                                        }
+                                        Button {
+                                            if let idx = viewModel.restockItems.firstIndex(where: { $0.id == item.id }) {
+                                                viewModel.removeRestockItem(at: IndexSet(integer: idx))
+                                            }
+                                        } label: {
+                                            Image(systemName: "trash")
+                                                .foregroundStyle(.red)
+                                        }
+                                    }
+                                    .padding(10)
+                                    .background(Color.white)
+                                    .cornerRadius(12)
+                                    .padding(.horizontal)
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 220)
                     }
                 }
-                .padding(24)
+                .padding(.bottom, 12)
                 .background(
                     Color.white
                         .cornerRadius(24, corners: [.topLeft, .topRight])
                         .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
                 )
+                
+                HStack {
+                    Button {
+                        viewModel.completeRestockSession()
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text("Hoàn tất")
+                            Image(systemName: "checkmark")
+                        }
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(viewModel.restockItems.isEmpty ? Color.gray : Color.themePrimary)
+                        .foregroundStyle(.white)
+                        .cornerRadius(16)
+                    }
+                    .disabled(viewModel.restockItems.isEmpty)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                }
             }
             
             // Voice Overlay
@@ -483,23 +593,24 @@ struct ManualRestockItemView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(itemToEdit == nil ? "Thêm" : "Lưu") {
-                        if let p = parseDouble(price), let q = Int(quantity), !name.isEmpty {
-                            let extra = parseDouble(incurredCost) ?? 0
-                            let suggested = parseDouble(sellingPrice)
-                            
-                            if var item = itemToEdit {
-                                item.name = name
-                                item.quantity = q
-                                item.unitPrice = p
-                                item.additionalCost = extra
-                                item.suggestedPrice = suggested
-                                item.isConfirmed = true
-                                viewModel.updateRestockItem(item)
-                            } else {
-                                viewModel.addRestockItem(name, unitPrice: p, quantity: q, additionalCost: extra, suggestedPrice: suggested)
-                            }
-                            dismiss()
+                        let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
+                        let q = Int(quantity) ?? quantityWheelSelection
+                        guard !name.isEmpty, q > 0 else { return }
+                        let extra = parseDouble(incurredCost) ?? 0
+                        let suggested = parseDouble(sellingPrice)
+                        
+                        if var item = itemToEdit {
+                            item.name = name
+                            item.quantity = q
+                            item.unitPrice = p
+                            item.additionalCost = extra
+                            item.suggestedPrice = suggested
+                            item.isConfirmed = true
+                            viewModel.updateRestockItem(item)
+                        } else {
+                            viewModel.addRestockItem(name, unitPrice: p, quantity: q, additionalCost: extra, suggestedPrice: suggested)
                         }
+                        dismiss()
                     }
                     .disabled(name.isEmpty)
                 }
