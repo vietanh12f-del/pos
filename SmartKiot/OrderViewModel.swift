@@ -1406,6 +1406,22 @@ class OrderViewModel: ObservableObject {
         shouldShowRestockSheet = true
     }
     
+    // MARK: - Production Management
+    func completeProductionTransaction(mode: String) {
+        guard !restockItems.isEmpty else { return }
+        let total = restockItems.reduce(0) { $0 + $1.totalCost }
+        let tx = ProductionTransaction(id: UUID(), createdAt: Date(), mode: mode, items: restockItems, totalCost: total)
+        Task {
+            do {
+                try await database.saveProductionTransaction(tx)
+            } catch {
+                print("❌ Error saving production transaction: \(error)")
+            }
+        }
+        restockItems.removeAll()
+        isRestockMode = false
+    }
+    
     // MARK: - Product Catalog Management
     
     func createProduct(name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil) {

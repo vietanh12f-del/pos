@@ -69,6 +69,18 @@ struct RestockBill: Identifiable, Codable, Equatable {
     }
 }
 
+struct ProductionTransaction: Identifiable, Codable, Equatable {
+    let id: UUID
+    let createdAt: Date
+    let mode: String
+    let items: [RestockItem]
+    let totalCost: Double
+    
+    static func == (lhs: ProductionTransaction, rhs: ProductionTransaction) -> Bool {
+        return lhs.id == rhs.id
+    }
+}
+
 struct OperatingExpense: Identifiable, Codable, Equatable {
     let id: UUID
     var title: String

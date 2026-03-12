@@ -6,6 +6,8 @@ struct ProductionManagementView: View {
     
     @State private var selectedMode: Mode? = .nhapNguyenLieu
     @State private var showMaterialEntry = false
+    @State private var materialTab: Int = 0
+    @State private var searchText: String = ""
     
     enum Mode: String, CaseIterable {
         case nhapNguyenLieu = "Nhập Nguyên liệu"
@@ -47,16 +49,35 @@ struct ProductionManagementView: View {
                 .padding(.horizontal)
                 
                 if let mode = selectedMode {
-                    // Bar with two sides
-                    VStack(spacing: 10) {
-                        HStack {
-                            Text(leftTitle(for: mode))
-                                .font(.headline)
-                            Spacer()
-                            Text(rightTitle(for: mode))
-                                .font(.headline)
+                    VStack(spacing: 12) {
+                        Picker("Chế độ", selection: $materialTab) {
+                            Text(leftTitle(for: mode)).tag(0)
+                            Text(rightTitle(for: mode)).tag(1)
                         }
+                        .pickerStyle(SegmentedPickerStyle())
                         .padding(.horizontal)
+                        
+                        if materialTab == 0 {
+                            VStack(spacing: 16) {
+                                Image(systemName: "shippingbox")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(Color.gray.opacity(0.3))
+                                Text("Chưa có dữ liệu")
+                                    .font(.headline)
+                                    .foregroundStyle(.gray)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 220)
+                        } else {
+                            VStack(spacing: 16) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(Color.gray.opacity(0.3))
+                                Text("Chưa có lịch sử")
+                                    .font(.headline)
+                                    .foregroundStyle(.gray)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 220)
+                        }
                     }
                 } else {
                     Spacer()
@@ -71,7 +92,16 @@ struct ProductionManagementView: View {
                 }
             }
             .sheet(isPresented: $showMaterialEntry) {
-                RestockEntryView(viewModel: viewModel, titleText: centerButtonTitle(for: selectedMode ?? .nhapNguyenLieu))
+                let mode = selectedMode ?? .nhapNguyenLieu
+                RestockEntryView(
+                    viewModel: viewModel,
+                    titleText: centerButtonTitle(for: mode),
+                    summaryTitle: summaryTitle(for: mode),
+                    useInventoryList: false,
+                    onComplete: { items in
+                        viewModel.completeProductionTransaction(mode: centerButtonTitle(for: mode))
+                    }
+                )
             }
             .safeAreaInset(edge: .bottom) {
                 if let mode = selectedMode {
@@ -123,6 +153,14 @@ struct ProductionManagementView: View {
         case .xuatNguyenLieu: return "Xuất nguyên liệu"
         case .nhapThanhPham: return "Nhập thành phẩm"
         case .xuatThanhPham: return "Xuất thành phẩm"
+        }
+    }
+    func summaryTitle(for mode: Mode) -> String {
+        switch mode {
+        case .nhapNguyenLieu: return "Tóm tắt nhập nguyên liệu"
+        case .xuatNguyenLieu: return "Tóm tắt xuất nguyên liệu"
+        case .nhapThanhPham: return "Tóm tắt nhập thành phẩm"
+        case .xuatThanhPham: return "Tóm tắt xuất thành phẩm"
         }
     }
 }

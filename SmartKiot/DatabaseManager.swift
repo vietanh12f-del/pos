@@ -21,6 +21,10 @@ protocol DatabaseService {
     func saveRestockBill(_ bill: RestockBill) async throws
     func deleteRestockBill(_ id: UUID) async throws
     
+    // Production management
+    func saveProductionTransaction(_ tx: ProductionTransaction) async throws
+    func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction]
+    
     func fetchPriceHistory() async throws -> [String: Double]
     func upsertPriceHistory(name: String, price: Double) async throws
     
@@ -297,6 +301,31 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
     }
     
+    // MARK: - Production Management
+    func saveProductionTransaction(_ tx: ProductionTransaction) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        let header = ProductionTransactionDTO(from: tx).withStore(storeId)
+        try await client.database.from("production_transactions").insert(header).execute()
+        let itemsDTOs = tx.items.map { ProductionTransactionItemDTO(from: $0, transactionId: tx.id) }
+        try await client.database.from("production_transaction_items").insert(itemsDTOs).execute()
+    }
+    
+    func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction] {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        var req = client
+            .from("production_transactions")
+            .select("*, production_transaction_items(*)")
+            .eq("store_id", value: storeId)
+        if let m = mode {
+            req = req.eq("mode", value: m)
+        }
+        let rows: [ProductionTransactionDTO] = try await req
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+    
     // MARK: - Price History
     func fetchPriceHistory() async throws -> [String: Double] {
         let history: [PriceHistoryDTO] = try await client
@@ -324,7 +353,7 @@ class SupabaseDatabaseService: DatabaseService {
         let response: [OperatingExpenseDTO] = try await client
             .from("operating_expenses")
             .select()
-            .eq("store_id", value: storeId)
+            .match(["store_id": storeId])
             .order("created_at", ascending: false)
             .execute()
             .value
@@ -448,6 +477,9 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchOrderEdits(orderId: UUID) async throws -> [OrderEdit] { return [] }
     func saveOrderEdit(_ edit: OrderEdit) async throws { print("⚠️ saveOrderEdit: Mocked success") }
     func fetchEditedOrderIds(storeId: UUID) async throws -> [UUID] { return [] }
+    
+    func saveProductionTransaction(_ tx: ProductionTransaction) async throws { print("⚠️ saveProductionTransaction: Mocked success") }
+    func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction] { return [] }
 }
 #endif
 
@@ -747,6 +779,62 @@ struct RestockItemDTO: Codable {
     
     func toDomain() -> RestockItem {
         return RestockItem(id: UUID(), name: product_name, quantity: quantity, unitPrice: unit_price)
+    }
+}
+ 
+struct ProductionTransactionDTO: Codable {
+    let id: UUID
+    let mode: String
+    let total_cost: Double
+    let created_at: Date
+    let production_transaction_items: [ProductionTransactionItemDTO]?
+    let store_id: UUID?
+    
+    init(id: UUID, mode: String, total_cost: Double, created_at: Date, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?) {
+        self.id = id
+        self.mode = mode
+        self.total_cost = total_cost
+        self.created_at = created_at
+        self.production_transaction_items = production_transaction_items
+        self.store_id = store_id
+    }
+    
+    init(from domain: ProductionTransaction) {
+        self.id = domain.id
+        self.mode = domain.mode
+        self.total_cost = domain.totalCost
+        self.created_at = domain.createdAt
+        self.production_transaction_items = nil
+        self.store_id = nil
+    }
+    
+    func toDomain() -> ProductionTransaction {
+        let items = production_transaction_items?.map { $0.toDomain() } ?? []
+        return ProductionTransaction(id: id, createdAt: created_at, mode: mode, items: items, totalCost: total_cost)
+    }
+    
+    func withStore(_ storeId: UUID) -> ProductionTransactionDTO {
+        return ProductionTransactionDTO(id: id, mode: mode, total_cost: total_cost, created_at: created_at, production_transaction_items: production_transaction_items, store_id: storeId)
+    }
+}
+
+struct ProductionTransactionItemDTO: Codable {
+    let id: UUID
+    let transaction_id: UUID
+    let item_name: String
+    let quantity: Int
+    let unit_price: Double
+    
+    init(from domain: RestockItem, transactionId: UUID) {
+        self.id = UUID()
+        self.transaction_id = transactionId
+        self.item_name = domain.name
+        self.quantity = domain.quantity
+        self.unit_price = domain.unitPrice
+    }
+    
+    func toDomain() -> RestockItem {
+        return RestockItem(id: UUID(), name: item_name, quantity: quantity, unitPrice: unit_price)
     }
 }
 
