@@ -4,7 +4,7 @@ struct ProductionManagementView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Environment(\.dismiss) var dismiss
     
-    @State private var selectedMode: Mode? = nil
+    @State private var selectedMode: Mode? = .nhapNguyenLieu
     @State private var showMaterialEntry = false
     
     enum Mode: String, CaseIterable {
