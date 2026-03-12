@@ -78,6 +78,8 @@ class OrderViewModel: ObservableObject {
     @Published var restockItems: [RestockItem] = []
     @Published var restockHistory: [RestockBill] = []
     @Published var operatingExpenses: [OperatingExpense] = []
+    @Published var materialsInventory: [MaterialItem] = []
+    @Published var materials: [MaterialItem] = []
     
     // Catalog & Dashboard
     @Published var selectedCategory: Category = .all
@@ -1414,6 +1416,8 @@ class OrderViewModel: ObservableObject {
         Task {
             do {
                 try await database.saveProductionTransaction(tx)
+                await upsertMaterialsFromTransaction(tx)
+                await loadMaterials()
             } catch {
                 print("❌ Error saving production transaction: \(error)")
             }
@@ -1422,6 +1426,72 @@ class OrderViewModel: ObservableObject {
         isRestockMode = false
     }
     
+    func loadMaterialsInventory() async {
+        do {
+            let inputs = try await database.fetchProductionTransactions(mode: "Nhập nguyên liệu")
+            let outputs = try await database.fetchProductionTransactions(mode: "Xuất nguyên liệu")
+            var dict: [String: (qty: Int, last: Double)] = [:]
+            for tx in inputs {
+                for it in tx.items {
+                    let key = it.name.lowercased()
+                    let cur = dict[key]?.qty ?? 0
+                    dict[key] = (cur + it.quantity, it.unitPrice)
+                }
+            }
+            for tx in outputs {
+                for it in tx.items {
+                    let key = it.name.lowercased()
+                    let cur = dict[key]?.qty ?? 0
+                    dict[key] = (cur - it.quantity, it.unitPrice)
+                }
+            }
+            let items = dict.map { k, v in
+                MaterialItem(id: UUID(), name: k, stockQuantity: max(0, v.qty), lastUnitPrice: v.last)
+            }.sorted { $0.name < $1.name }
+            await MainActor.run { self.materialsInventory = items }
+        } catch {
+            print("⚠️ loadMaterialsInventory error: \(error)")
+        }
+    }
+    
+    // Materials DB helpers
+    func loadMaterials() async {
+        do {
+            let rows = try await database.fetchMaterials()
+            await MainActor.run { self.materials = rows }
+        } catch {
+            print("⚠️ loadMaterials error: \(error)")
+        }
+    }
+    func databaseSaveMaterial(_ material: MaterialItem) async throws {
+        try await database.saveMaterial(material)
+    }
+    func databaseUpdateMaterial(_ material: MaterialItem) async throws {
+        try await database.updateMaterial(material)
+    }
+    func databaseDeleteMaterial(_ id: UUID) async throws {
+        try await database.deleteMaterial(id)
+    }
+    
+    func upsertMaterialsFromTransaction(_ tx: ProductionTransaction) async {
+        // naive: sync into materials table
+        await loadMaterials()
+        var current = self.materials
+        for it in tx.items {
+            if let idx = current.firstIndex(where: { $0.name.lowercased() == it.name.lowercased() }) {
+                var m = current[idx]
+                m.stockQuantity = max(0, m.stockQuantity + it.quantity)
+                m.lastUnitPrice = it.unitPrice
+                try? await database.updateMaterial(m)
+                current[idx] = m
+            } else {
+                let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: it.unitPrice)
+                try? await database.saveMaterial(m)
+                current.append(m)
+            }
+        }
+        await loadMaterials()
+    }
     // MARK: - Product Catalog Management
     
     func createProduct(name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil) {

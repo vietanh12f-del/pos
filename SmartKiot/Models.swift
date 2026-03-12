@@ -81,6 +81,13 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     }
 }
 
+struct MaterialItem: Identifiable, Codable, Equatable {
+    let id: UUID
+    var name: String
+    var stockQuantity: Int
+    var lastUnitPrice: Double
+}
+
 struct OperatingExpense: Identifiable, Codable, Equatable {
     let id: UUID
     var title: String

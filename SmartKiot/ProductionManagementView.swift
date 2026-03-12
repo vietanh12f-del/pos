@@ -8,6 +8,8 @@ struct ProductionManagementView: View {
     @State private var showMaterialEntry = false
     @State private var materialTab: Int = 0
     @State private var searchText: String = ""
+    @State private var editingMaterial: MaterialItem?
+    @State private var showMaterialEdit = false
     
     enum Mode: String, CaseIterable {
         case nhapNguyenLieu = "Nhập Nguyên liệu"
@@ -58,15 +60,78 @@ struct ProductionManagementView: View {
                         .padding(.horizontal)
                         
                         if materialTab == 0 {
-                            VStack(spacing: 16) {
-                                Image(systemName: "shippingbox")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(Color.gray.opacity(0.3))
-                                Text("Chưa có dữ liệu")
-                                    .font(.headline)
-                                    .foregroundStyle(.gray)
+                            HStack {
+                                Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                                TextField("Tìm nguyên liệu...", text: $searchText)
+                                    .textInputAutocapitalization(.never)
+                                    .disableAutocorrection(true)
+                                if !searchText.isEmpty {
+                                    Button { searchText = "" } label: {
+                                        Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                                    }
+                                }
                             }
-                            .frame(maxWidth: .infinity, minHeight: 220)
+                            .padding(12)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .padding(.horizontal)
+                            
+                            if viewModel.materials.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "shippingbox")
+                                        .font(.system(size: 60))
+                                        .foregroundStyle(Color.gray.opacity(0.3))
+                                    Text("Chưa có dữ liệu")
+                                        .font(.headline)
+                                        .foregroundStyle(.gray)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 220)
+                            } else {
+                                ScrollView {
+                                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                        ForEach(viewModel.materials.filter { item in
+                                            if searchText.isEmpty { return true }
+                                            let q = searchText.lowercased()
+                                            return item.name.contains(q)
+                                        }) { item in
+                                            VStack(spacing: 8) {
+                                                ZStack {
+                                                    RoundedRectangle(cornerRadius: 12).fill(Color.white)
+                                                    VStack(spacing: 6) {
+                                                        Text(item.name)
+                                                            .font(.subheadline)
+                                                            .foregroundStyle(Color.themeTextDark)
+                                                            .lineLimit(2)
+                                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                                        HStack {
+                                                            Text("Kho: \(item.stockQuantity)")
+                                                                .font(.caption)
+                                                                .foregroundStyle(.gray)
+                                                            Spacer()
+                                                        }
+                                                        HStack {
+                                                            Text("Giá nhập: \(formatCurrency(item.lastUnitPrice))")
+                                                                .font(.caption)
+                                                                .foregroundStyle(Color.themePrimary)
+                                                            Spacer()
+                                                        }
+                                                    }
+                                                    .padding(10)
+                                                }
+                                                .onTapGesture {
+                                                    editingMaterial = item
+                                                    showMaterialEdit = true
+                                                }
+                                                .frame(height: 110)
+                                            }
+                                            .padding(.horizontal, 4)
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 120)
+                                }
+                            }
                         } else {
                             VStack(spacing: 16) {
                                 Image(systemName: "clock.arrow.circlepath")
@@ -100,8 +165,18 @@ struct ProductionManagementView: View {
                     useInventoryList: false,
                     onComplete: { items in
                         viewModel.completeProductionTransaction(mode: centerButtonTitle(for: mode))
+                        Task { await viewModel.loadMaterials() }
+                        materialTab = 0
                     }
                 )
+            }
+            .onAppear {
+                Task { await viewModel.loadMaterials() }
+            }
+            .sheet(isPresented: $showMaterialEdit) {
+                if let m = editingMaterial {
+                    MaterialEditView(viewModel: viewModel, mode: .edit(m))
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 if let mode = selectedMode {

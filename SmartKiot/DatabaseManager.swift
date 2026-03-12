@@ -48,6 +48,12 @@ protocol DatabaseService {
     // Device tokens for push
     func saveDeviceToken(_ token: String) async throws
     func deleteDeviceToken(_ token: String) async throws
+    
+    // Materials
+    func fetchMaterials() async throws -> [MaterialItem]
+    func saveMaterial(_ material: MaterialItem) async throws
+    func updateMaterial(_ material: MaterialItem) async throws
+    func deleteMaterial(_ id: UUID) async throws
 }
 
 // MARK: - Supabase Implementation
@@ -396,6 +402,35 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
     }
     
+    // MARK: - Materials
+    func fetchMaterials() async throws -> [MaterialItem] {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        let rows: [MaterialDTO] = try await client
+            .from("materials")
+            .select()
+            .eq("store_id", value: storeId)
+            .order("name", ascending: true)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+    
+    func saveMaterial(_ material: MaterialItem) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        let dto = MaterialDTO(from: material, storeId: storeId)
+        try await client.from("materials").insert(dto).execute()
+    }
+    
+    func updateMaterial(_ material: MaterialItem) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        let dto = MaterialDTO(from: material, storeId: storeId)
+        try await client.from("materials").update(dto).eq("id", value: material.id).execute()
+    }
+    
+    func deleteMaterial(_ id: UUID) async throws {
+        try await client.from("materials").delete().eq("id", value: id).execute()
+    }
+    
     // MARK: - Profiles
     func fetchProfile(id: UUID) async throws -> UserProfile? {
         let response: [UserProfile] = try await client
@@ -480,6 +515,11 @@ class SupabaseDatabaseService: DatabaseService {
     
     func saveProductionTransaction(_ tx: ProductionTransaction) async throws { print("⚠️ saveProductionTransaction: Mocked success") }
     func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction] { return [] }
+    
+    func fetchMaterials() async throws -> [MaterialItem] { return [] }
+    func saveMaterial(_ material: MaterialItem) async throws { print("⚠️ saveMaterial: Mocked success") }
+    func updateMaterial(_ material: MaterialItem) async throws { print("⚠️ updateMaterial: Mocked success") }
+    func deleteMaterial(_ id: UUID) async throws { print("⚠️ deleteMaterial: Mocked success") }
 }
 #endif
 
@@ -782,6 +822,34 @@ struct RestockItemDTO: Codable {
     }
 }
  
+struct MaterialDTO: Codable {
+    let id: UUID
+    let name: String
+    let stock_quantity: Int
+    let last_unit_price: Double
+    let store_id: UUID?
+    
+    init(id: UUID, name: String, stock_quantity: Int, last_unit_price: Double, store_id: UUID?) {
+        self.id = id
+        self.name = name
+        self.stock_quantity = stock_quantity
+        self.last_unit_price = last_unit_price
+        self.store_id = store_id
+    }
+    
+    init(from domain: MaterialItem, storeId: UUID?) {
+        self.id = domain.id
+        self.name = domain.name
+        self.stock_quantity = domain.stockQuantity
+        self.last_unit_price = domain.lastUnitPrice
+        self.store_id = storeId
+    }
+    
+    func toDomain() -> MaterialItem {
+        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price)
+    }
+}
+
 struct ProductionTransactionDTO: Codable {
     let id: UUID
     let mode: String
