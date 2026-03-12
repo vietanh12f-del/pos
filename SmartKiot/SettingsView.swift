@@ -214,6 +214,29 @@ struct SettingsView: View {
                     }
                 }
                 
+                Section(header: Text("Thông báo")) {
+                    Toggle("Bật âm báo tin nhắn", isOn: Binding(
+                        get: { UserDefaults.standard.object(forKey: NotificationManager.soundKey) as? Bool ?? true },
+                        set: { UserDefaults.standard.set($0, forKey: NotificationManager.soundKey) }
+                    ))
+                    Toggle("Bật thông báo", isOn: Binding(
+                        get: { UserDefaults.standard.object(forKey: NotificationManager.notificationsKey) as? Bool ?? true },
+                        set: { UserDefaults.standard.set($0, forKey: NotificationManager.notificationsKey) }
+                    ))
+                    Toggle("Hiện banner trong ứng dụng", isOn: Binding(
+                        get: { UserDefaults.standard.object(forKey: NotificationManager.bannerKey) as? Bool ?? true },
+                        set: { UserDefaults.standard.set($0, forKey: NotificationManager.bannerKey) }
+                    ))
+                    Button("Cho phép quyền thông báo") {
+                        NotificationManager.shared.configure()
+                        UNUserNotificationCenter.current().getNotificationSettings { settings in
+                            if settings.authorizationStatus == .notDetermined {
+                                NotificationManager.shared.configure()
+                            }
+                        }
+                    }
+                }
+                
             }
             .navigationTitle("Cài đặt")
             .navigationBarBackButtonHidden(true)

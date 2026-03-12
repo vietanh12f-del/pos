@@ -35,6 +35,10 @@ protocol DatabaseService {
     func deleteStore(_ id: UUID) async throws
     
     func saveUserFeedback(_ feedback: UserFeedback) async throws
+    
+    // Device tokens for push
+    func saveDeviceToken(_ token: String) async throws
+    func deleteDeviceToken(_ token: String) async throws
 }
 
 // MARK: - Supabase Implementation
@@ -321,6 +325,24 @@ class SupabaseDatabaseService: DatabaseService {
         try await client
             .from("profiles")
             .upsert(profile)
+            .execute()
+    }
+    
+    // MARK: - Device Tokens
+    func saveDeviceToken(_ token: String) async throws {
+        let userId = SupabaseConfig.client.auth.currentUser?.id
+        let dto = DeviceTokenDTO(token: token, user_id: userId, created_at: Date(), platform: "ios")
+        try await client
+            .from("device_tokens")
+            .upsert(dto)
+            .execute()
+    }
+    
+    func deleteDeviceToken(_ token: String) async throws {
+        try await client
+            .from("device_tokens")
+            .delete()
+            .eq("token", value: token)
             .execute()
     }
 }
@@ -672,4 +694,11 @@ struct UserFeedbackDTO: Codable {
     let created_at: Date
     let user_id: UUID?
     let store_id: UUID?
+}
+
+struct DeviceTokenDTO: Codable {
+    let token: String
+    let user_id: UUID?
+    let created_at: Date
+    let platform: String?
 }

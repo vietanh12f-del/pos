@@ -158,6 +158,12 @@ class ChatViewModel: ObservableObject {
                 messages[newConv.id] = [message]
             }
         }
+        
+        if senderId != currentUserId {
+            AppSound.playIncomingMessage()
+            let senderName = employees.first(where: { $0.id == senderId })?.name ?? "Tin nhắn mới"
+            NotificationManager.shared.notifyIncomingMessage(title: senderName, body: message.text)
+        }
     }
     
     @MainActor
@@ -165,6 +171,10 @@ class ChatViewModel: ObservableObject {
         var arr = groupMessages[message.groupId] ?? []
         arr.append(message)
         groupMessages[message.groupId] = arr
+        if message.senderId != currentUserId {
+            AppSound.playIncomingMessage()
+            NotificationManager.shared.notifyIncomingMessage(title: "Tin nhắn nhóm", body: message.text)
+        }
     }
     
     // MARK: - Supabase Integration

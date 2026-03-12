@@ -7,9 +7,15 @@
 
 import SwiftUI
 import Supabase
+import UserNotifications
 
 @main
 struct kiotApp: App {
+    init() {
+        NotificationManager.shared.configure()
+    }
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
