@@ -36,6 +36,11 @@ protocol DatabaseService {
     
     func saveUserFeedback(_ feedback: UserFeedback) async throws
     
+    // Order edit history
+    func fetchOrderEdits(orderId: UUID) async throws -> [OrderEdit]
+    func saveOrderEdit(_ edit: OrderEdit) async throws
+    func fetchEditedOrderIds(storeId: UUID) async throws -> [UUID]
+    
     // Device tokens for push
     func saveDeviceToken(_ token: String) async throws
     func deleteDeviceToken(_ token: String) async throws
@@ -178,6 +183,59 @@ class SupabaseDatabaseService: DatabaseService {
             .delete()
             .eq("id", value: id)
             .execute()
+    }
+    
+    // MARK: - Order Edits
+    func fetchOrderEdits(orderId: UUID) async throws -> [OrderEdit] {
+        let rows: [OrderEditDTO] = try await client
+            .from("order_edits")
+            .select()
+            .eq("order_id", value: orderId)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        let edits = rows.map { $0.toDomain() }
+        print("✅ [OrderEdit] Fetched \(edits.count) edits for order \(orderId)")
+        return edits
+    }
+    
+    func saveOrderEdit(_ edit: OrderEdit) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else {
+            throw NSError(domain: "StoreMissing", code: 1, userInfo: [NSLocalizedDescriptionKey: "currentStore is nil when saving OrderEdit"])
+        }
+        let dto = OrderEditDTO(from: edit, storeId: storeId)
+        let uidStr = SupabaseConfig.client.auth.currentUser?.id.uuidString ?? "nil"
+        print("🔐 [OrderEdit] auth.uid=\(uidStr), store_id=\(storeId)")
+        if let data = try? JSONEncoder().encode(dto), let json = String(data: data, encoding: .utf8) {
+            print("📦 [DatabaseManager] OrderEditDTO JSON: \(json)")
+        }
+        do {
+            print("🔧 [OrderEdit] Upsert begin")
+            try await client
+                .from("order_edits")
+                .upsert(dto)
+                .execute()
+            print("✅ [OrderEdit] Upsert success")
+        } catch {
+            print("❌ [OrderEdit] Upsert failed: \(error)")
+            throw error
+        }
+    }
+    
+    func fetchEditedOrderIds(storeId: UUID) async throws -> [UUID] {
+        struct Row: Decodable { let order_id: UUID }
+        let rows: [Row] = try await client
+            .from("order_edits")
+            .select("order_id")
+            .eq("store_id", value: storeId)
+            .execute()
+            .value
+        // Distinct
+        var set = Set<UUID>()
+        for r in rows { set.insert(r.order_id) }
+        let ids = Array(set)
+        print("✅ [OrderEdit] Fetched \(ids.count) edited order ids for store \(storeId)")
+        return ids
     }
     
     // MARK: - Feedback
@@ -386,6 +444,10 @@ class SupabaseDatabaseService: DatabaseService {
     func deleteOperatingExpense(_ id: UUID) async throws { print("⚠️ deleteOperatingExpense: Mocked success") }
     func updateOperatingExpense(_ expense: OperatingExpense) async throws { print("⚠️ updateOperatingExpense: Mocked success") }
     func deleteStore(_ id: UUID) async throws { print("⚠️ deleteStore: Mocked success") }
+    
+    func fetchOrderEdits(orderId: UUID) async throws -> [OrderEdit] { return [] }
+    func saveOrderEdit(_ edit: OrderEdit) async throws { print("⚠️ saveOrderEdit: Mocked success") }
+    func fetchEditedOrderIds(storeId: UUID) async throws -> [UUID] { return [] }
 }
 #endif
 
@@ -701,4 +763,47 @@ struct DeviceTokenDTO: Codable {
     let user_id: UUID?
     let created_at: Date
     let platform: String?
+}
+
+struct OrderEditDTO: Codable {
+    let id: UUID
+    let order_id: UUID
+    let created_at: Date
+    let old_total: Double
+    let new_total: Double
+    let editor_id: UUID?
+    let editor_name: String?
+    let store_id: UUID?
+    let note: String?
+    let details: [String]?
+    
+    init(id: UUID, order_id: UUID, created_at: Date, old_total: Double, new_total: Double, editor_id: UUID?, editor_name: String?, store_id: UUID?, note: String?, details: [String]?) {
+        self.id = id
+        self.order_id = order_id
+        self.created_at = created_at
+        self.old_total = old_total
+        self.new_total = new_total
+        self.editor_id = editor_id
+        self.editor_name = editor_name
+        self.store_id = store_id
+        self.note = note
+        self.details = details
+    }
+    
+    init(from domain: OrderEdit, storeId: UUID?) {
+        self.id = domain.id
+        self.order_id = domain.orderId
+        self.created_at = domain.createdAt
+        self.old_total = domain.oldTotal
+        self.new_total = domain.newTotal
+        self.editor_id = domain.editorId
+        self.editor_name = domain.editorName
+        self.store_id = storeId
+        self.note = domain.note
+        self.details = domain.details
+    }
+    
+    func toDomain() -> OrderEdit {
+        return OrderEdit(id: id, orderId: order_id, createdAt: created_at, oldTotal: old_total, newTotal: new_total, editorId: editor_id, editorName: editor_name, note: note, details: details)
+    }
 }

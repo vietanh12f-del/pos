@@ -13,6 +13,7 @@ struct BillDetailView: View {
     @State private var isUploadingReceipt = false
     @State private var receiptImageURLString: String? = nil
     @State private var showEditHistory = false
+    @State private var dbEdits: [OrderEdit] = []
     
     var body: some View {
         VStack {
@@ -58,7 +59,7 @@ struct BillDetailView: View {
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                 
-                if viewModel.hasHistory(for: bill.id) {
+                if !dbEdits.isEmpty || viewModel.hasHistory(for: bill.id) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Đã chỉnh sửa")
                             .font(.subheadline)
@@ -143,6 +144,15 @@ struct BillDetailView: View {
         .onAppear {
             isPaid = bill.isPaid
             receiptImageURLString = bill.paymentReceiptURL
+            Task {
+                do {
+                    dbEdits = try await SupabaseDatabaseService().fetchOrderEdits(orderId: bill.id)
+                    print("✅ [OrderEdit] Loaded \(dbEdits.count) edits in detail for \(bill.id)")
+                } catch {
+                    dbEdits = []
+                    print("⚠️ [OrderEdit] Load edits failed for \(bill.id): \(error)")
+                }
+            }
         }
         .alert("Xóa đơn hàng?", isPresented: $showDeleteConfirmation) {
             Button("Hủy", role: .cancel) { }
@@ -159,7 +169,11 @@ struct BillDetailView: View {
             }
         }
         .sheet(isPresented: $showEditHistory) {
-            EditHistorySheet(entries: viewModel.history(for: bill.id))
+            if !dbEdits.isEmpty {
+                EditHistorySheet2(edits: dbEdits)
+            } else {
+                EditHistorySheet(entries: viewModel.history(for: bill.id))
+            }
         }
         .fullScreenCover(isPresented: $showReceiptCamera) {
             ImagePicker(image: $receiptImage)
@@ -273,6 +287,56 @@ struct BillDetailView: View {
             NavigationStack {
                 List(entries.sorted { $0.date > $1.date }) { e in
                     EditHistoryRow(entry: e)
+                }
+                .navigationTitle("Lịch sử chỉnh sửa")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+    }
+    
+    struct EditHistoryRow2: View {
+        let edit: OrderEdit
+        var body: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(format(edit.createdAt))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    if let name = edit.editorName, !name.isEmpty {
+                        Text(name).font(.caption).foregroundStyle(.gray)
+                    }
+                }
+                Text("\(formatCurrency(edit.oldTotal)) → \(formatCurrency(edit.newTotal))")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                if let note = edit.note, !note.isEmpty {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let details = edit.details, !details.isEmpty {
+                    ForEach(details, id: \.self) { d in
+                        Text("• " + d).font(.caption)
+                    }
+                }
+            }
+            .padding(.vertical, 6)
+        }
+        private func format(_ date: Date) -> String {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "vi_VN")
+            f.dateFormat = "dd/MM/yyyy HH:mm"
+            return f.string(from: date)
+        }
+    }
+    
+    struct EditHistorySheet2: View {
+        let edits: [OrderEdit]
+        var body: some View {
+            NavigationStack {
+                List(edits.sorted { $0.createdAt > $1.createdAt }) { e in
+                    EditHistoryRow2(edit: e)
                 }
                 .navigationTitle("Lịch sử chỉnh sửa")
                 .navigationBarTitleDisplayMode(.inline)

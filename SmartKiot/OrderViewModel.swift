@@ -31,6 +31,7 @@ class OrderViewModel: ObservableObject {
         let editorName: String?
     }
     private let editHistoryKey = "bill_edit_history_v1"
+    @Published var editedOrderIds: Set<UUID> = []
     
     // Cache control
     private var loadedStoreId: UUID?
@@ -217,17 +218,69 @@ class OrderViewModel: ObservableObject {
     }
     
     func addEditHistory(for original: Bill, updated: Bill) {
-        let entry = BillEditEntry(
-            id: UUID(),
-            date: Date(),
-            oldTotal: original.total,
-            newTotal: updated.total,
-            editorName: AuthManager.shared.currentUserProfile?.fullName
-        )
+        let entry = BillEditEntry(id: UUID(), date: Date(), oldTotal: original.total, newTotal: updated.total, editorName: AuthManager.shared.currentUserProfile?.fullName)
         var arr = billEditHistory[original.id] ?? []
         arr.append(entry)
         billEditHistory[original.id] = arr
         saveEditHistory()
+        
+        // Save to DB
+        let editorId = AuthManager.shared.currentUserProfile?.id
+        let details = buildEditDetails(original: original, updated: updated)
+        let note = "Đã chỉnh sửa đơn"
+        print("🧾 [OrderEdit] Original=\(Int(original.total)) Updated=\(Int(updated.total)) Details=\(details.joined(separator: " | "))")
+        let edit = OrderEdit(id: entry.id, orderId: original.id, createdAt: entry.date, oldTotal: entry.oldTotal, newTotal: entry.newTotal, editorId: editorId, editorName: entry.editorName, note: note, details: details)
+        Task {
+            do {
+                try await database.saveOrderEdit(edit)
+                await MainActor.run {
+                    editedOrderIds.insert(original.id)
+                }
+            } catch {
+                print("❌ Error saving order edit history: \(error)")
+                if let ns = error as NSError?, ns.domain == "StoreMissing" {
+                    self.errorMessage = "Không thể lưu lịch sử chỉnh sửa vì chưa chọn cửa hàng."
+                    self.showErrorAlert = true
+                }
+            }
+        }
+    }
+    
+    private func buildEditDetails(original: Bill, updated: Bill) -> [String] {
+        var lines: [String] = []
+        if (original.customerName ?? "") != (updated.customerName ?? "") {
+            let o = (original.customerName ?? "").isEmpty ? "—" : (original.customerName ?? "")
+            let n = (updated.customerName ?? "").isEmpty ? "—" : (updated.customerName ?? "")
+            lines.append("Khách: \(o) → \(n)")
+        }
+        if (original.paymentReceiptURL ?? "") != (updated.paymentReceiptURL ?? "") {
+            lines.append("Ảnh thanh toán: đã cập nhật")
+        }
+        var origMap: [String: OrderItem] = [:]
+        var updMap: [String: OrderItem] = [:]
+        for it in original.items { origMap[it.name] = it }
+        for it in updated.items { updMap[it.name] = it }
+        for name in Set(origMap.keys).union(updMap.keys) {
+            let o = origMap[name]
+            let n = updMap[name]
+            if o == nil, let n {
+                lines.append("Thêm \(name): SL \(n.quantity), giá \(Int(n.price))")
+            } else if let o, n == nil {
+                lines.append("Xoá \(name): SL \(o.quantity)")
+            } else if let o, let n {
+                var parts: [String] = []
+                if o.quantity != n.quantity { parts.append("SL \(o.quantity)→\(n.quantity)") }
+                if Int(o.price) != Int(n.price) { parts.append("Giá \(Int(o.price))→\(Int(n.price))") }
+                if Int(o.discount) != Int(n.discount) { parts.append("Giảm \(Int(o.discount))→\(Int(n.discount))") }
+                if !parts.isEmpty {
+                    lines.append("Sửa \(name): " + parts.joined(separator: ", "))
+                }
+            }
+        }
+        if original.total != updated.total {
+            lines.append("Tổng tiền: \(Int(original.total)) → \(Int(updated.total))")
+        }
+        return lines
     }
     
     func history(for billId: UUID) -> [BillEditEntry] {
@@ -235,7 +288,7 @@ class OrderViewModel: ObservableObject {
     }
     
     func hasHistory(for billId: UUID) -> Bool {
-        !(billEditHistory[billId]?.isEmpty ?? true)
+        !(billEditHistory[billId]?.isEmpty ?? true) || editedOrderIds.contains(billId)
     }
     
     @MainActor
@@ -245,16 +298,15 @@ class OrderViewModel: ObservableObject {
         var updatedBill = Bill(id: original.id, createdAt: original.createdAt, items: items, total: newTotal)
         updatedBill.customerName = walkInName
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? original.paymentReceiptURL
-        addEditHistory(for: original, updated: updatedBill)
         if let index = pastOrders.firstIndex(where: { $0.id == original.id }) {
             pastOrders[index] = updatedBill
         }
         Task {
             do {
-                try await database.deleteOrder(original.id)
-                try await database.saveOrder(updatedBill)
+                try await database.updateOrder(updatedBill)
+                addEditHistory(for: original, updated: updatedBill)
             } catch {
-                print("❌ Error saving edited payment: \(error)")
+                print("❌ Error updating edited payment: \(error)")
             }
         }
         recalculateStats()
@@ -370,6 +422,16 @@ class OrderViewModel: ObservableObject {
         case .failure(let error):
             print("⚠️ Error fetching orders: \(error)")
             // Don't set isDatabaseConnected = false here, as it might be a permission issue
+        }
+        
+        // Fetch edited order IDs for badge
+        if let sid = StoreManager.shared.currentStore?.id {
+            do {
+                let ids = try await self.database.fetchEditedOrderIds(storeId: sid)
+                self.editedOrderIds = Set(ids)
+            } catch {
+                print("⚠️ Error fetching edited order ids: \(error)")
+            }
         }
         
         // 3. Restock History
@@ -1503,18 +1565,17 @@ class OrderViewModel: ObservableObject {
         var updatedBill = Bill(id: originalBill.id, createdAt: originalBill.createdAt, items: items, total: newTotal)
         updatedBill.customerName = walkInName
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? originalBill.paymentReceiptURL
-        
+
         // Replace in history
         if let index = pastOrders.firstIndex(where: { $0.id == originalBill.id }) {
             pastOrders[index] = updatedBill
             
             Task {
-                // Delete old and save new
                 do {
-                    try await database.deleteOrder(originalBill.id)
-                    try await database.saveOrder(updatedBill)
+                    try await database.updateOrder(updatedBill)
+                    addEditHistory(for: originalBill, updated: updatedBill)
                 } catch {
-                    print("❌ Error saving edited order: \(error)")
+                    print("❌ Error updating edited order: \(error)")
                 }
             }
             

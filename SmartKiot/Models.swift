@@ -85,6 +85,18 @@ struct UserFeedback: Identifiable, Codable, Equatable {
     var storeId: UUID?
 }
 
+struct OrderEdit: Identifiable, Codable, Equatable {
+    let id: UUID
+    let orderId: UUID
+    let createdAt: Date
+    let oldTotal: Double
+    let newTotal: Double
+    let editorId: UUID?
+    let editorName: String?
+    let note: String?
+    let details: [String]?
+}
+
 struct Product: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
