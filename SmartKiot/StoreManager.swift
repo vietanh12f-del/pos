@@ -24,6 +24,7 @@ class StoreManager: ObservableObject {
         priceStep = saved >= 1000 ? saved : 5000
         Task {
             await fetchStores()
+            await restoreLastStoreIfPossible()
         }
     }
     
@@ -289,9 +290,25 @@ class StoreManager: ObservableObject {
             Task {
                 try? await client.from("profiles").update(["current_store_id": store.id]).eq("id", value: userId).execute()
             }
+            let key = "last_store_id_\(userId.uuidString)"
+            UserDefaults.standard.set(store.id.uuidString, forKey: key)
+        } else {
+            UserDefaults.standard.set(store.id.uuidString, forKey: "last_store_id_default")
         }
     }
     
+    func restoreLastStoreIfPossible() async {
+        if currentStore != nil { return }
+        let pid = AuthManager.shared.currentUserProfile?.currentStoreId
+        let uid = AuthManager.shared.currentUserProfile?.id
+        let key = uid != nil ? "last_store_id_\(uid!.uuidString)" : "last_store_id_default"
+        let saved = UserDefaults.standard.string(forKey: key)
+        let target = pid ?? (saved != nil ? UUID(uuidString: saved!) : nil)
+        guard let target else { return }
+        if let store = myStores.first(where: { $0.id == target }) ?? memberStores.first(where: { $0.id == target }) {
+            await selectStore(store)
+        }
+    }
     func inviteEmployee(email: String, permissions: [StorePermission]) async -> Bool {
         guard let storeId = currentStore?.id else { return false }
         
