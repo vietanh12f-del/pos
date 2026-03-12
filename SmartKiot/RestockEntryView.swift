@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RestockEntryView: View {
     @ObservedObject var viewModel: OrderViewModel
+    var titleText: String = "Nhập hàng"
     @Environment(\.dismiss) var dismiss
     @State private var showManualInput = false
     @State private var showScanner = false
@@ -18,7 +19,7 @@ struct RestockEntryView: View {
             VStack(spacing: 0) {
                 // Header
                 HStack {
-                    Text("Nhập hàng")
+                    Text(titleText)
                         .font(.largeTitle)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.themeTextDark)

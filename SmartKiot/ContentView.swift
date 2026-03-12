@@ -24,6 +24,7 @@ struct ContentView: View {
     @State private var costsSubTab: Int = 0 // State for Costs & Imports sub-tab
     @State private var showNewOperatingExpense: Bool = false // Sheet state for Operating Expense
     @State private var isKeyboardVisibleGlobal: Bool = false
+    @State private var showProductionManagement: Bool = false
     
     init() {
         // Default TabBar
@@ -41,7 +42,7 @@ struct ContentView: View {
             GeometryReader { geometry in
                 ZStack(alignment: .bottom) {
                     TabView(selection: $selectedTab) {
-                        HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab)
+                        HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab, showProductionManagement: $showProductionManagement)
                             .tabItem {
                                 Label("Tổng quan", systemImage: "house.fill")
                             }
@@ -123,6 +124,9 @@ struct ContentView: View {
                         NotificationCenter.default.post(name: NSNotification.Name("RefreshEmployees"), object: nil)
                     })
                 }
+                .sheet(isPresented: $showProductionManagement) {
+                    ProductionManagementView(viewModel: viewModel)
+                }
                 .onChange(of: viewModel.editingBill) { bill in
                     if bill != nil {
                         showNewOrder = true
@@ -201,6 +205,7 @@ struct ContentView: View {
         @ObservedObject var viewModel: OrderViewModel
         @Binding var showNewOrder: Bool
         @Binding var selectedTab: Int
+        @Binding var showProductionManagement: Bool
         @State private var selectedDate = Date()
         @State private var isKeyboardVisible = false
         
@@ -473,6 +478,10 @@ struct ContentView: View {
                                             selectedTab = 7
                                         }
                                     }
+                                    
+                                    QuickActionButton(icon: "gearshape.2.fill", title: "Quản Lý Sản Xuất", isPrimary: false) {
+                                        showProductionManagement = true
+                                    }
                                 }
                                 .padding(.horizontal)
                             }
@@ -506,7 +515,6 @@ struct ContentView: View {
                 }
             }
         }
-        
         func currentDateString() -> String {
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "vi_VN")
