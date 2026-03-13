@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS materials (
   id UUID PRIMARY KEY,
   store_id UUID REFERENCES stores(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  category TEXT,
   stock_quantity INT NOT NULL DEFAULT 0,
   last_unit_price DOUBLE PRECISION DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()

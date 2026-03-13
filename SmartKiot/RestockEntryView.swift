@@ -5,6 +5,7 @@ struct RestockEntryView: View {
     var titleText: String = "Nhập hàng"
     var summaryTitle: String = "Tóm tắt nhập hàng"
     var useInventoryList: Bool = true
+    var useMaterialsList: Bool = false
     var onComplete: (([RestockItem]) -> Void)? = nil
     @Environment(\.dismiss) var dismiss
     @State private var showManualInput = false
@@ -42,31 +43,33 @@ struct RestockEntryView: View {
                 
                 VStack(spacing: 0) {
                     if useInventoryList {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(Category.allCases, id: \.self) { cat in
-                                    Button {
-                                        viewModel.selectedCategory = cat
-                                    } label: {
-                                        Text(cat.displayName)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .padding(.horizontal, 14)
-                                            .padding(.vertical, 8)
-                                            .background(viewModel.selectedCategory == cat ? Color.themePrimary.opacity(0.15) : Color.gray.opacity(0.1))
-                                            .foregroundStyle(viewModel.selectedCategory == cat ? Color.themePrimary : Color.themeTextDark)
-                                            .cornerRadius(16)
+                        if !useMaterialsList {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(Category.allCases, id: \.self) { cat in
+                                        Button {
+                                            viewModel.selectedCategory = cat
+                                        } label: {
+                                            Text(cat.displayName)
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .padding(.horizontal, 14)
+                                                .padding(.vertical, 8)
+                                                .background(viewModel.selectedCategory == cat ? Color.themePrimary.opacity(0.15) : Color.gray.opacity(0.1))
+                                                .foregroundStyle(viewModel.selectedCategory == cat ? Color.themePrimary : Color.themeTextDark)
+                                                .cornerRadius(16)
+                                        }
                                     }
                                 }
+                                .padding(.horizontal)
+                                .padding(.vertical, 10)
+                                .background(Color.white)
                             }
-                            .padding(.horizontal)
-                            .padding(.vertical, 10)
-                            .background(Color.white)
                         }
                         
                         HStack {
                             Image(systemName: "magnifyingglass").foregroundStyle(.gray)
-                            TextField("Tìm sản phẩm...", text: $viewModel.searchText)
+                            TextField(useMaterialsList ? "Tìm nguyên liệu..." : "Tìm sản phẩm...", text: $viewModel.searchText)
                                 .textInputAutocapitalization(.never)
                                 .disableAutocorrection(true)
                             if !viewModel.searchText.isEmpty {
@@ -83,45 +86,97 @@ struct RestockEntryView: View {
                         
                         ScrollView {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                ForEach(viewModel.products.filter { p in
-                                    let matchCat = viewModel.selectedCategory == .all || p.category.lowercased() == viewModel.selectedCategory.displayName.lowercased()
-                                    let s = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    if s.isEmpty {
-                                        return matchCat
-                                    } else {
+                                if useMaterialsList {
+                                    ForEach(viewModel.materials.filter { m in
+                                        let s = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if s.isEmpty { return true }
                                         let q = s.lowercased()
-                                        return matchCat && (p.name.lowercased().contains(q) || p.category.lowercased().contains(q) || (p.barcode?.contains(s) ?? false))
-                                    }
-                                }) { p in
-                                    VStack(spacing: 8) {
-                                        HStack {
-                                            Text(formatCurrency(p.price))
-                                                .font(.caption)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(Color.themePrimary)
-                                            Spacer()
-                                        }
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 12).fill(Color.white)
-                                            VStack(spacing: 6) {
-                                                Text(p.name)
-                                                    .font(.subheadline)
-                                                    .foregroundStyle(Color.themeTextDark)
-                                                    .lineLimit(2)
-                                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                                HStack {
-                                                    Text("Kho: \(p.stockQuantity)")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.gray)
-                                                    Spacer()
-                                                }
+                                        return m.name.lowercased().contains(q) || m.category.lowercased().contains(q)
+                                    }) { m in
+                                        VStack(spacing: 8) {
+                                            HStack {
+                                                Text(formatCurrency(m.lastUnitPrice))
+                                                    .font(.caption)
+                                                    .fontWeight(.bold)
+                                                    .foregroundStyle(Color.themePrimary)
+                                                Spacer()
                                             }
-                                            .padding(10)
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 12).fill(Color.white)
+                                                VStack(spacing: 6) {
+                                                    Text(m.name)
+                                                        .font(.subheadline)
+                                                        .foregroundStyle(Color.themeTextDark)
+                                                        .lineLimit(2)
+                                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                                    HStack {
+                                                        Text("Kho: \(m.stockQuantity)")
+                                                            .font(.caption)
+                                                            .foregroundStyle(.gray)
+                                                        Spacer()
+                                                    }
+                                                }
+                                                .padding(10)
+                                            }
+                                            .onTapGesture {
+                                                let suggested = max(0, m.lastUnitPrice * 1.3)
+                                                let pseudo = Product(
+                                                    id: UUID(),
+                                                    name: m.name,
+                                                    price: suggested,
+                                                    costPrice: m.lastUnitPrice,
+                                                    category: Category.materials.rawValue,
+                                                    imageName: "shippingbox.fill",
+                                                    color: "gray",
+                                                    stockQuantity: m.stockQuantity
+                                                )
+                                                scannedProduct = pseudo
+                                            }
+                                            .frame(height: 110)
                                         }
-                                        .onTapGesture { scannedProduct = p }
-                                        .frame(height: 110)
+                                        .padding(.horizontal, 4)
                                     }
-                                    .padding(.horizontal, 4)
+                                } else {
+                                    ForEach(viewModel.products.filter { p in
+                                        let matchCat = viewModel.selectedCategory == .all || p.category.lowercased() == viewModel.selectedCategory.displayName.lowercased()
+                                        let s = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if s.isEmpty {
+                                            return matchCat
+                                        } else {
+                                            let q = s.lowercased()
+                                            return matchCat && (p.name.lowercased().contains(q) || p.category.lowercased().contains(q) || (p.barcode?.contains(s) ?? false))
+                                        }
+                                    }) { p in
+                                        VStack(spacing: 8) {
+                                            HStack {
+                                                Text(formatCurrency(p.price))
+                                                    .font(.caption)
+                                                    .fontWeight(.bold)
+                                                    .foregroundStyle(Color.themePrimary)
+                                                Spacer()
+                                            }
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 12).fill(Color.white)
+                                                VStack(spacing: 6) {
+                                                    Text(p.name)
+                                                        .font(.subheadline)
+                                                        .foregroundStyle(Color.themeTextDark)
+                                                        .lineLimit(2)
+                                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                                    HStack {
+                                                        Text("Kho: \(p.stockQuantity)")
+                                                            .font(.caption)
+                                                            .foregroundStyle(.gray)
+                                                        Spacer()
+                                                    }
+                                                }
+                                                .padding(10)
+                                            }
+                                            .onTapGesture { scannedProduct = p }
+                                            .frame(height: 110)
+                                        }
+                                        .padding(.horizontal, 4)
+                                    }
                                 }
                             }
                             .padding(.horizontal)

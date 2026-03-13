@@ -87,50 +87,60 @@ struct ProductionManagementView: View {
                                 }
                                 .frame(maxWidth: .infinity, minHeight: 220)
                             } else {
-                                ScrollView {
-                                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                                        ForEach(viewModel.materials.filter { item in
-                                            if searchText.isEmpty { return true }
-                                            let q = searchText.lowercased()
-                                            return item.name.contains(q)
-                                        }) { item in
-                                            VStack(spacing: 8) {
-                                                ZStack {
-                                                    RoundedRectangle(cornerRadius: 12).fill(Color.white)
-                                                    VStack(spacing: 6) {
+                                VStack(spacing: 0) {
+                                    HStack {
+                                        Text("Nguyên liệu").font(.caption).foregroundStyle(.gray)
+                                        Spacer()
+                                        Text("Giá nhập").font(.caption).foregroundStyle(.gray)
+                                            .frame(width: 120, alignment: .trailing)
+                                        Text("Kho").font(.caption).foregroundStyle(.gray)
+                                            .frame(width: 60, alignment: .trailing)
+                                    }
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 6)
+                                    
+                                    Divider()
+                                    
+                                    ScrollView {
+                                        LazyVStack(spacing: 0) {
+                                            ForEach(viewModel.materials.filter { item in
+                                                if searchText.isEmpty { return true }
+                                                let q = searchText.lowercased()
+                                                return item.name.lowercased().contains(q)
+                                            }) { item in
+                                                Button {
+                                                    editingMaterial = item
+                                                    showMaterialEdit = true
+                                                } label: {
+                                                    HStack {
                                                         Text(item.name)
                                                             .font(.subheadline)
                                                             .foregroundStyle(Color.themeTextDark)
                                                             .lineLimit(2)
-                                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                                        HStack {
-                                                            Text("Kho: \(item.stockQuantity)")
-                                                                .font(.caption)
-                                                                .foregroundStyle(.gray)
-                                                            Spacer()
-                                                        }
-                                                        HStack {
-                                                            Text("Giá nhập: \(formatCurrency(item.lastUnitPrice))")
-                                                                .font(.caption)
-                                                                .foregroundStyle(Color.themePrimary)
-                                                            Spacer()
-                                                        }
+                                                        Spacer()
+                                                        Text(formatCurrency(item.lastUnitPrice))
+                                                            .font(.subheadline)
+                                                            .foregroundStyle(Color.themePrimary)
+                                                            .frame(width: 120, alignment: .trailing)
+                                                        Text("\(item.stockQuantity)")
+                                                            .font(.subheadline)
+                                                            .foregroundStyle(.gray)
+                                                            .frame(width: 60, alignment: .trailing)
                                                     }
-                                                    .padding(10)
+                                                    .padding(.horizontal)
+                                                    .padding(.vertical, 10)
+                                                    .background(Color.white)
                                                 }
-                                                .onTapGesture {
-                                                    editingMaterial = item
-                                                    showMaterialEdit = true
-                                                }
-                                                .frame(height: 110)
+                                                Divider().padding(.leading, 0)
                                             }
-                                            .padding(.horizontal, 4)
                                         }
+                                        .padding(.bottom, 120)
                                     }
-                                    .padding(.horizontal)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 120)
                                 }
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                                .padding(.top, 8)
                             }
                         } else {
                             VStack(spacing: 16) {
@@ -162,7 +172,8 @@ struct ProductionManagementView: View {
                     viewModel: viewModel,
                     titleText: centerButtonTitle(for: mode),
                     summaryTitle: summaryTitle(for: mode),
-                    useInventoryList: false,
+                    useInventoryList: (mode == .nhapNguyenLieu || mode == .xuatNguyenLieu),
+                    useMaterialsList: (mode == .nhapNguyenLieu || mode == .xuatNguyenLieu),
                     onComplete: { items in
                         viewModel.completeProductionTransaction(mode: centerButtonTitle(for: mode))
                         Task { await viewModel.loadMaterials() }

@@ -1485,7 +1485,7 @@ class OrderViewModel: ObservableObject {
                 try? await database.updateMaterial(m)
                 current[idx] = m
             } else {
-                let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: it.unitPrice)
+                let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: it.unitPrice, category: Category.materials.rawValue)
                 try? await database.saveMaterial(m)
                 current.append(m)
             }

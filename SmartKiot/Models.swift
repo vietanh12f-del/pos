@@ -86,6 +86,7 @@ struct MaterialItem: Identifiable, Codable, Equatable {
     var name: String
     var stockQuantity: Int
     var lastUnitPrice: Double
+    var category: String = Category.materials.rawValue
 }
 
 struct OperatingExpense: Identifiable, Codable, Equatable {

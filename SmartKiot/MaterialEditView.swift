@@ -20,6 +20,7 @@ struct MaterialEditView: View {
     @State private var showStockWheel = false
     @State private var stockWheelSelection = 0
     @State private var stockWheelMax = 1000
+    @State private var selectedCategory: Category = .materials
     
     var body: some View {
         VStack(spacing: 0) {
@@ -40,6 +41,12 @@ struct MaterialEditView: View {
             Form {
                 Section(header: Text("Chi tiết nguyên liệu")) {
                     TextField("Tên nguyên liệu", text: $name)
+                    
+                    Picker("Danh mục", selection: $selectedCategory) {
+                        ForEach(Category.allCases.filter { $0 != .all }, id: \.self) { c in
+                            Text(c.displayName).tag(c)
+                        }
+                    }
                     
                     HStack {
                         Text("Giá nhập")
@@ -145,6 +152,11 @@ struct MaterialEditView: View {
                 stock = String(material.stockQuantity)
                 stockWheelSelection = material.stockQuantity
                 costWheelSelection = Int(material.lastUnitPrice)
+                if let cat = Category(rawValue: material.category) {
+                    selectedCategory = cat
+                } else {
+                    selectedCategory = .materials
+                }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -161,14 +173,14 @@ struct MaterialEditView: View {
         guard let unit = Double(importPrice), let qty = Int(stock) else { return }
         switch mode {
         case .add:
-            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit)
+            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategory.rawValue)
             Task {
                 try? await viewModel.databaseSaveMaterial(material)
                 await viewModel.loadMaterials()
                 dismiss()
             }
         case .edit(let m):
-            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit)
+            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategory.rawValue)
             Task {
                 try? await viewModel.databaseUpdateMaterial(updated)
                 await viewModel.loadMaterials()

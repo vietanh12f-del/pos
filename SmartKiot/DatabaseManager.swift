@@ -827,13 +827,15 @@ struct MaterialDTO: Codable {
     let name: String
     let stock_quantity: Int
     let last_unit_price: Double
+    let category: String?
     let store_id: UUID?
     
-    init(id: UUID, name: String, stock_quantity: Int, last_unit_price: Double, store_id: UUID?) {
+    init(id: UUID, name: String, stock_quantity: Int, last_unit_price: Double, category: String?, store_id: UUID?) {
         self.id = id
         self.name = name
         self.stock_quantity = stock_quantity
         self.last_unit_price = last_unit_price
+        self.category = category
         self.store_id = store_id
     }
     
@@ -842,11 +844,12 @@ struct MaterialDTO: Codable {
         self.name = domain.name
         self.stock_quantity = domain.stockQuantity
         self.last_unit_price = domain.lastUnitPrice
+        self.category = domain.category
         self.store_id = storeId
     }
     
     func toDomain() -> MaterialItem {
-        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price)
+        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue)
     }
 }
 
