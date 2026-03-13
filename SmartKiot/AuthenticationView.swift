@@ -121,6 +121,24 @@ struct AuthenticationView: View {
                         )
                         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                     }
+                    .disabled(authManager.isLoading)
+                    
+                    // Apple Sign In (after Google)
+                    Button {
+                        Task { _ = await authManager.signInWithAppleOAuth() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "applelogo")
+                            Text("Tiếp tục với Apple")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.black)
+                        .foregroundStyle(.white)
+                        .cornerRadius(12)
+                    }
+                    .disabled(authManager.isLoading)
                     
                 } else {
                     // OTP Input View

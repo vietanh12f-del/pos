@@ -238,6 +238,28 @@ class AuthManager: ObservableObject {
     }
     
     @MainActor
+    func signInWithAppleOAuth() async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+        let callback = URL(string: "https://cgqxrsoaxgyvcskbixuu.supabase.co/auth/v1/callback")
+        do {
+            _ = try await client.auth.signInWithOAuth(
+                provider: .apple,
+                redirectTo: callback
+            ) { (session: ASWebAuthenticationSession) in
+                session.prefersEphemeralWebBrowserSession = true
+            }
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Lỗi đăng nhập Apple: \(error.localizedDescription)"
+            print("❌ Error signing in with Apple OAuth: \(error)")
+            return false
+        }
+    }
+    
+    @MainActor
     func signInWithApple(using idToken: String, fullName: String?) async -> Bool {
         self.isLoading = true
         self.errorMessage = nil

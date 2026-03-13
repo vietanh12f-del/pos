@@ -26,6 +26,16 @@
 				<string>kiot</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>smartkiot</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>https://cgqxrsoaxgyvcskbixuu.supabase.co/auth/v1/callback</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
@@ -37,6 +47,8 @@
 	<string>We need access to the microphone to enable voice ordering.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>We need speech recognition permission to convert your voice to text for ordering.</string>
+	<key>UILaunchScreen</key>
+	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -51,7 +63,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>UILaunchScreen</key>
-	<dict/>
 </dict>
 </plist>
