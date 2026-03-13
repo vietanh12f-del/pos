@@ -418,13 +418,23 @@ class SupabaseDatabaseService: DatabaseService {
     func saveMaterial(_ material: MaterialItem) async throws {
         guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
         let dto = MaterialDTO(from: material, storeId: storeId)
-        try await client.from("materials").insert(dto).execute()
+        do {
+            try await client.from("materials").insert(dto).execute()
+        } catch {
+            let fallback = MaterialDTO(id: dto.id, name: dto.name, stock_quantity: dto.stock_quantity, last_unit_price: dto.last_unit_price, category: nil, store_id: dto.store_id)
+            try await client.from("materials").insert(fallback).execute()
+        }
     }
     
     func updateMaterial(_ material: MaterialItem) async throws {
         guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
         let dto = MaterialDTO(from: material, storeId: storeId)
-        try await client.from("materials").update(dto).eq("id", value: material.id).execute()
+        do {
+            try await client.from("materials").update(dto).eq("id", value: material.id).execute()
+        } catch {
+            let fallback = MaterialDTO(id: dto.id, name: dto.name, stock_quantity: dto.stock_quantity, last_unit_price: dto.last_unit_price, category: nil, store_id: dto.store_id)
+            try await client.from("materials").update(fallback).eq("id", value: material.id).execute()
+        }
     }
     
     func deleteMaterial(_ id: UUID) async throws {

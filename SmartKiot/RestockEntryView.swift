@@ -369,7 +369,12 @@ struct RestockEntryView: View {
             VoiceOverlayView(viewModel: viewModel)
         }
         .navigationBarHidden(true)
-        .onAppear { viewModel.isRestockMode = true }
+        .onAppear { 
+            viewModel.isRestockMode = true 
+            if useInventoryList && useMaterialsList {
+                Task { await viewModel.loadMaterials() }
+            }
+        }
         .onDisappear { 
             viewModel.isRestockMode = false 
             viewModel.cancelVoiceProcessing()

@@ -143,15 +143,50 @@ struct ProductionManagementView: View {
                                 .padding(.top, 8)
                             }
                         } else {
-                            VStack(spacing: 16) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(Color.gray.opacity(0.3))
-                                Text("Chưa có lịch sử")
-                                    .font(.headline)
-                                    .foregroundStyle(.gray)
+                            if viewModel.productionHistory.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.system(size: 60))
+                                        .foregroundStyle(Color.gray.opacity(0.3))
+                                    Text("Chưa có lịch sử")
+                                        .font(.headline)
+                                        .foregroundStyle(.gray)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 220)
+                            } else {
+                                ScrollView {
+                                    VStack(spacing: 8) {
+                                        ForEach(viewModel.productionHistory, id: \.id) { tx in
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                HStack {
+                                                    Text(tx.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                                        .font(.subheadline)
+                                                        .foregroundStyle(Color.themeTextDark)
+                                                    Spacer()
+                                                    Text(formatCurrency(tx.totalCost))
+                                                        .font(.subheadline).fontWeight(.bold)
+                                                        .foregroundStyle(Color.themePrimary)
+                                                }
+                                                Text("\(tx.items.count) mục")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                                if !tx.items.isEmpty {
+                                                    let names = tx.items.prefix(3).map { $0.name }.joined(separator: ", ")
+                                                    Text(names + (tx.items.count > 3 ? "…" : ""))
+                                                        .font(.caption)
+                                                        .foregroundStyle(.gray)
+                                                }
+                                            }
+                                            .padding(12)
+                                            .background(Color.white)
+                                            .cornerRadius(12)
+                                            .padding(.horizontal)
+                                        }
+                                    }
+                                    .padding(.top, 8)
+                                    .padding(.bottom, 120)
+                                }
                             }
-                            .frame(maxWidth: .infinity, minHeight: 220)
                         }
                     }
                 } else {
@@ -182,7 +217,20 @@ struct ProductionManagementView: View {
                 )
             }
             .onAppear {
-                Task { await viewModel.loadMaterials() }
+                Task { 
+                    await viewModel.loadMaterials()
+                    if let m = selectedMode { await viewModel.loadProductionHistory(mode: m.rawValue) }
+                }
+            }
+            .onChange(of: materialTab) { _, newVal in
+                if newVal == 1, let m = selectedMode {
+                    Task { await viewModel.loadProductionHistory(mode: m.rawValue) }
+                }
+            }
+            .onChange(of: selectedMode) { _, m in
+                if materialTab == 1, let md = m {
+                    Task { await viewModel.loadProductionHistory(mode: md.rawValue) }
+                }
             }
             .sheet(isPresented: $showMaterialEdit) {
                 if let m = editingMaterial {

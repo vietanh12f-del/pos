@@ -80,6 +80,7 @@ class OrderViewModel: ObservableObject {
     @Published var operatingExpenses: [OperatingExpense] = []
     @Published var materialsInventory: [MaterialItem] = []
     @Published var materials: [MaterialItem] = []
+    @Published var productionHistory: [ProductionTransaction] = []
     
     // Catalog & Dashboard
     @Published var selectedCategory: Category = .all
@@ -1418,6 +1419,7 @@ class OrderViewModel: ObservableObject {
                 try await database.saveProductionTransaction(tx)
                 await upsertMaterialsFromTransaction(tx)
                 await loadMaterials()
+                await loadProductionHistory(mode: mode)
             } catch {
                 print("❌ Error saving production transaction: \(error)")
             }
@@ -1477,20 +1479,46 @@ class OrderViewModel: ObservableObject {
         // naive: sync into materials table
         await loadMaterials()
         var current = self.materials
+        let modeLower = tx.mode.lowercased()
+        let isImport = modeLower.contains("nhập")
+        let isExport = modeLower.contains("xuất")
         for it in tx.items {
             if let idx = current.firstIndex(where: { $0.name.lowercased() == it.name.lowercased() }) {
                 var m = current[idx]
-                m.stockQuantity = max(0, m.stockQuantity + it.quantity)
-                m.lastUnitPrice = it.unitPrice
-                try? await database.updateMaterial(m)
+                if isImport {
+                    m.stockQuantity = max(0, m.stockQuantity + it.quantity)
+                    m.lastUnitPrice = it.unitPrice
+                } else if isExport {
+                    m.stockQuantity = max(0, m.stockQuantity - it.quantity)
+                } else {
+                    // Unknown mode, do nothing
+                }
+                do { try await database.updateMaterial(m) }
+                catch { print("❌ updateMaterial error: \(error)") }
                 current[idx] = m
             } else {
-                let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: it.unitPrice, category: Category.materials.rawValue)
-                try? await database.saveMaterial(m)
-                current.append(m)
+                if isImport {
+                    let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: it.unitPrice, category: Category.materials.rawValue)
+                    do { try await database.saveMaterial(m) }
+                    catch { print("❌ saveMaterial error: \(error)") }
+                    current.append(m)
+                } else {
+                    // For export without existing material, skip creation
+                }
             }
         }
+        // Optimistic UI update
+        await MainActor.run { self.materials = current }
         await loadMaterials()
+    }
+    
+    func loadProductionHistory(mode: String) async {
+        do {
+            let rows = try await database.fetchProductionTransactions(mode: mode)
+            await MainActor.run { self.productionHistory = rows }
+        } catch {
+            print("⚠️ loadProductionHistory error: \(error)")
+        }
     }
     // MARK: - Product Catalog Management
     
