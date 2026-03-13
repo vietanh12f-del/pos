@@ -318,18 +318,20 @@ class SupabaseDatabaseService: DatabaseService {
     
     func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction] {
         guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
-        var req = client
+        // Fetch all for store, then filter by mode (case-insensitive) in Swift to tolerate legacy values
+        let rows: [ProductionTransactionDTO] = try await client
             .from("production_transactions")
             .select("*, production_transaction_items(*)")
             .eq("store_id", value: storeId)
-        if let m = mode {
-            req = req.eq("mode", value: m)
-        }
-        let rows: [ProductionTransactionDTO] = try await req
             .order("created_at", ascending: false)
             .execute()
             .value
-        return rows.map { $0.toDomain() }
+        var txs = rows.map { $0.toDomain() }
+        if let m = mode {
+            let target = m.lowercased()
+            txs = txs.filter { $0.mode.lowercased() == target }
+        }
+        return txs
     }
     
     // MARK: - Price History

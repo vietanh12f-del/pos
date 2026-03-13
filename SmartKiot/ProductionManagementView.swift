@@ -210,7 +210,7 @@ struct ProductionManagementView: View {
                     useInventoryList: (mode == .nhapNguyenLieu || mode == .xuatNguyenLieu),
                     useMaterialsList: (mode == .nhapNguyenLieu || mode == .xuatNguyenLieu),
                     onComplete: { items in
-                        viewModel.completeProductionTransaction(mode: centerButtonTitle(for: mode))
+                        viewModel.completeProductionTransaction(mode: mode.rawValue)
                         Task { await viewModel.loadMaterials() }
                         materialTab = 0
                     }
