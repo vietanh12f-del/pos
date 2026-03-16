@@ -125,7 +125,7 @@ struct AuthenticationView: View {
                     
                     // Apple Sign In (after Google)
                     Button {
-                        Task { _ = await authManager.signInWithAppleOAuth() }
+                        Task { _ = await authManager.loginWithApple() }
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "applelogo")

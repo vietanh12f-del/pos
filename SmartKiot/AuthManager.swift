@@ -239,6 +239,7 @@ class AuthManager: ObservableObject {
     
     @MainActor
     func signInWithAppleOAuth() async -> Bool {
+        print("🍎 [Apple OAuth] Starting web-based sign in...")
         self.isLoading = true
         self.errorMessage = nil
         let callback = URL(string: "https://cgqxrsoaxgyvcskbixuu.supabase.co/auth/v1/callback")
@@ -249,30 +250,38 @@ class AuthManager: ObservableObject {
             ) { (session: ASWebAuthenticationSession) in
                 session.prefersEphemeralWebBrowserSession = true
             }
+            print("🍎 [Apple OAuth] Sign in initiated successfully")
             self.isLoading = false
             return true
         } catch {
             self.isLoading = false
             self.errorMessage = "Lỗi đăng nhập Apple: \(error.localizedDescription)"
-            print("❌ Error signing in with Apple OAuth: \(error)")
+            print("❌ [Apple OAuth] Error signing in with Apple OAuth: \(error)")
             return false
         }
     }
     
     @MainActor
     func signInWithApple(using idToken: String, fullName: String?) async -> Bool {
+        print("🍎 [Supabase] Signing in with Apple ID Token (length: \(idToken.count))...")
+        if let name = fullName {
+            print("🍎 [Supabase] Full name provided: \(name)")
+        }
+        
         self.isLoading = true
         self.errorMessage = nil
         
         do {
-            _ = try await client.auth.signInWithIdToken(
+            let session = try await client.auth.signInWithIdToken(
                 credentials: .init(
                     provider: .apple,
                     idToken: idToken
                 )
             )
+            print("🍎 [Supabase] Sign in successful. User ID: \(session.user.id)")
             
             if let fullName {
+                print("🍎 [Supabase] Updating user metadata with full name...")
                 _ = try? await client.auth.update(
                     user: UserAttributes(data: ["full_name": .string(fullName)])
                 )
@@ -284,6 +293,7 @@ class AuthManager: ObservableObject {
         } catch {
             self.isLoading = false
             self.errorMessage = "Lỗi đăng nhập Apple: \(error.localizedDescription)"
+            print("❌ [Supabase] Error signing in with Apple token: \(error)")
             return false
         }
     }
@@ -291,15 +301,18 @@ class AuthManager: ObservableObject {
     private final class AppleAuthDelegate: NSObject, ASAuthorizationControllerDelegate {
         var completion: ((Result<ASAuthorization, Error>) -> Void)?
         func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+            print("🍎 [Native] Delegate received authorization success")
             completion?(.success(authorization))
         }
         func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+            print("🍎 [Native] Delegate received error: \(error.localizedDescription)")
             completion?(.failure(error))
         }
     }
     
     @MainActor
     func loginWithApple() async -> Bool {
+        print("🍎 [Native] Starting native Apple Sign In flow...")
         self.isLoading = true
         self.errorMessage = nil
         
@@ -321,10 +334,12 @@ class AuthManager: ObservableObject {
                         continuation.resume(throwing: error)
                     }
                 }
+                print("🍎 [Native] Performing authorization requests...")
                 controller.performRequests()
             }
             
             guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                print("❌ [Native] Error: Credential is not ASAuthorizationAppleIDCredential")
                 self.isLoading = false
                 self.errorMessage = "Lỗi đăng nhập Apple"
                 return false
@@ -332,14 +347,21 @@ class AuthManager: ObservableObject {
             
             guard let tokenData = credential.identityToken,
                   let idToken = String(data: tokenData, encoding: .utf8) else {
+                print("❌ [Native] Error: Could not extract identity token")
                 self.isLoading = false
                 self.errorMessage = "Token Apple không hợp lệ"
                 return false
             }
             
+            print("🍎 [Native] Successfully extracted ID Token")
             let fullName = credential.fullName?.formatted()
+            if let fullName = fullName {
+                 print("🍎 [Native] Captured full name: \(fullName)")
+            }
+            
             return await signInWithApple(using: idToken, fullName: fullName)
         } catch {
+            print("❌ [Native] Sign in failed: \(error)")
             self.isLoading = false
             self.errorMessage = "Lỗi đăng nhập Apple: \(error.localizedDescription)"
             return false
