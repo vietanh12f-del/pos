@@ -8,7 +8,11 @@ struct RestockDetailView: View {
     
     // Computed properties for cost breakdown
     var totalMerchandiseCost: Double {
-        bill.items.reduce(0) { $0 + ($1.unitPrice * Double($1.quantity)) }
+        bill.items.reduce(0) { acc, item in
+            let isMaterial = item.category?.lowercased() == Category.materials.rawValue.lowercased()
+            let base = isMaterial ? (item.unitPrice * (Double(item.quantity) / 1000.0)) : (item.unitPrice * Double(item.quantity))
+            return acc + base
+        }
     }
     
     var totalAdditionalCost: Double {

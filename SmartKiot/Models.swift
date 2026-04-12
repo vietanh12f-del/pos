@@ -27,13 +27,25 @@ struct RestockItem: Identifiable, Hashable, Codable {
     var additionalCost: Double = 0 // Shipping, packaging, etc.
     var suggestedPrice: Double? = nil // User-defined or auto-calculated selling price
     var isConfirmed: Bool = false // Check/Verify status
+    var category: String? = nil
     
     var totalCost: Double {
-        return (Double(quantity) * unitPrice) + additionalCost
+        if let cat = category, cat.lowercased() == Category.materials.rawValue.lowercased() {
+            // quantity is in grams for materials; unitPrice is per kg
+            return (unitPrice * (Double(quantity) / 1000.0)) + additionalCost
+        } else {
+            return (Double(quantity) * unitPrice) + additionalCost
+        }
     }
     
     var finalUnitCost: Double {
-        return quantity > 0 ? totalCost / Double(quantity) : 0
+        if let cat = category, cat.lowercased() == Category.materials.rawValue.lowercased() {
+            // unit cost per kg
+            let kg = Double(quantity) / 1000.0
+            return kg > 0 ? totalCost / kg : 0
+        } else {
+            return quantity > 0 ? totalCost / Double(quantity) : 0
+        }
     }
 }
 
@@ -75,6 +87,7 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     let mode: String
     let items: [RestockItem]
     let totalCost: Double
+    var note: String? = nil
     
     static func == (lhs: ProductionTransaction, rhs: ProductionTransaction) -> Bool {
         return lhs.id == rhs.id
@@ -117,6 +130,18 @@ struct OrderEdit: Identifiable, Codable, Equatable {
     let details: [String]?
 }
 
+struct ProductionEdit: Identifiable, Codable, Equatable {
+    let id: UUID
+    let transactionId: UUID
+    let createdAt: Date
+    let oldTotal: Double
+    let newTotal: Double
+    let editorId: UUID?
+    let editorName: String?
+    let note: String?
+    let details: [String]?
+}
+
 struct Product: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
@@ -129,8 +154,9 @@ struct Product: Identifiable, Codable, Hashable {
     var imageURL: String? // URL for remote image
     var stockQuantity: Int = 0
     var barcode: String? // New barcode field
+    var isFinishedGood: Bool = false
     
-    init(id: UUID = UUID(), name: String, price: Double, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil) {
+    init(id: UUID = UUID(), name: String, price: Double, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false) {
         self.id = id
         self.name = name
         self.price = price
@@ -142,6 +168,7 @@ struct Product: Identifiable, Codable, Hashable {
         self.imageURL = imageURL
         self.stockQuantity = stockQuantity
         self.barcode = barcode
+        self.isFinishedGood = isFinishedGood
     }
 }
 

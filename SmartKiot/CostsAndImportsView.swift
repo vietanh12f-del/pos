@@ -182,6 +182,8 @@ struct OperatingCostsList: View {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.timeZone = .current
         formatter.dateFormat = "dd/MM/yyyy HH:mm"
         return formatter.string(from: date)
     }
@@ -211,9 +213,6 @@ struct ImportCostsList: View {
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                             Spacer()
-                            Text(formatCurrency(bill.totalCost))
-                                .font(.headline)
-                                .foregroundStyle(.red)
                         }
                         
                         // Profit Impact Badge
@@ -280,6 +279,8 @@ struct ImportCostsList: View {
     
     private func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.timeZone = .current
         formatter.dateFormat = "dd/MM/yyyy HH:mm"
         return formatter.string(from: date)
     }

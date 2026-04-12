@@ -33,7 +33,7 @@
 			<string>smartkiot</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>https://cgqxrsoaxgyvcskbixuu.supabase.co/auth/v1/callback</string>
+				<string>myapp://auth/callback</string>
 			</array>
 		</dict>
 	</array>

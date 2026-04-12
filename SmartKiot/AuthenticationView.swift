@@ -123,7 +123,7 @@ struct AuthenticationView: View {
                     }
                     .disabled(authManager.isLoading)
                     
-                    // Apple Sign In (after Google)
+                    // Apple Sign In (native)
                     Button {
                         Task { _ = await authManager.loginWithApple() }
                     } label: {

@@ -14,6 +14,20 @@ struct RestockEntryView: View {
     @State private var scannedProduct: Product?
     @State private var showNotFoundAlert = false
     @State private var editingItem: RestockItem?
+    @State private var showSummaryQtyWheel = false
+    @State private var showSummaryPriceWheel = false
+    @State private var summaryEditingIndex: Int?
+    @State private var summaryQtySelection = 1
+    @State private var summaryQtyMax = 1000
+    @State private var summaryQtyKgSelection = 0
+    @State private var summaryQtyGramsSelection = 0
+    @State private var summaryQtyGramsMax = 950
+    @State private var summaryPriceSelection = 0
+    @State private var summaryPriceMax = 5_000_000
+    @State private var summaryIsMaterials = false
+    @State private var inventorySubTab: Int = 0
+    @State private var lastAddedItemId: UUID? = nil
+    @State private var selectedCategoryFilter: String = "Tất cả"
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -43,33 +57,69 @@ struct RestockEntryView: View {
                 
                 VStack(spacing: 0) {
                     if useInventoryList {
-                        if !useMaterialsList {
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(Category.allCases, id: \.self) { cat in
-                                        Button {
-                                            viewModel.selectedCategory = cat
-                                        } label: {
-                                            Text(cat.displayName)
-                                                .font(.subheadline)
-                                                .fontWeight(.semibold)
-                                                .padding(.horizontal, 14)
-                                                .padding(.vertical, 8)
-                                                .background(viewModel.selectedCategory == cat ? Color.themePrimary.opacity(0.15) : Color.gray.opacity(0.1))
-                                                .foregroundStyle(viewModel.selectedCategory == cat ? Color.themePrimary : Color.themeTextDark)
-                                                .cornerRadius(16)
-                                        }
+                        // Dynamic category chips showing only categories with items
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                let dynamicCats: [String] = {
+                                    if useMaterialsList {
+                                        return Array(Set(viewModel.materials.map { $0.category })).sorted()
+                                    } else {
+                                        let source = inventorySubTab == 0 ? viewModel.products.filter { $0.isFinishedGood } : viewModel.products.filter { !$0.isFinishedGood && $0.stockQuantity > 0 }
+                                        return Array(Set(source.map { $0.category })).sorted()
+                                    }
+                                }()
+                                let allCats = ["Tất cả"] + dynamicCats.sorted()
+                                ForEach(allCats, id: \.self) { cat in
+                                    Button {
+                                        selectedCategoryFilter = cat
+                                    } label: {
+                                        Text(cat)
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 8)
+                                            .background(selectedCategoryFilter == cat ? Color.themePrimary.opacity(0.15) : Color.gray.opacity(0.1))
+                                            .foregroundStyle(selectedCategoryFilter == cat ? Color.themePrimary : Color.themeTextDark)
+                                            .cornerRadius(16)
                                     }
                                 }
-                                .padding(.horizontal)
-                                .padding(.vertical, 10)
-                                .background(Color.white)
                             }
+                            .padding(.horizontal)
+                            .padding(.vertical, 10)
+                            .background(Color.white)
+                        }
+                        
+                        if !useMaterialsList {
+                            HStack {
+                                Button(action: { inventorySubTab = 0 }) {
+                                    Text("Thành phẩm")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 6)
+                                        .background(inventorySubTab == 0 ? Color.themePrimary.opacity(0.15) : Color.gray.opacity(0.1))
+                                        .foregroundStyle(inventorySubTab == 0 ? Color.themePrimary : Color.themeTextDark)
+                                        .cornerRadius(14)
+                                }
+                                Button(action: { inventorySubTab = 1 }) {
+                                    Text("Kho hàng hóa")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 6)
+                                        .background(inventorySubTab == 1 ? Color.themePrimary.opacity(0.15) : Color.gray.opacity(0.1))
+                                        .foregroundStyle(inventorySubTab == 1 ? Color.themePrimary : Color.themeTextDark)
+                                        .cornerRadius(14)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal)
+                            .padding(.top, 4)
                         }
                         
                         HStack {
                             Image(systemName: "magnifyingglass").foregroundStyle(.gray)
-                            TextField(useMaterialsList ? "Tìm nguyên liệu..." : "Tìm sản phẩm...", text: $viewModel.searchText)
+                            TextField(useMaterialsList ? "Tìm nguyên liệu có sẵn..." : "Tìm sản phẩm có sẵn...", text: $viewModel.searchText)
                                 .textInputAutocapitalization(.never)
                                 .disableAutocorrection(true)
                             if !viewModel.searchText.isEmpty {
@@ -88,10 +138,11 @@ struct RestockEntryView: View {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                                 if useMaterialsList {
                                     ForEach(viewModel.materials.filter { m in
+                                        let catOK = (selectedCategoryFilter == "Tất cả") || (m.category.lowercased() == selectedCategoryFilter.lowercased())
                                         let s = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        if s.isEmpty { return true }
+                                        if s.isEmpty { return catOK }
                                         let q = s.lowercased()
-                                        return m.name.lowercased().contains(q) || m.category.lowercased().contains(q)
+                                        return catOK && (m.name.lowercased().contains(q) || m.category.lowercased().contains(q))
                                     }) { m in
                                         VStack(spacing: 8) {
                                             HStack {
@@ -110,7 +161,7 @@ struct RestockEntryView: View {
                                                         .lineLimit(2)
                                                         .frame(maxWidth: .infinity, alignment: .leading)
                                                     HStack {
-                                                        Text("Kho: \(m.stockQuantity)")
+                                                        Text("Kho: \(FormatUtils.formatWeight(m.stockQuantity))")
                                                             .font(.caption)
                                                             .foregroundStyle(.gray)
                                                         Spacer()
@@ -118,33 +169,47 @@ struct RestockEntryView: View {
                                                 }
                                                 .padding(10)
                                             }
-                                            .onTapGesture {
-                                                let suggested = max(0, m.lastUnitPrice * 1.3)
-                                                let pseudo = Product(
-                                                    id: UUID(),
-                                                    name: m.name,
-                                                    price: suggested,
-                                                    costPrice: m.lastUnitPrice,
-                                                    category: Category.materials.rawValue,
-                                                    imageName: "shippingbox.fill",
-                                                    color: "gray",
-                                                    stockQuantity: m.stockQuantity
-                                                )
-                                                scannedProduct = pseudo
+                                        .onTapGesture {
+                                            let isExport = titleText.lowercased().contains("xuất")
+                                            if isExport {
+                                                if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
+                                                    viewModel.restockItems[idx].quantity += 1000
+                                                    viewModel.restockItems[idx].unitPrice = m.lastUnitPrice
+                                                    viewModel.restockItems[idx].category = m.category
+                                                    lastAddedItemId = viewModel.restockItems[idx].id
+                                                } else {
+                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: 1000, additionalCost: 0, suggestedPrice: nil, category: m.category)
+                                                    if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
+                                                        lastAddedItemId = viewModel.restockItems[newIdx].id
+                                                    }
+                                                }
+                                            } else {
+                                                if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
+                                                    viewModel.restockItems[idx].quantity += 1000
+                                                    viewModel.restockItems[idx].unitPrice = m.lastUnitPrice
+                                                    viewModel.restockItems[idx].category = m.category
+                                                    lastAddedItemId = viewModel.restockItems[idx].id
+                                                } else {
+                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: 1000, additionalCost: 0, suggestedPrice: nil, category: m.category)
+                                                    if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
+                                                        lastAddedItemId = viewModel.restockItems[newIdx].id
+                                                    }
+                                                }
                                             }
+                                        }
                                             .frame(height: 110)
                                         }
                                         .padding(.horizontal, 4)
                                     }
                                 } else {
-                                    ForEach(viewModel.products.filter { p in
-                                        let matchCat = viewModel.selectedCategory == .all || p.category.lowercased() == viewModel.selectedCategory.displayName.lowercased()
+                                    ForEach((inventorySubTab == 0 ? viewModel.products.filter { $0.isFinishedGood } : viewModel.products.filter { !$0.isFinishedGood && $0.stockQuantity > 0 }).filter { p in
+                                        let catOK = (selectedCategoryFilter == "Tất cả") || (p.category.lowercased() == selectedCategoryFilter.lowercased())
                                         let s = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
                                         if s.isEmpty {
-                                            return matchCat
+                                            return catOK
                                         } else {
                                             let q = s.lowercased()
-                                            return matchCat && (p.name.lowercased().contains(q) || p.category.lowercased().contains(q) || (p.barcode?.contains(s) ?? false))
+                                            return catOK && (p.name.lowercased().contains(q) || p.category.lowercased().contains(q) || (p.barcode?.contains(s) ?? false))
                                         }
                                     }) { p in
                                         VStack(spacing: 8) {
@@ -164,7 +229,10 @@ struct RestockEntryView: View {
                                                         .lineLimit(2)
                                                         .frame(maxWidth: .infinity, alignment: .leading)
                                                     HStack {
-                                                        Text("Kho: \(p.stockQuantity)")
+                                                        let qtyText = inventorySubTab == 0
+                                                            ? FormatUtils.formatWeight(p.stockQuantity)
+                                                            : String(viewModel.stockLevel(for: p.name))
+                                                        Text("Kho: \(qtyText)")
                                                             .font(.caption)
                                                             .foregroundStyle(.gray)
                                                         Spacer()
@@ -172,7 +240,39 @@ struct RestockEntryView: View {
                                                 }
                                                 .padding(10)
                                             }
-                                            .onTapGesture { scannedProduct = p }
+                                            .onTapGesture { 
+                                                let isExport = titleText.lowercased().contains("xuất")
+                                                if inventorySubTab == 1 {
+                                                    // Quick add for stocked goods in inventory: +1 each tap
+                                                    let unit = p.costPrice > 0 ? p.costPrice : p.price
+                                                    if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == p.name.lowercased() }) {
+                                                        viewModel.restockItems[idx].quantity += 1
+                                                        viewModel.restockItems[idx].unitPrice = unit
+                                                        viewModel.restockItems[idx].category = p.category
+                                                        lastAddedItemId = viewModel.restockItems[idx].id
+                                                    } else {
+                                                        viewModel.addRestockItem(p.name, unitPrice: unit, quantity: 1, additionalCost: 0, suggestedPrice: nil, category: p.category)
+                                                        if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == p.name.lowercased() }) {
+                                                            lastAddedItemId = viewModel.restockItems[newIdx].id
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Tab Thành phẩm: thêm nhanh 1kg cho cả nhập/xuất
+                                                    let qty = 1000
+                                                    let unit = p.price
+                                                    if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == p.name.lowercased() }) {
+                                                        viewModel.restockItems[idx].quantity += qty
+                                                        viewModel.restockItems[idx].unitPrice = unit
+                                                        viewModel.restockItems[idx].category = p.category
+                                                        lastAddedItemId = viewModel.restockItems[idx].id
+                                                    } else {
+                                                        viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: nil, category: p.category)
+                                                        if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == p.name.lowercased() }) {
+                                                            lastAddedItemId = viewModel.restockItems[newIdx].id
+                                                        }
+                                                    }
+                                                }
+                                            }
                                             .frame(height: 110)
                                         }
                                         .padding(.horizontal, 4)
@@ -181,7 +281,7 @@ struct RestockEntryView: View {
                             }
                             .padding(.horizontal)
                             .padding(.top, 10)
-                            .padding(.bottom, 160)
+                            .padding(.bottom, 8)
                         }
                     } else {
                         VStack(spacing: 16) {
@@ -194,7 +294,7 @@ struct RestockEntryView: View {
                                 .foregroundStyle(.gray)
                             Spacer()
                         }
-                        .padding(.bottom, 160)
+                        .padding(.bottom, 8)
                     }
                 }
             }
@@ -256,45 +356,90 @@ struct RestockEntryView: View {
                     .padding(.bottom, 20)
                 }
                 
-                // Bottom Summary (no total and button, editable list)
-                VStack(spacing: 12) {
-                    Capsule()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 40, height: 5)
-                        .padding(.top, 10)
-                    
-                    HStack {
-                        Text(summaryTitle)
-                            .font(.headline)
-                        Spacer()
-                        Text("\(viewModel.restockItems.reduce(0) { $0 + $1.quantity })")
-                            .font(.headline)
-                            .foregroundStyle(Color.themePrimary)
+                EmptyView()
+            }
+            
+            // Voice Overlay
+            VoiceOverlayView(viewModel: viewModel)
+        }
+        .navigationBarHidden(true)
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 12) {
+                Capsule()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 40, height: 5)
+                    .padding(.top, 10)
+                
+                HStack {
+                    Text(summaryTitle)
+                        .font(.headline)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                
+                if viewModel.restockItems.isEmpty {
+                    VStack(spacing: 12) {
+                        Text("Chưa có hàng hóa nào")
+                            .foregroundStyle(.gray)
                     }
-                    .padding(.horizontal)
-                    
-                    if viewModel.restockItems.isEmpty {
-                        VStack(spacing: 12) {
-                            Text("Chưa có hàng hóa nào")
-                                .foregroundStyle(.gray)
-                        }
-                        .padding(.vertical, 8)
-                    } else {
+                    .padding(.vertical, 8)
+                } else {
+                    ScrollViewReader { proxy in
                         ScrollView {
-                            VStack(spacing: 8) {
-                                ForEach(viewModel.restockItems) { item in
+                            VStack(spacing: 4) {
+                                ForEach(Array(viewModel.restockItems.enumerated()), id: \.element.id) { idx, item in
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
                                             Text(item.name)
                                                 .font(.subheadline)
                                                 .foregroundStyle(Color.themeTextDark)
+                                                .onTapGesture { editingItem = item }
                                             HStack(spacing: 10) {
-                                                Text("SL: \(item.quantity)")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.gray)
-                                                Text("Đơn giá: \(formatCurrency(item.unitPrice))")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.gray)
+                                                let isWeight = useMaterialsList || titleText.lowercased().contains("thành phẩm")
+                                                HStack(spacing: 6) {
+                                                    Text("SL:")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.gray)
+                                                    Text(isWeight ? FormatUtils.formatWeight(item.quantity) : String(item.quantity))
+                                                        .font(.headline)
+                                                        .fontWeight(.heavy)
+                                                        .monospacedDigit()
+                                                        .foregroundStyle(Color.themePrimary)
+                                                }
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                                .frame(minWidth: 120, minHeight: 36, alignment: .leading)
+                                                .background(Color.clear)
+                                                .contentShape(Rectangle())
+                                                .onTapGesture {
+                                                    summaryEditingIndex = idx
+                                                    let isExport = titleText.lowercased().contains("xuất")
+                                                    summaryIsMaterials = useMaterialsList || titleText.lowercased().contains("nguyên liệu") || (!useMaterialsList && isExport)
+                                                    if summaryIsMaterials {
+                                                        let grams = max(0, item.quantity)
+                                                        summaryQtyKgSelection = grams / 1000
+                                                        summaryQtyGramsSelection = ((grams % 1000) / 50) * 50
+                                                    } else {
+                                                        summaryQtySelection = max(1, item.quantity)
+                                                    }
+                                                    showSummaryQtyWheel = true
+                                                }
+                                                HStack(spacing: 6) {
+                                                    let priceTitle = useMaterialsList ? "Đơn giá:" : (titleText.lowercased().contains("xuất") ? "Giá xuất:" : "Giá nhập:")
+                                                    Text(priceTitle)
+                                                        .font(.caption)
+                                                        .foregroundStyle(.gray)
+                                                    Text(formatCurrency(item.unitPrice))
+                                                        .font(.headline)
+                                                        .fontWeight(.heavy)
+                                                        .monospacedDigit()
+                                                        .foregroundStyle(Color.themePrimary)
+                                                }
+                                                .onTapGesture {
+                                                    summaryEditingIndex = idx
+                                                    summaryPriceSelection = Int(item.unitPrice)
+                                                    showSummaryPriceWheel = true
+                                                }
                                                 if item.additionalCost > 0 {
                                                     Text("Phí: \(formatCurrency(item.additionalCost))")
                                                         .font(.caption)
@@ -322,6 +467,7 @@ struct RestockEntryView: View {
                                                 .foregroundStyle(.red)
                                         }
                                     }
+                                    .id(item.id)
                                     .padding(10)
                                     .background(Color.white)
                                     .cornerRadius(12)
@@ -329,15 +475,14 @@ struct RestockEntryView: View {
                                 }
                             }
                         }
-                        .frame(maxHeight: 220)
+                        .onChange(of: lastAddedItemId) { _, newId in
+                            if let target = newId {
+                                withAnimation { proxy.scrollTo(target, anchor: .center) }
+                            }
+                        }
                     }
+                    .frame(maxHeight: 220)
                 }
-                .padding(.bottom, 12)
-                .background(
-                    Color.white
-                        .cornerRadius(24, corners: [.topLeft, .topRight])
-                        .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
-                )
                 
                 HStack {
                     Button {
@@ -364,22 +509,44 @@ struct RestockEntryView: View {
                     .padding(.bottom, 8)
                 }
             }
-            
-            // Voice Overlay
-            VoiceOverlayView(viewModel: viewModel)
+            .padding(.bottom, 6)
+            .background(
+                Color.white
+                    .cornerRadius(24, corners: [.topLeft, .topRight])
+                    .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
+            )
         }
-        .navigationBarHidden(true)
         .onAppear { 
             viewModel.isRestockMode = true 
+            let tag = "\(titleText)|\(useMaterialsList ? "materials" : "products")"
+            if viewModel.currentRestockSessionTag != tag {
+                viewModel.restockItems.removeAll()
+                viewModel.currentRestockSessionTag = tag
+            }
             if useInventoryList && useMaterialsList {
                 Task { await viewModel.loadMaterials() }
+            } else if useInventoryList && !useMaterialsList {
+                Task { await viewModel.loadProducts() }
+                let t = titleText.lowercased()
+                if t.contains("kho") || t.contains("nhập hàng") {
+                    inventorySubTab = 1
+                } else {
+                    inventorySubTab = 0
+                }
             }
         }
         .onDisappear { 
             viewModel.isRestockMode = false 
             viewModel.cancelVoiceProcessing()
         }
-        .sheet(isPresented: $showManualInput) { ManualRestockItemView(viewModel: viewModel) }
+        .sheet(isPresented: $showManualInput) { 
+            ManualRestockItemView(
+                viewModel: viewModel, 
+                isFinishedGoods: isFinishedGoodsContext(),
+                addTitle: computedAddTitle(),
+                editTitle: computedEditTitle()
+            ) 
+        }
         .sheet(isPresented: $showScanner) { InvoiceScannerView(viewModel: viewModel) }
         .sheet(isPresented: $showBarcodeScanner) {
             BarcodeScannerView(onScan: { code in
@@ -401,12 +568,141 @@ struct RestockEntryView: View {
             Text("Không tìm thấy sản phẩm nào khớp với mã vạch này trong hệ thống.")
         }
         .sheet(item: $scannedProduct) { product in
-            ManualRestockItemView(viewModel: viewModel, prefilledProduct: product)
+            ManualRestockItemView(
+                viewModel: viewModel, 
+                prefilledProduct: product, 
+                isFinishedGoods: isFinishedGoodsContext(),
+                addTitle: computedAddTitle(),
+                editTitle: computedEditTitle()
+            )
         }
-        .sheet(item: $editingItem) { item in ManualRestockItemView(viewModel: viewModel, itemToEdit: item) }
+        .sheet(item: $editingItem) { item in
+            ManualRestockItemView(
+                viewModel: viewModel, 
+                itemToEdit: item, 
+                isFinishedGoods: isFinishedGoodsContext(),
+                addTitle: computedAddTitle(),
+                editTitle: computedEditTitle()
+            )
+        }
+        // Inline quantity edit
+        .sheet(isPresented: $showSummaryQtyWheel) {
+            VStack(spacing: 12) {
+                Text("Sửa số lượng").font(.headline)
+                if summaryIsMaterials {
+                    HStack {
+                        VStack {
+                            Text("Kg").font(.caption).foregroundStyle(.gray)
+                            Picker("", selection: $summaryQtyKgSelection) {
+                                ForEach(Array(0...summaryQtyMax), id: \.self) { kg in
+                                    Text("\(kg)").tag(kg)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                        }
+                        VStack {
+                            Text("Gam").font(.caption).foregroundStyle(.gray)
+                            Picker("", selection: $summaryQtyGramsSelection) {
+                                ForEach(Array(stride(from: 0, through: summaryQtyGramsMax, by: 50)), id: \.self) { g in
+                                    Text("\(g)").tag(g)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                        }
+                    }
+                } else {
+                    Picker("", selection: $summaryQtySelection) {
+                        ForEach(Array(1...summaryQtyMax), id: \.self) { q in
+                            Text("\(q)").tag(q)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                }
+                HStack {
+                    Button("Đóng") { showSummaryQtyWheel = false }
+                    Spacer()
+                    Button("Lưu") {
+                        if let i = summaryEditingIndex, i < viewModel.restockItems.count {
+                            if summaryIsMaterials {
+                                let grams = summaryQtyKgSelection * 1000 + summaryQtyGramsSelection
+                                viewModel.restockItems[i].quantity = grams
+                            } else {
+                                viewModel.restockItems[i].quantity = summaryQtySelection
+                            }
+                        }
+                        showSummaryQtyWheel = false
+                    }
+                }
+                .font(.headline)
+            }
+            .padding()
+            .presentationDetents([.height(340)])
+        }
+        // Inline price edit
+        .sheet(isPresented: $showSummaryPriceWheel) {
+            VStack(spacing: 12) {
+                Text(useMaterialsList ? "Sửa đơn giá" : "Sửa giá bán dự kiến").font(.headline)
+                Picker("", selection: $summaryPriceSelection) {
+                    ForEach(Array(stride(from: 0, through: summaryPriceMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
+                        Text(formatCurrency(Double(v))).tag(v)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .onChange(of: summaryPriceSelection) { _, newValue in
+                    let step = StoreManager.shared.priceStep
+                    if newValue > summaryPriceMax - (step * 5) {
+                        summaryPriceMax += step * 100
+                    }
+                }
+                HStack {
+                    Button("Đóng") { showSummaryPriceWheel = false }
+                    Spacer()
+                    Button("Lưu") {
+                        if let i = summaryEditingIndex, i < viewModel.restockItems.count {
+                            viewModel.restockItems[i].unitPrice = Double(summaryPriceSelection)
+                        }
+                        showSummaryPriceWheel = false
+                    }
+                }
+                .font(.headline)
+            }
+            .padding()
+            .presentationDetents([.height(300)])
+        }
     }
 }
 
+private extension RestockEntryView {
+    func computedAddTitle() -> String {
+        let t = titleText.lowercased()
+        let isExport = t.contains("xuất")
+        if !useMaterialsList && inventorySubTab == 0 { return isExport ? "Thêm thành phẩm xuất" : "Thêm thành phẩm nhập" }
+        // Inventory goods entry should not say "thành phẩm"
+        if !useMaterialsList && (t.contains("kho") || t.contains("nhập hàng")) {
+            return isExport ? "Thêm hàng xuất" : "Thêm hàng nhập"
+        }
+        if useMaterialsList { return isExport ? "Thêm nguyên liệu xuất" : "Thêm nguyên liệu nhập" }
+        // Finished goods (production)
+        if t.contains("thành phẩm") { return isExport ? "Thêm thành phẩm xuất" : "Thêm thành phẩm nhập" }
+        return isExport ? "Thêm hàng xuất" : "Thêm hàng nhập"
+    }
+    func computedEditTitle() -> String {
+        let t = titleText.lowercased()
+        let isExport = t.contains("xuất")
+        if !useMaterialsList && inventorySubTab == 0 { return isExport ? "Sửa thành phẩm xuất" : "Sửa thành phẩm nhập" }
+        if !useMaterialsList && (t.contains("kho") || t.contains("nhập hàng")) {
+            return isExport ? "Sửa hàng xuất" : "Sửa hàng nhập"
+        }
+        if useMaterialsList { return isExport ? "Sửa nguyên liệu xuất" : "Sửa nguyên liệu nhập" }
+        if t.contains("thành phẩm") { return isExport ? "Sửa thành phẩm xuất" : "Sửa thành phẩm nhập" }
+        return isExport ? "Sửa hàng xuất" : "Sửa hàng nhập"
+    }
+    func isFinishedGoodsContext() -> Bool {
+        if useMaterialsList { return false }
+        let t = titleText.lowercased()
+        return inventorySubTab == 0 || t.contains("thành phẩm")
+    }
+}
 // Helper View for Item Card
 struct RestockItemCard: View {
     let item: RestockItem
@@ -503,32 +799,41 @@ struct ManualRestockItemView: View {
     @ObservedObject var viewModel: OrderViewModel
     var itemToEdit: RestockItem? = nil
     var prefilledProduct: Product? = nil
+    var isFinishedGoods: Bool = false
+    var addTitle: String = "Thêm hàng nhập"
+    var editTitle: String = "Sửa hàng nhập"
     @Environment(\.dismiss) var dismiss
     
     @State private var name = ""
     @State private var quantity = ""
     @State private var price = ""
     @State private var incurredCost = ""
-    @State private var sellingPrice = ""
     @State private var showQuantityWheel = false
     @State private var showUnitPriceWheel = false
     @State private var showAdditionalCostWheel = false
-    @State private var showSellingPriceWheel = false
+    // removed selling price UI
     @State private var quantityWheelSelection = 1
     @State private var quantityWheelMax = 500
+    @State private var quantityKgSelection = 0
+    @State private var gramsWheelSelection = 0
+    @State private var gramsWheelMax = 950
     @State private var unitPriceWheelSelection = 0
     @State private var unitPriceWheelMax = 5000000
     @State private var additionalCostWheelSelection = 0
     @State private var additionalCostWheelMax = 1000000
-    @State private var sellingPriceWheelSelection = 0
-    @State private var sellingPriceWheelMax = 10000000
+    @State private var showSuggestedPriceWheel = false
+    @State private var suggestedPriceWheelSelection = 0
+    @State private var suggestedPriceWheelMax = 10_000_000
+    @State private var selectedCategoryName: String = Category.materials.rawValue
+    @State private var showCategorySheet = false
+    @State private var newCategoryName: String = ""
     
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("Chi tiết hàng hóa")) {
+                Section(header: Text(isFinishedGoods ? "Chi tiết thành phẩm" : "Chi tiết hàng hóa")) {
                     HStack(spacing: 8) {
-                        TextField("Tên hàng", text: $name)
+                        TextField(isFinishedGoods ? "Tên thành phẩm" : "Tên hàng", text: $name)
                         Button {
                             if viewModel.isRecordingManualProductName {
                                 viewModel.speechRecognizer.stopRecording()
@@ -561,25 +866,55 @@ struct ManualRestockItemView: View {
                         }
                     }
                     if !name.isEmpty {
-                        Text("Tồn hiện tại: \(viewModel.stockLevel(for: name))")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
+                        let isWeightContext = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
+                        let current = viewModel.currentStockLevel(for: name)
+                        HStack(spacing: 4) {
+                            Text("Tồn hiện tại:")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            if isWeightContext {
+                                Text(FormatUtils.formatWeight(current))
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            } else {
+                                Text(String(current))
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
                     }
                     
+                    let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
                     HStack {
                         Text("Số lượng")
                         Spacer()
                         Button {
-                            if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
+                            if useKgGram {
+                                let current = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                                quantityKgSelection = max(0, current / 1000)
+                                let remainder = max(0, current % 1000)
+                                gramsWheelSelection = (remainder / 50) * 50
+                            } else {
+                                if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
+                            }
                             showQuantityWheel = true
                         } label: {
-                            Text(quantity.isEmpty ? "\(quantityWheelSelection)" : quantity)
-                                .fontWeight(.semibold)
+                            let gramsVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                            Group {
+                                if useKgGram {
+                                    Text(FormatUtils.formatKgDecimal(fromGrams: gramsVal))
+                                        .fontWeight(.semibold)
+                                } else {
+                                    Text(quantity.isEmpty ? String(quantityWheelSelection) : quantity)
+                                        .fontWeight(.semibold)
+                                }
+                            }
                         }
                     }
                     
+                    let isExport = addTitle.lowercased().contains("xuất")
                     HStack {
-                        Text("Đơn giá nhập")
+                        Text(isExport ? "Đơn giá xuất" : "Đơn giá nhập")
                         Spacer()
                         Button {
                             if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
@@ -602,72 +937,73 @@ struct ManualRestockItemView: View {
                         }
                     }
                     
-                    if let p = parseDouble(price), let q = Int(quantity), q > 0 {
-                        let extra = parseDouble(incurredCost) ?? 0
-                        let total = (p * Double(q)) + extra
-                        let unitCost = total / Double(q)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("Tổng chi phí:")
-                                Spacer()
-                                Text(formatCurrency(total))
-                                    .fontWeight(.bold)
-                            }
-                            
-                            HStack {
-                                Text("Giá vốn/sp:")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                Spacer()
-                                Text(formatCurrency(unitCost))
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                            }
+                    let pVal = parseDouble(price) ?? Double(unitPriceWheelSelection)
+                    let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
+                    let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
+                    let qVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                    let incVal = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
+                    HStack {
+                        Text(isFinishedGoods ? (isFGExport ? "Giá bán" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
+                        Spacer()
+                        if qVal > 0 {
+                            let total = isMatExport ? (pVal * (Double(qVal) / 1000.0)) : ((pVal * (Double(qVal) / 1000.0)) + incVal)
+                            let unitValue = isMatExport ? pVal : (total / (Double(qVal) / 1000.0))
+                            Text(formatCurrency(unitValue))
+                                .fontWeight(.semibold)
+                        } else {
+                            Text("—")
+                                .foregroundStyle(.gray)
                         }
-                        .foregroundStyle(.secondary)
                     }
                     
                     HStack {
-                        Text("Giá bán dự kiến")
+                        Text("Danh mục")
                         Spacer()
                         Button {
-                            let base = parseDouble(sellingPrice) ?? ((parseDouble(price) ?? Double(unitPriceWheelSelection)) * 1.3)
-                            sellingPriceWheelSelection = Int(base)
-                            showSellingPriceWheel = true
+                            showCategorySheet = true
                         } label: {
-                            Text(
-                                formatCurrency(
-                                    ((parseDouble(sellingPrice) ?? Double(sellingPriceWheelSelection)) > 0)
-                                    ? (parseDouble(sellingPrice) ?? Double(sellingPriceWheelSelection))
-                                    : ((parseDouble(price) ?? Double(unitPriceWheelSelection)) * 1.3)
-                                )
-                            )
+                            let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
+                            let placeholder = isMaterialsCtx ? Category.materials.rawValue : Category.others.rawValue
+                            Text(selectedCategoryName.isEmpty ? placeholder : selectedCategoryName)
                                 .fontWeight(.semibold)
                         }
                     }
                     
-                    if let p = parseDouble(price), let q = Int(quantity), q > 0 {
-                        let extra = parseDouble(incurredCost) ?? 0
-                        let total = (p * Double(q)) + extra
-                        let unitCost = total / Double(q)
-                        HStack {
-                            Text("Gợi ý (Lãi 30%)")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            Spacer()
-                            Text(formatCurrency(unitCost * 1.3))
-                                .font(.caption)
-                                .foregroundStyle(.gray)
+                    if let p = parseDouble(price) {
+                        let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
+                        let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
+                        let q = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                        if q > 0 {
+                            let extra = parseDouble(incurredCost) ?? 0
+                            let total = if isMatExport { p * (Double(q) / 1000.0) } else if isFGExport { p * (Double(q) / 1000.0) } else { (p * (Double(q) / 1000.0)) + extra }
+                            let unitValue = (isFGExport || isMatExport) ? p : (total / (Double(q) / 1000.0))
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(isFinishedGoods ? (isFGExport ? "Tổng xuất thành phẩm:" : "Tổng nhập thành phẩm:") : (isMatExport ? "Tổng xuất nguyên liệu:" : "Tổng chi phí:"))
+                                    Spacer()
+                                    Text(formatCurrency(total))
+                                        .fontWeight(.bold)
+                                }
+                                
+                                HStack {
+                                    Text(isFinishedGoods ? (isFGExport ? "Giá bán:" : "Giá bán (bao gồm chi phí):") : (isMatExport ? "Đơn giá xuất:" : "Đơn giá nhập (bao gồm chi phí):"))
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                    Text(formatCurrency(unitValue))
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                            .foregroundStyle(.secondary)
                         }
-                    } else {
-                        Text("Gợi ý (Lãi 30%): nhập giá/SL để xem")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
                     }
+                    
+                    
                 }
             }
-            .navigationTitle(itemToEdit == nil ? "Thêm hàng nhập" : "Sửa hàng nhập")
+            .navigationTitle(itemToEdit == nil ? addTitle : editTitle)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Hủy") { dismiss() }
@@ -675,10 +1011,11 @@ struct ManualRestockItemView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(itemToEdit == nil ? "Thêm" : "Lưu") {
                         let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
-                        let q = Int(quantity) ?? quantityWheelSelection
+                        let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
+                        let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : (Int(quantity) ?? quantityWheelSelection)
                         guard !name.isEmpty, q > 0 else { return }
                         let extra = parseDouble(incurredCost) ?? 0
-                        let suggested = parseDouble(sellingPrice)
+                        let suggested: Double? = (!isFinishedGoods ? Double(suggestedPriceWheelSelection) : nil)
                         
                         if var item = itemToEdit {
                             item.name = name
@@ -686,10 +1023,11 @@ struct ManualRestockItemView: View {
                             item.unitPrice = p
                             item.additionalCost = extra
                             item.suggestedPrice = suggested
+                            item.category = selectedCategoryName
                             item.isConfirmed = true
                             viewModel.updateRestockItem(item)
                         } else {
-                            viewModel.addRestockItem(name, unitPrice: p, quantity: q, additionalCost: extra, suggestedPrice: suggested)
+                            viewModel.addRestockItem(name, unitPrice: p, quantity: q, additionalCost: extra, suggestedPrice: suggested, category: selectedCategoryName)
                         }
                         dismiss()
                     }
@@ -701,16 +1039,28 @@ struct ManualRestockItemView: View {
         .onAppear {
             if let item = itemToEdit {
                 name = item.name
-                quantity = String(item.quantity)
+                let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
+                if useKgGram {
+                    quantity = FormatUtils.formatKgDecimal(fromGrams: item.quantity)
+                } else {
+                    quantity = String(item.quantity)
+                }
                 price = String(format: "%.0f", item.unitPrice)
                 incurredCost = String(format: "%.0f", item.additionalCost)
-                if let s = item.suggestedPrice {
-                    sellingPrice = String(format: "%.0f", s)
-                }
                 quantityWheelSelection = item.quantity
                 unitPriceWheelSelection = Int(item.unitPrice)
                 additionalCostWheelSelection = Int(item.additionalCost)
-                sellingPriceWheelSelection = Int(item.suggestedPrice ?? 0)
+                if let cat = item.category, !cat.isEmpty {
+                    selectedCategoryName = cat
+                }
+                if !isFinishedGoods {
+                    if let sp = item.suggestedPrice {
+                        suggestedPriceWheelSelection = Int(sp)
+                    } else {
+                        suggestedPriceWheelSelection = max(Int(item.unitPrice * 1.3), Int(item.unitPrice))
+                    }
+                }
+                // no selling price wheel
             } else if let product = prefilledProduct {
                 name = product.name
                 // Use last known cost price as default import price
@@ -718,40 +1068,119 @@ struct ManualRestockItemView: View {
                 let defaultCost = product.costPrice > 0 ? product.costPrice : product.price * 0.7
                 price = String(format: "%.0f", defaultCost)
                 
-                let defaultSuggested = defaultCost * 1.3
-                sellingPrice = String(format: "%.0f", defaultSuggested)
                 unitPriceWheelSelection = Int(defaultCost)
-                sellingPriceWheelSelection = Int(defaultSuggested)
+                if !isFinishedGoods {
+                    suggestedPriceWheelSelection = Int(product.price)
+                }
             }
         }
+            .sheet(isPresented: $showCategorySheet) {
+                NavigationStack {
+                    Form {
+                        Section("Chọn danh mục") {
+                            let baseCats = Category.allCases.filter { $0 != .all }.map { $0.rawValue }
+                            let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
+                            let dynamicCats = isMaterialsCtx ? Array(viewModel.materialCategories) : Array(viewModel.productCategories)
+                            let allCats = Array(Set(baseCats + dynamicCats)).sorted()
+                            ForEach(allCats, id: \.self) { cat in
+                                Button {
+                                    selectedCategoryName = cat
+                                    showCategorySheet = false
+                                } label: {
+                                    HStack {
+                                        Text(cat)
+                                        if selectedCategoryName == cat {
+                                            Spacer()
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Section("Tạo danh mục mới") {
+                            TextField("Tên danh mục", text: $newCategoryName)
+                                .textInputAutocapitalization(.words)
+                                .disableAutocorrection(true)
+                            Button("Lưu danh mục") {
+                                let trimmed = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !trimmed.isEmpty {
+                                    selectedCategoryName = trimmed
+                                    let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
+                                    if isMaterialsCtx { viewModel.addMaterialCategory(trimmed) }
+                                    else { viewModel.addProductCategory(trimmed) }
+                                    newCategoryName = ""
+                                    showCategorySheet = false
+                                }
+                            }
+                            .disabled(newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+                    .navigationTitle(addTitle.lowercased().contains("nguyên liệu") ? "Danh mục nguyên liệu" : "Danh mục hàng hóa")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showCategorySheet = false }
+                        }
+                    }
+                }
+                .presentationDetents([.height(420)])
+            }
         .sheet(isPresented: $showQuantityWheel) {
+            let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
             VStack(spacing: 12) {
                 Text("Sửa số lượng")
                     .font(.headline)
-                Picker("", selection: $quantityWheelSelection) {
-                    ForEach(Array(1...quantityWheelMax), id: \.self) { q in
-                        Text("\(q)").tag(q)
+                if useKgGram {
+                    HStack {
+                        VStack {
+                            Text("Kg")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Picker("", selection: $quantityKgSelection) {
+                                ForEach(Array(0...quantityWheelMax), id: \.self) { kg in
+                                    Text("\(kg)").tag(kg)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                        }
+                        VStack {
+                            Text("Gam")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Picker("", selection: $gramsWheelSelection) {
+                                ForEach(Array(stride(from: 0, through: gramsWheelMax, by: 50)), id: \.self) { g in
+                                    Text("\(g)").tag(g)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                        }
                     }
-                }
-                .pickerStyle(.wheel)
-                .onChange(of: quantityWheelSelection) { q in
-                    if q > quantityWheelMax - 10 {
-                        quantityWheelMax += 500
+                } else {
+                    Picker("", selection: $quantityWheelSelection) {
+                        ForEach(Array(1...quantityWheelMax), id: \.self) { v in
+                            Text("\(v)").tag(v)
+                        }
                     }
+                    .pickerStyle(.wheel)
                 }
                 HStack {
                     Button("Đóng") { showQuantityWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        quantity = String(quantityWheelSelection)
-                        updateSellingPrice()
+                        if useKgGram {
+                            let total = quantityKgSelection * 1000 + gramsWheelSelection
+                            quantityWheelSelection = total
+                            quantity = FormatUtils.formatKgDecimal(fromGrams: total)
+                        } else {
+                            quantity = String(quantityWheelSelection)
+                        }
                         showQuantityWheel = false
                     }
                 }
                 .font(.headline)
             }
             .padding()
-            .presentationDetents([.height(300)])
+            .presentationDetents([.height(340)])
         }
         .sheet(isPresented: $showUnitPriceWheel) {
             VStack(spacing: 12) {
@@ -774,9 +1203,6 @@ struct ManualRestockItemView: View {
                     Spacer()
                     Button("Lưu") {
                         price = String(unitPriceWheelSelection)
-                        let defaultSuggested = Double(unitPriceWheelSelection) * 1.3
-                        sellingPrice = String(Int(defaultSuggested))
-                        sellingPriceWheelSelection = Int(defaultSuggested)
                         showUnitPriceWheel = false
                     }
                 }
@@ -806,7 +1232,6 @@ struct ManualRestockItemView: View {
                     Spacer()
                     Button("Lưu") {
                         incurredCost = String(additionalCostWheelSelection)
-                        updateSellingPrice()
                         showAdditionalCostWheel = false
                     }
                 }
@@ -815,28 +1240,27 @@ struct ManualRestockItemView: View {
             .padding()
             .presentationDetents([.height(300)])
         }
-        .sheet(isPresented: $showSellingPriceWheel) {
+        .sheet(isPresented: $showSuggestedPriceWheel) {
             VStack(spacing: 12) {
-                Text("Sửa giá bán")
+                Text("Sửa giá bán dự kiến")
                     .font(.headline)
-                Picker("", selection: $sellingPriceWheelSelection) {
-                    ForEach(Array(stride(from: 0, through: sellingPriceWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
+                Picker("", selection: $suggestedPriceWheelSelection) {
+                    ForEach(Array(stride(from: 0, through: suggestedPriceWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
                         Text(formatCurrency(Double(v))).tag(v)
                     }
                 }
                 .pickerStyle(.wheel)
-                .onChange(of: sellingPriceWheelSelection) { _, newValue in
+                .onChange(of: suggestedPriceWheelSelection) { _, newValue in
                     let step = StoreManager.shared.priceStep
-                    if newValue > sellingPriceWheelMax - (step * 5) {
-                        sellingPriceWheelMax += step * 100
+                    if newValue > suggestedPriceWheelMax - (step * 5) {
+                        suggestedPriceWheelMax += step * 100
                     }
                 }
                 HStack {
-                    Button("Đóng") { showSellingPriceWheel = false }
+                    Button("Đóng") { showSuggestedPriceWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        sellingPrice = String(sellingPriceWheelSelection)
-                        showSellingPriceWheel = false
+                        showSuggestedPriceWheel = false
                     }
                 }
                 .font(.headline)
@@ -846,17 +1270,6 @@ struct ManualRestockItemView: View {
         }
     }
     
-    func updateSellingPrice() {
-        let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
-        let q = Int(quantity) ?? quantityWheelSelection
-        if q > 0 {
-            let extra = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
-            let total = (p * Double(q)) + extra
-            let unitCost = total / Double(q)
-            let suggested = unitCost * 1.3
-            sellingPrice = String(Int(suggested))
-        }
-    }
     
     func parseDouble(_ input: String) -> Double? {
         // Handle "2,000" or "20,000" (Thousands separator)
@@ -866,4 +1279,6 @@ struct ManualRestockItemView: View {
         
         return Double(clean)
     }
+    
+ 
 }

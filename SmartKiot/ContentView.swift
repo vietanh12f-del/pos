@@ -84,7 +84,7 @@ struct ContentView: View {
                             }
                             .tag(6)
                         
-                        MoreView(selectedTab: $selectedTab)
+                        MoreView(selectedTab: $selectedTab, showProductionManagement: $showProductionManagement)
                             .tabItem {
                                 Label("Thêm", systemImage: "square.grid.2x2.fill")
                             }
@@ -655,26 +655,30 @@ struct ContentView: View {
             }
         }
         
+        @State private var orderCategory: String = "Tất cả"
+        
         var browsingContentViewOrder: some View {
             VStack(spacing: 0) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(Category.allCases, id: \.self) { category in
+                        let availableCatNames = Array(Set(viewModel.products.filter { !$0.isFinishedGood }.map { $0.category })).sorted()
+                        let chips = ["Tất cả"] + availableCatNames
+                        ForEach(chips, id: \.self) { cat in
                             Button(action: {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    viewModel.selectedCategory = category
+                                    orderCategory = cat
                                 }
                                 let generator = UIImpactFeedbackGenerator(style: .light)
                                 generator.impactOccurred()
                             }) {
-                                Text(category.displayName)
+                                Text(cat)
                                     .font(.subheadline)
                                     .fontWeight(.medium)
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
                                     .background(
                                         ZStack {
-                                            if viewModel.selectedCategory == category {
+                                            if orderCategory == cat {
                                                 Capsule()
                                                     .fill(Color.themePrimary)
                                                     .matchedGeometryEffect(id: "catPill", in: namespace)
@@ -685,7 +689,7 @@ struct ContentView: View {
                                             }
                                         }
                                     )
-                                    .foregroundStyle(viewModel.selectedCategory == category ? Color.themeTextDark : Color.gray)
+                                    .foregroundStyle(orderCategory == cat ? Color.themeTextDark : Color.gray)
                             }
                         }
                     }
@@ -696,7 +700,12 @@ struct ContentView: View {
                 
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                        ForEach(viewModel.filteredProducts) { product in
+                        let productsToShow = viewModel.products.filter { p in
+                            guard !p.isFinishedGood else { return false }
+                            if orderCategory == "Tất cả" { return true }
+                            return p.category.lowercased() == orderCategory.lowercased()
+                        }
+                        ForEach(productsToShow) { product in
                             Button(action: {
                                 let generator = UIImpactFeedbackGenerator(style: .medium)
                                 generator.impactOccurred()

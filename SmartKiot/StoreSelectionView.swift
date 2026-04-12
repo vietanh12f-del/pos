@@ -107,8 +107,27 @@ struct StoreSelectionView: View {
                             } else {
                                 // Employee View
                                 VStack(spacing: 20) {
-                                    if storeManager.memberStores.isEmpty && storeManager.invitedStores.isEmpty {
+                                if storeManager.memberStores.isEmpty && storeManager.invitedStores.isEmpty {
+                                    VStack(spacing: 24) {
                                         EmptyStoreStateView(message: "Bạn chưa là nhân viên của cửa hàng nào. Hãy nói chủ cửa hàng thêm bạn vào nhé")
+                                        
+                                        Button {
+                                            Task { await authManager.signOut() }
+                                        } label: {
+                                            HStack {
+                                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                                Text("Đăng xuất")
+                                            }
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .padding()
+                                            .frame(maxWidth: .infinity)
+                                            .background(Color.red)
+                                            .cornerRadius(12)
+                                            .shadow(color: .red.opacity(0.3), radius: 5, x: 0, y: 3)
+                                        }
+                                        .padding(.horizontal, 40)
+                                    }
                                     } else {
                                         // Member Stores
                                         ForEach(storeManager.memberStores) { store in

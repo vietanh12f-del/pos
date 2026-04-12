@@ -117,12 +117,14 @@ struct InventoryView: View {
     }
     
     var filteredProducts: [Product] {
+        let base = viewModel.products.filter { !$0.isFinishedGood }
         if searchText.isEmpty {
-            return viewModel.products
+            return base
         } else {
-            return viewModel.products.filter {
-                $0.name.lowercased().contains(searchText.lowercased()) ||
-                $0.category.lowercased().contains(searchText.lowercased()) ||
+            let q = searchText.lowercased()
+            return base.filter {
+                $0.name.lowercased().contains(q) ||
+                $0.category.lowercased().contains(q) ||
                 ($0.barcode?.contains(searchText) ?? false)
             }
         }
@@ -316,10 +318,10 @@ struct InventoryView: View {
                                         .foregroundStyle(.gray)
                                         .frame(width: 80, alignment: .trailing)
                                     
-                                    Text("\(product.stockQuantity)")
+                                    Text("\(viewModel.stockLevel(for: product.name))")
                                         .font(.headline)
                                         .fontWeight(.bold)
-                                        .foregroundStyle(product.stockQuantity > 0 ? Color.themePrimary : Color.red)
+                                        .foregroundStyle(viewModel.stockLevel(for: product.name) > 0 ? Color.themePrimary : Color.red)
                                         .frame(width: 50, alignment: .trailing)
                                 }
                                 .padding(.vertical, 8)
@@ -419,10 +421,6 @@ struct InventoryView: View {
                                         }
                                         Spacer()
                                         VStack(alignment: .trailing, spacing: 4) {
-                                            Text(formatCurrency(bill.totalCost))
-                                                .font(.headline)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(.red)
                                             Text("\(bill.items.count) mặt hàng")
                                                 .font(.caption)
                                                 .foregroundStyle(.gray)
@@ -595,6 +593,15 @@ struct InventoryView: View {
 
 // MARK: - Print Helpers
 private extension InventoryView {
+    func calculateCorrectedTotal(_ bill: RestockBill) -> Double {
+        guard !bill.items.isEmpty else { return bill.totalCost }
+        let materialNames = Set(viewModel.materials.map { $0.name.lowercased() })
+        return bill.items.reduce(0) { acc, item in
+            let isMaterial = materialNames.contains(item.name.lowercased())
+            let base = isMaterial ? (item.unitPrice * (Double(item.quantity) / 1000.0)) : (item.unitPrice * Double(item.quantity))
+            return acc + base + item.additionalCost
+        }
+    }
     func renderInventoryFullImage() {
         let view = InventoryFullPrintView(products: viewModel.products)
             .frame(width: 375)

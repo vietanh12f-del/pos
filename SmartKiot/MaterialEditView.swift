@@ -20,7 +20,10 @@ struct MaterialEditView: View {
     @State private var showStockWheel = false
     @State private var stockWheelSelection = 0
     @State private var stockWheelMax = 1000
-    @State private var selectedCategory: Category = .materials
+    @State private var stockKgSelection = 0
+    @State private var stockGramsSelection = 0
+    @State private var stockGramsMax = 950
+    @State private var selectedCategoryName: String = Category.materials.rawValue
     
     var body: some View {
         VStack(spacing: 0) {
@@ -42,9 +45,12 @@ struct MaterialEditView: View {
                 Section(header: Text("Chi tiết nguyên liệu")) {
                     TextField("Tên nguyên liệu", text: $name)
                     
-                    Picker("Danh mục", selection: $selectedCategory) {
-                        ForEach(Category.allCases.filter { $0 != .all }, id: \.self) { c in
-                            Text(c.displayName).tag(c)
+                    Picker("Danh mục", selection: $selectedCategoryName) {
+                        let baseCats = Category.allCases.filter { $0 != .all }.map { $0.rawValue }
+                        let dynamicCats = Array(viewModel.materialCategories)
+                        let allCats = Array(Set(baseCats + dynamicCats)).sorted()
+                        ForEach(allCats, id: \.self) { c in
+                            Text(c).tag(c)
                         }
                     }
                     
@@ -67,7 +73,7 @@ struct MaterialEditView: View {
                             if let v = Int(stock) { stockWheelSelection = v }
                             showStockWheel = true
                         } label: {
-                            Text("\(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0))")
+                            Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)))
                                 .fontWeight(.semibold)
                         }
                     }
@@ -116,34 +122,46 @@ struct MaterialEditView: View {
         .sheet(isPresented: $showStockWheel) {
             VStack(spacing: 12) {
                 Text("Sửa tồn kho").font(.headline)
-                Picker("", selection: $stockWheelSelection) {
-                    ForEach(Array(0...stockWheelMax), id: \.self) { v in
-                        Text("\(v)").tag(v)
+                HStack {
+                    VStack {
+                        Text("Kg").font(.caption).foregroundStyle(.gray)
+                        Picker("", selection: $stockKgSelection) {
+                            ForEach(Array(0...stockWheelMax), id: \.self) { kg in
+                                Text("\(kg)").tag(kg)
+                            }
+                        }
+                        .pickerStyle(.wheel)
                     }
-                }
-                .pickerStyle(.wheel)
-                .onChange(of: stockWheelSelection) { v in
-                    if v > stockWheelMax - 10 {
-                        stockWheelMax += 500
+                    VStack {
+                        Text("Gam").font(.caption).foregroundStyle(.gray)
+                        Picker("", selection: $stockGramsSelection) {
+                            ForEach(Array(stride(from: 0, through: stockGramsMax, by: 50)), id: \.self) { g in
+                                Text("\(g)").tag(g)
+                            }
+                        }
+                        .pickerStyle(.wheel)
                     }
                 }
                 .onAppear {
-                    if stockWheelSelection > stockWheelMax - 50 {
-                        stockWheelMax = stockWheelSelection + 500
-                    }
+                    let current = stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)
+                    stockKgSelection = max(0, current / 1000)
+                    let remainder = max(0, current % 1000)
+                    stockGramsSelection = (remainder / 50) * 50
                 }
                 HStack {
                     Button("Đóng") { showStockWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        stock = String(stockWheelSelection)
+                        let total = stockKgSelection * 1000 + stockGramsSelection
+                        stockWheelSelection = total
+                        stock = String(total)
                         showStockWheel = false
                     }
                 }
                 .font(.headline)
             }
             .padding()
-            .presentationDetents([.height(300)])
+            .presentationDetents([.height(340)])
         }
         .onAppear {
             if case .edit(let material) = mode {
@@ -152,11 +170,7 @@ struct MaterialEditView: View {
                 stock = String(material.stockQuantity)
                 stockWheelSelection = material.stockQuantity
                 costWheelSelection = Int(material.lastUnitPrice)
-                if let cat = Category(rawValue: material.category) {
-                    selectedCategory = cat
-                } else {
-                    selectedCategory = .materials
-                }
+                selectedCategoryName = material.category
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -173,16 +187,18 @@ struct MaterialEditView: View {
         guard let unit = Double(importPrice), let qty = Int(stock) else { return }
         switch mode {
         case .add:
-            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategory.rawValue)
+            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName)
             Task {
                 try? await viewModel.databaseSaveMaterial(material)
+                viewModel.addMaterialCategory(selectedCategoryName)
                 await viewModel.loadMaterials()
                 dismiss()
             }
         case .edit(let m):
-            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategory.rawValue)
+            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName)
             Task {
                 try? await viewModel.databaseUpdateMaterial(updated)
+                viewModel.addMaterialCategory(selectedCategoryName)
                 await viewModel.loadMaterials()
                 dismiss()
             }
@@ -199,3 +215,5 @@ struct MaterialEditView: View {
         }
     }
 }
+
+ 

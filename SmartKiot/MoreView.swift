@@ -2,12 +2,14 @@ import SwiftUI
 
 struct MoreView: View {
     @Binding var selectedTab: Int
+    @Binding var showProductionManagement: Bool
     
     let menuItems: [MenuItem] = [
         MenuItem(id: 5, title: "Chat", icon: "message.fill", color: .blue),
         MenuItem(id: 4, title: "Chi Phí", icon: "banknote.fill", color: .green),
         MenuItem(id: 7, title: "Thống Kê", icon: "chart.bar.xaxis", color: .orange),
-        MenuItem(id: 6, title: "Cài Đặt", icon: "gearshape.fill", color: .gray)
+        MenuItem(id: 6, title: "Cài Đặt", icon: "gearshape.fill", color: .gray),
+        MenuItem(id: 99, title: "Quản Lý Sản Xuất", icon: "gearshape.2.fill", color: .purple)
     ]
     
     var body: some View {
@@ -16,7 +18,11 @@ struct MoreView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                     ForEach(menuItems) { item in
                         Button(action: {
-                            selectedTab = item.id
+                            if item.id == 99 {
+                                showProductionManagement = true
+                            } else {
+                                selectedTab = item.id
+                            }
                         }) {
                             VStack(spacing: 12) {
                                 Circle()

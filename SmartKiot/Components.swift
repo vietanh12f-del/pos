@@ -35,12 +35,15 @@ func colorForString(_ name: String) -> Color {
 func formatTime(_ date: Date) -> String {
     let formatter = DateFormatter()
     formatter.dateFormat = "HH:mm"
+    formatter.locale = Locale(identifier: "vi_VN")
+    formatter.timeZone = .current
     return formatter.string(from: date)
 }
 
 func formatDate(_ date: Date) -> String {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "vi_VN")
+    formatter.timeZone = .current
     formatter.dateFormat = "dd/MM/yyyy HH:mm"
     return formatter.string(from: date)
 }

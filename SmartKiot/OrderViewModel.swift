@@ -32,6 +32,7 @@ class OrderViewModel: ObservableObject {
     }
     private let editHistoryKey = "bill_edit_history_v1"
     @Published var editedOrderIds: Set<UUID> = []
+    @Published var editedProductionTxIds: Set<UUID> = []
     
     // Cache control
     private var loadedStoreId: UUID?
@@ -75,9 +76,12 @@ class OrderViewModel: ObservableObject {
     
     // Restock
     @Published var isRestockMode: Bool = false
+    @Published var currentRestockSessionTag: String = ""
     @Published var restockItems: [RestockItem] = []
     @Published var restockHistory: [RestockBill] = []
     @Published var operatingExpenses: [OperatingExpense] = []
+    @Published var materialCategories: Set<String> = Set(Category.allCases.filter { $0 != .all }.map { $0.rawValue })
+    @Published var productCategories: Set<String> = Set(Category.allCases.filter { $0 != .all }.map { $0.rawValue })
     @Published var materialsInventory: [MaterialItem] = []
     @Published var materials: [MaterialItem] = []
     @Published var productionHistory: [ProductionTransaction] = []
@@ -96,10 +100,9 @@ class OrderViewModel: ObservableObject {
     ]
     
     var filteredProducts: [Product] {
-        if selectedCategory == .all {
-            return products
-        }
-        return products.filter { $0.category == selectedCategory.rawValue }
+        let base = products
+        if selectedCategory == .all { return base }
+        return base.filter { $0.category == selectedCategory.rawValue }
     }
     
     // Smart Suggestion
@@ -113,6 +116,10 @@ class OrderViewModel: ObservableObject {
             $0.category.lowercased().contains(lowerText) ||
             ($0.barcode?.contains(lowerText) ?? false)
         }
+    }
+    
+    var finishedGoods: [Product] {
+        products.filter { $0.isFinishedGood }
     }
     
     func addProduct(_ product: Product) {
@@ -437,6 +444,16 @@ class OrderViewModel: ObservableObject {
             }
         }
         
+        // Fetch edited production transaction IDs for badge
+        if let sid = StoreManager.shared.currentStore?.id {
+            do {
+                let ids = try await self.database.fetchEditedProductionTransactionIds(storeId: sid)
+                self.editedProductionTxIds = Set(ids)
+            } catch {
+                print("⚠️ Error fetching edited production tx ids: \(error)")
+            }
+        }
+        
         // 3. Restock History
         switch rRestock {
         case .success(let restocks):
@@ -459,6 +476,16 @@ class OrderViewModel: ObservableObject {
             self.operatingExpenses = expenses
         case .failure(let error):
             print("⚠️ Error fetching expenses: \(error)")
+        }
+        
+        // Fetch categories from DB (merge with in-memory sets)
+        do {
+            let prodCats = try await database.fetchCategories(kind: "product")
+            let matCats = try await database.fetchCategories(kind: "material")
+            self.productCategories.formUnion(prodCats)
+            self.materialCategories.formUnion(matCats)
+        } catch {
+            print("⚠️ Error fetching categories: \(error)")
         }
         
         // Sync inventory dictionary from products
@@ -1025,6 +1052,32 @@ class OrderViewModel: ObservableObject {
         return inventory[name.lowercased()] ?? 0
     }
     
+    func materialStockLevel(for name: String) -> Int {
+        let key = name.lowercased()
+        if let m = materials.first(where: { $0.name.lowercased() == key }) {
+            return m.stockQuantity
+        }
+        if let m = materialsInventory.first(where: { $0.name.lowercased() == key }) {
+            return m.stockQuantity
+        }
+        return 0
+    }
+    
+    func currentStockLevel(for name: String) -> Int {
+        let key = name.lowercased()
+        let ms = materialStockLevel(for: name)
+        if ms > 0 { return ms }
+        // Prefer runtime inventory cache if present
+        if let inv = inventory[key] {
+            return inv
+        }
+        // Fallback to product catalog stock (convert to grams for finished goods)
+        if let p = products.first(where: { $0.name.lowercased() == key }) {
+            return p.isFinishedGood ? (p.stockQuantity * 1000) : p.stockQuantity
+        }
+        return 0
+    }
+    
     func parseItem(from text: String) -> OrderItem? {
         // Use SmartParser for flexible "AI-like" parsing
         if let parsed = SmartParser.parse(text: text) {
@@ -1243,8 +1296,8 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Restock Actions
     
-    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil) {
-        restockItems.append(RestockItem(name: name, quantity: quantity, unitPrice: unitPrice, additionalCost: additionalCost, suggestedPrice: suggestedPrice))
+    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil) {
+        restockItems.append(RestockItem(name: name, quantity: quantity, unitPrice: unitPrice, additionalCost: additionalCost, suggestedPrice: suggestedPrice, isConfirmed: false, category: category))
     }
     
     func removeRestockItem(at offsets: IndexSet) {
@@ -1316,6 +1369,13 @@ class OrderViewModel: ObservableObject {
                     product.price = suggested
                 }
                 
+                // Update category if provided on restock item
+                if let newCat = item.category, !newCat.isEmpty, product.category != newCat {
+                    product.category = newCat
+                    // Keep category sets in sync
+                    self.productCategories.insert(newCat)
+                }
+                
                 products[index] = product
                 
                 Task {
@@ -1328,24 +1388,28 @@ class OrderViewModel: ObservableObject {
             } else {
                 // New Product
                 // Determine category? Default to Others or Flowers if name contains flower keywords
-                var cat: Category = .others
-                if key.contains("flower") || key.contains("hoa") || key.contains("hồng") {
-                    cat = .flowers
-                } else if key.contains("giấy") || key.contains("nơ") || key.contains("ribbon") {
-                    cat = .accessories
-                }
+                let catValue: String = item.category ?? {
+                    var cat: Category = .others
+                    if key.contains("flower") || key.contains("hoa") || key.contains("hồng") {
+                        cat = .flowers
+                    } else if key.contains("giấy") || key.contains("nơ") || key.contains("ribbon") {
+                        cat = .accessories
+                    }
+                    return cat.rawValue
+                }()
                 
                 let newProduct = Product(
                     id: UUID(), // Explicit ID
                     name: item.name, // Use original casing
                     price: item.suggestedPrice ?? (item.finalUnitCost * 1.3), // Use suggested or default 30% markup (on total cost is fine for suggestion)
                     costPrice: item.finalUnitCost, // Initial Cost includes incurred fees
-                    category: cat.rawValue,
+                    category: catValue,
                     imageName: "shippingbox.fill", // Default icon
                     color: "gray",
                     stockQuantity: newQuantity
                 )
                 products.append(newProduct)
+                self.productCategories.insert(catValue)
                 
                 Task {
                     do {
@@ -1417,8 +1481,13 @@ class OrderViewModel: ObservableObject {
         Task {
             do {
                 try await database.saveProductionTransaction(tx)
-                await upsertMaterialsFromTransaction(tx)
-                await loadMaterials()
+                if mode.lowercased().contains("thành phẩm") {
+                    await upsertProductsFromTransaction(tx)
+                    await loadProducts()
+                } else {
+                    await upsertMaterialsFromTransaction(tx)
+                    await loadMaterials()
+                }
                 await loadProductionHistory(mode: mode)
             } catch {
                 print("❌ Error saving production transaction: \(error)")
@@ -1437,7 +1506,9 @@ class OrderViewModel: ObservableObject {
                 for it in tx.items {
                     let key = it.name.lowercased()
                     let cur = dict[key]?.qty ?? 0
-                    dict[key] = (cur + it.quantity, it.unitPrice)
+                    let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
+                    let unitInclusive = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
+                    dict[key] = (cur + it.quantity, unitInclusive)
                 }
             }
             for tx in outputs {
@@ -1460,7 +1531,12 @@ class OrderViewModel: ObservableObject {
     func loadMaterials() async {
         do {
             let rows = try await database.fetchMaterials()
-            await MainActor.run { self.materials = rows }
+            let cats = Set(rows.map { $0.category })
+            await MainActor.run { 
+                self.materials = rows
+                let base = Set(Category.allCases.filter { $0 != .all }.map { $0.rawValue })
+                self.materialCategories = self.materialCategories.union(cats).union(base)
+            }
         } catch {
             print("⚠️ loadMaterials error: \(error)")
         }
@@ -1487,9 +1563,19 @@ class OrderViewModel: ObservableObject {
                 var m = current[idx]
                 if isImport {
                     m.stockQuantity = max(0, m.stockQuantity + it.quantity)
-                    m.lastUnitPrice = it.unitPrice
+                    let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
+                    let unitInclusive = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
+                    m.lastUnitPrice = unitInclusive
+                    if let newCat = it.category, !newCat.isEmpty, m.category != newCat {
+                        m.category = newCat
+                        self.materialCategories.insert(newCat)
+                    }
                 } else if isExport {
                     m.stockQuantity = max(0, m.stockQuantity - it.quantity)
+                    if let newCat = it.category, !newCat.isEmpty, m.category != newCat {
+                        m.category = newCat
+                        self.materialCategories.insert(newCat)
+                    }
                 } else {
                     // Unknown mode, do nothing
                 }
@@ -1498,7 +1584,10 @@ class OrderViewModel: ObservableObject {
                 current[idx] = m
             } else {
                 if isImport {
-                    let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: it.unitPrice, category: Category.materials.rawValue)
+                    let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
+                    let unitInclusive = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
+                    let cat = it.category ?? Category.materials.rawValue
+                    let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: unitInclusive, category: cat)
                     do { try await database.saveMaterial(m) }
                     catch { print("❌ saveMaterial error: \(error)") }
                     current.append(m)
@@ -1512,6 +1601,18 @@ class OrderViewModel: ObservableObject {
         await loadMaterials()
     }
     
+    func addMaterialCategory(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        materialCategories.insert(trimmed)
+    }
+    
+    func addProductCategory(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        productCategories.insert(trimmed)
+    }
+    
     func loadProductionHistory(mode: String) async {
         do {
             let rows = try await database.fetchProductionTransactions(mode: mode)
@@ -1519,6 +1620,239 @@ class OrderViewModel: ObservableObject {
         } catch {
             print("⚠️ loadProductionHistory error: \(error)")
         }
+    }
+    
+    func loadProducts() async {
+        do {
+            let rows = try await database.fetchProducts()
+            let cats = Set(rows.map { $0.category })
+            await MainActor.run {
+                self.products = rows
+                // Merge instead of reset so DB categories not tied to products persist
+                let base = Set(Category.allCases.filter { $0 != .all }.map { $0.rawValue })
+                self.productCategories = self.productCategories.union(cats).union(base)
+            }
+        } catch {
+            print("⚠️ loadProducts error: \(error)")
+        }
+    }
+    
+    func updateProductionTransaction(original: ProductionTransaction, updated: ProductionTransaction) async -> Bool {
+        do {
+            var updatedTx = updated
+            if updatedTx.note == nil || updatedTx.note?.isEmpty == true {
+                updatedTx.note = "Đã chỉnh sửa"
+            }
+            try await database.updateProductionTransaction(updatedTx)
+            if updatedTx.mode.lowercased().contains("thành phẩm") {
+                await adjustProductsForEditedTransaction(original: original, updated: updatedTx)
+                await loadProducts()
+            } else {
+                await adjustMaterialsForEditedTransaction(original: original, updated: updatedTx)
+                await loadMaterials()
+            }
+            await loadProductionHistory(mode: updatedTx.mode)
+            
+            let editorId = AuthManager.shared.currentUserProfile?.id
+            let editorName = AuthManager.shared.currentUserProfile?.fullName
+            let details = buildProductionEditDetails(original: original, updated: updatedTx)
+            let note = updatedTx.note?.isEmpty == false ? updatedTx.note : "Đã chỉnh sửa"
+            let edit = ProductionEdit(
+                id: UUID(),
+                transactionId: original.id,
+                createdAt: Date(),
+                oldTotal: original.totalCost,
+                newTotal: updatedTx.totalCost,
+                editorId: editorId,
+                editorName: editorName,
+                note: note,
+                details: details
+            )
+            Task {
+                do {
+                    try await database.saveProductionEdit(edit)
+                    await MainActor.run {
+                        self.editedProductionTxIds.insert(original.id)
+                    }
+                } catch {
+                    print("❌ Error saving production edit history: \(error)")
+                    if let ns = error as NSError?, ns.domain == "StoreMissing" {
+                        self.errorMessage = "Không thể lưu lịch sử chỉnh sửa vì chưa chọn cửa hàng."
+                        self.showErrorAlert = true
+                    }
+                }
+            }
+            return true
+        } catch {
+            print("❌ updateProductionTransaction error: \(error)")
+            return false
+        }
+    }
+    
+    func adjustMaterialsForEditedTransaction(original: ProductionTransaction, updated: ProductionTransaction) async {
+        let modeLower = updated.mode.lowercased()
+        let isImport = modeLower.contains("nhập")
+        let isExport = modeLower.contains("xuất")
+        var map: [String: (origQty: Int, newQty: Int, newPriceIncl: Double?)] = [:]
+        for it in original.items {
+            let k = it.name.lowercased()
+            map[k] = (it.quantity, map[k]?.newQty ?? 0, map[k]?.newPriceIncl)
+        }
+        for it in updated.items {
+            let k = it.name.lowercased()
+            let o = map[k]?.origQty ?? 0
+            let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
+            let unitIncl = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
+            map[k] = (o, it.quantity, unitIncl)
+        }
+        await loadMaterials()
+        var current = self.materials
+        for (name, info) in map {
+            let delta = info.newQty - info.origQty
+            if let idx = current.firstIndex(where: { $0.name.lowercased() == name }) {
+                var m = current[idx]
+                if isImport {
+                    m.stockQuantity = max(0, m.stockQuantity + delta)
+                    if let p = info.newPriceIncl { m.lastUnitPrice = p }
+                } else if isExport {
+                    m.stockQuantity = max(0, m.stockQuantity + delta)
+                }
+                try? await database.updateMaterial(m)
+                current[idx] = m
+            } else {
+                if isImport {
+                    let q = max(0, delta)
+                    let p = info.newPriceIncl ?? 0
+                    let m = MaterialItem(id: UUID(), name: name, stockQuantity: q, lastUnitPrice: p, category: Category.materials.rawValue)
+                    try? await database.saveMaterial(m)
+                    current.append(m)
+                }
+            }
+        }
+        await MainActor.run { self.materials = current }
+    }
+    
+    func upsertProductsFromTransaction(_ tx: ProductionTransaction) async {
+        await loadProducts()
+        var current = self.products
+        let modeLower = tx.mode.lowercased()
+        let isImport = modeLower.contains("nhập")
+        let isExport = modeLower.contains("xuất")
+        for it in tx.items {
+            let key = it.name.lowercased()
+            if let idx = current.firstIndex(where: { $0.name.lowercased() == key }) {
+                var p = current[idx]
+                if isImport {
+                    p.stockQuantity = max(0, p.stockQuantity + it.quantity)
+                    if it.unitPrice > 0 { p.price = it.unitPrice }
+                    if let cat = it.category, !cat.isEmpty, p.category != cat { p.category = cat }
+                    p.isFinishedGood = true
+                } else if isExport {
+                    p.stockQuantity = max(0, p.stockQuantity - it.quantity)
+                }
+                do { try await database.updateProduct(p) } catch { print("❌ updateProduct error: \(error)") }
+                current[idx] = p
+            } else {
+                if isImport {
+                    let price = max(0, it.unitPrice)
+                    let newProduct = Product(
+                        id: UUID(),
+                        name: it.name,
+                        price: price,
+                        costPrice: 0,
+                        category: it.category ?? Category.others.rawValue,
+                        imageName: "shippingbox.fill",
+                        color: "gray",
+                        stockQuantity: it.quantity,
+                        isFinishedGood: true
+                    )
+                    do { try await database.saveProduct(newProduct) } catch { print("❌ saveProduct error: \(error)") }
+                    current.append(newProduct)
+                }
+            }
+        }
+        await MainActor.run { self.products = current }
+        await loadProducts()
+    }
+    
+    func adjustProductsForEditedTransaction(original: ProductionTransaction, updated: ProductionTransaction) async {
+        let modeLower = updated.mode.lowercased()
+        let isImport = modeLower.contains("nhập")
+        let isExport = modeLower.contains("xuất")
+        var map: [String: (origQty: Int, newQty: Int, newPrice: Double?, newCat: String?)] = [:]
+        for it in original.items {
+            let k = it.name.lowercased()
+            map[k] = (it.quantity, map[k]?.newQty ?? 0, map[k]?.newPrice, map[k]?.newCat)
+        }
+        for it in updated.items {
+            let k = it.name.lowercased()
+            let o = map[k]?.origQty ?? 0
+            map[k] = (o, it.quantity, it.unitPrice, it.category)
+        }
+        await loadProducts()
+        var current = self.products
+        for (name, info) in map {
+            let delta = info.newQty - info.origQty
+            if let idx = current.firstIndex(where: { $0.name.lowercased() == name }) {
+                var p = current[idx]
+                p.stockQuantity = max(0, p.stockQuantity + delta)
+                if isImport {
+                    if let pr = info.newPrice, pr > 0 { p.price = pr }
+                    if let cat = info.newCat, !cat.isEmpty, p.category != cat { p.category = cat }
+                    p.isFinishedGood = true
+                }
+                try? await database.updateProduct(p)
+                current[idx] = p
+            } else {
+                if isImport {
+                    let q = max(0, delta)
+                    let pr = max(0, info.newPrice ?? 0)
+                    let cat = info.newCat ?? Category.others.rawValue
+                    let newProduct = Product(id: UUID(), name: name, price: pr, costPrice: 0, category: cat, imageName: "shippingbox.fill", color: "gray", imageData: nil, imageURL: nil, stockQuantity: q, barcode: nil, isFinishedGood: true)
+                    try? await database.saveProduct(newProduct)
+                    current.append(newProduct)
+                }
+            }
+        }
+        await MainActor.run { self.products = current }
+    }
+    
+    func fetchProductionEdits(for transactionId: UUID) async -> [ProductionEdit] {
+        do {
+            return try await database.fetchProductionEdits(transactionId: transactionId)
+        } catch {
+            print("⚠️ fetchProductionEdits error: \(error)")
+            return []
+        }
+    }
+    
+    private func buildProductionEditDetails(original: ProductionTransaction, updated: ProductionTransaction) -> [String] {
+        var lines: [String] = []
+        var origMap: [String: RestockItem] = [:]
+        var updMap: [String: RestockItem] = [:]
+        for it in original.items { origMap[it.name] = it }
+        for it in updated.items { updMap[it.name] = it }
+        for name in Set(origMap.keys).union(updMap.keys) {
+            let o = origMap[name]
+            let n = updMap[name]
+            if o == nil, let n {
+                lines.append("Thêm \(name): SL \(n.quantity), giá \(Int(n.unitPrice)), chi phí \(Int(n.additionalCost))")
+            } else if let o, n == nil {
+                lines.append("Xoá \(name): SL \(o.quantity)")
+            } else if let o, let n {
+                var parts: [String] = []
+                if o.quantity != n.quantity { parts.append("SL \(o.quantity)→\(n.quantity)") }
+                if Int(o.unitPrice) != Int(n.unitPrice) { parts.append("Giá \(Int(o.unitPrice))→\(Int(n.unitPrice))") }
+                if Int(o.additionalCost) != Int(n.additionalCost) { parts.append("Chi phí \(Int(o.additionalCost))→\(Int(n.additionalCost))") }
+                if !parts.isEmpty {
+                    lines.append("Sửa \(name): " + parts.joined(separator: ", "))
+                }
+            }
+        }
+        if let note = updated.note, !note.isEmpty {
+            lines.append("Ghi chú: \(note)")
+        }
+        return lines
     }
     // MARK: - Product Catalog Management
     
