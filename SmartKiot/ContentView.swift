@@ -158,24 +158,17 @@ struct ContentView: View {
                     if authManager.isAuthenticated && storeManager.currentStore == nil {
                         Task {
                             await storeManager.fetchStores()
-                            // Auto-select logic depends on role to avoid selecting wrong previous store
-                            if authManager.selectedRole == "owner" {
-                                if let currentStoreId = authManager.currentUserProfile?.currentStoreId {
-                                    if let store = storeManager.myStores.first(where: { $0.id == currentStoreId }) ??
-                                        storeManager.memberStores.first(where: { $0.id == currentStoreId }) {
-                                        await storeManager.selectStore(store)
-                                    }
-                                }
-                            } else {
-                                // Employee mode: always require manual store selection (never auto-select)
-                            }
+                            await storeManager.restoreLastStoreIfPossible()
                         }
                     }
                 }
                 .onChange(of: authManager.currentUserProfile?.id) { _ in
                     // When switching accounts, clear current store to avoid showing previous store
                     storeManager.currentStore = nil
-                    Task { await storeManager.fetchStores() }
+                    Task {
+                        await storeManager.fetchStores()
+                        await storeManager.restoreLastStoreIfPossible()
+                    }
                 }
                 .task(id: storeManager.currentStore?.id) {
                     if storeManager.currentStore != nil {

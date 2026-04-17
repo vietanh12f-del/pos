@@ -196,6 +196,32 @@ struct Employee: Identifiable, Codable, Hashable {
     var role: String
 }
 
+enum AccountRole: String, Codable, CaseIterable, Hashable {
+    case owner
+    case employee
+    
+    var displayName: String {
+        switch self {
+        case .owner: return "Chủ cửa hàng"
+        case .employee: return "Nhân viên"
+        }
+    }
+    
+    var systemImageName: String {
+        switch self {
+        case .owner: return "crown.fill"
+        case .employee: return "person.2.fill"
+        }
+    }
+    
+    var subtitle: String {
+        switch self {
+        case .owner: return "Quản lý mọi tính năng"
+        case .employee: return "Bán hàng, kho, chat"
+        }
+    }
+}
+
 struct UserProfile: Identifiable, Codable, Hashable {
     let id: UUID
     var fullName: String
@@ -205,6 +231,7 @@ struct UserProfile: Identifiable, Codable, Hashable {
     var avatarUrl: String?
     var createdAt: Date
     var currentStoreId: UUID?
+    var accountRole: AccountRole?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -215,6 +242,7 @@ struct UserProfile: Identifiable, Codable, Hashable {
         case avatarUrl = "avatar_url"
         case createdAt = "created_at"
         case currentStoreId = "current_store_id"
+        case accountRole = "account_role"
     }
 }
 

@@ -12,16 +12,7 @@ class AuthManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var currentUserProfile: UserProfile?
     @Published var needsProfileCreation: Bool = false
-    @Published var selectedRole: String = "owner" {
-        didSet {
-            if let userId = client.auth.currentUser?.id {
-                let key = "preferred_role_\(userId.uuidString)"
-                UserDefaults.standard.set(selectedRole, forKey: key)
-            } else {
-                UserDefaults.standard.set(selectedRole, forKey: "preferred_role_default")
-            }
-        }
-    }
+    @Published var selectedRole: String = AccountRole.owner.rawValue
     
     private let client = SupabaseConfig.client
     
@@ -42,20 +33,18 @@ class AuthManager: ObservableObject {
                 self.isAuthenticated = false
                 self.currentUserProfile = nil
                 self.needsProfileCreation = false
+                self.selectedRole = AccountRole.owner.rawValue
                 print("ℹ️ Stored session expired")
             } else {
                 self.isAuthenticated = true
                 print("✅ User is authenticated: \(session.user.id)")
-                let key = "preferred_role_\(session.user.id.uuidString)"
-                if let saved = UserDefaults.standard.string(forKey: key) ?? UserDefaults.standard.string(forKey: "preferred_role_default") {
-                    self.selectedRole = saved
-                }
                 await checkProfile(userId: session.user.id)
             }
         } catch {
             self.isAuthenticated = false
             self.currentUserProfile = nil
             self.needsProfileCreation = false
+            self.selectedRole = AccountRole.owner.rawValue
             print("ℹ️ User is not authenticated")
         }
     }
@@ -71,11 +60,29 @@ class AuthManager: ObservableObject {
                 .value
             
             if let profile = response.first {
-                self.currentUserProfile = profile
+                var p = profile
                 self.needsProfileCreation = false
+                
+                if let role = p.accountRole {
+                    self.selectedRole = role.rawValue
+                    self.currentUserProfile = p
+                    return
+                }
+                
+                let inferred = await inferAccountRole(userId: userId)
+                p.accountRole = inferred
+                self.selectedRole = inferred.rawValue
+                self.currentUserProfile = p
+                
+                _ = try? await client
+                    .from("profiles")
+                    .update(["account_role": inferred.rawValue])
+                    .eq("id", value: userId)
+                    .execute()
             } else {
                 self.currentUserProfile = nil
                 self.needsProfileCreation = true
+                self.selectedRole = AccountRole.owner.rawValue
             }
         } catch {
             print("❌ Error checking profile: \(error)")
@@ -86,26 +93,73 @@ class AuthManager: ObservableObject {
             // Let's stick to the happy path: empty list = needs profile.
         }
     }
+
+    @MainActor
+    private func inferAccountRole(userId: UUID) async -> AccountRole {
+        do {
+            struct OwnedStoreId: Decodable {
+                let id: UUID
+            }
+            
+            let owned: [OwnedStoreId] = try await client
+                .from("stores")
+                .select("id")
+                .eq("owner_id", value: userId)
+                .limit(1)
+                .execute()
+                .value
+            
+            if !owned.isEmpty { return .owner }
+        } catch {
+        }
+        
+        do {
+            struct MembershipId: Decodable {
+                let id: UUID
+            }
+            
+            let memberships: [MembershipId] = try await client
+                .from("store_members")
+                .select("id")
+                .eq("user_id", value: userId)
+                .limit(1)
+                .execute()
+                .value
+            
+            if !memberships.isEmpty { return .employee }
+        } catch {
+        }
+        
+        return .owner
+    }
     
     @MainActor
-    func createProfile(name: String, email: String, address: String) async -> Bool {
+    func createProfile(name: String, email: String, address: String, role: AccountRole) async -> Bool {
         guard let user = client.auth.currentUser else { return false }
         self.isLoading = true
         
+        let existing = self.currentUserProfile
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        
         let newProfile = UserProfile(
             id: user.id,
-            fullName: name,
-            email: email,
-            phoneNumber: user.phone,
-            address: address,
-            avatarUrl: nil,
-            createdAt: Date()
+            fullName: trimmedName.isEmpty ? (existing?.fullName ?? "Người dùng") : trimmedName,
+            email: trimmedEmail.isEmpty ? existing?.email : trimmedEmail,
+            phoneNumber: existing?.phoneNumber ?? user.phone,
+            address: trimmedAddress.isEmpty ? existing?.address : trimmedAddress,
+            avatarUrl: existing?.avatarUrl,
+            createdAt: existing?.createdAt ?? Date(),
+            currentStoreId: existing?.currentStoreId,
+            accountRole: role
         )
         
         do {
             try await client.from("profiles").upsert(newProfile).execute()
             self.currentUserProfile = newProfile
             self.needsProfileCreation = false
+            self.selectedRole = role.rawValue
             self.isLoading = false
             return true
         } catch {
@@ -128,7 +182,9 @@ class AuthManager: ObservableObject {
             phoneNumber: user.phone,
             address: address,
             avatarUrl: self.currentUserProfile?.avatarUrl,
-            createdAt: self.currentUserProfile?.createdAt ?? Date()
+            createdAt: self.currentUserProfile?.createdAt ?? Date(),
+            currentStoreId: self.currentUserProfile?.currentStoreId,
+            accountRole: self.currentUserProfile?.accountRole
         )
         
         do {
@@ -208,6 +264,9 @@ class AuthManager: ObservableObject {
         do {
             try await client.auth.signOut()
             self.isAuthenticated = false
+            self.currentUserProfile = nil
+            self.needsProfileCreation = false
+            self.selectedRole = AccountRole.owner.rawValue
         } catch {
             print("❌ Error signing out: \(error)")
         }

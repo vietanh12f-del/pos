@@ -109,6 +109,7 @@ CREATE POLICY "Managers can manage members" ON store_members
 
 -- 5. Update Profiles to track current store
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS current_store_id UUID REFERENCES stores(id);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS account_role TEXT;
 
 -- 6. Secure User Lookup Function (for invitations)
 -- Allows searching for users by email or phone number without exposing the entire profiles table

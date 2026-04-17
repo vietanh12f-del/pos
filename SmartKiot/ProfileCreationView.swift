@@ -6,6 +6,7 @@ struct ProfileCreationView: View {
     @State private var fullName: String = ""
     @State private var email: String = ""
     @State private var address: String = ""
+    @State private var selectedAccountRole: AccountRole?
     
     var body: some View {
         VStack(spacing: 24) {
@@ -24,6 +25,39 @@ struct ProfileCreationView: View {
                     .foregroundStyle(.gray)
             }
             .padding(.top, 60)
+            
+            VStack(spacing: 10) {
+                Text("Chọn vai trò sử dụng")
+                    .font(.headline)
+                    .foregroundStyle(Color.themeTextDark)
+                
+                HStack(spacing: 12) {
+                    roleCard(
+                        icon: AccountRole.owner.systemImageName,
+                        title: AccountRole.owner.displayName,
+                        subtitle: AccountRole.owner.subtitle,
+                        isSelected: selectedAccountRole == .owner
+                    ) {
+                        selectedAccountRole = .owner
+                    }
+                    
+                    roleCard(
+                        icon: AccountRole.employee.systemImageName,
+                        title: AccountRole.employee.displayName,
+                        subtitle: AccountRole.employee.subtitle,
+                        isSelected: selectedAccountRole == .employee
+                    ) {
+                        selectedAccountRole = .employee
+                    }
+                }
+                .padding(.horizontal)
+                
+                Text("Lưu ý: 1 tài khoản chỉ được sử dụng với một vai trò (Chủ cửa hàng hoặc Nhân viên).")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
             
             VStack(spacing: 16) {
                 VStack(alignment: .leading) {
@@ -76,7 +110,7 @@ struct ProfileCreationView: View {
             .background(Color.themePrimary)
             .foregroundStyle(.white)
             .cornerRadius(12)
-            .disabled(fullName.trimmingCharacters(in: .whitespaces).isEmpty || authManager.isLoading)
+            .disabled(fullName.trimmingCharacters(in: .whitespaces).isEmpty || selectedAccountRole == nil || authManager.isLoading)
             .padding(.horizontal)
             .padding(.top)
             
@@ -91,6 +125,21 @@ struct ProfileCreationView: View {
         }
         .padding()
         .onAppear {
+            if let profile = authManager.currentUserProfile {
+                if fullName.isEmpty {
+                    fullName = profile.fullName
+                }
+                if email.isEmpty {
+                    email = profile.email ?? ""
+                }
+                if address.isEmpty {
+                    address = profile.address ?? ""
+                }
+                if selectedAccountRole == nil {
+                    selectedAccountRole = profile.accountRole
+                }
+            }
+            
             if let user = SupabaseConfig.client.auth.currentUser {
                 if fullName.isEmpty {
                     if case let .string(name)? = user.userMetadata["full_name"] {
@@ -106,10 +155,12 @@ struct ProfileCreationView: View {
     
     func saveProfile() {
         Task {
+            guard let role = selectedAccountRole else { return }
             _ = await authManager.createProfile(
                 name: fullName,
                 email: email,
-                address: address
+                address: address,
+                role: role
             )
         }
     }
@@ -117,4 +168,33 @@ struct ProfileCreationView: View {
 
 #Preview {
     ProfileCreationView()
+}
+
+private func roleCard(icon: String, title: String, subtitle: String, isSelected: Bool, onTap: @escaping () -> Void) -> some View {
+    Button(action: onTap) {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(isSelected ? Color.white : Color.themePrimary)
+                .frame(width: 56, height: 56)
+                .background(isSelected ? Color.themePrimary : Color.themePrimary.opacity(0.1))
+                .clipShape(Circle())
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.themeTextDark)
+            Text(subtitle)
+                .font(.caption2)
+                .foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(isSelected ? Color.themePrimary : Color.gray.opacity(0.2), lineWidth: isSelected ? 2 : 1)
+        )
+        .cornerRadius(14)
+        .shadow(color: Color.black.opacity(isSelected ? 0.08 : 0.03), radius: isSelected ? 8 : 4, x: 0, y: 2)
+    }
 }

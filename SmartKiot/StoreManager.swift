@@ -331,6 +331,31 @@ class StoreManager: ObservableObject {
                 .execute()
                 .value
             
+            struct InviteeRole: Decodable {
+                let accountRole: AccountRole?
+                
+                enum CodingKeys: String, CodingKey {
+                    case accountRole = "account_role"
+                }
+            }
+            
+            let inviteeProfiles: [InviteeRole] = try await client
+                .from("profiles")
+                .select("account_role")
+                .eq("id", value: user.id)
+                .execute()
+                .value
+            
+            guard let inviteeRole = inviteeProfiles.first?.accountRole else {
+                self.errorMessage = "Tài khoản này chưa khởi tạo. Nhân viên cần đăng nhập lần đầu và chọn vai trò Nhân viên trước, sau đó mới có thể được mời vào cửa hàng."
+                return false
+            }
+            
+            guard inviteeRole == .employee else {
+                self.errorMessage = "Tài khoản này đang ở vai trò Chủ cửa hàng nên không thể được mời làm nhân viên. Vui lòng dùng tài khoản khác đã chọn vai trò Nhân viên."
+                return false
+            }
+            
             let member = StoreMember(
                 id: UUID(),
                 storeId: storeId,
