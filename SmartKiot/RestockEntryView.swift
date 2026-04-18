@@ -394,24 +394,33 @@ struct RestockEntryView: View {
                                 ForEach(Array(viewModel.restockItems.enumerated()), id: \.element.id) { idx, item in
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
-                                            Text(item.name)
-                                                .font(.subheadline)
-                                                .foregroundStyle(Color.themeTextDark)
-                                                .onTapGesture { editingItem = item }
                                             let explicit = item.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                                             let displayed = explicit.isEmpty ? (viewModel.latestSource(for: item.name) ?? "") : explicit
-                                            if !displayed.isEmpty {
-                                                Text("Nguồn: \(displayed)")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.gray)
-                                                    .onTapGesture {
-                                                        let options = viewModel.sourceHistory(for: item.name)
-                                                        if !options.isEmpty {
-                                                            sourcePickerIndex = idx
-                                                            sourcePickerOptions = options
-                                                            showSourcePicker = true
+                                            HStack(spacing: 8) {
+                                                Text(item.name)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(Color.themeTextDark)
+                                                    .onTapGesture { editingItem = item }
+                                                Spacer(minLength: 8)
+                                                if !displayed.isEmpty {
+                                                    Text(displayed)
+                                                        .font(.caption)
+                                                        .foregroundStyle(Color.themePrimary)
+                                                        .lineLimit(1)
+                                                        .truncationMode(.tail)
+                                                        .padding(.horizontal, 10)
+                                                        .padding(.vertical, 5)
+                                                        .background(Capsule().fill(Color.themePrimary.opacity(0.12)))
+                                                        .contentShape(Rectangle())
+                                                        .onTapGesture {
+                                                            let options = viewModel.sourceHistory(for: item.name)
+                                                            if !options.isEmpty {
+                                                                sourcePickerIndex = idx
+                                                                sourcePickerOptions = options
+                                                                showSourcePicker = true
+                                                            }
                                                         }
-                                                    }
+                                                }
                                             }
                                             HStack(spacing: 10) {
                                                 let isWeight = useMaterialsList || titleText.lowercased().contains("thành phẩm")
@@ -877,6 +886,7 @@ struct ManualRestockItemView: View {
     @State private var documentImage: UIImage?
     @State private var documentImageURL: String?
     @State private var isUploadingDocument: Bool = false
+    @State private var showDocumentPreview: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -1117,6 +1127,51 @@ struct ManualRestockItemView: View {
                             }
                         }
                         HStack(spacing: 12) {
+                            if documentImage != nil || documentImageURL != nil {
+                                Button {
+                                    showDocumentPreview = true
+                                } label: {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(Color.gray.opacity(0.12))
+                                            .frame(width: 54, height: 54)
+                                        
+                                        if let img = documentImage {
+                                            Image(uiImage: img)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 54, height: 54)
+                                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        } else if let urlString = documentImageURL, let url = URL(string: urlString) {
+                                            AsyncImage(url: url) { phase in
+                                                switch phase {
+                                                case .empty:
+                                                    ProgressView()
+                                                case .success(let image):
+                                                    image
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                default:
+                                                    Image(systemName: "doc.text.image")
+                                                        .foregroundStyle(.gray)
+                                                }
+                                            }
+                                            .frame(width: 54, height: 54)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        }
+                                        
+                                        Image(systemName: "magnifyingglass")
+                                            .font(.caption)
+                                            .foregroundStyle(.white)
+                                            .padding(6)
+                                            .background(Circle().fill(Color.black.opacity(0.45)))
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                                            .padding(4)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            
                             Button("Chụp ảnh") {
                                 documentPickerSource = .camera
                                 showDocumentPicker = true
@@ -1345,6 +1400,51 @@ struct ManualRestockItemView: View {
             }
         }) {
             ImagePicker(image: $documentImage, sourceType: documentPickerSource)
+        }
+        .sheet(isPresented: $showDocumentPreview) {
+            NavigationStack {
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    if let img = documentImage {
+                        ScrollView([.horizontal, .vertical]) {
+                            Image(uiImage: img)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .padding()
+                        }
+                    } else if let urlString = documentImageURL, let url = URL(string: urlString) {
+                        ScrollView([.horizontal, .vertical]) {
+                            AsyncImage(url: url) { phase in
+                                switch phase {
+                                case .empty:
+                                    ProgressView()
+                                        .tint(.white)
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                        .padding()
+                                default:
+                                    Text("Không tải được ảnh")
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("Không có chứng từ")
+                            .foregroundStyle(.white)
+                    }
+                }
+                .navigationTitle("Chứng từ")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { showDocumentPreview = false }
+                    }
+                }
+            }
         }
             .sheet(isPresented: $showCategorySheet) {
                 NavigationStack {
