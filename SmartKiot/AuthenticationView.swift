@@ -4,11 +4,11 @@ struct AuthenticationView: View {
     @StateObject private var authManager = AuthManager.shared
     
     private enum LoginMethod: String, CaseIterable {
+        case email = "Gmail"
         case phone = "SĐT"
-        case email = "Email"
     }
     
-    @State private var loginMethod: LoginMethod = .phone
+    @State private var loginMethod: LoginMethod = .email
     @State private var phoneNumber: String = ""
     @State private var otpCode: String = ""
     @State private var isOtpSent: Bool = false
