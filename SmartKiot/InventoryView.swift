@@ -20,6 +20,8 @@ struct InventoryView: View {
     @State private var showPrintShareSheet = false
     @State private var showDeleteRestockConfirmation = false
     @State private var restockBillToDelete: RestockBill?
+    @State private var showRestockEditHistory = false
+    @State private var restockBillForHistory: RestockBill?
     
     enum DateFilterMode: String, CaseIterable, Identifiable {
         case all, today, yesterday, week, month, quarter, year, custom
@@ -420,6 +422,16 @@ struct InventoryView: View {
                                             Text(formatDate(bill.createdAt))
                                                 .font(.caption)
                                                 .foregroundStyle(.gray)
+                                            if viewModel.editedRestockBillIds.contains(bill.id) {
+                                                Text("Đã sửa")
+                                                    .font(.caption2)
+                                                    .fontWeight(.bold)
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 4)
+                                                    .background(Color.blue.opacity(0.85))
+                                                    .clipShape(Capsule())
+                                            }
                                             if bill.isDeleted {
                                                 Text("Đã xoá")
                                                     .font(.caption2)
@@ -483,6 +495,18 @@ struct InventoryView: View {
                                     
                                     HStack {
                                         Spacer()
+                                        if viewModel.editedRestockBillIds.contains(bill.id) {
+                                            Button {
+                                                restockBillForHistory = bill
+                                                showRestockEditHistory = true
+                                            } label: {
+                                                Text("Lịch sử")
+                                                    .font(.headline)
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .tint(.blue)
+                                            .controlSize(.small)
+                                        }
                                         Button {
                                             restockBillToDelete = bill
                                             showDeleteRestockConfirmation = true
@@ -609,6 +633,13 @@ struct InventoryView: View {
             .sheet(isPresented: $showPrintShareSheet) {
                 if let img = printImage {
                     ShareSheet(items: [img])
+                }
+            }
+            .sheet(isPresented: $showRestockEditHistory) {
+                if let bill = restockBillForHistory {
+                    RestockEditHistorySheet(viewModel: viewModel, restockBillId: bill.id)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
                 }
             }
             .alert("Xóa phiếu nhập?", isPresented: $showDeleteRestockConfirmation, presenting: restockBillToDelete) { bill in

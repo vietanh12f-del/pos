@@ -21,6 +21,11 @@ protocol DatabaseService {
     func saveRestockBill(_ bill: RestockBill) async throws
     func deleteRestockBill(_ id: UUID) async throws
     func softDeleteRestockBill(_ id: UUID, deletedAt: Date, deletedBy: UUID?) async throws
+    func updateRestockBill(_ bill: RestockBill) async throws
+    
+    func fetchRestockEdits(restockBillId: UUID) async throws -> [RestockEdit]
+    func saveRestockEdit(_ edit: RestockEdit) async throws
+    func fetchEditedRestockBillIds(storeId: UUID) async throws -> [UUID]
     
     // Production management
     func saveProductionTransaction(_ tx: ProductionTransaction) async throws
@@ -424,6 +429,67 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
     }
     
+    func updateRestockBill(_ bill: RestockBill) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        let billDTO = RestockBillDTO(from: bill).withStore(storeId)
+        
+        try await client.database
+            .from("restock_bills")
+            .update(billDTO)
+            .eq("id", value: bill.id)
+            .eq("store_id", value: storeId)
+            .execute()
+        
+        try await client.database
+            .from("restock_items")
+            .delete()
+            .eq("bill_id", value: bill.id)
+            .execute()
+        
+        let itemsDTOs = bill.items.map { RestockItemDTO(from: $0, billId: bill.id) }
+        if !itemsDTOs.isEmpty {
+            try await client.database
+                .from("restock_items")
+                .insert(itemsDTOs)
+                .execute()
+        }
+    }
+    
+    func fetchRestockEdits(restockBillId: UUID) async throws -> [RestockEdit] {
+        let rows: [RestockEditDTO] = try await client
+            .from("restock_edits")
+            .select()
+            .eq("restock_bill_id", value: restockBillId)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+    
+    func saveRestockEdit(_ edit: RestockEdit) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else {
+            throw NSError(domain: "StoreMissing", code: 1, userInfo: [NSLocalizedDescriptionKey: "currentStore is nil when saving RestockEdit"])
+        }
+        let dto = RestockEditDTO(from: edit, storeId: storeId)
+        try await client
+            .from("restock_edits")
+            .upsert(dto)
+            .execute()
+    }
+    
+    func fetchEditedRestockBillIds(storeId: UUID) async throws -> [UUID] {
+        struct Row: Decodable { let restock_bill_id: UUID }
+        let rows: [Row] = try await client
+            .from("restock_edits")
+            .select("restock_bill_id")
+            .eq("store_id", value: storeId)
+            .execute()
+            .value
+        var set = Set<UUID>()
+        for r in rows { set.insert(r.restock_bill_id) }
+        return Array(set)
+    }
+    
     // MARK: - Production Management
     func saveProductionTransaction(_ tx: ProductionTransaction) async throws {
         guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
@@ -663,6 +729,10 @@ class SupabaseDatabaseService: DatabaseService {
     func saveRestockBill(_ bill: RestockBill) async throws { print("⚠️ saveRestockBill: Mocked success") }
     func deleteRestockBill(_ id: UUID) async throws { print("⚠️ deleteRestockBill: Mocked success") }
     func softDeleteRestockBill(_ id: UUID, deletedAt: Date, deletedBy: UUID?) async throws { print("⚠️ softDeleteRestockBill: Mocked success") }
+    func updateRestockBill(_ bill: RestockBill) async throws { print("⚠️ updateRestockBill: Mocked success") }
+    func fetchRestockEdits(restockBillId: UUID) async throws -> [RestockEdit] { return [] }
+    func saveRestockEdit(_ edit: RestockEdit) async throws { print("⚠️ saveRestockEdit: Mocked success") }
+    func fetchEditedRestockBillIds(storeId: UUID) async throws -> [UUID] { return [] }
     
     func fetchPriceHistory() async throws -> [String: Double] { return [:] }
     func upsertPriceHistory(name: String, price: Double) async throws { print("⚠️ upsertPriceHistory: Mocked success") }
@@ -1035,6 +1105,46 @@ struct RestockItemDTO: Codable {
             category: category,
             source: source,
             documentImageURL: document_image_url
+        )
+    }
+}
+
+struct RestockEditDTO: Codable {
+    let id: UUID
+    let restock_bill_id: UUID
+    let created_at: Date
+    let old_total: Double
+    let new_total: Double
+    let editor_id: UUID?
+    let editor_name: String?
+    let note: String?
+    let details: [String]?
+    let store_id: UUID?
+    
+    init(from domain: RestockEdit, storeId: UUID) {
+        self.id = domain.id
+        self.restock_bill_id = domain.restockBillId
+        self.created_at = domain.createdAt
+        self.old_total = domain.oldTotal
+        self.new_total = domain.newTotal
+        self.editor_id = domain.editorId
+        self.editor_name = domain.editorName
+        self.note = domain.note
+        self.details = domain.details
+        self.store_id = storeId
+    }
+    
+    func toDomain() -> RestockEdit {
+        return RestockEdit(
+            id: id,
+            restockBillId: restock_bill_id,
+            createdAt: created_at,
+            oldTotal: old_total,
+            newTotal: new_total,
+            editorId: editor_id,
+            editorName: editor_name,
+            note: note,
+            details: details
         )
     }
 }

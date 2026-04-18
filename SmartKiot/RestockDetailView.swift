@@ -5,6 +5,7 @@ struct RestockDetailView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Binding var showNewRestock: Bool
     @Environment(\.dismiss) var dismiss
+    @State private var showEditHistory = false
     
     // Computed properties for cost breakdown
     var totalMerchandiseCost: Double {
@@ -164,11 +165,26 @@ struct RestockDetailView: View {
                     }
                 }
                 
+                ToolbarItem(placement: .topBarTrailing) {
+                    if viewModel.editedRestockBillIds.contains(bill.id) {
+                        Button {
+                            showEditHistory = true
+                        } label: {
+                            Text("Lịch sử")
+                        }
+                    }
+                }
+                
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Đóng") {
                         dismiss()
                     }
                 }
+            }
+            .sheet(isPresented: $showEditHistory) {
+                RestockEditHistorySheet(viewModel: viewModel, restockBillId: bill.id)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
         }
     }

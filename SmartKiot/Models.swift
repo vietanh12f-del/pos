@@ -147,6 +147,18 @@ struct ProductionEdit: Identifiable, Codable, Equatable {
     let details: [String]?
 }
 
+struct RestockEdit: Identifiable, Codable, Equatable {
+    let id: UUID
+    let restockBillId: UUID
+    let createdAt: Date
+    let oldTotal: Double
+    let newTotal: Double
+    let editorId: UUID?
+    let editorName: String?
+    let note: String?
+    let details: [String]?
+}
+
 struct Product: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String

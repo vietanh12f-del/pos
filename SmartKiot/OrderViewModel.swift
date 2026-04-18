@@ -33,6 +33,7 @@ class OrderViewModel: ObservableObject {
     private let editHistoryKey = "bill_edit_history_v1"
     @Published var editedOrderIds: Set<UUID> = []
     @Published var editedProductionTxIds: Set<UUID> = []
+    @Published var editedRestockBillIds: Set<UUID> = []
     
     // Cache control
     private var loadedStoreId: UUID?
@@ -461,6 +462,16 @@ class OrderViewModel: ObservableObject {
                 self.editedProductionTxIds = Set(ids)
             } catch {
                 print("⚠️ Error fetching edited production tx ids: \(error)")
+            }
+        }
+        
+        // Fetch edited restock bill IDs for badge
+        if let sid = StoreManager.shared.currentStore?.id {
+            do {
+                let ids = try await self.database.fetchEditedRestockBillIds(storeId: sid)
+                self.editedRestockBillIds = Set(ids)
+            } catch {
+                print("⚠️ Error fetching edited restock bill ids: \(error)")
             }
         }
         
@@ -1380,116 +1391,43 @@ class OrderViewModel: ObservableObject {
         guard !restockItems.isEmpty else { return }
         
         let total = restockItems.reduce(0) { $0 + $1.totalCost }
-        let billId = editingRestockBill?.id ?? UUID()
-        let createdAt = editingRestockBill?.createdAt ?? Date()
+        let original = editingRestockBill
+        let billId = original?.id ?? UUID()
+        let createdAt = original?.createdAt ?? Date()
         let bill = RestockBill(id: billId, createdAt: createdAt, items: restockItems, totalCost: total)
         
         Task { @MainActor in
-            if let original = editingRestockBill {
-                await deleteRestockBillForEditing(original)
-                editingRestockBill = nil
+            if let original {
+                await revertInventoryForRestockBill(original)
             }
             
-            restockHistory.insert(bill, at: 0)
+            await applyInventoryForRestockItems(restockItems)
+            
+            if let idx = restockHistory.firstIndex(where: { $0.id == bill.id }) {
+                restockHistory[idx] = bill
+            } else {
+                restockHistory.insert(bill, at: 0)
+            }
             
             do {
-                try await database.saveRestockBill(bill)
+                if original != nil {
+                    try await database.updateRestockBill(bill)
+                    let didSaveEdit = await addRestockEditHistory(for: original!, updated: bill)
+                    if didSaveEdit {
+                        editedRestockBillIds.insert(bill.id)
+                    }
+                } else {
+                    try await database.saveRestockBill(bill)
+                }
             } catch {
                 print("❌ Error saving restock bill: \(error)")
             }
+            
+            editingRestockBill = nil
         }
         
         // Update Inventory & Catalog (Moving Average Cost Logic)
-        for item in restockItems {
-            let key = item.name.lowercased()
-            let currentQuantity = inventory[key] ?? 0
-            let newQuantity = currentQuantity + item.quantity
-            inventory[key] = newQuantity
-            
-            // Auto-add to products if not exists OR update if needed
-            // Check case-insensitive
-            if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
-                // Product exists. Update stock and Calculate Moving Average Cost
-                var product = products[index]
-                
-                // Update: Capitalize additionalCost (incurred fees) into costPrice as requested.
-                // finalUnitCost = (quantity * unitPrice + additionalCost) / quantity
-                let newUnitCost = item.finalUnitCost
-                product.costPrice = newUnitCost
-                
-                // AVCO Calculation (Alternative - Commented out)
-                /*
-                let oldCost = product.costPrice
-                let effectiveOldQty = max(0, Double(currentQuantity))
-                
-                let oldTotalValue = effectiveOldQty * oldCost
-                let newTotalValue = Double(item.quantity) * newUnitCost
-                
-                let newAverageCost = (oldTotalValue + newTotalValue) / (effectiveOldQty + Double(item.quantity))
-                product.costPrice = newAverageCost
-                */
-                
-                product.stockQuantity = newQuantity
-                
-                // Update selling price if suggested
-                if let suggested = item.suggestedPrice {
-                    product.price = suggested
-                }
-                
-                // Update category if provided on restock item
-                if let newCat = item.category, !newCat.isEmpty, product.category != newCat {
-                    product.category = newCat
-                    // Keep category sets in sync
-                    self.productCategories.insert(newCat)
-                }
-                
-                products[index] = product
-                
-                Task {
-                    do {
-                        try await database.updateProduct(product)
-                    } catch {
-                        print("❌ Error updating product from restock: \(error)")
-                    }
-                }
-            } else {
-                // New Product
-                // Determine category? Default to Others or Flowers if name contains flower keywords
-                let catValue: String = item.category ?? {
-                    var cat: Category = .others
-                    if key.contains("flower") || key.contains("hoa") || key.contains("hồng") {
-                        cat = .flowers
-                    } else if key.contains("giấy") || key.contains("nơ") || key.contains("ribbon") {
-                        cat = .accessories
-                    }
-                    return cat.rawValue
-                }()
-                
-                let newProduct = Product(
-                    id: UUID(), // Explicit ID
-                    name: item.name, // Use original casing
-                    price: item.suggestedPrice ?? (item.finalUnitCost * 1.3), // Use suggested or default 30% markup (on total cost is fine for suggestion)
-                    costPrice: item.finalUnitCost, // Initial Cost includes incurred fees
-                    category: catValue,
-                    imageName: "shippingbox.fill", // Default icon
-                    color: "gray",
-                    stockQuantity: newQuantity
-                )
-                products.append(newProduct)
-                self.productCategories.insert(catValue)
-                
-                Task {
-                    do {
-                        try await database.saveProduct(newProduct)
-                    } catch {
-                        print("❌ Error saving new product from restock: \(error)")
-                    }
-                }
-            }
-        }
-        
         recalculateStats()
-        
         restockItems.removeAll()
         isRestockMode = false
     }
@@ -1510,20 +1448,8 @@ class OrderViewModel: ObservableObject {
         
         var affectedKeys = Set<String>()
         
-        for item in bill.items {
-            let key = item.name.lowercased()
-            affectedKeys.insert(key)
-            let current = inventory[key] ?? 0
-            let newQuantity = max(0, current - item.quantity)
-            inventory[key] = newQuantity
-            
-            if let pIndex = products.firstIndex(where: { $0.name.lowercased() == key }) {
-                var p = products[pIndex]
-                p.stockQuantity = newQuantity
-                products[pIndex] = p
-                do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
-            }
-        }
+        await revertInventoryForRestockBill(bill)
+        for item in bill.items { affectedKeys.insert(item.name.lowercased()) }
         
         if let index = restockHistory.firstIndex(where: { $0.id == bill.id }) {
             var updated = restockHistory[index]
@@ -1549,22 +1475,7 @@ class OrderViewModel: ObservableObject {
     @MainActor
     private func deleteRestockBillForEditing(_ bill: RestockBill) async {
         if let index = restockHistory.firstIndex(where: { $0.id == bill.id }) {
-            // Revert Inventory
-            for item in bill.items {
-                let key = item.name.lowercased()
-                if let current = inventory[key] {
-                    let newQuantity = max(0, current - item.quantity)
-                    inventory[key] = newQuantity
-                    
-                    // Update Product
-                    if let pIndex = products.firstIndex(where: { $0.name.lowercased() == key }) {
-                        var p = products[pIndex]
-                        p.stockQuantity = newQuantity
-                        products[pIndex] = p
-                        do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
-                    }
-                }
-            }
+            await revertInventoryForRestockBill(bill)
             
             restockHistory.remove(at: index)
             
@@ -1603,6 +1514,147 @@ class OrderViewModel: ObservableObject {
         
         products[pIndex] = p
         do { try await database.updateProduct(p) } catch { print("❌ Error recomputing product pricing: \(error)") }
+    }
+
+    @MainActor
+    private func revertInventoryForRestockBill(_ bill: RestockBill) async {
+        for item in bill.items {
+            let key = item.name.lowercased()
+            let current = inventory[key] ?? 0
+            let newQuantity = max(0, current - item.quantity)
+            inventory[key] = newQuantity
+            
+            if let pIndex = products.firstIndex(where: { $0.name.lowercased() == key }) {
+                var p = products[pIndex]
+                p.stockQuantity = newQuantity
+                products[pIndex] = p
+                do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
+            }
+        }
+    }
+    
+    @MainActor
+    private func applyInventoryForRestockItems(_ items: [RestockItem]) async {
+        for item in items {
+            let key = item.name.lowercased()
+            let currentQuantity = inventory[key] ?? 0
+            let newQuantity = currentQuantity + item.quantity
+            inventory[key] = newQuantity
+            
+            if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
+                var product = products[index]
+                let newUnitCost = item.finalUnitCost
+                product.costPrice = newUnitCost
+                product.stockQuantity = newQuantity
+                
+                if let suggested = item.suggestedPrice {
+                    product.price = suggested
+                }
+                
+                if let newCat = item.category, !newCat.isEmpty, product.category != newCat {
+                    product.category = newCat
+                    self.productCategories.insert(newCat)
+                }
+                
+                products[index] = product
+                do { try await database.updateProduct(product) } catch { print("❌ Error updating product from restock: \(error)") }
+            } else {
+                let catValue: String = item.category ?? {
+                    var cat: Category = .others
+                    if key.contains("flower") || key.contains("hoa") || key.contains("hồng") {
+                        cat = .flowers
+                    } else if key.contains("giấy") || key.contains("nơ") || key.contains("ribbon") {
+                        cat = .accessories
+                    }
+                    return cat.rawValue
+                }()
+                
+                let newProduct = Product(
+                    id: UUID(),
+                    name: item.name,
+                    price: item.suggestedPrice ?? (item.finalUnitCost * 1.3),
+                    costPrice: item.finalUnitCost,
+                    category: catValue,
+                    imageName: "shippingbox.fill",
+                    color: "gray",
+                    stockQuantity: newQuantity
+                )
+                products.append(newProduct)
+                self.productCategories.insert(catValue)
+                do { try await database.saveProduct(newProduct) } catch { print("❌ Error saving new product from restock: \(error)") }
+            }
+        }
+    }
+    
+    @MainActor
+    private func addRestockEditHistory(for original: RestockBill, updated: RestockBill) async -> Bool {
+        let entryId = UUID()
+        let editorId = AuthManager.shared.currentUserProfile?.id
+        let editorName = AuthManager.shared.currentUserProfile?.fullName
+        let note = "Đã chỉnh sửa phiếu nhập"
+        let details = buildRestockEditDetails(original: original, updated: updated)
+        if Int(original.totalCost) == Int(updated.totalCost) && details.isEmpty {
+            return false
+        }
+        let edit = RestockEdit(
+            id: entryId,
+            restockBillId: original.id,
+            createdAt: Date(),
+            oldTotal: original.totalCost,
+            newTotal: updated.totalCost,
+            editorId: editorId,
+            editorName: editorName,
+            note: note,
+            details: details
+        )
+        do {
+            try await database.saveRestockEdit(edit)
+            return true
+        } catch {
+            print("❌ Error saving restock edit history: \(error)")
+            return false
+        }
+    }
+    
+    private func buildRestockEditDetails(original: RestockBill, updated: RestockBill) -> [String] {
+        var lines: [String] = []
+        let oldMap = Dictionary(uniqueKeysWithValues: original.items.map { ($0.name.lowercased(), $0) })
+        let newMap = Dictionary(uniqueKeysWithValues: updated.items.map { ($0.name.lowercased(), $0) })
+        let keys = Set(oldMap.keys).union(newMap.keys)
+        
+        for k in keys.sorted() {
+            let o = oldMap[k]
+            let n = newMap[k]
+            if o == nil, let n {
+                lines.append("Thêm \(n.name)")
+                continue
+            }
+            if n == nil, let o {
+                lines.append("Xóa \(o.name)")
+                continue
+            }
+            guard let o, let n else { continue }
+            if o.quantity != n.quantity {
+                lines.append("\(n.name): SL \(o.quantity) → \(n.quantity)")
+            }
+            if Int(o.unitPrice) != Int(n.unitPrice) {
+                lines.append("\(n.name): Giá \(Int(o.unitPrice)) → \(Int(n.unitPrice))")
+            }
+            if Int(o.additionalCost) != Int(n.additionalCost) {
+                lines.append("\(n.name): Phí \(Int(o.additionalCost)) → \(Int(n.additionalCost))")
+            }
+            let oldSrc = o.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let newSrc = n.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if oldSrc.lowercased() != newSrc.lowercased(), !(oldSrc.isEmpty && newSrc.isEmpty) {
+                lines.append("\(n.name): Nguồn \(oldSrc.isEmpty ? "—" : oldSrc) → \(newSrc.isEmpty ? "—" : newSrc)")
+            }
+        }
+        
+        return lines
+    }
+    
+    func fetchRestockEdits(restockBillId: UUID) async throws -> [RestockEdit] {
+        try await database.fetchRestockEdits(restockBillId: restockBillId)
     }
     
     func editRestockBill(_ bill: RestockBill) {
