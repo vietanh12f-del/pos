@@ -6,6 +6,16 @@ struct StoreSelectionView: View {
     @ObservedObject private var authManager = AuthManager.shared
     @State private var showCreateStore = false
     
+    private var isReviewOwnerLocked: Bool {
+        let email = authManager.currentUserProfile?.email?.lowercased()
+        if email == "review-owner@smartkiot.com" { return true }
+        if let id = authManager.currentUserProfile?.id,
+           id.uuidString.lowercased() == "4e9d120b-ac72-4cea-bcbe-3355ab2864bf" {
+            return true
+        }
+        return false
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -39,22 +49,30 @@ struct StoreSelectionView: View {
                                     VStack(spacing: 24) {
                                         EmptyStoreStateView(message: "Bạn chưa có cửa hàng nào.\nHãy tạo cửa hàng đầu tiên ngay!")
                                         
-                                        Button(action: {
-                                            showCreateStore = true
-                                        }) {
-                                            HStack {
-                                                Image(systemName: "plus.circle.fill")
-                                                Text("Tạo cửa hàng mới")
+                                        if isReviewOwnerLocked {
+                                            Text("Tài khoản review không hỗ trợ tạo cửa hàng mới.")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .multilineTextAlignment(.center)
+                                                .padding(.horizontal, 40)
+                                        } else {
+                                            Button(action: {
+                                                showCreateStore = true
+                                            }) {
+                                                HStack {
+                                                    Image(systemName: "plus.circle.fill")
+                                                    Text("Tạo cửa hàng mới")
+                                                }
+                                                .font(.headline)
+                                                .foregroundColor(.white)
+                                                .padding()
+                                                .frame(maxWidth: .infinity)
+                                                .background(Color.green)
+                                                .cornerRadius(12)
+                                                .shadow(color: .green.opacity(0.3), radius: 5, x: 0, y: 3)
                                             }
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .padding()
-                                            .frame(maxWidth: .infinity)
-                                            .background(Color.green)
-                                            .cornerRadius(12)
-                                            .shadow(color: .green.opacity(0.3), radius: 5, x: 0, y: 3)
+                                            .padding(.horizontal, 40)
                                         }
-                                        .padding(.horizontal, 40)
                                     }
                                 } else {
                                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
@@ -72,33 +90,35 @@ struct StoreSelectionView: View {
                                         }
                                         
                                         // Add Store Button as a Card
-                                        Button(action: {
-                                            showCreateStore = true
-                                        }) {
-                                            VStack(spacing: 12) {
-                                                Circle()
-                                                    .fill(Color.green.opacity(0.1))
-                                                    .frame(width: 50, height: 50)
-                                                    .overlay(
-                                                        Image(systemName: "plus")
-                                                            .font(.title2)
-                                                            .foregroundColor(.green)
-                                                    )
-                                                
-                                                Text("Thêm mới")
-                                                    .font(.headline)
-                                                    .foregroundColor(.green)
+                                        if !isReviewOwnerLocked {
+                                            Button(action: {
+                                                showCreateStore = true
+                                            }) {
+                                                VStack(spacing: 12) {
+                                                    Circle()
+                                                        .fill(Color.green.opacity(0.1))
+                                                        .frame(width: 50, height: 50)
+                                                        .overlay(
+                                                            Image(systemName: "plus")
+                                                                .font(.title2)
+                                                                .foregroundColor(.green)
+                                                        )
+                                                    
+                                                    Text("Thêm mới")
+                                                        .font(.headline)
+                                                        .foregroundColor(.green)
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                                .frame(height: 180)
+                                                .background(Color.white)
+                                                .cornerRadius(16)
+                                                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 16)
+                                                        .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
+                                                        .foregroundColor(Color.green.opacity(0.5))
+                                                )
                                             }
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 180)
-                                            .background(Color.white)
-                                            .cornerRadius(16)
-                                            .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 16)
-                                                    .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                                                    .foregroundColor(Color.green.opacity(0.5))
-                                            )
                                         }
                                     }
                                     .padding(.horizontal)

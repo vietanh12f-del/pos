@@ -21,40 +21,41 @@ struct SettingsView: View {
     
     
     var body: some View {
-        List {
-            Section {
-                HStack(spacing: 12) {
-                    Image(systemName: authManager.selectedRole == "owner" ? "crown.fill" : "person.2.fill")
-                        .font(.title2)
-                        .foregroundStyle(Color.themePrimary)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Chế độ đăng nhập")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Text(authManager.selectedRole == "owner" ? "Chủ cửa hàng" : "Nhân viên")
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.themeTextDark)
-                        if authManager.selectedRole == "employee" {
-                            let pos = storeManager.currentMember?.positionTitle
-                            Text("Chức vụ: \(pos ?? "—")")
-                                .font(.subheadline)
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 12) {
+                        Image(systemName: authManager.selectedRole == "owner" ? "crown.fill" : "person.2.fill")
+                            .font(.title2)
+                            .foregroundStyle(Color.themePrimary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Chế độ đăng nhập")
+                                .font(.caption)
                                 .foregroundStyle(.gray)
+                            Text(authManager.selectedRole == "owner" ? "Chủ cửa hàng" : "Nhân viên")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
+                            if authManager.selectedRole == "employee" {
+                                let pos = storeManager.currentMember?.positionTitle
+                                Text("Chức vụ: \(pos ?? "—")")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray)
+                            }
                         }
+                        Spacer()
+                        Text("Đang hoạt động")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.green)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.green.opacity(0.15))
+                            .cornerRadius(8)
                     }
-                    Spacer()
-                    Text("Đang hoạt động")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.green)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.green.opacity(0.15))
-                        .cornerRadius(8)
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
-            }
-            Section(header: Text("Cửa hàng hiện tại")) {
+                Section(header: Text("Cửa hàng hiện tại")) {
                     if let store = storeManager.currentStore {
                         HStack {
                             VStack(alignment: .leading) {
@@ -264,6 +265,8 @@ struct SettingsView: View {
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
                 keyboardHeight = 0
             }
+            }
+            .navigationTitle("Cài đặt")
         }
     }
 
