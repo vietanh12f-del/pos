@@ -297,6 +297,26 @@ class AuthManager: ObservableObject {
     }
     
     @MainActor
+    func signInWithEmail(email: String, password: String) async -> Bool {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.isLoading = true
+        self.errorMessage = nil
+        
+        do {
+            try await client.auth.signIn(
+                email: trimmedEmail,
+                password: password
+            )
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Lỗi đăng nhập Email: \(error.localizedDescription)"
+            return false
+        }
+    }
+    
+    @MainActor
     func signInWithAppleOAuth() async -> Bool {
         print("🍎 [Apple OAuth] Starting web-based sign in...")
         self.isLoading = true
