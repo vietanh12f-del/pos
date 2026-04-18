@@ -550,6 +550,8 @@ struct ContentView: View {
         @State private var priceEditItem: OrderItem?
         @State private var priceInput: String = ""
         @State private var priceWheelSelection: Int = 0
+        @State private var priceWheelBaseSelection: Int = 0
+        @State private var priceWheelHundredsSelection: Int = 0
         @State private var priceWheelMax: Int = 100_000
         @State private var wheelItem: OrderItem?
         @State private var wheelSelection: Int = 1
@@ -921,9 +923,13 @@ struct ContentView: View {
                                                 .font(.caption)
                                                 .foregroundStyle(.gray)
                                                 .onTapGesture {
+                                                    let step = StoreManager.shared.priceStep
                                                     let base = max(0, Int(item.price))
-                                                    priceWheelSelection = (base / 5000) * 5000
-                                                    priceWheelMax = priceWheelSelection + 500_000
+                                                    priceWheelSelection = base
+                                                    priceWheelBaseSelection = (base / step) * step
+                                                    let remainder = max(0, base - priceWheelBaseSelection)
+                                                    priceWheelHundredsSelection = min(900, (remainder / 100) * 100)
+                                                    priceWheelMax = max(step * 20, priceWheelBaseSelection + 500_000)
                                                     priceEditItem = item
                                                 }
                                             if item.discount > 0 {
@@ -1180,17 +1186,40 @@ struct ContentView: View {
                 NavigationStack {
                     Form {
                         Section {
-                            Picker("Đơn giá (đ)", selection: $priceWheelSelection) {
-                                ForEach(Array(stride(from: 0, through: priceWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
-                                    Text(formatCurrency(Double(v))).tag(v)
+                            let step = StoreManager.shared.priceStep
+                            HStack {
+                                VStack {
+                                    Text("Giá")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Picker("", selection: $priceWheelBaseSelection) {
+                                        ForEach(Array(stride(from: 0, through: priceWheelMax, by: step)), id: \.self) { v in
+                                            Text(formatCurrency(Double(v))).tag(v)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .onChange(of: priceWheelBaseSelection) { _, newValue in
+                                        priceWheelSelection = newValue + priceWheelHundredsSelection
+                                        if newValue > priceWheelMax - (step * 5) {
+                                            priceWheelMax += step * 100
+                                        }
+                                    }
                                 }
-                            }
-                            .pickerStyle(.wheel)
-                            .onChange(of: priceWheelSelection) { _, newValue in
-                                let step = StoreManager.shared.priceStep
-                                if newValue > priceWheelMax - (step * 5) {
-                                    priceWheelMax += step * 100
+                                VStack {
+                                    Text("Trăm")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Picker("", selection: $priceWheelHundredsSelection) {
+                                        ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                            Text("\(v)").tag(v)
+                                        }
+                                    }
+                                    .pickerStyle(.wheel)
+                                    .onChange(of: priceWheelHundredsSelection) { _, newValue in
+                                        priceWheelSelection = priceWheelBaseSelection + newValue
+                                    }
                                 }
+                                .frame(width: 110)
                             }
                         }
                     }
@@ -1208,6 +1237,13 @@ struct ContentView: View {
                     }
                 }
                 .presentationDetents([.height(300)])
+                .onAppear {
+                    let step = StoreManager.shared.priceStep
+                    let current = max(0, priceWheelSelection)
+                    priceWheelBaseSelection = (current / step) * step
+                    let remainder = max(0, current - priceWheelBaseSelection)
+                    priceWheelHundredsSelection = min(900, (remainder / 100) * 100)
+                }
             }
             .sheet(item: $nameWheelItem) { item in
                 NavigationStack {

@@ -17,6 +17,8 @@ struct MaterialEditView: View {
     @State private var showCostWheel = false
     @State private var costWheelSelection = 0
     @State private var costWheelMax = 5000000
+    @State private var costWheelBaseSelection = 0
+    @State private var costWheelHundredsSelection = 0
     @State private var showStockWheel = false
     @State private var stockWheelSelection = 0
     @State private var stockWheelMax = 1000
@@ -94,17 +96,40 @@ struct MaterialEditView: View {
         .sheet(isPresented: $showCostWheel) {
             VStack(spacing: 12) {
                 Text("Sửa giá nhập").font(.headline)
-                Picker("", selection: $costWheelSelection) {
-                    ForEach(Array(stride(from: 0, through: costWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
-                        Text(formatCurrency(Double(v))).tag(v)
+                let step = StoreManager.shared.priceStep
+                HStack {
+                    VStack {
+                        Text("Giá")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Picker("", selection: $costWheelBaseSelection) {
+                            ForEach(Array(stride(from: 0, through: costWheelMax, by: step)), id: \.self) { v in
+                                Text(formatCurrency(Double(v))).tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: costWheelBaseSelection) { _, newValue in
+                            costWheelSelection = newValue + costWheelHundredsSelection
+                            if newValue > costWheelMax - (step * 5) {
+                                costWheelMax += step * 100
+                            }
+                        }
                     }
-                }
-                .pickerStyle(.wheel)
-                .onChange(of: costWheelSelection) { _, newValue in
-                    let step = StoreManager.shared.priceStep
-                    if newValue > costWheelMax - (step * 5) {
-                        costWheelMax += step * 100
+                    VStack {
+                        Text("Trăm")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Picker("", selection: $costWheelHundredsSelection) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: costWheelHundredsSelection) { _, newValue in
+                            costWheelSelection = costWheelBaseSelection + newValue
+                        }
                     }
+                    .frame(width: 110)
                 }
                 HStack {
                     Button("Đóng") { showCostWheel = false }
@@ -118,6 +143,13 @@ struct MaterialEditView: View {
             }
             .padding()
             .presentationDetents([.height(300)])
+            .onAppear {
+                let step = StoreManager.shared.priceStep
+                let current = max(0, costWheelSelection)
+                costWheelBaseSelection = (current / step) * step
+                let remainder = max(0, current - costWheelBaseSelection)
+                costWheelHundredsSelection = min(900, (remainder / 100) * 100)
+            }
         }
         .sheet(isPresented: $showStockWheel) {
             VStack(spacing: 12) {

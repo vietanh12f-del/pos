@@ -17,8 +17,12 @@ struct TransactionEditView: View {
     @State private var gramsWheelMax = 950
     @State private var unitPriceWheelSelection = 0
     @State private var unitPriceWheelMax = 5000000
+    @State private var unitPriceWheelBaseSelection = 0
+    @State private var unitPriceWheelHundredsSelection = 0
     @State private var additionalCostWheelSelection = 0
     @State private var additionalCostWheelMax = 1000000
+    @State private var additionalCostWheelBaseSelection = 0
+    @State private var additionalCostWheelHundredsSelection = 0
     @State private var noteText: String = ""
     
     var body: some View {
@@ -174,17 +178,40 @@ struct TransactionEditView: View {
             NavigationStack {
                 Form {
                     Section {
-                        Picker("Đơn giá", selection: $unitPriceWheelSelection) {
-                            ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
-                                Text(formatCurrency(Double(v))).tag(v)
+                        let step = StoreManager.shared.priceStep
+                        HStack {
+                            VStack {
+                                Text("Giá")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $unitPriceWheelBaseSelection) {
+                                    ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: step)), id: \.self) { v in
+                                        Text(formatCurrency(Double(v))).tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: unitPriceWheelBaseSelection) { _, newValue in
+                                    unitPriceWheelSelection = newValue + unitPriceWheelHundredsSelection
+                                    if newValue > unitPriceWheelMax - (step * 5) {
+                                        unitPriceWheelMax += step * 100
+                                    }
+                                }
                             }
-                        }
-                        .pickerStyle(.wheel)
-                        .onChange(of: unitPriceWheelSelection) { _, newValue in
-                            let step = StoreManager.shared.priceStep
-                            if newValue > unitPriceWheelMax - (step * 5) {
-                                unitPriceWheelMax += step * 100
+                            VStack {
+                                Text("Trăm")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $unitPriceWheelHundredsSelection) {
+                                    ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: unitPriceWheelHundredsSelection) { _, newValue in
+                                    unitPriceWheelSelection = unitPriceWheelBaseSelection + newValue
+                                }
                             }
+                            .frame(width: 110)
                         }
                     }
                 }
@@ -200,22 +227,52 @@ struct TransactionEditView: View {
                 }
             }
             .presentationDetents([.height(300)])
+            .onAppear {
+                let step = StoreManager.shared.priceStep
+                let current = max(0, unitPriceWheelSelection)
+                unitPriceWheelBaseSelection = (current / step) * step
+                let remainder = max(0, current - unitPriceWheelBaseSelection)
+                unitPriceWheelHundredsSelection = min(900, (remainder / 100) * 100)
+            }
         }
         .sheet(isPresented: $showAdditionalCostWheel) {
             NavigationStack {
                 Form {
                     Section {
-                        Picker("Chi phí", selection: $additionalCostWheelSelection) {
-                            ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: StoreManager.shared.priceStep)), id: \.self) { v in
-                                Text(formatCurrency(Double(v))).tag(v)
+                        let step = StoreManager.shared.priceStep
+                        HStack {
+                            VStack {
+                                Text("Giá")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $additionalCostWheelBaseSelection) {
+                                    ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: step)), id: \.self) { v in
+                                        Text(formatCurrency(Double(v))).tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: additionalCostWheelBaseSelection) { _, newValue in
+                                    additionalCostWheelSelection = newValue + additionalCostWheelHundredsSelection
+                                    if newValue > additionalCostWheelMax - (step * 5) {
+                                        additionalCostWheelMax += step * 100
+                                    }
+                                }
                             }
-                        }
-                        .pickerStyle(.wheel)
-                        .onChange(of: additionalCostWheelSelection) { _, newValue in
-                            let step = StoreManager.shared.priceStep
-                            if newValue > additionalCostWheelMax - (step * 5) {
-                                additionalCostWheelMax += step * 100
+                            VStack {
+                                Text("Trăm")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $additionalCostWheelHundredsSelection) {
+                                    ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: additionalCostWheelHundredsSelection) { _, newValue in
+                                    additionalCostWheelSelection = additionalCostWheelBaseSelection + newValue
+                                }
                             }
+                            .frame(width: 110)
                         }
                     }
                 }
@@ -231,6 +288,13 @@ struct TransactionEditView: View {
                 }
             }
             .presentationDetents([.height(300)])
+            .onAppear {
+                let step = StoreManager.shared.priceStep
+                let current = max(0, additionalCostWheelSelection)
+                additionalCostWheelBaseSelection = (current / step) * step
+                let remainder = max(0, current - additionalCostWheelBaseSelection)
+                additionalCostWheelHundredsSelection = min(900, (remainder / 100) * 100)
+            }
         }
     }
 }
