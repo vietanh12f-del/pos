@@ -27,13 +27,15 @@
 			</array>
 		</dict>
 		<dict>
+			<key>CFBundleIdentifier</key>
+			<string></string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
 			<string>smartkiot</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>myapp://auth/callback</string>
+				<string>myapp</string>
 			</array>
 		</dict>
 	</array>

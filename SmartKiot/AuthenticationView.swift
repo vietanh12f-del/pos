@@ -134,13 +134,20 @@ struct AuthenticationView: View {
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                             
-                            TextField("email@example.com", text: $email)
-                                .keyboardType(.emailAddress)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .padding()
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(12)
+                            ZStack(alignment: .leading) {
+                                if email.isEmpty {
+                                    Text("••••••••")
+                                        .foregroundStyle(Color.gray.opacity(0.45))
+                                        .allowsHitTesting(false)
+                                }
+                                TextField("", text: $email)
+                                    .keyboardType(.emailAddress)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                            }
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(12)
                         }
                         
                         VStack(alignment: .leading) {
