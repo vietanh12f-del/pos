@@ -1406,15 +1406,14 @@ struct ManualRestockItemView: View {
                 ZStack {
                     Color.black.ignoresSafeArea()
                     if let img = documentImage {
-                        ScrollView([.horizontal, .vertical]) {
+                        ZoomableView {
                             Image(uiImage: img)
                                 .resizable()
                                 .scaledToFit()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
                                 .padding()
                         }
                     } else if let urlString = documentImageURL, let url = URL(string: urlString) {
-                        ScrollView([.horizontal, .vertical]) {
+                        ZoomableView {
                             AsyncImage(url: url) { phase in
                                 switch phase {
                                 case .empty:
@@ -1424,7 +1423,6 @@ struct ManualRestockItemView: View {
                                     image
                                         .resizable()
                                         .scaledToFit()
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                                         .padding()
                                 default:
                                     Text("Không tải được ảnh")
@@ -1658,4 +1656,73 @@ struct ManualRestockItemView: View {
     }
     
  
+}
+
+private struct ZoomableView<Content: View>: View {
+    let content: Content
+    
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+    
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+    
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                content
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .scaleEffect(scale)
+                    .offset(offset)
+                    .gesture(dragGesture)
+                    .simultaneousGesture(magnificationGesture)
+                    .onTapGesture(count: 2) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if scale > 1 {
+                                scale = 1
+                                lastScale = 1
+                                offset = .zero
+                                lastOffset = .zero
+                            } else {
+                                scale = 2.5
+                                lastScale = 2.5
+                            }
+                        }
+                    }
+            }
+            .clipped()
+        }
+    }
+    
+    private var magnificationGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                let next = lastScale * value
+                scale = min(max(next, 1), 6)
+            }
+            .onEnded { _ in
+                lastScale = scale
+                if scale == 1 {
+                    offset = .zero
+                    lastOffset = .zero
+                }
+            }
+    }
+    
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard scale > 1 else { return }
+                offset = CGSize(
+                    width: lastOffset.width + value.translation.width,
+                    height: lastOffset.height + value.translation.height
+                )
+            }
+            .onEnded { _ in
+                lastOffset = offset
+            }
+    }
 }
