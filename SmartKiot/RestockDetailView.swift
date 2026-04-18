@@ -31,6 +31,16 @@ struct RestockDetailView: View {
                         Text(formatDate(bill.createdAt))
                             .fontWeight(.medium)
                     }
+                    if bill.isDeleted {
+                        HStack {
+                            Text("Trạng thái")
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text("Đã xoá")
+                                .fontWeight(.bold)
+                                .foregroundStyle(.red)
+                        }
+                    }
                     
                     HStack {
                         Text("Mã phiếu")
@@ -137,19 +147,21 @@ struct RestockDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                        viewModel.editRestockBill(bill)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            showNewRestock = true
+                    if !bill.isDeleted {
+                        Button {
+                            dismiss()
+                            viewModel.editRestockBill(bill)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                showNewRestock = true
+                            }
+                        } label: {
+                            Text("Sửa")
+                                .font(.headline)
                         }
-                    } label: {
-                        Text("Sửa")
-                            .font(.headline)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                        .controlSize(.large)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                    .controlSize(.large)
                 }
                 
                 ToolbarItem(placement: .topBarLeading) {

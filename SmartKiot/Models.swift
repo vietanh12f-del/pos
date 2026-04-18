@@ -77,6 +77,9 @@ struct RestockBill: Identifiable, Codable, Equatable {
     let createdAt: Date
     let items: [RestockItem]
     let totalCost: Double
+    var isDeleted: Bool = false
+    var deletedAt: Date? = nil
+    var deletedBy: UUID? = nil
     
     static func == (lhs: RestockBill, rhs: RestockBill) -> Bool {
         return lhs.id == rhs.id

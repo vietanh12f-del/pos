@@ -20,6 +20,7 @@ protocol DatabaseService {
     func fetchRestockBill(id: UUID) async throws -> RestockBill?
     func saveRestockBill(_ bill: RestockBill) async throws
     func deleteRestockBill(_ id: UUID) async throws
+    func softDeleteRestockBill(_ id: UUID, deletedAt: Date, deletedBy: UUID?) async throws
     
     // Production management
     func saveProductionTransaction(_ tx: ProductionTransaction) async throws
@@ -406,6 +407,23 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
     }
     
+    func softDeleteRestockBill(_ id: UUID, deletedAt: Date, deletedBy: UUID?) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        
+        struct Payload: Encodable {
+            let is_deleted: Bool
+            let deleted_at: Date
+            let deleted_by: UUID?
+        }
+        
+        try await client.database
+            .from("restock_bills")
+            .update(Payload(is_deleted: true, deleted_at: deletedAt, deleted_by: deletedBy))
+            .eq("id", value: id)
+            .eq("store_id", value: storeId)
+            .execute()
+    }
+    
     // MARK: - Production Management
     func saveProductionTransaction(_ tx: ProductionTransaction) async throws {
         guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
@@ -644,6 +662,7 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchRestockBill(id: UUID) async throws -> RestockBill? { return nil }
     func saveRestockBill(_ bill: RestockBill) async throws { print("⚠️ saveRestockBill: Mocked success") }
     func deleteRestockBill(_ id: UUID) async throws { print("⚠️ deleteRestockBill: Mocked success") }
+    func softDeleteRestockBill(_ id: UUID, deletedAt: Date, deletedBy: UUID?) async throws { print("⚠️ softDeleteRestockBill: Mocked success") }
     
     func fetchPriceHistory() async throws -> [String: Double] { return [:] }
     func upsertPriceHistory(name: String, price: Double) async throws { print("⚠️ upsertPriceHistory: Mocked success") }
@@ -939,13 +958,19 @@ struct RestockBillDTO: Codable {
     let created_at: Date
     let restock_items: [RestockItemDTO]?
     let store_id: UUID?
+    let is_deleted: Bool?
+    let deleted_at: Date?
+    let deleted_by: UUID?
     
-    init(id: UUID, total_cost: Double, created_at: Date, restock_items: [RestockItemDTO]?, store_id: UUID?) {
+    init(id: UUID, total_cost: Double, created_at: Date, restock_items: [RestockItemDTO]?, store_id: UUID?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
         self.id = id
         self.total_cost = total_cost
         self.created_at = created_at
         self.restock_items = restock_items
         self.store_id = store_id
+        self.is_deleted = is_deleted
+        self.deleted_at = deleted_at
+        self.deleted_by = deleted_by
     }
     
     init(from domain: RestockBill) {
@@ -954,15 +979,22 @@ struct RestockBillDTO: Codable {
         self.created_at = domain.createdAt
         self.restock_items = nil
         self.store_id = nil
+        self.is_deleted = domain.isDeleted
+        self.deleted_at = domain.deletedAt
+        self.deleted_by = domain.deletedBy
     }
     
     func toDomain() -> RestockBill {
         let items = restock_items?.map { $0.toDomain() } ?? []
-        return RestockBill(id: id, createdAt: created_at, items: items, totalCost: total_cost)
+        var bill = RestockBill(id: id, createdAt: created_at, items: items, totalCost: total_cost)
+        bill.isDeleted = is_deleted ?? false
+        bill.deletedAt = deleted_at
+        bill.deletedBy = deleted_by
+        return bill
     }
     
     func withStore(_ storeId: UUID) -> RestockBillDTO {
-        return RestockBillDTO(id: id, total_cost: total_cost, created_at: created_at, restock_items: restock_items, store_id: storeId)
+        return RestockBillDTO(id: id, total_cost: total_cost, created_at: created_at, restock_items: restock_items, store_id: storeId, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
     }
 }
 

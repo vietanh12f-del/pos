@@ -37,8 +37,15 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE TABLE IF NOT EXISTS restock_bills (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     total_cost NUMERIC NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_deleted BOOLEAN DEFAULT FALSE,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by UUID
 );
+
+ALTER TABLE restock_bills ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE;
+ALTER TABLE restock_bills ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE restock_bills ADD COLUMN IF NOT EXISTS deleted_by UUID;
 
 -- 5. Restock Items Table
 CREATE TABLE IF NOT EXISTS restock_items (

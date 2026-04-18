@@ -69,7 +69,7 @@ class OrderViewModel: ObservableObject {
         let globalRevenue = paidOrders.reduce(0) { $0 + $1.total }
         let globalCOGS = paidOrders.reduce(0) { $0 + $1.totalCost }
         let globalOpEx = operatingExpenses.reduce(0) { $0 + $1.amount }
-        let globalIncurredFees = restockHistory.reduce(0) { billSum, bill in
+        let globalIncurredFees = restockHistory.filter { !$0.isDeleted }.reduce(0) { billSum, bill in
             billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
         }
         
@@ -1206,7 +1206,7 @@ class OrderViewModel: ObservableObject {
         orderCount = pastOrders.count
         
         // Total Restock Cost (Import Price + Fees)
-        totalRestockCost = restockHistory.reduce(0) { $0 + $1.totalCost }
+        totalRestockCost = restockHistory.filter { !$0.isDeleted }.reduce(0) { $0 + $1.totalCost }
         
         // Total Operating Cost
         totalOperatingCost = operatingExpenses.reduce(0) { $0 + $1.amount }
@@ -1502,6 +1502,51 @@ class OrderViewModel: ObservableObject {
     }
     
     @MainActor
+    func softDeleteRestockBill(_ bill: RestockBill) async {
+        guard !bill.isDeleted else { return }
+        
+        let deletedAt = Date()
+        let deletedBy = AuthManager.shared.currentUserProfile?.id
+        
+        var affectedKeys = Set<String>()
+        
+        for item in bill.items {
+            let key = item.name.lowercased()
+            affectedKeys.insert(key)
+            let current = inventory[key] ?? 0
+            let newQuantity = max(0, current - item.quantity)
+            inventory[key] = newQuantity
+            
+            if let pIndex = products.firstIndex(where: { $0.name.lowercased() == key }) {
+                var p = products[pIndex]
+                p.stockQuantity = newQuantity
+                products[pIndex] = p
+                do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
+            }
+        }
+        
+        if let index = restockHistory.firstIndex(where: { $0.id == bill.id }) {
+            var updated = restockHistory[index]
+            updated.isDeleted = true
+            updated.deletedAt = deletedAt
+            updated.deletedBy = deletedBy
+            restockHistory[index] = updated
+        }
+        
+        for key in affectedKeys {
+            await recomputeProductPricingAfterRestockChange(productKey: key)
+        }
+        
+        do {
+            try await database.softDeleteRestockBill(bill.id, deletedAt: deletedAt, deletedBy: deletedBy)
+        } catch {
+            print("❌ Error soft deleting restock bill: \(error)")
+        }
+        
+        recalculateStats()
+    }
+    
+    @MainActor
     private func deleteRestockBillForEditing(_ bill: RestockBill) async {
         if let index = restockHistory.firstIndex(where: { $0.id == bill.id }) {
             // Revert Inventory
@@ -1531,6 +1576,33 @@ class OrderViewModel: ObservableObject {
             
             recalculateStats()
         }
+    }
+    
+    @MainActor
+    private func recomputeProductPricingAfterRestockChange(productKey: String) async {
+        guard let pIndex = products.firstIndex(where: { $0.name.lowercased() == productKey }) else { return }
+        
+        var latestItem: RestockItem?
+        for bill in restockHistory {
+            if bill.isDeleted { continue }
+            if let match = bill.items.first(where: { $0.name.lowercased() == productKey }) {
+                latestItem = match
+                break
+            }
+        }
+        
+        var p = products[pIndex]
+        if let latestItem {
+            p.costPrice = latestItem.finalUnitCost
+            if let suggested = latestItem.suggestedPrice {
+                p.price = suggested
+            }
+        } else {
+            p.costPrice = 0
+        }
+        
+        products[pIndex] = p
+        do { try await database.updateProduct(p) } catch { print("❌ Error recomputing product pricing: \(error)") }
     }
     
     func editRestockBill(_ bill: RestockBill) {
@@ -2173,7 +2245,7 @@ class OrderViewModel: ObservableObject {
     func restockCost(for date: Date) -> Double {
         let calendar = Calendar.current
         return restockHistory
-            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .filter { !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
             .reduce(0) { $0 + $1.totalCost }
     }
     
