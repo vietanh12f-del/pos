@@ -34,6 +34,7 @@ struct ProductionManagementView: View {
                         ProductionModeTile(
                             icon: icon(for: m),
                             title: m.rawValue,
+                            color: color(for: m),
                             selected: selectedMode == m,
                             action: { selectedMode = m }
                         )
@@ -48,6 +49,7 @@ struct ProductionManagementView: View {
                             Text(rightTitle(for: mode)).tag(1)
                         }
                         .pickerStyle(SegmentedPickerStyle())
+                        .tint(color(for: mode))
                         .padding(.horizontal)
                         
                         if materialTab == 0 {
@@ -399,7 +401,13 @@ struct ProductionManagementView: View {
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.themePrimary)
+                            .background(
+                                LinearGradient(
+                                    colors: [color(for: mode), color(for: mode).opacity(0.85)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
                             .foregroundStyle(.white)
                             .cornerRadius(16)
                     }
@@ -416,6 +424,15 @@ struct ProductionManagementView: View {
         case .xuatNguyenLieu: return "tray.and.arrow.up.fill"
         case .nhapThanhPham: return "tray.and.arrow.down.fill"
         case .xuatThanhPham: return "tray.and.arrow.up.fill"
+        }
+    }
+    
+    func color(for mode: Mode) -> Color {
+        switch mode {
+        case .nhapNguyenLieu: return .green
+        case .xuatNguyenLieu: return .orange
+        case .nhapThanhPham: return .blue
+        case .xuatThanhPham: return .purple
         }
     }
     func leftTitle(for mode: Mode) -> String {
@@ -491,6 +508,7 @@ struct EditHistorySheet: View {
 struct ProductionModeTile: View {
     let icon: String
     let title: String
+    let color: Color
     let selected: Bool
     let action: () -> Void
     
@@ -499,33 +517,33 @@ struct ProductionModeTile: View {
             VStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(selected ? Color.themePrimary : Color.white)
+                        .fill(selected ? color : color.opacity(0.12))
                         .frame(width: 54, height: 54)
                         .overlay(
                             Circle()
-                                .stroke(selected ? Color.themePrimary : Color.themePrimary.opacity(0.3), lineWidth: selected ? 0 : 1.5)
+                                .stroke(selected ? color : color.opacity(0.35), lineWidth: selected ? 0 : 1.5)
                         )
                     Image(systemName: icon)
                         .font(.title)
                         .fontWeight(.semibold)
-                        .foregroundStyle(selected ? Color.white : Color.themePrimary)
+                        .foregroundStyle(selected ? Color.white : color)
                 }
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(selected ? Color.themeTextDark : Color.themeTextDark)
+                    .foregroundStyle(Color.themeTextDark)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
             }
             .frame(maxWidth: .infinity, minHeight: 110)
             .padding(.vertical, 12)
-            .background(Color.white)
+            .background(selected ? color.opacity(0.12) : Color.white)
             .cornerRadius(16)
             .shadow(color: .black.opacity(0.08), radius: 6)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(selected ? Color.themePrimary : Color.gray.opacity(0.15), lineWidth: selected ? 2 : 1)
+                    .stroke(selected ? color : Color.gray.opacity(0.15), lineWidth: selected ? 2 : 1)
             )
         }
     }
