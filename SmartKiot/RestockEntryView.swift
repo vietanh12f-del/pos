@@ -575,6 +575,7 @@ struct RestockEntryView: View {
         .onDisappear { 
             viewModel.isRestockMode = false 
             viewModel.cancelVoiceProcessing()
+            viewModel.cancelRestockEditingIfNeeded()
         }
         .sheet(isPresented: $showManualInput) { 
             ManualRestockItemView(

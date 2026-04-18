@@ -81,6 +81,7 @@ class OrderViewModel: ObservableObject {
     @Published var currentRestockSessionTag: String = ""
     @Published var restockItems: [RestockItem] = []
     @Published var restockHistory: [RestockBill] = []
+    @Published var editingRestockBill: RestockBill?
     @Published var operatingExpenses: [OperatingExpense] = []
     @Published var materialCategories: Set<String> = Set(Category.allCases.filter { $0 != .all }.map { $0.rawValue })
     @Published var productCategories: Set<String> = Set(Category.allCases.filter { $0 != .all }.map { $0.rawValue })
@@ -1379,11 +1380,18 @@ class OrderViewModel: ObservableObject {
         guard !restockItems.isEmpty else { return }
         
         let total = restockItems.reduce(0) { $0 + $1.totalCost }
-        let bill = RestockBill(id: UUID(), createdAt: Date(), items: restockItems, totalCost: total)
+        let billId = editingRestockBill?.id ?? UUID()
+        let createdAt = editingRestockBill?.createdAt ?? Date()
+        let bill = RestockBill(id: billId, createdAt: createdAt, items: restockItems, totalCost: total)
         
-        restockHistory.insert(bill, at: 0)
-        
-        Task {
+        Task { @MainActor in
+            if let original = editingRestockBill {
+                await deleteRestockBillForEditing(original)
+                editingRestockBill = nil
+            }
+            
+            restockHistory.insert(bill, at: 0)
+            
             do {
                 try await database.saveRestockBill(bill)
             } catch {
@@ -1488,6 +1496,13 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Restock Editing/Deleting
     func deleteRestockBill(_ bill: RestockBill) {
+        Task { @MainActor in
+            await deleteRestockBillForEditing(bill)
+        }
+    }
+    
+    @MainActor
+    private func deleteRestockBillForEditing(_ bill: RestockBill) async {
         if let index = restockHistory.firstIndex(where: { $0.id == bill.id }) {
             // Revert Inventory
             for item in bill.items {
@@ -1501,21 +1516,17 @@ class OrderViewModel: ObservableObject {
                         var p = products[pIndex]
                         p.stockQuantity = newQuantity
                         products[pIndex] = p
-                        Task { 
-                            do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
-                        }
+                        do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
                     }
                 }
             }
             
             restockHistory.remove(at: index)
             
-            Task {
-                do {
-                    try await database.deleteRestockBill(bill.id)
-                } catch {
-                    print("❌ Error deleting restock bill: \(error)")
-                }
+            do {
+                try await database.deleteRestockBill(bill.id)
+            } catch {
+                print("❌ Error deleting restock bill: \(error)")
             }
             
             recalculateStats()
@@ -1523,13 +1534,17 @@ class OrderViewModel: ObservableObject {
     }
     
     func editRestockBill(_ bill: RestockBill) {
-        // Revert inventory and remove bill (similar to delete)
-        deleteRestockBill(bill)
-        
-        // Load items into current session
+        editingRestockBill = bill
         restockItems = bill.items
         isRestockMode = true
         shouldShowRestockSheet = true
+    }
+
+    func cancelRestockEditingIfNeeded() {
+        if editingRestockBill != nil {
+            editingRestockBill = nil
+            restockItems.removeAll()
+        }
     }
     
     // MARK: - Production Management
