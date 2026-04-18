@@ -1899,9 +1899,7 @@ class OrderViewModel: ObservableObject {
         for it in updated.items {
             let k = it.name.lowercased()
             let o = map[k]?.origQty ?? 0
-            let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
-            let unitIncl = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
-            map[k] = (o, it.quantity, unitIncl)
+            map[k] = (o, it.quantity, it.finalUnitCost)
         }
         await loadMaterials()
         var current = self.materials

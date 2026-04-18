@@ -6,6 +6,8 @@ struct TransactionEditView: View {
     @Environment(\.dismiss) var dismiss
     
     @State private var items: [RestockItem] = []
+    @State private var editingItem: RestockItem?
+    @State private var editingItemIndex: Int?
     @State private var editingIndex: Int?
     @State private var showQuantityWheel = false
     @State private var showUnitPriceWheel = false
@@ -25,6 +27,16 @@ struct TransactionEditView: View {
     @State private var additionalCostWheelHundredsSelection = 0
     @State private var noteText: String = ""
     
+    private var isFinishedGoods: Bool {
+        let t = original.mode.lowercased()
+        return t.contains("thành phẩm") && !t.contains("nguyên liệu")
+    }
+    
+    private var unitPriceTitle: String {
+        let t = original.mode.lowercased()
+        return t.contains("xuất") ? "Đơn giá xuất" : "Đơn giá nhập"
+    }
+    
     var body: some View {
         NavigationStack {
             List {
@@ -36,6 +48,27 @@ struct TransactionEditView: View {
                                     .font(.headline)
                                     .foregroundStyle(Color.themeTextDark)
                                 Spacer()
+                                Button {
+                                    editingItemIndex = idx
+                                    editingItem = it
+                                } label: {
+                                    Text("Sửa")
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                            }
+                            let src = it.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                            if !src.isEmpty {
+                                Text("Nguồn: \(src)")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                            if let url = it.documentImageURL, !url.isEmpty {
+                                Text("Có chứng từ")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
                             }
                             HStack {
                                 Text("SL")
@@ -51,7 +84,7 @@ struct TransactionEditView: View {
                                     }
                             }
                             HStack {
-                                Text("Đơn giá")
+                                Text(unitPriceTitle)
                                 Spacer()
                                 Text(formatCurrency(it.unitPrice))
                                     .fontWeight(.semibold)
@@ -79,9 +112,7 @@ struct TransactionEditView: View {
                             HStack {
                                 Text("Đơn giá gồm chi phí")
                                 Spacer()
-                                let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
-                                let unitIncl = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
-                                Text(formatCurrency(unitIncl))
+                                Text(formatCurrency(it.finalUnitCost))
                                     .fontWeight(.semibold)
                                     .foregroundStyle(.gray)
                             }
@@ -107,7 +138,7 @@ struct TransactionEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
-                        let total = items.reduce(0) { $0 + ($1.unitPrice * Double($1.quantity)) + $1.additionalCost }
+                        let total = items.reduce(0) { $0 + $1.totalCost }
                         var updated = ProductionTransaction(id: original.id, createdAt: original.createdAt, mode: original.mode, items: items, totalCost: total)
                         updated.note = noteText.isEmpty ? original.note : noteText
                         Task {
@@ -122,6 +153,20 @@ struct TransactionEditView: View {
         .onAppear {
             items = original.items
             noteText = original.note ?? ""
+        }
+        .sheet(item: $editingItem) { item in
+            ProductionTransactionItemEditView(
+                viewModel: viewModel,
+                modeTitle: original.mode,
+                isFinishedGoods: isFinishedGoods,
+                initialItem: item
+            ) { updatedItem in
+                if let idx = editingItemIndex, items.indices.contains(idx) {
+                    items[idx] = updatedItem
+                }
+                editingItem = nil
+                editingItemIndex = nil
+            }
         }
         .sheet(isPresented: $showQuantityWheel) {
             NavigationStack {
