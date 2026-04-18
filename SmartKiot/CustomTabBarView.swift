@@ -143,6 +143,8 @@ struct CurvedText: View {
     var text: String
     var radius: CGFloat
     var background: Color
+    @State private var highlightRotation: Double = 0
+    @State private var pulse: Bool = false
     
     private var spread: Double {
         // Dynamic spread based on text length
@@ -152,20 +154,60 @@ struct CurvedText: View {
     
     var body: some View {
         ZStack {
-            // Background Arc
             Circle()
-                .trim(from: 0, to: (spread + 40) / 360) // Add padding (40 degrees total)
-                .stroke(background, style: StrokeStyle(lineWidth: 22, lineCap: .round))
-                .rotationEffect(.degrees(-90 - (spread + 40) / 2)) // Center the arc at top
+                .trim(from: 0, to: (spread + 40) / 360)
+                .stroke(background.opacity(0.28), style: StrokeStyle(lineWidth: 34, lineCap: .round))
+                .rotationEffect(.degrees(-90 - (spread + 40) / 2))
                 .frame(width: radius * 2, height: radius * 2)
-                .shadow(color: background.opacity(0.3), radius: 4, x: 0, y: 2)
+                .blur(radius: 1.5)
             
-            // Text
+            Circle()
+                .trim(from: 0, to: (spread + 40) / 360)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            background.opacity(pulse ? 1.0 : 0.85),
+                            background.opacity(pulse ? 0.85 : 1.0)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    style: StrokeStyle(lineWidth: 24, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90 - (spread + 40) / 2))
+                .frame(width: radius * 2, height: radius * 2)
+                .shadow(color: background.opacity(0.35), radius: 6, x: 0, y: 3)
+            
+            Circle()
+                .trim(from: 0, to: (spread + 40) / 360)
+                .stroke(
+                    AngularGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: Color.clear, location: 0.0),
+                            .init(color: Color.white.opacity(0.0), location: 0.35),
+                            .init(color: Color.white.opacity(0.95), location: 0.5),
+                            .init(color: Color.yellow.opacity(0.9), location: 0.55),
+                            .init(color: Color.white.opacity(0.95), location: 0.6),
+                            .init(color: Color.white.opacity(0.0), location: 0.7),
+                            .init(color: Color.clear, location: 1.0)
+                        ]),
+                        center: .center,
+                        angle: .degrees(highlightRotation)
+                    ),
+                    style: StrokeStyle(lineWidth: 12, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90 - (spread + 40) / 2))
+                .frame(width: radius * 2, height: radius * 2)
+                .blur(radius: 0.8)
+                .blendMode(.screen)
+                .shadow(color: Color.white.opacity(0.35), radius: 4, x: 0, y: 2)
+            
             ForEach(Array(text.enumerated()), id: \.offset) { index, letter in
                 VStack(spacing: 0) {
                     Text(String(letter))
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.25), radius: 1, x: 0, y: 1)
                         .offset(y: -5) // Move up to center vertically in the stroke
                     Spacer()
                 }
@@ -174,6 +216,15 @@ struct CurvedText: View {
             }
         }
         .frame(width: radius * 2, height: radius * 2)
+        .onAppear {
+            highlightRotation = 0
+            withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) {
+                highlightRotation = 360
+            }
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                pulse.toggle()
+            }
+        }
     }
     
     func angle(at index: Int, total: Int) -> Angle {
