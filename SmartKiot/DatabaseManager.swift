@@ -972,17 +972,38 @@ struct RestockItemDTO: Codable {
     let product_name: String
     let quantity: Int
     let unit_price: Double
+    let additional_cost: Double?
+    let suggested_price: Double?
+    let category: String?
+    let source: String?
+    let document_image_url: String?
     
     init(from domain: RestockItem, billId: UUID) {
-        self.id = UUID()
+        self.id = domain.id
         self.bill_id = billId
         self.product_name = domain.name
         self.quantity = domain.quantity
         self.unit_price = domain.unitPrice
+        self.additional_cost = domain.additionalCost
+        self.suggested_price = domain.suggestedPrice
+        self.category = domain.category
+        self.source = domain.source
+        self.document_image_url = domain.documentImageURL
     }
     
     func toDomain() -> RestockItem {
-        return RestockItem(id: UUID(), name: product_name, quantity: quantity, unitPrice: unit_price)
+        return RestockItem(
+            id: id,
+            name: product_name,
+            quantity: quantity,
+            unitPrice: unit_price,
+            additionalCost: additional_cost ?? 0,
+            suggestedPrice: suggested_price,
+            isConfirmed: true,
+            category: category,
+            source: source,
+            documentImageURL: document_image_url
+        )
     }
 }
  
@@ -1066,18 +1087,30 @@ struct ProductionTransactionItemDTO: Codable {
     let quantity: Int
     let unit_price: Double
     let additional_cost: Double?
+    let source: String?
+    let document_image_url: String?
     
     init(from domain: RestockItem, transactionId: UUID) {
-        self.id = UUID()
+        self.id = domain.id
         self.transaction_id = transactionId
         self.item_name = domain.name
         self.quantity = domain.quantity
         self.unit_price = domain.unitPrice
         self.additional_cost = domain.additionalCost
+        self.source = domain.source
+        self.document_image_url = domain.documentImageURL
     }
     
     func toDomain() -> RestockItem {
-        return RestockItem(id: UUID(), name: item_name, quantity: quantity, unitPrice: unit_price, additionalCost: additional_cost ?? 0)
+        return RestockItem(
+            id: id,
+            name: item_name,
+            quantity: quantity,
+            unitPrice: unit_price,
+            additionalCost: additional_cost ?? 0,
+            source: source,
+            documentImageURL: document_image_url
+        )
     }
 }
 

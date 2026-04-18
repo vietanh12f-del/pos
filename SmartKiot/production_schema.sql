@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS production_transaction_items (
   item_name TEXT NOT NULL,
   quantity INT NOT NULL,
   unit_price DOUBLE PRECISION DEFAULT 0,
-  additional_cost DOUBLE PRECISION DEFAULT 0
+  additional_cost DOUBLE PRECISION DEFAULT 0,
+  source TEXT,
+  document_image_url TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_production_items_tx_id ON production_transaction_items(transaction_id);
@@ -30,6 +32,10 @@ CREATE INDEX IF NOT EXISTS idx_production_items_tx_id ON production_transaction_
 -- Migration-safe: ensure column exists on older deployments
 ALTER TABLE production_transaction_items
   ADD COLUMN IF NOT EXISTS additional_cost DOUBLE PRECISION DEFAULT 0;
+ALTER TABLE production_transaction_items
+  ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE production_transaction_items
+  ADD COLUMN IF NOT EXISTS document_image_url TEXT;
 
 -- Enable RLS
 ALTER TABLE production_transactions ENABLE ROW LEVEL SECURITY;

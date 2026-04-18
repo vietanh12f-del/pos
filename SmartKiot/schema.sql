@@ -46,8 +46,19 @@ CREATE TABLE IF NOT EXISTS restock_items (
     bill_id UUID REFERENCES restock_bills(id) ON DELETE CASCADE,
     product_name TEXT NOT NULL,
     quantity INTEGER NOT NULL,
-    unit_price NUMERIC NOT NULL
+    unit_price NUMERIC NOT NULL,
+    additional_cost NUMERIC DEFAULT 0,
+    suggested_price NUMERIC,
+    category TEXT,
+    source TEXT,
+    document_image_url TEXT
 );
+
+ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS additional_cost NUMERIC DEFAULT 0;
+ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS suggested_price NUMERIC;
+ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS document_image_url TEXT;
 
 -- 6. Price History Table (for ad-hoc items auto-complete)
 CREATE TABLE IF NOT EXISTS price_history (

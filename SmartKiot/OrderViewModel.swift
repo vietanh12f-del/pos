@@ -43,6 +43,8 @@ class OrderViewModel: ObservableObject {
     @Published var isRecordingCustomerName: Bool = false
     @Published var isRecordingManualProductName: Bool = false
     @Published var manualRecordedName: String = ""
+    @Published var isRecordingManualSource: Bool = false
+    @Published var manualRecordedSource: String = ""
 
 
     // Alerting
@@ -167,6 +169,11 @@ class OrderViewModel: ObservableObject {
                         if !productName.isEmpty {
                             self?.manualRecordedName = productName
                         }
+                    } else if self?.isRecordingManualSource == true {
+                        let sourceName = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !sourceName.isEmpty {
+                            self?.manualRecordedSource = sourceName
+                        }
                     } else {
                         self?.currentInput = newText
                     }
@@ -183,6 +190,8 @@ class OrderViewModel: ObservableObject {
                         self?.isRecordingCustomerName = false
                     } else if self?.isRecordingManualProductName == true {
                         self?.isRecordingManualProductName = false
+                    } else if self?.isRecordingManualSource == true {
+                        self?.isRecordingManualSource = false
                     } else {
                         // Recording stopped (manual or auto)
                         // Wait slightly for final transcript
@@ -1296,8 +1305,58 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Restock Actions
     
-    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil) {
-        restockItems.append(RestockItem(name: name, quantity: quantity, unitPrice: unitPrice, additionalCost: additionalCost, suggestedPrice: suggestedPrice, isConfirmed: false, category: category))
+    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil, source: String? = nil, documentImageURL: String? = nil) {
+        restockItems.append(
+            RestockItem(
+                name: name,
+                quantity: quantity,
+                unitPrice: unitPrice,
+                additionalCost: additionalCost,
+                suggestedPrice: suggestedPrice,
+                isConfirmed: false,
+                category: category,
+                source: source,
+                documentImageURL: documentImageURL
+            )
+        )
+    }
+
+    func sourceHistory(for itemName: String) -> [String] {
+        let key = itemName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !key.isEmpty else { return [] }
+        
+        var seen = Set<String>()
+        var result: [String] = []
+        
+        for bill in restockHistory {
+            for it in bill.items {
+                if it.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != key { continue }
+                let s = it.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if s.isEmpty { continue }
+                let k = s.lowercased()
+                if seen.contains(k) { continue }
+                seen.insert(k)
+                result.append(s)
+            }
+        }
+        
+        for tx in productionHistory {
+            for it in tx.items {
+                if it.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != key { continue }
+                let s = it.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if s.isEmpty { continue }
+                let k = s.lowercased()
+                if seen.contains(k) { continue }
+                seen.insert(k)
+                result.append(s)
+            }
+        }
+        
+        return result
+    }
+    
+    func latestSource(for itemName: String) -> String? {
+        return sourceHistory(for: itemName).first
     }
     
     func removeRestockItem(at offsets: IndexSet) {

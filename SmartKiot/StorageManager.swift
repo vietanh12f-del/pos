@@ -82,6 +82,28 @@ class StorageManager {
         return publicURL.absoluteString
     }
     
+    func uploadRestockDocumentImage(data: Data, fileName: String, storeId: UUID) async throws -> String {
+        let path = "restock-documents/\(storeId.uuidString)/\(fileName).jpg"
+        
+        try await client.storage
+            .from(receiptBucket)
+            .upload(
+                path,
+                data: data,
+                options: FileOptions(
+                    cacheControl: "3600",
+                    contentType: "image/jpeg",
+                    upsert: true
+                )
+            )
+        
+        let publicURL = try client.storage
+            .from(receiptBucket)
+            .getPublicURL(path: path)
+        
+        return publicURL.absoluteString
+    }
+    
     // Helper to generate unique filename
     func generateImageName() -> String {
         return UUID().uuidString

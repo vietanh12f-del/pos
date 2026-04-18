@@ -28,6 +28,8 @@ struct RestockItem: Identifiable, Hashable, Codable {
     var suggestedPrice: Double? = nil // User-defined or auto-calculated selling price
     var isConfirmed: Bool = false // Check/Verify status
     var category: String? = nil
+    var source: String? = nil
+    var documentImageURL: String? = nil
     
     var totalCost: Double {
         if let cat = category, cat.lowercased() == Category.materials.rawValue.lowercased() {
