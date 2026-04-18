@@ -419,6 +419,9 @@ struct RestockEntryView: View {
                                                         let grams = max(0, item.quantity)
                                                         summaryQtyKgSelection = grams / 1000
                                                         summaryQtyGramsSelection = ((grams % 1000) / 50) * 50
+                                                        if summaryQtyKgSelection > summaryQtyMax {
+                                                            summaryQtyMax = max(summaryQtyMax, summaryQtyKgSelection + 200)
+                                                        }
                                                     } else {
                                                         summaryQtySelection = max(1, item.quantity)
                                                     }
@@ -599,6 +602,11 @@ struct RestockEntryView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
+                            .onChange(of: summaryQtyKgSelection) { _, newValue in
+                                if newValue >= max(0, summaryQtyMax - 10) {
+                                    summaryQtyMax += 200
+                                }
+                            }
                         }
                         VStack {
                             Text("Gam").font(.caption).foregroundStyle(.gray)
@@ -894,6 +902,9 @@ struct ManualRestockItemView: View {
                                 quantityKgSelection = max(0, current / 1000)
                                 let remainder = max(0, current % 1000)
                                 gramsWheelSelection = (remainder / 50) * 50
+                                if quantityKgSelection > quantityWheelMax {
+                                    quantityWheelMax = max(quantityWheelMax, quantityKgSelection + 200)
+                                }
                             } else {
                                 if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
                             }
@@ -1142,6 +1153,11 @@ struct ManualRestockItemView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
+                            .onChange(of: quantityKgSelection) { _, newValue in
+                                if newValue >= max(0, quantityWheelMax - 10) {
+                                    quantityWheelMax += 200
+                                }
+                            }
                         }
                         VStack {
                             Text("Gam")
