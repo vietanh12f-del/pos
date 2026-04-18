@@ -882,6 +882,8 @@ struct ManualRestockItemView: View {
     @State private var showSourceHistoryPicker = false
     @State private var sourceHistoryOptions: [String] = []
     @State private var showDocumentPicker = false
+    @State private var showCameraPicker = false
+    @State private var showCameraUnavailableAlert = false
     @State private var documentPickerSource: UIImagePickerController.SourceType = .photoLibrary
     @State private var documentImage: UIImage?
     @State private var documentImageURL: String?
@@ -1173,10 +1175,13 @@ struct ManualRestockItemView: View {
                             }
                             
                             Button("Chụp ảnh") {
-                                documentPickerSource = .camera
-                                showDocumentPicker = true
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    documentPickerSource = .camera
+                                    showCameraPicker = true
+                                } else {
+                                    showCameraUnavailableAlert = true
+                                }
                             }
-                            .disabled(!UIImagePickerController.isSourceTypeAvailable(.camera))
                             
                             Button("Thư viện") {
                                 documentPickerSource = .photoLibrary
@@ -1379,27 +1384,20 @@ struct ManualRestockItemView: View {
             }
         }
         .sheet(isPresented: $showDocumentPicker, onDismiss: {
-            guard let img = documentImage else { return }
-            guard let data = img.jpegData(compressionQuality: 0.85) else { return }
-            guard let storeId = StoreManager.shared.currentStore?.id else { return }
-            let fileName = (itemToEdit?.id ?? UUID()).uuidString
-            
-            Task {
-                isUploadingDocument = true
-                do {
-                    let url = try await StorageManager.shared.uploadRestockDocumentImage(data: data, fileName: fileName, storeId: storeId)
-                    await MainActor.run {
-                        documentImageURL = url
-                        isUploadingDocument = false
-                    }
-                } catch {
-                    await MainActor.run {
-                        isUploadingDocument = false
-                    }
-                }
-            }
+            uploadSelectedDocumentImage()
         }) {
             ImagePicker(image: $documentImage, sourceType: documentPickerSource)
+        }
+        .fullScreenCover(isPresented: $showCameraPicker, onDismiss: {
+            uploadSelectedDocumentImage()
+        }) {
+            ImagePicker(image: $documentImage, sourceType: .camera)
+                .ignoresSafeArea()
+        }
+        .alert("Không thể mở camera", isPresented: $showCameraUnavailableAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Thiết bị không hỗ trợ camera hoặc ứng dụng chưa được cấp quyền.")
         }
         .sheet(isPresented: $showDocumentPreview) {
             NavigationStack {
@@ -1642,6 +1640,28 @@ struct ManualRestockItemView: View {
             }
             .padding()
             .presentationDetents([.height(300)])
+        }
+    }
+    
+    func uploadSelectedDocumentImage() {
+        guard let img = documentImage else { return }
+        guard let data = img.jpegData(compressionQuality: 0.85) else { return }
+        guard let storeId = StoreManager.shared.currentStore?.id else { return }
+        let fileName = (itemToEdit?.id ?? UUID()).uuidString
+        
+        Task {
+            isUploadingDocument = true
+            do {
+                let url = try await StorageManager.shared.uploadRestockDocumentImage(data: data, fileName: fileName, storeId: storeId)
+                await MainActor.run {
+                    documentImageURL = url
+                    isUploadingDocument = false
+                }
+            } catch {
+                await MainActor.run {
+                    isUploadingDocument = false
+                }
+            }
         }
     }
     
