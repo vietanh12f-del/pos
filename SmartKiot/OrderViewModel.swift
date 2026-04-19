@@ -34,6 +34,7 @@ class OrderViewModel: ObservableObject {
     @Published var editedOrderIds: Set<UUID> = []
     @Published var editedProductionTxIds: Set<UUID> = []
     @Published var editedRestockBillIds: Set<UUID> = []
+    @Published var autoMaterialExportTemplates: [AutoMaterialExportTemplate] = []
     
     // Cache control
     private var loadedStoreId: UUID?
@@ -472,6 +473,17 @@ class OrderViewModel: ObservableObject {
                 self.editedRestockBillIds = Set(ids)
             } catch {
                 print("⚠️ Error fetching edited restock bill ids: \(error)")
+            }
+        }
+        
+        if let sid = StoreManager.shared.currentStore?.id {
+            do {
+                let templates = try await self.database.fetchAutoMaterialExportTemplates(storeId: sid)
+                await MainActor.run {
+                    self.autoMaterialExportTemplates = templates
+                }
+            } catch {
+                print("⚠️ Error fetching auto material export templates: \(error)")
             }
         }
         
@@ -1655,6 +1667,135 @@ class OrderViewModel: ObservableObject {
     
     func fetchRestockEdits(restockBillId: UUID) async throws -> [RestockEdit] {
         try await database.fetchRestockEdits(restockBillId: restockBillId)
+    }
+
+    func loadAutoMaterialExportTemplates() async {
+        guard let sid = StoreManager.shared.currentStore?.id else { return }
+        do {
+            let templates = try await database.fetchAutoMaterialExportTemplates(storeId: sid)
+            await MainActor.run {
+                self.autoMaterialExportTemplates = templates
+            }
+        } catch {
+            print("⚠️ loadAutoMaterialExportTemplates error: \(error)")
+        }
+    }
+    
+    func upsertAutoMaterialExportTemplate(_ template: AutoMaterialExportTemplate) async -> Bool {
+        do {
+            try await database.upsertAutoMaterialExportTemplate(template)
+            await loadAutoMaterialExportTemplates()
+            return true
+        } catch {
+            print("❌ upsertAutoMaterialExportTemplate error: \(error)")
+            return false
+        }
+    }
+    
+    func fetchAutoMaterialExportLogsForTransaction(transactionId: UUID) async -> [AutoMaterialExportLog] {
+        guard let sid = StoreManager.shared.currentStore?.id else { return [] }
+        do {
+            return try await database.fetchAutoMaterialExportLogsForTransaction(storeId: sid, transactionId: transactionId)
+        } catch {
+            print("⚠️ fetchAutoMaterialExportLogsForTransaction error: \(error)")
+            return []
+        }
+    }
+    
+    @MainActor
+    func performAutoMaterialExport(
+        mode: String,
+        templateId: UUID?,
+        templateName: String,
+        headerName: String,
+        freshTitle: String,
+        afterBoilTitle: String,
+        panCountTitle: String,
+        panWeightTitle: String,
+        autoMaterialsTitle: String,
+        freshRows: [AutoMaterialExportLogRow],
+        afterBoilGrams: Int,
+        panCount: Int,
+        standardPanWeightGrams: Int,
+        actualPanWeightGrams: Double,
+        percentChange: Double,
+        autoRows: [AutoMaterialExportLogRow]
+    ) async -> Bool {
+        var totalsByName: [String: Int] = [:]
+        for r in freshRows {
+            let g = Int(max(0, r.totalExportGrams.rounded()))
+            totalsByName[r.name] = (totalsByName[r.name] ?? 0) + g
+        }
+        for r in autoRows {
+            let g = Int(max(0, r.totalExportGrams.rounded()))
+            totalsByName[r.name] = (totalsByName[r.name] ?? 0) + g
+        }
+        let now = Date()
+        let txId = UUID()
+        let items: [RestockItem] = totalsByName.keys.sorted().compactMap { nameKey in
+            let grams = totalsByName[nameKey] ?? 0
+            guard grams > 0 else { return nil }
+            let matched = self.materials.first(where: { $0.name.lowercased() == nameKey.lowercased() })
+            let unitPrice = matched?.lastUnitPrice ?? 0
+            return RestockItem(
+                id: UUID(),
+                name: matched?.name ?? nameKey,
+                quantity: grams,
+                unitPrice: unitPrice,
+                additionalCost: 0,
+                suggestedPrice: nil,
+                isConfirmed: true,
+                category: matched?.category ?? Category.materials.rawValue,
+                source: templateName,
+                documentImageURL: nil
+            )
+        }
+        guard !items.isEmpty else { return false }
+        
+        let totalCost = items.reduce(0) { $0 + $1.totalCost }
+        let note = "Xuất tự động: \(templateName)"
+        let tx = ProductionTransaction(id: txId, createdAt: now, mode: mode, items: items, totalCost: totalCost, note: note)
+        
+        do {
+            try await database.saveProductionTransaction(tx)
+            await upsertMaterialsFromTransaction(tx)
+            await loadMaterials()
+            await loadProductionHistory(mode: mode)
+        } catch {
+            print("❌ performAutoMaterialExport saveProductionTransaction error: \(error)")
+            return false
+        }
+        
+        let data = AutoMaterialExportLogData(
+            headerName: headerName,
+            freshTitle: freshTitle,
+            afterBoilTitle: afterBoilTitle,
+            panCountTitle: panCountTitle,
+            panWeightTitle: panWeightTitle,
+            autoMaterialsTitle: autoMaterialsTitle,
+            fresh: freshRows,
+            afterBoilGrams: afterBoilGrams,
+            panCount: panCount,
+            standardPanWeightGrams: standardPanWeightGrams,
+            actualPanWeightGrams: actualPanWeightGrams,
+            percentChange: percentChange,
+            autoMaterials: autoRows
+        )
+        let log = AutoMaterialExportLog(
+            id: UUID(),
+            createdAt: now,
+            templateId: templateId,
+            templateName: templateName,
+            productionTransactionId: txId,
+            data: data
+        )
+        do {
+            try await database.saveAutoMaterialExportLog(log)
+        } catch {
+            print("⚠️ performAutoMaterialExport saveAutoMaterialExportLog error: \(error)")
+        }
+        
+        return true
     }
     
     func editRestockBill(_ bill: RestockBill) {

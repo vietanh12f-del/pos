@@ -17,6 +17,9 @@ struct ProductionManagementView: View {
     @State private var editingProduct: Product?
     @State private var editingFinishedProduct: Product?
     @State private var showProductEdit = false
+    @State private var showAutoMaterialExport = false
+    @State private var showAutoExportDetail = false
+    @State private var selectedAutoExportLog: AutoMaterialExportLog?
     
     enum Mode: String, CaseIterable {
         case nhapNguyenLieu = "Nhập Nguyên liệu"
@@ -103,24 +106,11 @@ struct ProductionManagementView: View {
                                                             showProductEdit = true
                                                         }
                                                     } label: {
-                                                        HStack {
-                                                            Text(p.name)
-                                                                .font(.subheadline)
-                                                                .foregroundStyle(Color.themeTextDark)
-                                                                .lineLimit(2)
-                                                            Spacer()
-                                                            Text(formatCurrency(p.price))
-                                                                .font(.subheadline)
-                                                                .foregroundStyle(Color.themePrimary)
-                                                                .frame(width: 120, alignment: .trailing)
-                                                            Text(FormatUtils.formatWeight(p.stockQuantity))
-                                                                .font(.subheadline)
-                                                                .foregroundStyle(.gray)
-                                                                .frame(width: 60, alignment: .trailing)
-                                                        }
-                                                        .padding(.horizontal)
-                                                        .padding(.vertical, 10)
-                                                        .background(Color.white)
+                                                        ProductionProductListRow(
+                                                            name: p.name,
+                                                            priceText: formatCurrency(p.price),
+                                                            stockText: FormatUtils.formatWeight(p.stockQuantity)
+                                                        )
                                                     }
                                                     Divider().padding(.leading, 0)
                                                 }
@@ -216,79 +206,30 @@ struct ProductionManagementView: View {
                                 ScrollView {
                                     VStack(spacing: 8) {
                                         ForEach(viewModel.productionHistory, id: \.id) { tx in
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                HStack {
-                                                    Text(tx.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                                        .font(.subheadline)
-                                                        .foregroundStyle(Color.themeTextDark)
-                                                    Spacer()
-                                                    // Hidden total price for all modes per request
-                                                }
-                                                HStack(spacing: 8) {
-                                                    if viewModel.editedProductionTxIds.contains(tx.id) || (tx.note?.isEmpty == false) {
-                                                        Text("Đã chỉnh sửa")
-                                                            .font(.caption).fontWeight(.semibold)
-                                                            .foregroundStyle(.white)
-                                                            .padding(.horizontal, 8)
-                                                            .padding(.vertical, 4)
-                                                            .background(Capsule().fill(Color.orange))
+                                            ProductionTransactionHistoryCard(
+                                                tx: tx,
+                                                selectedMode: selectedMode,
+                                                editedIds: viewModel.editedProductionTxIds,
+                                                onShowEditHistory: {
+                                                    Task {
+                                                        self.editHistoryEntries = await viewModel.fetchProductionEdits(for: tx.id)
+                                                        self.showEditHistory = true
                                                     }
-                                                    Spacer()
-                                                    Button {
-                                                        Task {
-                                                            self.editHistoryEntries = await viewModel.fetchProductionEdits(for: tx.id)
-                                                            self.showEditHistory = true
-                                                        }
-                                                    } label: {
-                                                        Text("Lịch sử chỉnh sửa")
-                                                            .font(.caption).fontWeight(.bold)
-                                                            .foregroundStyle(Color.themePrimary)
-                                                    }
-                                                }
-                                                VStack(spacing: 6) {
-                                                    ForEach(tx.items, id: \.id) { it in
-                                                        VStack(alignment: .leading, spacing: 4) {
-                                                            HStack {
-                                                                Text(it.name)
-                                                                    .font(.subheadline)
-                                                                    .foregroundStyle(Color.themeTextDark)
-                                                                Spacer()
-                                                                Text("SL: \(FormatUtils.formatWeight(it.quantity))")
-                                                                    .font(.caption)
-                                                                    .foregroundStyle(.gray)
-                                                            }
-                                                            HStack {
-                                                            let isExportMode = (selectedMode == .xuatThanhPham || selectedMode == .xuatNguyenLieu)
-                                                            Text("\(isExportMode ? "Giá xuất" : "Giá nhập"): \(formatCurrency(it.unitPrice))")
-                                                                    .font(.caption)
-                                                                    .foregroundStyle(Color.themePrimary)
-                                                                Spacer()
-                                                                Text("Chi phí: \(formatCurrency(it.additionalCost))")
-                                                                    .font(.caption)
-                                                                    .foregroundStyle(.gray)
-                                                            }
+                                                },
+                                                onShowAutoExportDetail: {
+                                                    Task {
+                                                        let logs = await viewModel.fetchAutoMaterialExportLogsForTransaction(transactionId: tx.id)
+                                                        await MainActor.run {
+                                                            self.selectedAutoExportLog = logs.first
+                                                            self.showAutoExportDetail = (self.selectedAutoExportLog != nil)
                                                         }
                                                     }
+                                                },
+                                                onEdit: {
+                                                    editingTransaction = tx
+                                                    showTransactionEdit = true
                                                 }
-                                                HStack {
-                                                    Spacer()
-                                                    Button {
-                                                        editingTransaction = tx
-                                                        showTransactionEdit = true
-                                                    } label: {
-                                                        Text("Sửa")
-                                                            .font(.subheadline).fontWeight(.bold)
-                                                            .foregroundStyle(.white)
-                                                            .padding(.horizontal, 12)
-                                                            .padding(.vertical, 6)
-                                                            .background(Capsule().fill(Color.themePrimary))
-                                                    }
-                                                }
-                                            }
-                                            .padding(12)
-                                            .background(Color.white)
-                                            .cornerRadius(12)
-                                            .padding(.horizontal)
+                                            )
                                         }
                                     }
                                     .padding(.top, 8)
@@ -362,8 +303,20 @@ struct ProductionManagementView: View {
                     TransactionEditView(viewModel: viewModel, original: tx)
                 }
             }
+            .sheet(isPresented: $showAutoMaterialExport) {
+                AutoMaterialExportSheetView(viewModel: viewModel, defaultHeaderName: "Xuất tự động")
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
             .sheet(isPresented: $showEditHistory) {
                 EditHistorySheet(entries: editHistoryEntries)
+            }
+            .sheet(isPresented: $showAutoExportDetail) {
+                if let log = selectedAutoExportLog {
+                    AutoMaterialExportLogDetailSheet(log: log)
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                }
             }
             .sheet(isPresented: $showProductEdit) {
                 if let p = editingProduct {
@@ -394,22 +347,42 @@ struct ProductionManagementView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 if let mode = selectedMode {
-                    Button {
-                        showMaterialEntry = true
-                    } label: {
-                        Text(centerButtonTitle(for: mode))
-                            .fontWeight(.bold)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(
-                                LinearGradient(
-                                    colors: [color(for: mode), color(for: mode).opacity(0.85)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                    ZStack(alignment: .bottomTrailing) {
+                        Button {
+                            showMaterialEntry = true
+                        } label: {
+                            Text(centerButtonTitle(for: mode))
+                                .fontWeight(.bold)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(
+                                    LinearGradient(
+                                        colors: [color(for: mode), color(for: mode).opacity(0.85)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                            .foregroundStyle(.white)
-                            .cornerRadius(16)
+                                .foregroundStyle(.white)
+                                .cornerRadius(16)
+                        }
+                        
+                        if mode == .xuatNguyenLieu {
+                            Button {
+                                showAutoMaterialExport = true
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.15))
+                                        .frame(width: 54, height: 54)
+                                    Image(systemName: "wand.and.stars")
+                                        .font(.system(size: 22, weight: .bold))
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.trailing, 8)
+                            .padding(.bottom, 70)
+                        }
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 8)
@@ -469,6 +442,33 @@ struct ProductionManagementView: View {
     }
 }
 
+private struct ProductionProductListRow: View {
+    let name: String
+    let priceText: String
+    let stockText: String
+    
+    var body: some View {
+        HStack {
+            Text(name)
+                .font(.subheadline)
+                .foregroundStyle(Color.themeTextDark)
+                .lineLimit(2)
+            Spacer()
+            Text(priceText)
+                .font(.subheadline)
+                .foregroundStyle(Color.themePrimary)
+                .frame(width: 120, alignment: .trailing)
+            Text(stockText)
+                .font(.subheadline)
+                .foregroundStyle(.gray)
+                .frame(width: 60, alignment: .trailing)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(Color.white)
+    }
+}
+
  
 struct EditHistorySheet: View {
     let entries: [ProductionEdit]
@@ -500,6 +500,131 @@ struct EditHistorySheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+            }
+        }
+    }
+}
+
+private struct ProductionTransactionHistoryCard: View {
+    let tx: ProductionTransaction
+    let selectedMode: ProductionManagementView.Mode?
+    let editedIds: Set<UUID>
+    let onShowEditHistory: () -> Void
+    let onShowAutoExportDetail: () -> Void
+    let onEdit: () -> Void
+    
+    private var isExportMode: Bool {
+        guard let m = selectedMode else { return false }
+        return m == .xuatThanhPham || m == .xuatNguyenLieu
+    }
+    
+    private var showEditedBadge: Bool {
+        editedIds.contains(tx.id) || (tx.note?.isEmpty == false)
+    }
+    
+    private var showAutoExportButton: Bool {
+        let note = tx.note?.lowercased() ?? ""
+        return note.contains("xuất tự động")
+    }
+    
+    var body: some View {
+        let dateText = formatTxDate(tx.createdAt)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(dateText)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.themeTextDark)
+                Spacer()
+            }
+            
+            HStack(spacing: 8) {
+                if showEditedBadge {
+                    Text("Đã chỉnh sửa")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.orange))
+                }
+                if showAutoExportButton {
+                    Button(action: onShowAutoExportDetail) {
+                        Text("Chi tiết tự động")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                    }
+                }
+                Spacer()
+                Button(action: onShowEditHistory) {
+                    Text("Lịch sử chỉnh sửa")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                }
+            }
+            
+            VStack(spacing: 6) {
+                ForEach(tx.items, id: \.id) { it in
+                    ProductionTransactionItemRow(item: it, isExportMode: isExportMode)
+                }
+            }
+            
+            HStack {
+                Spacer()
+                Button(action: onEdit) {
+                    Text("Sửa")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.themePrimary))
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+    
+    private func formatTxDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yyyy HH:mm"
+        return f.string(from: date)
+    }
+}
+
+private struct ProductionTransactionItemRow: View {
+    let item: RestockItem
+    let isExportMode: Bool
+    
+    var body: some View {
+        let qtyText = FormatUtils.formatWeight(item.quantity)
+        let priceTitle = isExportMode ? "Giá xuất" : "Giá nhập"
+        let priceText = formatCurrency(item.unitPrice)
+        let costText = formatCurrency(item.additionalCost)
+        
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(item.name)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.themeTextDark)
+                Spacer()
+                Text("SL: \(qtyText)")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            HStack {
+                Text("\(priceTitle): \(priceText)")
+                    .font(.caption)
+                    .foregroundStyle(Color.themePrimary)
+                Spacer()
+                Text("Chi phí: \(costText)")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
             }
         }
     }

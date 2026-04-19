@@ -159,6 +159,72 @@ struct RestockEdit: Identifiable, Codable, Equatable {
     let details: [String]?
 }
 
+struct AutoMaterialExportTemplate: Identifiable, Codable, Equatable {
+    let id: UUID
+    let name: String
+    var data: AutoMaterialExportTemplateData
+    let createdAt: Date
+    var updatedAt: Date
+}
+
+struct AutoMaterialExportTemplateData: Codable, Equatable {
+    var headerName: String
+    
+    var freshTitle: String
+    var afterBoilTitle: String
+    var panCountTitle: String
+    var panWeightTitle: String
+    var autoMaterialsTitle: String
+    
+    var freshSelectedMaterialIds: [UUID]
+    var freshExportGramsByMaterialId: [String: Int]
+    
+    var afterBoilGrams: Int
+    var panCount: Int
+    var standardPanWeightGrams: Int
+    
+    var autoSelectedMaterialIds: [UUID]
+    var autoStandardPerPanGramsByMaterialId: [String: Int]
+}
+
+struct AutoMaterialExportLog: Identifiable, Codable, Equatable {
+    let id: UUID
+    let createdAt: Date
+    let templateId: UUID?
+    let templateName: String
+    let productionTransactionId: UUID
+    let data: AutoMaterialExportLogData
+}
+
+struct AutoMaterialExportLogData: Codable, Equatable {
+    let headerName: String
+    
+    let freshTitle: String
+    let afterBoilTitle: String
+    let panCountTitle: String
+    let panWeightTitle: String
+    let autoMaterialsTitle: String
+    
+    let fresh: [AutoMaterialExportLogRow]
+    let afterBoilGrams: Int
+    let panCount: Int
+    let standardPanWeightGrams: Int
+    let actualPanWeightGrams: Double
+    let percentChange: Double
+    
+    let autoMaterials: [AutoMaterialExportLogRow]
+}
+
+struct AutoMaterialExportLogRow: Codable, Equatable, Identifiable {
+    let id: UUID
+    let materialId: UUID?
+    let name: String
+    let stockGrams: Int
+    let standardPerPanGrams: Double?
+    let actualPerPanGrams: Double?
+    let totalExportGrams: Double
+}
+
 struct Product: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String

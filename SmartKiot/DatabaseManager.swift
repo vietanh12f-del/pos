@@ -57,6 +57,13 @@ protocol DatabaseService {
     func saveProductionEdit(_ edit: ProductionEdit) async throws
     func fetchEditedProductionTransactionIds(storeId: UUID) async throws -> [UUID]
     
+    // Auto material export templates/logs
+    func fetchAutoMaterialExportTemplates(storeId: UUID) async throws -> [AutoMaterialExportTemplate]
+    func upsertAutoMaterialExportTemplate(_ template: AutoMaterialExportTemplate) async throws
+    func fetchAutoMaterialExportLogs(storeId: UUID, limit: Int) async throws -> [AutoMaterialExportLog]
+    func fetchAutoMaterialExportLogsForTransaction(storeId: UUID, transactionId: UUID) async throws -> [AutoMaterialExportLog]
+    func saveAutoMaterialExportLog(_ log: AutoMaterialExportLog) async throws
+    
     // Device tokens for push
     func saveDeviceToken(_ token: String) async throws
     func deleteDeviceToken(_ token: String) async throws
@@ -351,6 +358,59 @@ class SupabaseDatabaseService: DatabaseService {
         let ids = Array(set)
         print("✅ [ProductionEdit] Fetched \(ids.count) edited tx ids for store \(storeId)")
         return ids
+    }
+    
+    func fetchAutoMaterialExportTemplates(storeId: UUID) async throws -> [AutoMaterialExportTemplate] {
+        let rows: [AutoMaterialExportTemplateDTO] = try await client
+            .from("auto_material_export_templates")
+            .select()
+            .eq("store_id", value: storeId)
+            .order("updated_at", ascending: false)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+    
+    func upsertAutoMaterialExportTemplate(_ template: AutoMaterialExportTemplate) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        let dto = AutoMaterialExportTemplateDTO(from: template, storeId: storeId)
+        try await client
+            .from("auto_material_export_templates")
+            .upsert(dto)
+            .execute()
+    }
+    
+    func fetchAutoMaterialExportLogs(storeId: UUID, limit: Int) async throws -> [AutoMaterialExportLog] {
+        let rows: [AutoMaterialExportLogDTO] = try await client
+            .from("auto_material_export_logs")
+            .select()
+            .eq("store_id", value: storeId)
+            .order("created_at", ascending: false)
+            .limit(limit)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+    
+    func fetchAutoMaterialExportLogsForTransaction(storeId: UUID, transactionId: UUID) async throws -> [AutoMaterialExportLog] {
+        let rows: [AutoMaterialExportLogDTO] = try await client
+            .from("auto_material_export_logs")
+            .select()
+            .eq("store_id", value: storeId)
+            .eq("production_transaction_id", value: transactionId)
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+    
+    func saveAutoMaterialExportLog(_ log: AutoMaterialExportLog) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        let dto = AutoMaterialExportLogDTO(from: log, storeId: storeId)
+        try await client
+            .from("auto_material_export_logs")
+            .insert(dto)
+            .execute()
     }
     
     // MARK: - Feedback
@@ -752,6 +812,12 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchProductionEdits(transactionId: UUID) async throws -> [ProductionEdit] { return [] }
     func saveProductionEdit(_ edit: ProductionEdit) async throws { print("⚠️ saveProductionEdit: Mocked success") }
     func fetchEditedProductionTransactionIds(storeId: UUID) async throws -> [UUID] { return [] }
+    
+    func fetchAutoMaterialExportTemplates(storeId: UUID) async throws -> [AutoMaterialExportTemplate] { return [] }
+    func upsertAutoMaterialExportTemplate(_ template: AutoMaterialExportTemplate) async throws { print("⚠️ upsertAutoMaterialExportTemplate: Mocked success") }
+    func fetchAutoMaterialExportLogs(storeId: UUID, limit: Int) async throws -> [AutoMaterialExportLog] { return [] }
+    func fetchAutoMaterialExportLogsForTransaction(storeId: UUID, transactionId: UUID) async throws -> [AutoMaterialExportLog] { return [] }
+    func saveAutoMaterialExportLog(_ log: AutoMaterialExportLog) async throws { print("⚠️ saveAutoMaterialExportLog: Mocked success") }
     
     func saveProductionTransaction(_ tx: ProductionTransaction) async throws { print("⚠️ saveProductionTransaction: Mocked success") }
     func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction] { return [] }
@@ -1252,6 +1318,65 @@ struct ProductionTransactionItemDTO: Codable {
             additionalCost: additional_cost ?? 0,
             source: source,
             documentImageURL: document_image_url
+        )
+    }
+}
+
+struct AutoMaterialExportTemplateDTO: Codable {
+    let id: UUID
+    let name: String
+    let data: AutoMaterialExportTemplateData
+    let created_at: Date
+    let updated_at: Date
+    let store_id: UUID?
+    
+    init(from domain: AutoMaterialExportTemplate, storeId: UUID) {
+        self.id = domain.id
+        self.name = domain.name
+        self.data = domain.data
+        self.created_at = domain.createdAt
+        self.updated_at = domain.updatedAt
+        self.store_id = storeId
+    }
+    
+    func toDomain() -> AutoMaterialExportTemplate {
+        return AutoMaterialExportTemplate(
+            id: id,
+            name: name,
+            data: data,
+            createdAt: created_at,
+            updatedAt: updated_at
+        )
+    }
+}
+
+struct AutoMaterialExportLogDTO: Codable {
+    let id: UUID
+    let template_id: UUID?
+    let template_name: String
+    let production_transaction_id: UUID
+    let data: AutoMaterialExportLogData
+    let created_at: Date
+    let store_id: UUID?
+    
+    init(from domain: AutoMaterialExportLog, storeId: UUID) {
+        self.id = domain.id
+        self.template_id = domain.templateId
+        self.template_name = domain.templateName
+        self.production_transaction_id = domain.productionTransactionId
+        self.data = domain.data
+        self.created_at = domain.createdAt
+        self.store_id = storeId
+    }
+    
+    func toDomain() -> AutoMaterialExportLog {
+        return AutoMaterialExportLog(
+            id: id,
+            createdAt: created_at,
+            templateId: template_id,
+            templateName: template_name,
+            productionTransactionId: production_transaction_id,
+            data: data
         )
     }
 }

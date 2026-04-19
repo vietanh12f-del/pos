@@ -13,10 +13,14 @@
 		7D4D85DD2F38760B000841A8 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 7D4D85DC2F38760B000841A8 /* Realtime */; };
 		7D4D85DF2F38760B000841A8 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 7D4D85DE2F38760B000841A8 /* Storage */; };
 		7D4D85E12F38760B000841A8 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 7D4D85E02F38760B000841A8 /* Supabase */; };
+		A1B2C3D4E5F60718293A4B5D /* AutoMaterialExportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* AutoMaterialExportSheetView.swift */; };
+		A1B2C3D4E5F60718293A4B5F /* AutoMaterialExportLogDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5E /* AutoMaterialExportLogDetailSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1B3DA7D42F27646C009D3FD1 /* SmartKiot.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmartKiot.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D4E5F60718293A4B5C /* AutoMaterialExportSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AutoMaterialExportSheetView.swift; path = SmartKiot/AutoMaterialExportSheetView.swift; sourceTree = SOURCE_ROOT; };
+		A1B2C3D4E5F60718293A4B5E /* AutoMaterialExportLogDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AutoMaterialExportLogDetailSheet.swift; path = SmartKiot/AutoMaterialExportLogDetailSheet.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -164,6 +168,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D4E5F60718293A4B5D /* AutoMaterialExportSheetView.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5F /* AutoMaterialExportLogDetailSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
