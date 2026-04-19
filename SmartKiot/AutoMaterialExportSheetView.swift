@@ -32,6 +32,18 @@ struct AutoMaterialExportSheetView: View {
     @State private var isSavingTemplate = false
     @State private var showConfirmAlert = false
     @State private var lastValidationError: String?
+    @State private var showTemplateManager = false
+    @State private var newTemplateName: String = ""
+    
+    @State private var showWeightWheel = false
+    @State private var weightWheelKgSelection = 0
+    @State private var weightWheelGramsSelection = 0
+    @State private var weightWheelKgMax = 200
+    @State private var weightWheelTarget: WeightWheelTarget?
+    
+    @State private var showIntWheel = false
+    @State private var intWheelSelection = 1
+    @State private var intWheelMax = 200
     
     init(viewModel: OrderViewModel, defaultHeaderName: String) {
         self.viewModel = viewModel
@@ -152,6 +164,20 @@ struct AutoMaterialExportSheetView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await saveTemplate() }
+                    } label: {
+                        if isSavingTemplate {
+                            ProgressView()
+                        } else {
+                            Text("Lưu")
+                                .fontWeight(.bold)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isSavingTemplate)
+                }
             }
             .task {
                 await viewModel.loadMaterials()
@@ -164,15 +190,29 @@ struct AutoMaterialExportSheetView: View {
                 }
             }
         }
-        .confirmationDialog("Chọn sheet", isPresented: $showTemplatePicker, titleVisibility: .visible) {
-            Button("Tạo sheet mới") {
-                createNewTemplate()
-            }
-            ForEach(viewModel.autoMaterialExportTemplates, id: \.id) { t in
-                Button(t.name) {
+        .sheet(isPresented: $showTemplateManager) {
+            TemplateManagerSheet(
+                templates: viewModel.autoMaterialExportTemplates,
+                selectedTemplateId: selectedTemplateId,
+                newName: $newTemplateName,
+                onSelect: { t in
                     applyTemplate(t)
+                    showTemplateManager = false
+                },
+                onCreateAndSave: { name in
+                    Task {
+                        await MainActor.run {
+                            createNewTemplate(named: name)
+                        }
+                        await saveTemplate()
+                        await MainActor.run {
+                            showTemplateManager = false
+                        }
+                    }
                 }
-            }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showFreshPicker) {
             MaterialMultiSelectSheet(
@@ -214,52 +254,75 @@ struct AutoMaterialExportSheetView: View {
                 Text("Hệ thống sẽ trừ kho và ghi lịch sử xuất.")
             }
         }
+        .sheet(isPresented: $showWeightWheel) {
+            WeightWheelSheet(
+                kgMax: $weightWheelKgMax,
+                kgSelection: $weightWheelKgSelection,
+                gramsSelection: $weightWheelGramsSelection,
+                onSave: {
+                    let grams = weightWheelKgSelection * 1000 + weightWheelGramsSelection
+                    applyWeightWheelResult(grams)
+                    showWeightWheel = false
+                },
+                onClose: { showWeightWheel = false }
+            )
+            .presentationDetents([.height(340)])
+        }
+        .sheet(isPresented: $showIntWheel) {
+            IntWheelSheet(
+                title: "Chỉnh số lượng",
+                max: $intWheelMax,
+                selection: $intWheelSelection,
+                onSave: {
+                    panCountText = String(intWheelSelection)
+                    showIntWheel = false
+                },
+                onClose: { showIntWheel = false }
+            )
+            .presentationDetents([.height(300)])
+        }
     }
     
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
-                Button {
-                    showTemplatePicker = true
-                } label: {
-                    Text(selectedTemplateName)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(Color.gray.opacity(0.15)))
-                }
-                .buttonStyle(.plain)
+                Text(selectedTemplateName)
+                    .fontWeight(.bold)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .foregroundStyle(.white)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.themePrimary, Color.themePrimary.opacity(0.75)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
                 
-                Spacer()
-                
                 Button {
-                    Task { await saveTemplate() }
+                    newTemplateName = ""
+                    showTemplateManager = true
                 } label: {
-                    if isSavingTemplate {
-                        ProgressView()
-                    } else {
-                        Text("Lưu sheet")
-                            .fontWeight(.bold)
+                    ZStack {
+                        Circle()
+                            .fill(Color.gray.opacity(0.15))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(Color.themePrimary)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSavingTemplate)
+                .buttonStyle(.plain)
             }
             
             HStack {
                 Text("Tên sheet")
                 Spacer()
                 TextField("Tên", text: $draftName)
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(.words)
-            }
-            
-            HStack {
-                Text("Tên header")
-                Spacer()
-                TextField("Ví dụ: Khô Gà", text: $headerName)
                     .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.words)
             }
@@ -277,10 +340,16 @@ struct AutoMaterialExportSheetView: View {
                 Button {
                     showFreshPicker = true
                 } label: {
-                    Text("Chọn")
-                        .fontWeight(.bold)
+                    ZStack {
+                        Circle()
+                            .fill(Color.gray.opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color.themePrimary)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
             }
             
             if freshSelected.isEmpty {
@@ -289,20 +358,14 @@ struct AutoMaterialExportSheetView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(freshRows) { row in
-                        let materialId = row.materialId
-                        FreshRowView(
+                        FreshRowWheelView(
                             name: row.name,
                             stockText: FormatUtils.formatWeight(row.stockGrams),
-                            valueText: Binding(
-                                get: {
-                                    guard let id = materialId else { return "0" }
-                                    return freshExportKgTextById[id] ?? "0"
-                                },
-                                set: { newVal in
-                                    guard let id = materialId else { return }
-                                    freshExportKgTextById[id] = newVal
-                                }
-                            )
+                            valueText: freshExportKgTextById[row.materialId ?? UUID()] ?? "0",
+                            onTap: {
+                                guard let id = row.materialId else { return }
+                                openWeightWheel(target: .fresh(id), currentText: freshExportKgTextById[id] ?? "0")
+                            }
                         )
                     }
                 }
@@ -319,12 +382,17 @@ struct AutoMaterialExportSheetView: View {
             HStack {
                 Text("Khối lượng")
                 Spacer()
-                TextField("Kg", text: $afterBoilKgText)
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                Button {
+                    openWeightWheel(target: .afterBoil, currentText: afterBoilKgText)
+                } label: {
+                    Text(FormatUtils.formatKgDecimal(fromGrams: afterBoilGrams))
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding()
@@ -338,12 +406,19 @@ struct AutoMaterialExportSheetView: View {
             HStack {
                 Text("Số chảo")
                 Spacer()
-                TextField("0", text: $panCountText)
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.numberPad)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                Button {
+                    intWheelSelection = max(1, panCount)
+                    intWheelMax = max(20, intWheelSelection + 200)
+                    showIntWheel = true
+                } label: {
+                    Text("\(panCount)")
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding()
@@ -357,12 +432,17 @@ struct AutoMaterialExportSheetView: View {
             HStack {
                 Text("Chuẩn")
                 Spacer()
-                TextField("Kg", text: $standardPanWeightKgText)
-                    .multilineTextAlignment(.trailing)
-                    .keyboardType(.decimalPad)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                Button {
+                    openWeightWheel(target: .standardPanWeight, currentText: standardPanWeightKgText)
+                } label: {
+                    Text(FormatUtils.formatKgDecimal(fromGrams: standardPanWeightGrams))
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                }
+                .buttonStyle(.plain)
             }
             HStack {
                 Text("Thực tế")
@@ -387,10 +467,16 @@ struct AutoMaterialExportSheetView: View {
                 Button {
                     showAutoPicker = true
                 } label: {
-                    Text("Chọn")
-                        .fontWeight(.bold)
+                    ZStack {
+                        Circle()
+                            .fill(Color.gray.opacity(0.15))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color.themePrimary)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
             }
             
             if autoSelected.isEmpty {
@@ -399,23 +485,17 @@ struct AutoMaterialExportSheetView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(autoRows) { row in
-                        let materialId = row.materialId
-                        AutoRowView(
+                        AutoRowWheelView(
                             name: row.name,
                             stockText: FormatUtils.formatWeight(row.stockGrams),
-                            standardText: Binding(
-                                get: {
-                                    guard let id = materialId else { return "0" }
-                                    return autoStandardPerPanKgTextById[id] ?? "0"
-                                },
-                                set: { newVal in
-                                    guard let id = materialId else { return }
-                                    autoStandardPerPanKgTextById[id] = newVal
-                                }
-                            ),
+                            standardText: autoStandardPerPanKgTextById[row.materialId ?? UUID()] ?? "0",
                             perPanActualText: FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())),
                             totalText: FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())),
-                            isOver: Int(row.totalExportGrams.rounded()) > row.stockGrams
+                            isOver: Int(row.totalExportGrams.rounded()) > row.stockGrams,
+                            onTapStandard: {
+                                guard let id = row.materialId else { return }
+                                openWeightWheel(target: .autoStandard(id), currentText: autoStandardPerPanKgTextById[id] ?? "0")
+                            }
                         )
                     }
                 }
@@ -483,10 +563,10 @@ struct AutoMaterialExportSheetView: View {
         return "Chọn sheet"
     }
     
-    private func createNewTemplate() {
+    private func createNewTemplate(named name: String? = nil) {
         selectedTemplateId = nil
-        draftName = defaultHeaderName
-        headerName = defaultHeaderName
+        draftName = (name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ? name! : defaultHeaderName
+        headerName = draftName
         freshTitle = "Nguyên liệu tươi"
         afterBoilTitle = "Còn sau luộc"
         panCountTitle = "Số lượng chảo xào"
@@ -504,7 +584,7 @@ struct AutoMaterialExportSheetView: View {
     private func applyTemplate(_ t: AutoMaterialExportTemplate) {
         selectedTemplateId = t.id
         draftName = t.name
-        headerName = t.data.headerName
+        headerName = t.data.headerName.isEmpty ? t.name : t.data.headerName
         freshTitle = t.data.freshTitle
         afterBoilTitle = t.data.afterBoilTitle
         panCountTitle = t.data.panCountTitle
@@ -535,8 +615,9 @@ struct AutoMaterialExportSheetView: View {
     private func buildTemplate() -> AutoMaterialExportTemplate {
         let now = Date()
         let id = selectedTemplateId ?? UUID()
+        let resolvedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? defaultHeaderName : draftName
         let data = AutoMaterialExportTemplateData(
-            headerName: headerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? draftName : headerName,
+            headerName: resolvedName,
             freshTitle: freshTitle,
             afterBoilTitle: afterBoilTitle,
             panCountTitle: panCountTitle,
@@ -563,7 +644,7 @@ struct AutoMaterialExportSheetView: View {
             createdAt = now
             updatedAt = now
         }
-        return AutoMaterialExportTemplate(id: id, name: draftName.isEmpty ? defaultHeaderName : draftName, data: data, createdAt: createdAt, updatedAt: updatedAt)
+        return AutoMaterialExportTemplate(id: id, name: resolvedName, data: data, createdAt: createdAt, updatedAt: updatedAt)
     }
     
     private func saveTemplate() async {
@@ -589,12 +670,12 @@ struct AutoMaterialExportSheetView: View {
             lastValidationError = err
             return
         }
-        let templateName = draftName.isEmpty ? defaultHeaderName : draftName
+        let templateName = draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? defaultHeaderName : draftName
         let ok = await viewModel.performAutoMaterialExport(
             mode: "Xuất nguyên liệu",
             templateId: selectedTemplateId,
             templateName: templateName,
-            headerName: headerName.isEmpty ? templateName : headerName,
+            headerName: templateName,
             freshTitle: freshTitle,
             afterBoilTitle: afterBoilTitle,
             panCountTitle: panCountTitle,
@@ -615,12 +696,45 @@ struct AutoMaterialExportSheetView: View {
             lastValidationError = "Không thể xuất tự động"
         }
     }
+    
+    private func openWeightWheel(target: WeightWheelTarget, currentText: String) {
+        weightWheelTarget = target
+        let grams = max(0, FormatUtils.parseKgDecimalToGrams(currentText) ?? 0)
+        weightWheelKgSelection = max(0, grams / 1000)
+        let remainder = max(0, grams % 1000)
+        weightWheelGramsSelection = (remainder / 50) * 50
+        weightWheelKgMax = max(200, weightWheelKgSelection + 200)
+        showWeightWheel = true
+    }
+    
+    private func applyWeightWheelResult(_ grams: Int) {
+        let text = FormatUtils.formatKgDecimal(fromGrams: max(0, grams))
+        guard let target = weightWheelTarget else { return }
+        switch target {
+        case .afterBoil:
+            afterBoilKgText = text
+        case .standardPanWeight:
+            standardPanWeightKgText = text
+        case .fresh(let id):
+            freshExportKgTextById[id] = text
+        case .autoStandard(let id):
+            autoStandardPerPanKgTextById[id] = text
+        }
+    }
 }
 
-private struct FreshRowView: View {
+private enum WeightWheelTarget: Equatable {
+    case afterBoil
+    case standardPanWeight
+    case fresh(UUID)
+    case autoStandard(UUID)
+}
+
+private struct FreshRowWheelView: View {
     let name: String
     let stockText: String
-    @Binding var valueText: String
+    let valueText: String
+    let onTap: () -> Void
     
     var body: some View {
         HStack(spacing: 10) {
@@ -633,24 +747,28 @@ private struct FreshRowView: View {
                     .foregroundStyle(.gray)
             }
             Spacer()
-            TextField("Kg", text: $valueText)
-                .multilineTextAlignment(.trailing)
-                .keyboardType(.decimalPad)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
-                .frame(width: 120)
+            Button(action: onTap) {
+                Text(valueText)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themeTextDark)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                    .frame(width: 120, alignment: .trailing)
+            }
+            .buttonStyle(.plain)
         }
     }
 }
 
-private struct AutoRowView: View {
+private struct AutoRowWheelView: View {
     let name: String
     let stockText: String
-    @Binding var standardText: String
+    let standardText: String
     let perPanActualText: String
     let totalText: String
     let isOver: Bool
+    let onTapStandard: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -668,12 +786,16 @@ private struct AutoRowView: View {
                     Text("Chuẩn / chảo")
                         .font(.caption)
                         .foregroundStyle(.gray)
-                    TextField("Kg", text: $standardText)
-                        .multilineTextAlignment(.trailing)
-                        .keyboardType(.decimalPad)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                    Button(action: onTapStandard) {
+                        Text(standardText)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themeTextDark)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                            .frame(minWidth: 100, alignment: .trailing)
+                    }
+                    .buttonStyle(.plain)
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text("/Chảo (thực tế)")
@@ -698,6 +820,149 @@ private struct AutoRowView: View {
                 }
             }
         }
+    }
+}
+
+private struct TemplateManagerSheet: View {
+    let templates: [AutoMaterialExportTemplate]
+    let selectedTemplateId: UUID?
+    @Binding var newName: String
+    let onSelect: (AutoMaterialExportTemplate) -> Void
+    let onCreateAndSave: (String) -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText: String = ""
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Chọn sheet có sẵn") {
+                    ForEach(filteredTemplates, id: \.id) { t in
+                        Button {
+                            onSelect(t)
+                            dismiss()
+                        } label: {
+                            HStack {
+                                Text(t.name)
+                                Spacer()
+                                if t.id == selectedTemplateId {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Section("Tạo sheet mới") {
+                    TextField("Tên sheet mới", text: $newName)
+                        .textInputAutocapitalization(.words)
+                        .disableAutocorrection(true)
+                    Button("Tạo & lưu") {
+                        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            onCreateAndSave(trimmed)
+                            dismiss()
+                        }
+                    }
+                    .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .searchable(text: $searchText)
+            .navigationTitle("Sheet xuất tự động")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+        }
+    }
+    
+    private var filteredTemplates: [AutoMaterialExportTemplate] {
+        let t = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty { return templates }
+        return templates.filter { $0.name.lowercased().contains(t.lowercased()) }
+    }
+}
+
+private struct WeightWheelSheet: View {
+    @Binding var kgMax: Int
+    @Binding var kgSelection: Int
+    @Binding var gramsSelection: Int
+    let onSave: () -> Void
+    let onClose: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Chỉnh khối lượng")
+                .font(.headline)
+            HStack {
+                VStack {
+                    Text("Kg")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Picker("", selection: $kgSelection) {
+                        ForEach(Array(0...kgMax), id: \.self) { kg in
+                            Text("\(kg)").tag(kg)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: kgSelection) { _, newValue in
+                        if newValue >= max(0, kgMax - 10) { kgMax += 200 }
+                    }
+                }
+                VStack {
+                    Text("Gam")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Picker("", selection: $gramsSelection) {
+                        ForEach(Array(stride(from: 0, through: 950, by: 50)), id: \.self) { g in
+                            Text("\(g)").tag(g)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                }
+            }
+            HStack {
+                Button("Đóng") { onClose() }
+                Spacer()
+                Button("Lưu") { onSave() }
+            }
+            .font(.headline)
+        }
+        .padding()
+    }
+}
+
+private struct IntWheelSheet: View {
+    let title: String
+    @Binding var max: Int
+    @Binding var selection: Int
+    let onSave: () -> Void
+    let onClose: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Text(title)
+                .font(.headline)
+            Picker("", selection: $selection) {
+                ForEach(Array(1...max), id: \.self) { v in
+                    Text("\(v)").tag(v)
+                }
+            }
+            .pickerStyle(.wheel)
+            .onChange(of: selection) { _, newValue in
+                if newValue >= max - 10 { max += 200 }
+            }
+            HStack {
+                Button("Đóng") { onClose() }
+                Spacer()
+                Button("Lưu") { onSave() }
+            }
+            .font(.headline)
+        }
+        .padding()
     }
 }
 
