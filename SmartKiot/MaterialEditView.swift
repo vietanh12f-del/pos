@@ -176,6 +176,7 @@ struct MaterialEditView: View {
                         let step = StoreManager.shared.priceStep
                         let rangeMin = max(0, (v / step) * step)
                         if costWheelBaseSelection < rangeMin { costWheelBaseSelection = rangeMin }
+                        showCostWheelRangePicker = false
                     }
                 }
             }
@@ -242,6 +243,7 @@ struct MaterialEditView: View {
                     Button(v == 0 ? ">0" : ">\(v)") {
                         stockKgRangeBase = v
                         if stockKgSelection < v { stockKgSelection = v }
+                        showStockKgRangePicker = false
                     }
                 }
             }

@@ -447,8 +447,7 @@ struct RestockEntryView: View {
                                                 .contentShape(Rectangle())
                                                 .onTapGesture {
                                                     summaryEditingIndex = idx
-                                                    let isExport = titleText.lowercased().contains("xuất")
-                                                    summaryIsMaterials = useMaterialsList || titleText.lowercased().contains("nguyên liệu") || (!useMaterialsList && isExport)
+                                                    summaryIsMaterials = useMaterialsList || titleText.lowercased().contains("thành phẩm")
                                                     if summaryIsMaterials {
                                                         let grams = max(0, item.quantity)
                                                         summaryQtyKgSelection = grams / 1000
@@ -728,6 +727,7 @@ struct RestockEntryView: View {
                             let minValue = Swift.max(1, v)
                             if summaryQtySelection < minValue { summaryQtySelection = minValue }
                         }
+                        showSummaryQtyRangePicker = false
                     }
                 }
             }
@@ -814,6 +814,7 @@ struct RestockEntryView: View {
                         let step = StoreManager.shared.priceStep
                         let rangeMin = max(0, (v / step) * step)
                         if summaryPriceBaseSelection < rangeMin { summaryPriceBaseSelection = rangeMin }
+                        showSummaryPriceRangePicker = false
                     }
                 }
             }
@@ -1691,6 +1692,7 @@ struct ManualRestockItemView: View {
                     Button(v == 0 ? ">0" : ">\(v)") {
                         quantityKgRangeBase = v
                         if quantityKgSelection < v { quantityKgSelection = v }
+                        showQuantityKgRangePicker = false
                     }
                 }
             }
@@ -1775,6 +1777,7 @@ struct ManualRestockItemView: View {
                         let step = StoreManager.shared.priceStep
                         let rangeMin = max(0, (v / step) * step)
                         if unitPriceBaseSelection < rangeMin { unitPriceBaseSelection = rangeMin }
+                        showUnitPriceWheelRangePicker = false
                     }
                 }
             }
@@ -1859,6 +1862,7 @@ struct ManualRestockItemView: View {
                         let step = StoreManager.shared.priceStep
                         let rangeMin = max(0, (v / step) * step)
                         if additionalCostBaseSelection < rangeMin { additionalCostBaseSelection = rangeMin }
+                        showAdditionalCostWheelRangePicker = false
                     }
                 }
             }
@@ -1942,6 +1946,7 @@ struct ManualRestockItemView: View {
                         let step = StoreManager.shared.priceStep
                         let rangeMin = max(0, (v / step) * step)
                         if suggestedPriceBaseSelection < rangeMin { suggestedPriceBaseSelection = rangeMin }
+                        showSuggestedPriceWheelRangePicker = false
                     }
                 }
             }

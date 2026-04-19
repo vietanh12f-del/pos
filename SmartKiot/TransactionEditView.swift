@@ -243,6 +243,7 @@ struct TransactionEditView: View {
                     Button(v == 0 ? ">0" : ">\(v)") {
                         quantityKgRangeBase = v
                         if quantityKgSelection < v { quantityKgSelection = v }
+                        showQuantityKgRangePicker = false
                     }
                 }
             }
@@ -329,6 +330,7 @@ struct TransactionEditView: View {
                         let step = StoreManager.shared.priceStep
                         let rangeMin = max(0, (v / step) * step)
                         if unitPriceWheelBaseSelection < rangeMin { unitPriceWheelBaseSelection = rangeMin }
+                        showUnitPriceWheelRangePicker = false
                     }
                 }
             }
@@ -415,6 +417,7 @@ struct TransactionEditView: View {
                         let step = StoreManager.shared.priceStep
                         let rangeMin = max(0, (v / step) * step)
                         if additionalCostWheelBaseSelection < rangeMin { additionalCostWheelBaseSelection = rangeMin }
+                        showAdditionalCostWheelRangePicker = false
                     }
                 }
             }

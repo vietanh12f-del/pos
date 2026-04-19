@@ -1272,6 +1272,7 @@ struct ContentView: View {
                             let step = StoreManager.shared.priceStep
                             let rangeMin = max(0, (v / step) * step)
                             if priceWheelBaseSelection < rangeMin { priceWheelBaseSelection = rangeMin }
+                            showPriceWheelRangePicker = false
                         }
                     }
                 }

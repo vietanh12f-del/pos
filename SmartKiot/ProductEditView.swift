@@ -569,6 +569,7 @@ struct ProductEditView: View {
                             let step = StoreManager.shared.priceStep
                             let rangeMin = max(0, (v / step) * step)
                             if costWheelBaseSelection < rangeMin { costWheelBaseSelection = rangeMin }
+                            showCostWheelRangePicker = false
                         }
                     }
                 }
@@ -653,6 +654,7 @@ struct ProductEditView: View {
                             let step = StoreManager.shared.priceStep
                             let rangeMin = max(0, (v / step) * step)
                             if priceWheelBaseSelection < rangeMin { priceWheelBaseSelection = rangeMin }
+                            showPriceWheelRangePicker = false
                         }
                     }
                 }
@@ -709,6 +711,7 @@ struct ProductEditView: View {
                             stockWheelRangeBase = v
                             let minValue = max(0, v)
                             if stockWheelSelection < minValue { stockWheelSelection = minValue }
+                            showStockWheelRangePicker = false
                         }
                     }
                 }

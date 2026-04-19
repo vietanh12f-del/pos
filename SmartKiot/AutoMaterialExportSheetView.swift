@@ -1120,6 +1120,7 @@ private struct WeightWheelSheet: View {
                 Button(v == 0 ? ">0" : ">\(v)") {
                     kgRangeBase = v
                     if kgSelection < v { kgSelection = v }
+                    showRangePicker = false
                 }
             }
         }
@@ -1176,6 +1177,7 @@ private struct IntWheelSheet: View {
                     rangeBase = v
                     let minValue = Swift.max(1, rangeBase)
                     if selection < minValue { selection = minValue }
+                    showRangePicker = false
                 }
             }
         }
