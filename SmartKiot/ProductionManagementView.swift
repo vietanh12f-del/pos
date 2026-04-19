@@ -18,6 +18,7 @@ struct ProductionManagementView: View {
     @State private var editingFinishedProduct: Product?
     @State private var showProductEdit = false
     @State private var showAutoMaterialExport = false
+    @State private var autoExportPulse = false
     @State private var showAutoExportDetail = false
     @State private var selectedAutoExportLog: AutoMaterialExportLog?
     
@@ -347,45 +348,71 @@ struct ProductionManagementView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 if let mode = selectedMode {
-                    ZStack(alignment: .bottomTrailing) {
-                        Button {
-                            showMaterialEntry = true
-                        } label: {
-                            Text(centerButtonTitle(for: mode))
-                                .fontWeight(.bold)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(
-                                    LinearGradient(
-                                        colors: [color(for: mode), color(for: mode).opacity(0.85)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
+                    Button {
+                        showMaterialEntry = true
+                    } label: {
+                        Text(centerButtonTitle(for: mode))
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                LinearGradient(
+                                    colors: [color(for: mode), color(for: mode).opacity(0.85)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 )
-                                .foregroundStyle(.white)
-                                .cornerRadius(16)
-                        }
-                        
-                        if mode == .xuatNguyenLieu {
-                            Button {
-                                showAutoMaterialExport = true
-                            } label: {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.15))
-                                        .frame(width: 54, height: 54)
-                                    Image(systemName: "wand.and.stars")
-                                        .font(.system(size: 22, weight: .bold))
-                                        .foregroundStyle(Color.themePrimary)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.trailing, 8)
-                            .padding(.bottom, 70)
-                        }
+                            )
+                            .foregroundStyle(.white)
+                            .cornerRadius(16)
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 8)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if selectedMode == .xuatNguyenLieu {
+                    Button {
+                        showAutoMaterialExport = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text("Xuất tự động")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                            
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.blue.opacity(autoExportPulse ? 0.95 : 0.55),
+                                                Color.purple.opacity(autoExportPulse ? 0.95 : 0.55)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 54, height: 54)
+                                    .shadow(color: Color.blue.opacity(autoExportPulse ? 0.6 : 0.2), radius: autoExportPulse ? 14 : 5, x: 0, y: autoExportPulse ? 8 : 2)
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 22, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                            .scaleEffect(autoExportPulse ? 1.08 : 0.92)
+                            .opacity(autoExportPulse ? 1 : 0.75)
+                        }
+                        .padding(.horizontal, 8)
+                        .contentShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 92)
+                    .onAppear {
+                        autoExportPulse = false
+                        withAnimation(.easeInOut(duration: 0.75).repeatForever(autoreverses: true)) {
+                            autoExportPulse = true
+                        }
+                    }
                 }
             }
         }
