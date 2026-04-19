@@ -378,7 +378,13 @@ struct ProductionManagementView: View {
                             Text("Xuất tự động")
                                 .font(.subheadline)
                                 .fontWeight(.bold)
-                                .foregroundStyle(Color.themePrimary)
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [Color.purple, Color.purple.opacity(0.55)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
                             
                             ZStack {
                                 Circle()
