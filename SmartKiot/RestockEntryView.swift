@@ -23,6 +23,8 @@ struct RestockEntryView: View {
     @State private var summaryQtyKgSelection = 0
     @State private var summaryQtyGramsSelection = 0
     @State private var summaryQtyGramsMax = 950
+    @State private var summaryQtyRangeBase = 0
+    @State private var showSummaryQtyRangePicker = false
     @State private var summaryPriceSelection = 0
     @State private var summaryPriceBaseSelection = 0
     @State private var summaryPriceHundredsSelection = 0
@@ -642,12 +644,25 @@ struct RestockEntryView: View {
         .sheet(isPresented: $showSummaryQtyWheel) {
             VStack(spacing: 12) {
                 Text("Sửa số lượng").font(.headline)
+                HStack {
+                    Button {
+                        showSummaryQtyRangePicker = true
+                    } label: {
+                        Text(summaryQtyRangeBase <= 0 ? ">0" : ">\(summaryQtyRangeBase)")
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.gray.opacity(0.15)))
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
                 if summaryIsMaterials {
                     HStack {
                         VStack {
                             Text("Kg").font(.caption).foregroundStyle(.gray)
                             Picker("", selection: $summaryQtyKgSelection) {
-                                ForEach(Array(0...summaryQtyMax), id: \.self) { kg in
+                                ForEach(Array(summaryQtyRangeBase...summaryQtyMax), id: \.self) { kg in
                                     Text("\(kg)").tag(kg)
                                 }
                             }
@@ -670,7 +685,8 @@ struct RestockEntryView: View {
                     }
                 } else {
                     Picker("", selection: $summaryQtySelection) {
-                        ForEach(Array(1...summaryQtyMax), id: \.self) { q in
+                        let minValue = Swift.max(1, summaryQtyRangeBase)
+                        ForEach(Array(minValue...summaryQtyMax), id: \.self) { q in
                             Text("\(q)").tag(q)
                         }
                     }
@@ -695,6 +711,26 @@ struct RestockEntryView: View {
             }
             .padding()
             .presentationDetents([.height(340)])
+            .onAppear {
+                if summaryIsMaterials {
+                    summaryQtyRangeBase = (summaryQtyKgSelection / 100) * 100
+                } else {
+                    summaryQtyRangeBase = (summaryQtySelection / 100) * 100
+                }
+            }
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showSummaryQtyRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: summaryQtyMax, by: 100)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v)") {
+                        summaryQtyRangeBase = v
+                        if summaryIsMaterials {
+                            if summaryQtyKgSelection < v { summaryQtyKgSelection = v }
+                        } else {
+                            let minValue = Swift.max(1, v)
+                            if summaryQtySelection < minValue { summaryQtySelection = minValue }
+                        }
+                    }
+                }
+            }
         }
         // Inline price edit
         .sheet(isPresented: $showSummaryPriceWheel) {
