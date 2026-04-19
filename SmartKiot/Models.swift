@@ -80,6 +80,8 @@ struct RestockBill: Identifiable, Codable, Equatable {
     var isDeleted: Bool = false
     var deletedAt: Date? = nil
     var deletedBy: UUID? = nil
+    var creatorId: UUID? = nil
+    var creatorName: String? = nil
     
     static func == (lhs: RestockBill, rhs: RestockBill) -> Bool {
         return lhs.id == rhs.id
@@ -91,9 +93,10 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     let createdAt: Date
     let mode: String
     let items: [RestockItem]
+    var creatorId: UUID? = nil
+    var creatorName: String? = nil
     let totalCost: Double
     var note: String? = nil
-    
     static func == (lhs: ProductionTransaction, rhs: ProductionTransaction) -> Bool {
         return lhs.id == rhs.id
     }
@@ -113,6 +116,8 @@ struct OperatingExpense: Identifiable, Codable, Equatable {
     var amount: Double
     var note: String?
     var createdAt: Date
+    var creatorId: UUID? = nil
+    var creatorName: String? = nil
 }
 
 struct UserFeedback: Identifiable, Codable, Equatable {
@@ -194,6 +199,8 @@ struct AutoMaterialExportLog: Identifiable, Codable, Equatable {
     let templateName: String
     let productionTransactionId: UUID
     let data: AutoMaterialExportLogData
+    var creatorId: UUID? = nil
+    var creatorName: String? = nil
 }
 
 struct AutoMaterialExportLogData: Codable, Equatable {

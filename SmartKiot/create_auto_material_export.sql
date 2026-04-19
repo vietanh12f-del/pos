@@ -59,8 +59,13 @@ CREATE TABLE IF NOT EXISTS auto_material_export_logs (
   production_transaction_id UUID NOT NULL REFERENCES production_transactions(id) ON DELETE CASCADE,
   data JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  creator_id UUID,
+  creator_name TEXT,
   store_id UUID REFERENCES stores(id)
 );
+
+ALTER TABLE auto_material_export_logs ADD COLUMN IF NOT EXISTS creator_id UUID;
+ALTER TABLE auto_material_export_logs ADD COLUMN IF NOT EXISTS creator_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_auto_material_export_logs_store_id ON auto_material_export_logs(store_id);
 CREATE INDEX IF NOT EXISTS idx_auto_material_export_logs_tx_id ON auto_material_export_logs(production_transaction_id);

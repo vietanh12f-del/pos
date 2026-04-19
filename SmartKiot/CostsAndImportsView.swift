@@ -140,6 +140,11 @@ struct OperatingCostsList: View {
                             Text(formatDate(expense.createdAt))
                                 .font(.caption)
                                 .foregroundStyle(.gray)
+                            if let name = expense.creatorName, !name.isEmpty {
+                                Text(name)
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
                             Spacer()
                             Text(formatCurrency(expense.amount))
                                 .font(.headline)
@@ -212,6 +217,11 @@ struct ImportCostsList: View {
                             Text(formatDate(bill.createdAt))
                                 .font(.caption)
                                 .foregroundStyle(.gray)
+                            if let name = bill.creatorName, !name.isEmpty {
+                                Text(name)
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
                             Spacer()
                         }
                         

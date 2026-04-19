@@ -567,6 +567,11 @@ private struct ProductionTransactionHistoryCard: View {
                 Text(dateText)
                     .font(.subheadline)
                     .foregroundStyle(Color.themeTextDark)
+                if let name = tx.creatorName, !name.isEmpty {
+                    Text("• \(name)")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
                 Spacer()
             }
             

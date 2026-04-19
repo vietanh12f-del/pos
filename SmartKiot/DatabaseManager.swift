@@ -839,14 +839,18 @@ struct OperatingExpenseDTO: Codable {
     let amount: Double
     let note: String?
     let created_at: Date
+    let creator_id: UUID?
+    let creator_name: String?
     let store_id: UUID?
     
-    init(id: UUID, title: String, amount: Double, note: String?, created_at: Date, store_id: UUID?) {
+    init(id: UUID, title: String, amount: Double, note: String?, created_at: Date, creator_id: UUID?, creator_name: String?, store_id: UUID?) {
         self.id = id
         self.title = title
         self.amount = amount
         self.note = note
         self.created_at = created_at
+        self.creator_id = creator_id
+        self.creator_name = creator_name
         self.store_id = store_id
     }
     
@@ -856,16 +860,21 @@ struct OperatingExpenseDTO: Codable {
         self.amount = domain.amount
         self.note = domain.note
         self.created_at = domain.createdAt
+        self.creator_id = domain.creatorId
+        self.creator_name = domain.creatorName
         self.store_id = nil
     }
     
     func toDomain() -> OperatingExpense {
-        return OperatingExpense(id: id, title: title, amount: amount, note: note, createdAt: created_at)
+        var e = OperatingExpense(id: id, title: title, amount: amount, note: note, createdAt: created_at)
+        e.creatorId = creator_id
+        e.creatorName = creator_name
+        return e
     }
     
     func withStore(_ storeId: UUID) -> OperatingExpenseDTO {
         var copy = self
-        copy = OperatingExpenseDTO(id: id, title: title, amount: amount, note: note, created_at: created_at, store_id: storeId)
+        copy = OperatingExpenseDTO(id: id, title: title, amount: amount, note: note, created_at: created_at, creator_id: creator_id, creator_name: creator_name, store_id: storeId)
         return copy
     }
 }
@@ -1092,16 +1101,20 @@ struct RestockBillDTO: Codable {
     let id: UUID
     let total_cost: Double
     let created_at: Date
+    let creator_id: UUID?
+    let creator_name: String?
     let restock_items: [RestockItemDTO]?
     let store_id: UUID?
     let is_deleted: Bool?
     let deleted_at: Date?
     let deleted_by: UUID?
     
-    init(id: UUID, total_cost: Double, created_at: Date, restock_items: [RestockItemDTO]?, store_id: UUID?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
+    init(id: UUID, total_cost: Double, created_at: Date, creator_id: UUID?, creator_name: String?, restock_items: [RestockItemDTO]?, store_id: UUID?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
         self.id = id
         self.total_cost = total_cost
         self.created_at = created_at
+        self.creator_id = creator_id
+        self.creator_name = creator_name
         self.restock_items = restock_items
         self.store_id = store_id
         self.is_deleted = is_deleted
@@ -1113,6 +1126,8 @@ struct RestockBillDTO: Codable {
         self.id = domain.id
         self.total_cost = domain.totalCost
         self.created_at = domain.createdAt
+        self.creator_id = domain.creatorId
+        self.creator_name = domain.creatorName
         self.restock_items = nil
         self.store_id = nil
         self.is_deleted = domain.isDeleted
@@ -1126,11 +1141,13 @@ struct RestockBillDTO: Codable {
         bill.isDeleted = is_deleted ?? false
         bill.deletedAt = deleted_at
         bill.deletedBy = deleted_by
+        bill.creatorId = creator_id
+        bill.creatorName = creator_name
         return bill
     }
     
     func withStore(_ storeId: UUID) -> RestockBillDTO {
-        return RestockBillDTO(id: id, total_cost: total_cost, created_at: created_at, restock_items: restock_items, store_id: storeId, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
+        return RestockBillDTO(id: id, total_cost: total_cost, created_at: created_at, creator_id: creator_id, creator_name: creator_name, restock_items: restock_items, store_id: storeId, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
     }
 }
 
@@ -1255,15 +1272,19 @@ struct ProductionTransactionDTO: Codable {
     let total_cost: Double
     let created_at: Date
     let note: String?
+    let creator_id: UUID?
+    let creator_name: String?
     let production_transaction_items: [ProductionTransactionItemDTO]?
     let store_id: UUID?
     
-    init(id: UUID, mode: String, total_cost: Double, created_at: Date, note: String?, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?) {
+    init(id: UUID, mode: String, total_cost: Double, created_at: Date, note: String?, creator_id: UUID?, creator_name: String?, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?) {
         self.id = id
         self.mode = mode
         self.total_cost = total_cost
         self.created_at = created_at
         self.note = note
+        self.creator_id = creator_id
+        self.creator_name = creator_name
         self.production_transaction_items = production_transaction_items
         self.store_id = store_id
     }
@@ -1274,17 +1295,22 @@ struct ProductionTransactionDTO: Codable {
         self.total_cost = domain.totalCost
         self.created_at = domain.createdAt
         self.note = domain.note
+        self.creator_id = domain.creatorId
+        self.creator_name = domain.creatorName
         self.production_transaction_items = nil
         self.store_id = nil
     }
     
     func toDomain() -> ProductionTransaction {
         let items = production_transaction_items?.map { $0.toDomain() } ?? []
-        return ProductionTransaction(id: id, createdAt: created_at, mode: mode, items: items, totalCost: total_cost, note: note)
+        var tx = ProductionTransaction(id: id, createdAt: created_at, mode: mode, items: items, totalCost: total_cost, note: note)
+        tx.creatorId = creator_id
+        tx.creatorName = creator_name
+        return tx
     }
     
     func withStore(_ storeId: UUID) -> ProductionTransactionDTO {
-        return ProductionTransactionDTO(id: id, mode: mode, total_cost: total_cost, created_at: created_at, note: note, production_transaction_items: production_transaction_items, store_id: storeId)
+        return ProductionTransactionDTO(id: id, mode: mode, total_cost: total_cost, created_at: created_at, note: note, creator_id: creator_id, creator_name: creator_name, production_transaction_items: production_transaction_items, store_id: storeId)
     }
 }
 
@@ -1357,6 +1383,8 @@ struct AutoMaterialExportLogDTO: Codable {
     let production_transaction_id: UUID
     let data: AutoMaterialExportLogData
     let created_at: Date
+    let creator_id: UUID?
+    let creator_name: String?
     let store_id: UUID?
     
     init(from domain: AutoMaterialExportLog, storeId: UUID) {
@@ -1366,11 +1394,13 @@ struct AutoMaterialExportLogDTO: Codable {
         self.production_transaction_id = domain.productionTransactionId
         self.data = domain.data
         self.created_at = domain.createdAt
+        self.creator_id = domain.creatorId
+        self.creator_name = domain.creatorName
         self.store_id = storeId
     }
     
     func toDomain() -> AutoMaterialExportLog {
-        return AutoMaterialExportLog(
+        var log = AutoMaterialExportLog(
             id: id,
             createdAt: created_at,
             templateId: template_id,
@@ -1378,6 +1408,9 @@ struct AutoMaterialExportLogDTO: Codable {
             productionTransactionId: production_transaction_id,
             data: data
         )
+        log.creatorId = creator_id
+        log.creatorName = creator_name
+        return log
     }
 }
 

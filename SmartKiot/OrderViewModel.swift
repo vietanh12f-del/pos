@@ -1262,7 +1262,9 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Operating Expenses
     func addOperatingExpense(title: String, amount: Double, note: String?) {
-        let expense = OperatingExpense(id: UUID(), title: title, amount: amount, note: note, createdAt: Date())
+        var expense = OperatingExpense(id: UUID(), title: title, amount: amount, note: note, createdAt: Date())
+        expense.creatorId = AuthManager.shared.currentUserProfile?.id
+        expense.creatorName = AuthManager.shared.currentUserProfile?.fullName
         
         // Optimistic UI update
         operatingExpenses.insert(expense, at: 0)
@@ -1406,7 +1408,9 @@ class OrderViewModel: ObservableObject {
         let original = editingRestockBill
         let billId = original?.id ?? UUID()
         let createdAt = original?.createdAt ?? Date()
-        let bill = RestockBill(id: billId, createdAt: createdAt, items: restockItems, totalCost: total)
+        var bill = RestockBill(id: billId, createdAt: createdAt, items: restockItems, totalCost: total)
+        bill.creatorId = original?.creatorId ?? AuthManager.shared.currentUserProfile?.id
+        bill.creatorName = original?.creatorName ?? AuthManager.shared.currentUserProfile?.fullName
         
         Task { @MainActor in
             if let original {
@@ -1702,6 +1706,25 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    func fetchAutoMaterialExportLogs(limit: Int) async -> [AutoMaterialExportLog] {
+        guard let sid = StoreManager.shared.currentStore?.id else { return [] }
+        do {
+            return try await database.fetchAutoMaterialExportLogs(storeId: sid, limit: limit)
+        } catch {
+            print("⚠️ fetchAutoMaterialExportLogs error: \(error)")
+            return []
+        }
+    }
+    
+    func fetchProductionTransactions(mode: String) async -> [ProductionTransaction] {
+        do {
+            return try await database.fetchProductionTransactions(mode: mode)
+        } catch {
+            print("⚠️ fetchProductionTransactions(\(mode)) error: \(error)")
+            return []
+        }
+    }
+    
     @MainActor
     func performAutoMaterialExport(
         mode: String,
@@ -1754,7 +1777,9 @@ class OrderViewModel: ObservableObject {
         
         let totalCost = items.reduce(0) { $0 + $1.totalCost }
         let note = "Xuất tự động: \(templateName)"
-        let tx = ProductionTransaction(id: txId, createdAt: now, mode: mode, items: items, totalCost: totalCost, note: note)
+        var tx = ProductionTransaction(id: txId, createdAt: now, mode: mode, items: items, totalCost: totalCost, note: note)
+        tx.creatorId = AuthManager.shared.currentUserProfile?.id
+        tx.creatorName = AuthManager.shared.currentUserProfile?.fullName
         
         do {
             try await database.saveProductionTransaction(tx)
@@ -1781,7 +1806,7 @@ class OrderViewModel: ObservableObject {
             percentChange: percentChange,
             autoMaterials: autoRows
         )
-        let log = AutoMaterialExportLog(
+        var log = AutoMaterialExportLog(
             id: UUID(),
             createdAt: now,
             templateId: templateId,
@@ -1789,6 +1814,8 @@ class OrderViewModel: ObservableObject {
             productionTransactionId: txId,
             data: data
         )
+        log.creatorId = AuthManager.shared.currentUserProfile?.id
+        log.creatorName = AuthManager.shared.currentUserProfile?.fullName
         do {
             try await database.saveAutoMaterialExportLog(log)
         } catch {
@@ -1816,7 +1843,9 @@ class OrderViewModel: ObservableObject {
     func completeProductionTransaction(mode: String) {
         guard !restockItems.isEmpty else { return }
         let total = restockItems.reduce(0) { $0 + $1.totalCost }
-        let tx = ProductionTransaction(id: UUID(), createdAt: Date(), mode: mode, items: restockItems, totalCost: total)
+        var tx = ProductionTransaction(id: UUID(), createdAt: Date(), mode: mode, items: restockItems, totalCost: total)
+        tx.creatorId = AuthManager.shared.currentUserProfile?.id
+        tx.creatorName = AuthManager.shared.currentUserProfile?.fullName
         Task {
             do {
                 try await database.saveProductionTransaction(tx)

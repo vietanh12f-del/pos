@@ -32,6 +32,15 @@ struct RestockDetailView: View {
                         Text(formatDate(bill.createdAt))
                             .fontWeight(.medium)
                     }
+                    if let name = bill.creatorName, !name.isEmpty {
+                        HStack {
+                            Text("Nhân viên")
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(name)
+                                .fontWeight(.medium)
+                        }
+                    }
                     if bill.isDeleted {
                         HStack {
                             Text("Trạng thái")

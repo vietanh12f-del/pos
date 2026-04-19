@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var showNewOperatingExpense: Bool = false // Sheet state for Operating Expense
     @State private var isKeyboardVisibleGlobal: Bool = false
     @State private var showProductionManagement: Bool = false
+    @State private var showProductionReport: Bool = false
     
     init() {
         // Default TabBar
@@ -84,7 +85,7 @@ struct ContentView: View {
                             }
                             .tag(6)
                         
-                        MoreView(selectedTab: $selectedTab, showProductionManagement: $showProductionManagement)
+                        MoreView(selectedTab: $selectedTab, showProductionManagement: $showProductionManagement, showProductionReport: $showProductionReport)
                             .tabItem {
                                 Label("Thêm", systemImage: "square.grid.2x2.fill")
                             }
@@ -126,6 +127,9 @@ struct ContentView: View {
                 }
                 .sheet(isPresented: $showProductionManagement) {
                     ProductionManagementView(viewModel: viewModel)
+                }
+                .sheet(isPresented: $showProductionReport) {
+                    ProductionReportView(viewModel: viewModel)
                 }
                 .onChange(of: viewModel.editingBill) { bill in
                     if bill != nil {

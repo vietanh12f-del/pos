@@ -422,6 +422,11 @@ struct InventoryView: View {
                                             Text(formatDate(bill.createdAt))
                                                 .font(.caption)
                                                 .foregroundStyle(.gray)
+                                            if let name = bill.creatorName, !name.isEmpty {
+                                                Text(name)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                            }
                                             if viewModel.editedRestockBillIds.contains(bill.id) {
                                                 Text("Đã sửa")
                                                     .font(.caption2)

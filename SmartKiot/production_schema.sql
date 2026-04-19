@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS production_transactions (
   mode TEXT NOT NULL, -- 'Nhập nguyên liệu' | 'Xuất nguyên liệu' | 'Nhập thành phẩm' | 'Xuất thành phẩm'
   total_cost DOUBLE PRECISION DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  creator_id UUID,
+  creator_name TEXT,
   note TEXT
 );
 
@@ -44,6 +46,10 @@ ALTER TABLE production_transaction_items ENABLE ROW LEVEL SECURITY;
 -- Migration-safe: ensure header note exists on older deployments
 ALTER TABLE production_transactions
   ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE production_transactions
+  ADD COLUMN IF NOT EXISTS creator_id UUID;
+ALTER TABLE production_transactions
+  ADD COLUMN IF NOT EXISTS creator_name TEXT;
 
 -- Policies: Access transactions if user is a member of the store
 DROP POLICY IF EXISTS "Access production transactions if member" ON production_transactions;

@@ -4,7 +4,9 @@ CREATE TABLE operating_expenses (
     title TEXT NOT NULL,
     amount DOUBLE PRECISION NOT NULL,
     note TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    creator_id UUID,
+    creator_name TEXT
 );
 
 -- Index for sorting by date

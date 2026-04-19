@@ -5,6 +5,12 @@
 ALTER TABLE operating_expenses 
 ADD COLUMN IF NOT EXISTS store_id UUID REFERENCES stores(id) ON DELETE CASCADE;
 
+-- 1b. Track who created expense
+ALTER TABLE operating_expenses
+ADD COLUMN IF NOT EXISTS creator_id UUID;
+ALTER TABLE operating_expenses
+ADD COLUMN IF NOT EXISTS creator_name TEXT;
+
 -- 2. Create index for performance
 CREATE INDEX IF NOT EXISTS idx_operating_expenses_store_id ON operating_expenses(store_id);
 

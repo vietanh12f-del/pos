@@ -30,9 +30,25 @@ struct AutoMaterialExportLogDetailSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(log.data.headerName)
                 .font(.headline)
-            Text(log.templateName)
-                .font(.subheadline)
-                .foregroundStyle(.gray)
+            HStack(spacing: 6) {
+                Text(log.templateName)
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                Text("•")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Text(formatDate(log.createdAt))
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                if let name = log.creatorName, !name.isEmpty {
+                    Text("•")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text(name)
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -149,5 +165,13 @@ struct AutoMaterialExportLogDetailSheet: View {
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "dd/MM/yyyy HH:mm"
+        return f.string(from: date)
     }
 }
