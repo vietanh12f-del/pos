@@ -34,6 +34,12 @@ struct AutoMaterialExportSheetView: View {
     @State private var lastValidationError: String?
     @State private var showTemplateManager = false
     @State private var newTemplateName: String = ""
+    @State private var showRenameSheetPrompt = false
+    @State private var renameSheetText: String = ""
+    @State private var lastSavedTemplateId: UUID?
+    @State private var lastSavedTemplateName: String = ""
+    @State private var lastSavedTemplateData: AutoMaterialExportTemplateData?
+    @State private var savePulse = false
     
     @State private var showWeightWheel = false
     @State private var weightWheelKgSelection = 0
@@ -52,6 +58,7 @@ struct AutoMaterialExportSheetView: View {
         _draftName = State(initialValue: defaultHeaderName)
         _afterBoilKgText = State(initialValue: "0")
         _standardPanWeightKgText = State(initialValue: "0")
+        _lastSavedTemplateName = State(initialValue: defaultHeaderName)
     }
     
     private var materialsById: [UUID: MaterialItem] {
@@ -145,7 +152,7 @@ struct AutoMaterialExportSheetView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(spacing: 12) {
                     headerSection
                     freshSection
                     afterBoilSection
@@ -176,7 +183,10 @@ struct AutoMaterialExportSheetView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isSavingTemplate)
+                    .tint(hasTemplateChanges ? .blue : .gray)
+                    .scaleEffect(hasTemplateChanges ? (savePulse ? 1.06 : 0.98) : 1)
+                    .opacity(hasTemplateChanges ? (savePulse ? 1 : 0.85) : 1)
+                    .disabled(isSavingTemplate || !hasTemplateChanges)
                 }
             }
             .task {
@@ -187,7 +197,18 @@ struct AutoMaterialExportSheetView: View {
                 } else {
                     headerName = defaultHeaderName
                     draftName = defaultHeaderName
+                    syncSavedSnapshot()
                 }
+            }
+        }
+        .onChange(of: hasTemplateChanges) { _, newValue in
+            if newValue {
+                savePulse = false
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    savePulse = true
+                }
+            } else {
+                savePulse = false
             }
         }
         .sheet(isPresented: $showTemplateManager) {
@@ -281,27 +302,52 @@ struct AutoMaterialExportSheetView: View {
             )
             .presentationDetents([.height(300)])
         }
+        .alert("Đổi tên sheet", isPresented: $showRenameSheetPrompt) {
+            TextField("Tên sheet", text: $renameSheetText)
+            Button("Hủy", role: .cancel) { }
+            Button("Lưu") {
+                let trimmed = renameSheetText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    draftName = trimmed
+                    headerName = trimmed
+                }
+            }
+        }
     }
     
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Text(selectedTemplateName)
-                    .fontWeight(.bold)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .foregroundStyle(.white)
-                    .background(
-                        LinearGradient(
-                            colors: [Color.themePrimary, Color.themePrimary.opacity(0.75)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+                HStack(spacing: 10) {
+                    Text(selectedTemplateName)
+                        .fontWeight(.bold)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 8)
+                    Button {
+                        renameSheetText = draftName
+                        showRenameSheetPrompt = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(10)
+                            .background(Circle().fill(Color.white.opacity(0.18)))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .foregroundStyle(.white)
+                .background(
+                    LinearGradient(
+                        colors: [Color.themePrimary, Color.themePrimary.opacity(0.75)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 14))
                 
                 Button {
                     newTemplateName = ""
@@ -318,21 +364,13 @@ struct AutoMaterialExportSheetView: View {
                 }
                 .buttonStyle(.plain)
             }
-            
-            HStack {
-                Text("Tên sheet")
-                Spacer()
-                TextField("Tên", text: $draftName)
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(.words)
-            }
         }
-        .padding()
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
     
     private var freshSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 TextField("Nguyên liệu tươi", text: $freshTitle)
                     .font(.headline)
@@ -358,12 +396,13 @@ struct AutoMaterialExportSheetView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(freshRows) { row in
+                        let mid = row.materialId
                         FreshRowWheelView(
                             name: row.name,
                             stockText: FormatUtils.formatWeight(row.stockGrams),
-                            valueText: freshExportKgTextById[row.materialId ?? UUID()] ?? "0",
+                            valueText: (mid == nil ? "0" : (freshExportKgTextById[mid!] ?? "0")),
                             onTap: {
-                                guard let id = row.materialId else { return }
+                                guard let id = mid else { return }
                                 openWeightWheel(target: .fresh(id), currentText: freshExportKgTextById[id] ?? "0")
                             }
                         )
@@ -371,16 +410,15 @@ struct AutoMaterialExportSheetView: View {
                 }
             }
         }
-        .padding()
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
     
     private var afterBoilSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TextField("Còn sau luộc", text: $afterBoilTitle)
-                .font(.headline)
-            HStack {
-                Text("Khối lượng")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                TextField("Còn sau luộc", text: $afterBoilTitle)
+                    .font(.headline)
                 Spacer()
                 Button {
                     openWeightWheel(target: .afterBoil, currentText: afterBoilKgText)
@@ -393,18 +431,20 @@ struct AutoMaterialExportSheetView: View {
                         .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
                 }
                 .buttonStyle(.plain)
+                Text("kg")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
             }
         }
-        .padding()
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
     
     private var panCountSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TextField("Số lượng chảo xào", text: $panCountTitle)
-                .font(.headline)
-            HStack {
-                Text("Số chảo")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                TextField("Số lượng chảo xào", text: $panCountTitle)
+                    .font(.headline)
                 Spacer()
                 Button {
                     intWheelSelection = max(1, panCount)
@@ -419,14 +459,17 @@ struct AutoMaterialExportSheetView: View {
                         .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
                 }
                 .buttonStyle(.plain)
+                Text("cái")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
             }
         }
-        .padding()
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
     
     private var panWeightSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             TextField("Khối lượng / chảo", text: $panWeightTitle)
                 .font(.headline)
             HStack {
@@ -443,6 +486,9 @@ struct AutoMaterialExportSheetView: View {
                         .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
                 }
                 .buttonStyle(.plain)
+                Text("kg")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
             }
             HStack {
                 Text("Thực tế")
@@ -452,14 +498,17 @@ struct AutoMaterialExportSheetView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                Text("kg")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
             }
         }
-        .padding()
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
     
     private var autoMaterialsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
                 TextField("Nguyên liệu xuất tự động", text: $autoMaterialsTitle)
                     .font(.headline)
@@ -485,15 +534,16 @@ struct AutoMaterialExportSheetView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(autoRows) { row in
+                        let mid = row.materialId
                         AutoRowWheelView(
                             name: row.name,
                             stockText: FormatUtils.formatWeight(row.stockGrams),
-                            standardText: autoStandardPerPanKgTextById[row.materialId ?? UUID()] ?? "0",
+                            standardText: (mid == nil ? "0" : (autoStandardPerPanKgTextById[mid!] ?? "0")),
                             perPanActualText: FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())),
                             totalText: FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())),
                             isOver: Int(row.totalExportGrams.rounded()) > row.stockGrams,
                             onTapStandard: {
-                                guard let id = row.materialId else { return }
+                                guard let id = mid else { return }
                                 openWeightWheel(target: .autoStandard(id), currentText: autoStandardPerPanKgTextById[id] ?? "0")
                             }
                         )
@@ -501,7 +551,7 @@ struct AutoMaterialExportSheetView: View {
                 }
             }
         }
-        .padding()
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
     
@@ -527,7 +577,7 @@ struct AutoMaterialExportSheetView: View {
                 }
             }
         }
-        .padding()
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
     
@@ -557,10 +607,12 @@ struct AutoMaterialExportSheetView: View {
     }
     
     private var selectedTemplateName: String {
+        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
         if let id = selectedTemplateId, let t = viewModel.autoMaterialExportTemplates.first(where: { $0.id == id }) {
             return t.name
         }
-        return "Chọn sheet"
+        return defaultHeaderName
     }
     
     private func createNewTemplate(named name: String? = nil) {
@@ -579,6 +631,7 @@ struct AutoMaterialExportSheetView: View {
         standardPanWeightKgText = "0"
         autoSelected = []
         autoStandardPerPanKgTextById = [:]
+        syncSavedSnapshot()
     }
     
     private func applyTemplate(_ t: AutoMaterialExportTemplate) {
@@ -610,14 +663,17 @@ struct AutoMaterialExportSheetView: View {
             autoMap[id] = FormatUtils.formatKgDecimal(fromGrams: g)
         }
         autoStandardPerPanKgTextById = autoMap
+        syncSavedSnapshot()
     }
     
-    private func buildTemplate() -> AutoMaterialExportTemplate {
-        let now = Date()
-        let id = selectedTemplateId ?? UUID()
-        let resolvedName = draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? defaultHeaderName : draftName
-        let data = AutoMaterialExportTemplateData(
-            headerName: resolvedName,
+    private var resolvedTemplateName: String {
+        let trimmed = draftName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? defaultHeaderName : trimmed
+    }
+    
+    private var currentTemplateData: AutoMaterialExportTemplateData {
+        AutoMaterialExportTemplateData(
+            headerName: resolvedTemplateName,
             freshTitle: freshTitle,
             afterBoilTitle: afterBoilTitle,
             panCountTitle: panCountTitle,
@@ -635,6 +691,26 @@ struct AutoMaterialExportSheetView: View {
                 dict[id.uuidString] = max(0, FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0)
             }
         )
+    }
+    
+    private var hasTemplateChanges: Bool {
+        guard let savedData = lastSavedTemplateData else { return true }
+        if lastSavedTemplateId != selectedTemplateId { return true }
+        if lastSavedTemplateName != resolvedTemplateName { return true }
+        return savedData != currentTemplateData
+    }
+    
+    private func syncSavedSnapshot() {
+        lastSavedTemplateId = selectedTemplateId
+        lastSavedTemplateName = resolvedTemplateName
+        lastSavedTemplateData = currentTemplateData
+    }
+    
+    private func buildTemplate() -> AutoMaterialExportTemplate {
+        let now = Date()
+        let id = selectedTemplateId ?? UUID()
+        let resolvedName = resolvedTemplateName
+        let data = currentTemplateData
         let createdAt: Date
         let updatedAt: Date
         if let existing = viewModel.autoMaterialExportTemplates.first(where: { $0.id == id }) {
@@ -654,6 +730,7 @@ struct AutoMaterialExportSheetView: View {
         let ok = await viewModel.upsertAutoMaterialExportTemplate(template)
         if ok {
             selectedTemplateId = template.id
+            syncSavedSnapshot()
         }
     }
     
@@ -793,7 +870,7 @@ private struct AutoRowWheelView: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
                             .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
-                            .frame(minWidth: 100, alignment: .trailing)
+                            .frame(minWidth: 100, alignment: .leading)
                     }
                     .buttonStyle(.plain)
                 }
@@ -811,15 +888,54 @@ private struct AutoRowWheelView: View {
                     Text("Tổng xuất")
                         .font(.caption)
                         .foregroundStyle(.gray)
-                    Text(totalText)
-                        .fontWeight(.bold)
-                        .foregroundStyle(isOver ? .red : Color.themePrimary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                    BlinkingContainer(isActive: isOver) {
+                        Text(totalText)
+                            .fontWeight(.bold)
+                            .foregroundStyle(isOver ? .red : Color.themePrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(isOver ? Color.red.opacity(0.15) : Color.yellow.opacity(0.18))
+                            )
+                    }
                 }
             }
         }
+    }
+}
+
+private struct BlinkingContainer<Content: View>: View {
+    let isActive: Bool
+    let content: Content
+    
+    @State private var blinkOn: Bool = false
+    
+    init(isActive: Bool, @ViewBuilder content: () -> Content) {
+        self.isActive = isActive
+        self.content = content()
+    }
+    
+    var body: some View {
+        content
+            .opacity(isActive ? (blinkOn ? 0.35 : 1) : 1)
+            .onAppear {
+                guard isActive else { return }
+                blinkOn = false
+                withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
+                    blinkOn = true
+                }
+            }
+            .onChange(of: isActive) { _, newValue in
+                if newValue {
+                    blinkOn = false
+                    withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
+                        blinkOn = true
+                    }
+                } else {
+                    blinkOn = false
+                }
+            }
     }
 }
 
