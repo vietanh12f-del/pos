@@ -40,6 +40,7 @@ struct AutoMaterialExportSheetView: View {
     @State private var lastSavedTemplateName: String = ""
     @State private var lastSavedTemplateData: AutoMaterialExportTemplateData?
     @State private var savePulse = false
+    @State private var freshUseAllStockIds: Set<UUID> = []
     
     @State private var showWeightWheel = false
     @State private var weightWheelKgSelection = 0
@@ -184,8 +185,9 @@ struct AutoMaterialExportSheetView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(hasTemplateChanges ? .blue : .gray)
-                    .scaleEffect(hasTemplateChanges ? (savePulse ? 1.06 : 0.98) : 1)
-                    .opacity(hasTemplateChanges ? (savePulse ? 1 : 0.85) : 1)
+                    .scaleEffect(hasTemplateChanges ? (savePulse ? 1.14 : 0.92) : 1)
+                    .opacity(hasTemplateChanges ? (savePulse ? 1 : 0.75) : 1)
+                    .shadow(color: hasTemplateChanges ? Color.blue.opacity(savePulse ? 0.55 : 0.18) : .clear, radius: savePulse ? 10 : 4, x: 0, y: savePulse ? 6 : 2)
                     .disabled(isSavingTemplate || !hasTemplateChanges)
                 }
             }
@@ -397,10 +399,24 @@ struct AutoMaterialExportSheetView: View {
                 VStack(spacing: 8) {
                     ForEach(freshRows) { row in
                         let mid = row.materialId
+                        let grams = max(0, FormatUtils.parseKgDecimalToGrams(mid == nil ? "" : (freshExportKgTextById[mid!] ?? "")) ?? 0)
+                        let isOver = grams > row.stockGrams
+                        let isAll = mid == nil ? false : freshUseAllStockIds.contains(mid!)
                         FreshRowWheelView(
                             name: row.name,
                             stockText: FormatUtils.formatWeight(row.stockGrams),
                             valueText: (mid == nil ? "0" : (freshExportKgTextById[mid!] ?? "0")),
+                            isOver: isOver,
+                            isAll: isAll,
+                            onToggleAll: {
+                                guard let id = mid else { return }
+                                if freshUseAllStockIds.contains(id) {
+                                    freshUseAllStockIds.remove(id)
+                                } else {
+                                    freshUseAllStockIds.insert(id)
+                                    freshExportKgTextById[id] = FormatUtils.formatKgDecimal(fromGrams: row.stockGrams)
+                                }
+                            },
                             onTap: {
                                 guard let id = mid else { return }
                                 openWeightWheel(target: .fresh(id), currentText: freshExportKgTextById[id] ?? "0")
@@ -452,7 +468,6 @@ struct AutoMaterialExportSheetView: View {
                     showIntWheel = true
                 } label: {
                     Text("\(panCount)")
-                        .fontWeight(.bold)
                         .foregroundStyle(Color.themeTextDark)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
@@ -479,7 +494,6 @@ struct AutoMaterialExportSheetView: View {
                     openWeightWheel(target: .standardPanWeight, currentText: standardPanWeightKgText)
                 } label: {
                     Text(FormatUtils.formatKgDecimal(fromGrams: standardPanWeightGrams))
-                        .fontWeight(.bold)
                         .foregroundStyle(Color.themeTextDark)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
@@ -794,6 +808,15 @@ struct AutoMaterialExportSheetView: View {
             standardPanWeightKgText = text
         case .fresh(let id):
             freshExportKgTextById[id] = text
+            if let stock = materialsById[id]?.stockQuantity {
+                if grams == stock {
+                    freshUseAllStockIds.insert(id)
+                } else {
+                    freshUseAllStockIds.remove(id)
+                }
+            } else {
+                freshUseAllStockIds.remove(id)
+            }
         case .autoStandard(let id):
             autoStandardPerPanKgTextById[id] = text
         }
@@ -811,6 +834,9 @@ private struct FreshRowWheelView: View {
     let name: String
     let stockText: String
     let valueText: String
+    let isOver: Bool
+    let isAll: Bool
+    let onToggleAll: () -> Void
     let onTap: () -> Void
     
     var body: some View {
@@ -824,14 +850,35 @@ private struct FreshRowWheelView: View {
                     .foregroundStyle(.gray)
             }
             Spacer()
-            Button(action: onTap) {
-                Text(valueText)
+            Button(action: onToggleAll) {
+                Text("all")
+                    .font(.caption2)
                     .fontWeight(.bold)
-                    .foregroundStyle(Color.themeTextDark)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
-                    .frame(width: 120, alignment: .trailing)
+                    .foregroundStyle(isAll ? .white : Color.themePrimary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(isAll ? Color.themePrimary : Color.gray.opacity(0.15))
+                    )
+            }
+            .buttonStyle(.plain)
+            Text("kg")
+                .font(.caption)
+                .foregroundStyle(.gray)
+            Button(action: onTap) {
+                BlinkingContainer(isActive: isOver) {
+                    Text(valueText)
+                        .fontWeight(.bold)
+                        .foregroundStyle(isOver ? .red : Color.themeTextDark)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(isOver ? Color.red.opacity(0.15) : Color.yellow.opacity(0.18))
+                        )
+                        .frame(width: 120, alignment: .trailing)
+                }
             }
             .buttonStyle(.plain)
         }
