@@ -17,14 +17,20 @@ struct TransactionEditView: View {
     @State private var quantityKgSelection = 0
     @State private var gramsWheelSelection = 0
     @State private var gramsWheelMax = 950
+    @State private var quantityKgRangeBase = 0
+    @State private var showQuantityKgRangePicker = false
     @State private var unitPriceWheelSelection = 0
     @State private var unitPriceWheelMax = 5000000
     @State private var unitPriceWheelBaseSelection = 0
     @State private var unitPriceWheelHundredsSelection = 0
+    @State private var unitPriceWheelRangeBase = 0
+    @State private var showUnitPriceWheelRangePicker = false
     @State private var additionalCostWheelSelection = 0
     @State private var additionalCostWheelMax = 1000000
     @State private var additionalCostWheelBaseSelection = 0
     @State private var additionalCostWheelHundredsSelection = 0
+    @State private var additionalCostWheelRangeBase = 0
+    @State private var showAdditionalCostWheelRangePicker = false
     @State private var noteText: String = ""
     
     private var isFinishedGoods: Bool {
@@ -173,11 +179,24 @@ struct TransactionEditView: View {
                 Form {
                     Section {
                         HStack {
+                            Button {
+                                showQuantityKgRangePicker = true
+                            } label: {
+                                Text(quantityKgRangeBase <= 0 ? ">0" : ">\(quantityKgRangeBase)")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                        }
+                        HStack {
                             VStack {
                                 Text("Kg")
                                     .font(.caption).foregroundStyle(.gray)
                                 Picker("", selection: $quantityKgSelection) {
-                                    ForEach(Array(0...quantityWheelMax), id: \.self) { kg in
+                                    ForEach(Array(quantityKgRangeBase...quantityWheelMax), id: \.self) { kg in
                                         Text("\(kg)").tag(kg)
                                     }
                                 }
@@ -199,6 +218,7 @@ struct TransactionEditView: View {
                             quantityKgSelection = max(0, current / 1000)
                             let remainder = max(0, current % 1000)
                             gramsWheelSelection = (remainder / 50) * 50
+                            quantityKgRangeBase = (quantityKgSelection / 100) * 100
                         }
                     }
                 }
@@ -218,19 +238,41 @@ struct TransactionEditView: View {
                 }
             }
             .presentationDetents([.height(340)])
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showQuantityKgRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: quantityWheelMax, by: 100)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v)") {
+                        quantityKgRangeBase = v
+                        if quantityKgSelection < v { quantityKgSelection = v }
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showUnitPriceWheel) {
             NavigationStack {
                 Form {
                     Section {
                         let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (unitPriceWheelRangeBase / step) * step)
+                        HStack {
+                            Button {
+                                showUnitPriceWheelRangePicker = true
+                            } label: {
+                                Text(unitPriceWheelRangeBase <= 0 ? ">0" : ">\(unitPriceWheelRangeBase / 1000)k")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                        }
                         HStack {
                             VStack {
                                 Text("Giá")
                                     .font(.caption)
                                     .foregroundStyle(.gray)
                                 Picker("", selection: $unitPriceWheelBaseSelection) {
-                                    ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: step)), id: \.self) { v in
+                                    ForEach(Array(stride(from: rangeMin, through: unitPriceWheelMax, by: step)), id: \.self) { v in
                                         Text(formatCurrency(Double(v))).tag(v)
                                     }
                                 }
@@ -275,9 +317,20 @@ struct TransactionEditView: View {
             .onAppear {
                 let step = StoreManager.shared.priceStep
                 let current = max(0, unitPriceWheelSelection)
+                unitPriceWheelRangeBase = (current / 100000) * 100000
                 unitPriceWheelBaseSelection = (current / step) * step
                 let remainder = max(0, current - unitPriceWheelBaseSelection)
                 unitPriceWheelHundredsSelection = min(900, (remainder / 100) * 100)
+            }
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showUnitPriceWheelRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: min(unitPriceWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
+                        unitPriceWheelRangeBase = v
+                        let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (v / step) * step)
+                        if unitPriceWheelBaseSelection < rangeMin { unitPriceWheelBaseSelection = rangeMin }
+                    }
+                }
             }
         }
         .sheet(isPresented: $showAdditionalCostWheel) {
@@ -285,13 +338,27 @@ struct TransactionEditView: View {
                 Form {
                     Section {
                         let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (additionalCostWheelRangeBase / step) * step)
+                        HStack {
+                            Button {
+                                showAdditionalCostWheelRangePicker = true
+                            } label: {
+                                Text(additionalCostWheelRangeBase <= 0 ? ">0" : ">\(additionalCostWheelRangeBase / 1000)k")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                        }
                         HStack {
                             VStack {
                                 Text("Giá")
                                     .font(.caption)
                                     .foregroundStyle(.gray)
                                 Picker("", selection: $additionalCostWheelBaseSelection) {
-                                    ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: step)), id: \.self) { v in
+                                    ForEach(Array(stride(from: rangeMin, through: additionalCostWheelMax, by: step)), id: \.self) { v in
                                         Text(formatCurrency(Double(v))).tag(v)
                                     }
                                 }
@@ -336,9 +403,20 @@ struct TransactionEditView: View {
             .onAppear {
                 let step = StoreManager.shared.priceStep
                 let current = max(0, additionalCostWheelSelection)
+                additionalCostWheelRangeBase = (current / 100000) * 100000
                 additionalCostWheelBaseSelection = (current / step) * step
                 let remainder = max(0, current - additionalCostWheelBaseSelection)
                 additionalCostWheelHundredsSelection = min(900, (remainder / 100) * 100)
+            }
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showAdditionalCostWheelRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: min(additionalCostWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
+                        additionalCostWheelRangeBase = v
+                        let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (v / step) * step)
+                        if additionalCostWheelBaseSelection < rangeMin { additionalCostWheelBaseSelection = rangeMin }
+                    }
+                }
             }
         }
     }

@@ -46,11 +46,13 @@ struct AutoMaterialExportSheetView: View {
     @State private var weightWheelKgSelection = 0
     @State private var weightWheelGramsSelection = 0
     @State private var weightWheelKgMax = 200
+    @State private var weightWheelKgRangeBase = 0
     @State private var weightWheelTarget: WeightWheelTarget?
     
     @State private var showIntWheel = false
     @State private var intWheelSelection = 1
     @State private var intWheelMax = 200
+    @State private var intWheelRangeBase = 0
     
     init(viewModel: OrderViewModel, defaultHeaderName: String) {
         self.viewModel = viewModel
@@ -279,6 +281,7 @@ struct AutoMaterialExportSheetView: View {
         }
         .sheet(isPresented: $showWeightWheel) {
             WeightWheelSheet(
+                kgRangeBase: $weightWheelKgRangeBase,
                 kgMax: $weightWheelKgMax,
                 kgSelection: $weightWheelKgSelection,
                 gramsSelection: $weightWheelGramsSelection,
@@ -294,7 +297,8 @@ struct AutoMaterialExportSheetView: View {
         .sheet(isPresented: $showIntWheel) {
             IntWheelSheet(
                 title: "Chỉnh số lượng",
-                max: $intWheelMax,
+                rangeBase: $intWheelRangeBase,
+                maxValue: $intWheelMax,
                 selection: $intWheelSelection,
                 onSave: {
                     panCountText = String(intWheelSelection)
@@ -795,6 +799,7 @@ struct AutoMaterialExportSheetView: View {
         let remainder = max(0, grams % 1000)
         weightWheelGramsSelection = (remainder / 50) * 50
         weightWheelKgMax = max(200, weightWheelKgSelection + 200)
+        weightWheelKgRangeBase = (weightWheelKgSelection / 100) * 100
         showWeightWheel = true
     }
     
@@ -863,9 +868,6 @@ private struct FreshRowWheelView: View {
                     )
             }
             .buttonStyle(.plain)
-            Text("kg")
-                .font(.caption)
-                .foregroundStyle(.gray)
             Button(action: onTap) {
                 BlinkingContainer(isActive: isOver) {
                     Text(valueText)
@@ -881,6 +883,9 @@ private struct FreshRowWheelView: View {
                 }
             }
             .buttonStyle(.plain)
+            Text("kg")
+                .font(.caption)
+                .foregroundStyle(.gray)
         }
     }
 }
@@ -1050,23 +1055,38 @@ private struct TemplateManagerSheet: View {
 }
 
 private struct WeightWheelSheet: View {
+    @Binding var kgRangeBase: Int
     @Binding var kgMax: Int
     @Binding var kgSelection: Int
     @Binding var gramsSelection: Int
     let onSave: () -> Void
     let onClose: () -> Void
     
+    @State private var showRangePicker = false
+    
     var body: some View {
         VStack(spacing: 12) {
-            Text("Chỉnh khối lượng")
-                .font(.headline)
+            HStack {
+                Button {
+                    showRangePicker = true
+                } label: {
+                    Text(kgRangeBase <= 0 ? ">0" : ">\(kgRangeBase)")
+                        .fontWeight(.bold)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            Text("Chỉnh khối lượng").font(.headline)
             HStack {
                 VStack {
                     Text("Kg")
                         .font(.caption)
                         .foregroundStyle(.gray)
                     Picker("", selection: $kgSelection) {
-                        ForEach(Array(0...kgMax), id: \.self) { kg in
+                        ForEach(Array(kgRangeBase...kgMax), id: \.self) { kg in
                             Text("\(kg)").tag(kg)
                         }
                     }
@@ -1095,28 +1115,52 @@ private struct WeightWheelSheet: View {
             .font(.headline)
         }
         .padding()
+        .confirmationDialog("Chọn vùng giá trị", isPresented: $showRangePicker, titleVisibility: .visible) {
+            ForEach(Array(stride(from: 0, through: kgMax, by: 100)), id: \.self) { v in
+                Button(v == 0 ? ">0" : ">\(v)") {
+                    kgRangeBase = v
+                    if kgSelection < v { kgSelection = v }
+                }
+            }
+        }
     }
 }
 
 private struct IntWheelSheet: View {
     let title: String
-    @Binding var max: Int
+    @Binding var rangeBase: Int
+    @Binding var maxValue: Int
     @Binding var selection: Int
     let onSave: () -> Void
     let onClose: () -> Void
     
+    @State private var showRangePicker = false
+    
     var body: some View {
         VStack(spacing: 12) {
-            Text(title)
-                .font(.headline)
+            HStack {
+                Button {
+                    showRangePicker = true
+                } label: {
+                    Text(rangeBase <= 0 ? ">0" : ">\(rangeBase)")
+                        .fontWeight(.bold)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            Text(title).font(.headline)
             Picker("", selection: $selection) {
-                ForEach(Array(1...max), id: \.self) { v in
+                let minValue = Swift.max(1, rangeBase)
+                ForEach(Array(minValue...maxValue), id: \.self) { v in
                     Text("\(v)").tag(v)
                 }
             }
             .pickerStyle(.wheel)
             .onChange(of: selection) { _, newValue in
-                if newValue >= max - 10 { max += 200 }
+                if newValue >= maxValue - 10 { maxValue += 200 }
             }
             HStack {
                 Button("Đóng") { onClose() }
@@ -1126,6 +1170,15 @@ private struct IntWheelSheet: View {
             .font(.headline)
         }
         .padding()
+        .confirmationDialog("Chọn vùng giá trị", isPresented: $showRangePicker, titleVisibility: .visible) {
+            ForEach(Array(stride(from: 0, through: maxValue, by: 100)), id: \.self) { v in
+                Button(v == 0 ? ">0" : ">\(v)") {
+                    rangeBase = v
+                    let minValue = Swift.max(1, rangeBase)
+                    if selection < minValue { selection = minValue }
+                }
+            }
+        }
     }
 }
 

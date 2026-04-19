@@ -27,6 +27,8 @@ struct RestockEntryView: View {
     @State private var summaryPriceBaseSelection = 0
     @State private var summaryPriceHundredsSelection = 0
     @State private var summaryPriceMax = 5_000_000
+    @State private var summaryPriceRangeBase = 0
+    @State private var showSummaryPriceRangePicker = false
     @State private var summaryIsMaterials = false
     @State private var inventorySubTab: Int = 0
     @State private var lastAddedItemId: UUID? = nil
@@ -699,13 +701,27 @@ struct RestockEntryView: View {
             VStack(spacing: 12) {
                 Text(useMaterialsList ? "Sửa đơn giá" : "Sửa giá bán dự kiến").font(.headline)
                 let step = StoreManager.shared.priceStep
+                let rangeMin = max(0, (summaryPriceRangeBase / step) * step)
+                HStack {
+                    Button {
+                        showSummaryPriceRangePicker = true
+                    } label: {
+                        Text(summaryPriceRangeBase <= 0 ? ">0" : ">\(summaryPriceRangeBase / 1000)k")
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.gray.opacity(0.15)))
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
                 HStack {
                     VStack {
                         Text("Giá")
                             .font(.caption)
                             .foregroundStyle(.gray)
                         Picker("", selection: $summaryPriceBaseSelection) {
-                            ForEach(Array(stride(from: 0, through: summaryPriceMax, by: step)), id: \.self) { v in
+                            ForEach(Array(stride(from: rangeMin, through: summaryPriceMax, by: step)), id: \.self) { v in
                                 Text(formatCurrency(Double(v))).tag(v)
                             }
                         }
@@ -750,9 +766,20 @@ struct RestockEntryView: View {
             .onAppear {
                 let step = StoreManager.shared.priceStep
                 let current = max(0, summaryPriceSelection)
+                summaryPriceRangeBase = (current / 100000) * 100000
                 summaryPriceBaseSelection = (current / step) * step
                 let remainder = max(0, current - summaryPriceBaseSelection)
                 summaryPriceHundredsSelection = min(900, (remainder / 100) * 100)
+            }
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showSummaryPriceRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: min(summaryPriceMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
+                        summaryPriceRangeBase = v
+                        let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (v / step) * step)
+                        if summaryPriceBaseSelection < rangeMin { summaryPriceBaseSelection = rangeMin }
+                    }
+                }
             }
         }
     }
@@ -903,19 +930,27 @@ struct ManualRestockItemView: View {
     @State private var quantityKgSelection = 0
     @State private var gramsWheelSelection = 0
     @State private var gramsWheelMax = 950
+    @State private var quantityKgRangeBase = 0
+    @State private var showQuantityKgRangePicker = false
     @State private var unitPriceWheelSelection = 0
     @State private var unitPriceWheelMax = 5000000
     @State private var unitPriceBaseSelection = 0
     @State private var unitPriceHundredsSelection = 0
+    @State private var unitPriceWheelRangeBase = 0
+    @State private var showUnitPriceWheelRangePicker = false
     @State private var additionalCostWheelSelection = 0
     @State private var additionalCostWheelMax = 1000000
     @State private var additionalCostBaseSelection = 0
     @State private var additionalCostHundredsSelection = 0
+    @State private var additionalCostWheelRangeBase = 0
+    @State private var showAdditionalCostWheelRangePicker = false
     @State private var showSuggestedPriceWheel = false
     @State private var suggestedPriceWheelSelection = 0
     @State private var suggestedPriceWheelMax = 10_000_000
     @State private var suggestedPriceBaseSelection = 0
     @State private var suggestedPriceHundredsSelection = 0
+    @State private var suggestedPriceWheelRangeBase = 0
+    @State private var showSuggestedPriceWheelRangePicker = false
     @State private var selectedCategoryName: String = Category.materials.rawValue
     @State private var showCategorySheet = false
     @State private var newCategoryName: String = ""
@@ -1543,12 +1578,25 @@ struct ManualRestockItemView: View {
                     .font(.headline)
                 if useKgGram {
                     HStack {
+                        Button {
+                            showQuantityKgRangePicker = true
+                        } label: {
+                            Text(quantityKgRangeBase <= 0 ? ">0" : ">\(quantityKgRangeBase)")
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    HStack {
                         VStack {
                             Text("Kg")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                             Picker("", selection: $quantityKgSelection) {
-                                ForEach(Array(0...quantityWheelMax), id: \.self) { kg in
+                                ForEach(Array(quantityKgRangeBase...quantityWheelMax), id: \.self) { kg in
                                     Text("\(kg)").tag(kg)
                                 }
                             }
@@ -1597,19 +1645,46 @@ struct ManualRestockItemView: View {
             }
             .padding()
             .presentationDetents([.height(340)])
+            .onAppear {
+                if useKgGram {
+                    quantityKgRangeBase = (quantityKgSelection / 100) * 100
+                }
+            }
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showQuantityKgRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: quantityWheelMax, by: 100)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v)") {
+                        quantityKgRangeBase = v
+                        if quantityKgSelection < v { quantityKgSelection = v }
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showUnitPriceWheel) {
             VStack(spacing: 12) {
                 Text("Sửa đơn giá")
                     .font(.headline)
                 let step = StoreManager.shared.priceStep
+                let rangeMin = max(0, (unitPriceWheelRangeBase / step) * step)
+                HStack {
+                    Button {
+                        showUnitPriceWheelRangePicker = true
+                    } label: {
+                        Text(unitPriceWheelRangeBase <= 0 ? ">0" : ">\(unitPriceWheelRangeBase / 1000)k")
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.gray.opacity(0.15)))
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
                 HStack {
                     VStack {
                         Text("Giá")
                             .font(.caption)
                             .foregroundStyle(.gray)
                         Picker("", selection: $unitPriceBaseSelection) {
-                            ForEach(Array(stride(from: 0, through: unitPriceWheelMax, by: step)), id: \.self) { v in
+                            ForEach(Array(stride(from: rangeMin, through: unitPriceWheelMax, by: step)), id: \.self) { v in
                                 Text(formatCurrency(Double(v))).tag(v)
                             }
                         }
@@ -1652,9 +1727,20 @@ struct ManualRestockItemView: View {
             .onAppear {
                 let step = StoreManager.shared.priceStep
                 let current = max(0, unitPriceWheelSelection)
+                unitPriceWheelRangeBase = (current / 100000) * 100000
                 unitPriceBaseSelection = (current / step) * step
                 let remainder = max(0, current - unitPriceBaseSelection)
                 unitPriceHundredsSelection = min(900, (remainder / 100) * 100)
+            }
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showUnitPriceWheelRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: min(unitPriceWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
+                        unitPriceWheelRangeBase = v
+                        let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (v / step) * step)
+                        if unitPriceBaseSelection < rangeMin { unitPriceBaseSelection = rangeMin }
+                    }
+                }
             }
         }
         .sheet(isPresented: $showAdditionalCostWheel) {
@@ -1662,13 +1748,27 @@ struct ManualRestockItemView: View {
                 Text("Sửa chi phí")
                     .font(.headline)
                 let step = StoreManager.shared.priceStep
+                let rangeMin = max(0, (additionalCostWheelRangeBase / step) * step)
+                HStack {
+                    Button {
+                        showAdditionalCostWheelRangePicker = true
+                    } label: {
+                        Text(additionalCostWheelRangeBase <= 0 ? ">0" : ">\(additionalCostWheelRangeBase / 1000)k")
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.gray.opacity(0.15)))
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
                 HStack {
                     VStack {
                         Text("Giá")
                             .font(.caption)
                             .foregroundStyle(.gray)
                         Picker("", selection: $additionalCostBaseSelection) {
-                            ForEach(Array(stride(from: 0, through: additionalCostWheelMax, by: step)), id: \.self) { v in
+                            ForEach(Array(stride(from: rangeMin, through: additionalCostWheelMax, by: step)), id: \.self) { v in
                                 Text(formatCurrency(Double(v))).tag(v)
                             }
                         }
@@ -1711,9 +1811,20 @@ struct ManualRestockItemView: View {
             .onAppear {
                 let step = StoreManager.shared.priceStep
                 let current = max(0, additionalCostWheelSelection)
+                additionalCostWheelRangeBase = (current / 100000) * 100000
                 additionalCostBaseSelection = (current / step) * step
                 let remainder = max(0, current - additionalCostBaseSelection)
                 additionalCostHundredsSelection = min(900, (remainder / 100) * 100)
+            }
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showAdditionalCostWheelRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: min(additionalCostWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
+                        additionalCostWheelRangeBase = v
+                        let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (v / step) * step)
+                        if additionalCostBaseSelection < rangeMin { additionalCostBaseSelection = rangeMin }
+                    }
+                }
             }
         }
         .sheet(isPresented: $showSuggestedPriceWheel) {
@@ -1721,13 +1832,27 @@ struct ManualRestockItemView: View {
                 Text("Sửa giá bán dự kiến")
                     .font(.headline)
                 let step = StoreManager.shared.priceStep
+                let rangeMin = max(0, (suggestedPriceWheelRangeBase / step) * step)
+                HStack {
+                    Button {
+                        showSuggestedPriceWheelRangePicker = true
+                    } label: {
+                        Text(suggestedPriceWheelRangeBase <= 0 ? ">0" : ">\(suggestedPriceWheelRangeBase / 1000)k")
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Color.gray.opacity(0.15)))
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
                 HStack {
                     VStack {
                         Text("Giá")
                             .font(.caption)
                             .foregroundStyle(.gray)
                         Picker("", selection: $suggestedPriceBaseSelection) {
-                            ForEach(Array(stride(from: 0, through: suggestedPriceWheelMax, by: step)), id: \.self) { v in
+                            ForEach(Array(stride(from: rangeMin, through: suggestedPriceWheelMax, by: step)), id: \.self) { v in
                                 Text(formatCurrency(Double(v))).tag(v)
                             }
                         }
@@ -1769,9 +1894,20 @@ struct ManualRestockItemView: View {
             .onAppear {
                 let step = StoreManager.shared.priceStep
                 let current = max(0, suggestedPriceWheelSelection)
+                suggestedPriceWheelRangeBase = (current / 100000) * 100000
                 suggestedPriceBaseSelection = (current / step) * step
                 let remainder = max(0, current - suggestedPriceBaseSelection)
                 suggestedPriceHundredsSelection = min(900, (remainder / 100) * 100)
+            }
+            .confirmationDialog("Chọn vùng giá trị", isPresented: $showSuggestedPriceWheelRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: min(suggestedPriceWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
+                        suggestedPriceWheelRangeBase = v
+                        let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (v / step) * step)
+                        if suggestedPriceBaseSelection < rangeMin { suggestedPriceBaseSelection = rangeMin }
+                    }
+                }
             }
         }
     }

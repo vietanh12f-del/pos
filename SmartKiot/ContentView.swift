@@ -553,6 +553,8 @@ struct ContentView: View {
         @State private var priceWheelBaseSelection: Int = 0
         @State private var priceWheelHundredsSelection: Int = 0
         @State private var priceWheelMax: Int = 100_000
+        @State private var priceWheelRangeBase: Int = 0
+        @State private var showPriceWheelRangePicker: Bool = false
         @State private var wheelItem: OrderItem?
         @State private var wheelSelection: Int = 1
         @State private var wheelMax: Int = 100
@@ -1187,13 +1189,27 @@ struct ContentView: View {
                     Form {
                         Section {
                             let step = StoreManager.shared.priceStep
+                            let rangeMin = max(0, (priceWheelRangeBase / step) * step)
+                            HStack {
+                                Button {
+                                    showPriceWheelRangePicker = true
+                                } label: {
+                                    Text(priceWheelRangeBase <= 0 ? ">0" : ">\(priceWheelRangeBase / 1000)k")
+                                        .fontWeight(.bold)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                                }
+                                .buttonStyle(.plain)
+                                Spacer()
+                            }
                             HStack {
                                 VStack {
                                     Text("Giá")
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                     Picker("", selection: $priceWheelBaseSelection) {
-                                        ForEach(Array(stride(from: 0, through: priceWheelMax, by: step)), id: \.self) { v in
+                                        ForEach(Array(stride(from: rangeMin, through: priceWheelMax, by: step)), id: \.self) { v in
                                             Text(formatCurrency(Double(v))).tag(v)
                                         }
                                     }
@@ -1240,9 +1256,20 @@ struct ContentView: View {
                 .onAppear {
                     let step = StoreManager.shared.priceStep
                     let current = max(0, priceWheelSelection)
+                    priceWheelRangeBase = (current / 100000) * 100000
                     priceWheelBaseSelection = (current / step) * step
                     let remainder = max(0, current - priceWheelBaseSelection)
                     priceWheelHundredsSelection = min(900, (remainder / 100) * 100)
+                }
+                .confirmationDialog("Chọn vùng giá trị", isPresented: $showPriceWheelRangePicker, titleVisibility: .visible) {
+                    ForEach(Array(stride(from: 0, through: min(priceWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                        Button(v == 0 ? ">0" : ">\(v / 1000)k") {
+                            priceWheelRangeBase = v
+                            let step = StoreManager.shared.priceStep
+                            let rangeMin = max(0, (v / step) * step)
+                            if priceWheelBaseSelection < rangeMin { priceWheelBaseSelection = rangeMin }
+                        }
+                    }
                 }
             }
             .sheet(item: $nameWheelItem) { item in
