@@ -1696,6 +1696,15 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    func deleteAutoMaterialExportTemplate(id: UUID) async {
+        do {
+            try await database.deleteAutoMaterialExportTemplate(id: id)
+            await loadAutoMaterialExportTemplates()
+        } catch {
+            print("❌ deleteAutoMaterialExportTemplate error: \(error)")
+        }
+    }
+    
     func fetchAutoMaterialExportLogsForTransaction(transactionId: UUID) async -> [AutoMaterialExportLog] {
         guard let sid = StoreManager.shared.currentStore?.id else { return [] }
         do {

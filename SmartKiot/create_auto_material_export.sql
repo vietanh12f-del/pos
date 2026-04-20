@@ -52,6 +52,17 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "Store members can delete auto material export templates" ON auto_material_export_templates;
+CREATE POLICY "Store members can delete auto material export templates"
+ON auto_material_export_templates FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM store_members m
+    WHERE m.store_id = auto_material_export_templates.store_id
+      AND m.user_id = auth.uid()
+  )
+);
+
 CREATE TABLE IF NOT EXISTS auto_material_export_logs (
   id UUID PRIMARY KEY,
   template_id UUID,

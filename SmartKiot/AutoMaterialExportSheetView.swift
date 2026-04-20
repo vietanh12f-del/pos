@@ -54,6 +54,12 @@ struct AutoMaterialExportSheetView: View {
     @State private var intWheelMax = 200
     @State private var intWheelRangeBase = 0
     
+    @State private var showUnsavedCloseAlert = false
+    @State private var showUnsavedSwitchAlert = false
+    @State private var pendingTemplateToSwitch: AutoMaterialExportTemplate?
+    @State private var showErrorAlert = false
+    @State private var errorAlertMessage = ""
+
     init(viewModel: OrderViewModel, defaultHeaderName: String) {
         self.viewModel = viewModel
         self.defaultHeaderName = defaultHeaderName
@@ -88,6 +94,15 @@ struct AutoMaterialExportSheetView: View {
     private var percentChange: Double {
         guard standardPanWeightGrams > 0 else { return 0 }
         return actualPanWeightGrams / Double(standardPanWeightGrams)
+    }
+    
+    private func autoCalcPanCount() {
+        let stdGrams = standardPanWeightGrams
+        let boilGrams = afterBoilGrams
+        if stdGrams > 0 {
+            let count = boilGrams / stdGrams
+            panCountText = String(max(1, count))
+        }
     }
     
     private var freshRows: [AutoMaterialExportLogRow] {
@@ -148,7 +163,6 @@ struct AutoMaterialExportSheetView: View {
         if panCount <= 0 { return false }
         if freshSelected.isEmpty && autoSelected.isEmpty { return false }
         if totalExportByMaterialName.contains(where: { $0.grams <= 0 }) { return false }
-        if totalExportByMaterialName.contains(where: { $0.isOver }) { return false }
         return true
     }
     
@@ -172,7 +186,13 @@ struct AutoMaterialExportSheetView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Đóng") { dismiss() }
+                    Button("Đóng") {
+                        if hasTemplateChanges {
+                            showUnsavedCloseAlert = true
+                        } else {
+                            dismiss()
+                        }
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -205,6 +225,8 @@ struct AutoMaterialExportSheetView: View {
                 }
             }
         }
+        .onChange(of: afterBoilKgText) { _, _ in autoCalcPanCount() }
+        .onChange(of: standardPanWeightKgText) { _, _ in autoCalcPanCount() }
         .onChange(of: hasTemplateChanges) { _, newValue in
             if newValue {
                 savePulse = false
@@ -221,11 +243,19 @@ struct AutoMaterialExportSheetView: View {
                 selectedTemplateId: selectedTemplateId,
                 newName: $newTemplateName,
                 onSelect: { t in
-                    applyTemplate(t)
-                    showTemplateManager = false
+                    if hasTemplateChanges && t.id != selectedTemplateId {
+                        pendingTemplateToSwitch = t
+                        showUnsavedSwitchAlert = true
+                    } else {
+                        applyTemplate(t)
+                        showTemplateManager = false
+                    }
                 },
                 onCreateAndSave: { name in
                     Task {
+                        if hasTemplateChanges {
+                            await saveTemplate()
+                        }
                         await MainActor.run {
                             createNewTemplate(named: name)
                         }
@@ -234,6 +264,9 @@ struct AutoMaterialExportSheetView: View {
                             showTemplateManager = false
                         }
                     }
+                },
+                onDelete: { id in
+                    Task { await viewModel.deleteAutoMaterialExportTemplate(id: id) }
                 }
             )
             .presentationDetents([.medium, .large])
@@ -318,6 +351,39 @@ struct AutoMaterialExportSheetView: View {
                     headerName = trimmed
                 }
             }
+        }
+        .alert("Lưu thay đổi?", isPresented: $showUnsavedCloseAlert) {
+            Button("Không lưu", role: .destructive) { dismiss() }
+            Button("Hủy", role: .cancel) { }
+            Button("Lưu") {
+                Task {
+                    await saveTemplate()
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("Sheet hiện tại có thay đổi chưa lưu. Bạn có muốn lưu lại trước khi đóng không?")
+        }
+        .alert("Lưu thay đổi?", isPresented: $showUnsavedSwitchAlert) {
+            Button("Không lưu", role: .destructive) {
+                if let t = pendingTemplateToSwitch { applyTemplate(t) }
+                showTemplateManager = false
+            }
+            Button("Hủy", role: .cancel) { }
+            Button("Lưu") {
+                Task {
+                    await saveTemplate()
+                    if let t = pendingTemplateToSwitch { applyTemplate(t) }
+                    showTemplateManager = false
+                }
+            }
+        } message: {
+            Text("Sheet hiện tại có thay đổi chưa lưu. Bạn có muốn lưu lại trước khi chuyển sang sheet khác không?")
+        }
+        .alert("Lỗi", isPresented: $showErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorAlertMessage)
         }
     }
     
@@ -472,6 +538,7 @@ struct AutoMaterialExportSheetView: View {
                     showIntWheel = true
                 } label: {
                     Text("\(panCount)")
+                        .fontWeight(.bold)
                         .foregroundStyle(Color.themeTextDark)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
@@ -602,9 +669,14 @@ struct AutoMaterialExportSheetView: View {
     private var confirmSection: some View {
         VStack(spacing: 10) {
             Button {
-                let err = validate()
-                lastValidationError = err
-                showConfirmAlert = true
+                if let over = totalExportByMaterialName.first(where: { $0.isOver }) {
+                    errorAlertMessage = "Nguyên liệu \(over.name) trong kho đã hết (tồn kho: \(FormatUtils.formatWeight(over.stock)))."
+                    showErrorAlert = true
+                } else {
+                    let err = validate()
+                    lastValidationError = err
+                    showConfirmAlert = true
+                }
             } label: {
                 Text("Xác nhận")
                     .fontWeight(.bold)
@@ -950,6 +1022,7 @@ private struct AutoRowWheelView: View {
                                 RoundedRectangle(cornerRadius: 10)
                                     .fill(isOver ? Color.red.opacity(0.15) : Color.yellow.opacity(0.18))
                             )
+                            .id(totalText)
                     }
                 }
             }
@@ -997,6 +1070,7 @@ private struct TemplateManagerSheet: View {
     @Binding var newName: String
     let onSelect: (AutoMaterialExportTemplate) -> Void
     let onCreateAndSave: (String) -> Void
+    let onDelete: (UUID) -> Void
     
     @Environment(\.dismiss) private var dismiss
     @State private var searchText: String = ""
@@ -1018,6 +1092,14 @@ private struct TemplateManagerSheet: View {
                                         .foregroundStyle(Color.themePrimary)
                                 }
                             }
+                        }
+                    }
+                    .onDelete { indices in
+                        let ids = indices.map { filteredTemplates[$0].id }
+                        for id in ids {
+                            // Optimistic: remove immediately so it doesn't "reappear" while refresh happens.
+                            localDeletedIds.insert(id)
+                            onDelete(id)
                         }
                     }
                 }
@@ -1047,10 +1129,13 @@ private struct TemplateManagerSheet: View {
         }
     }
     
+    @State private var localDeletedIds: Set<UUID> = []
+    
     private var filteredTemplates: [AutoMaterialExportTemplate] {
         let t = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if t.isEmpty { return templates }
-        return templates.filter { $0.name.lowercased().contains(t.lowercased()) }
+        let base = templates.filter { !localDeletedIds.contains($0.id) }
+        if t.isEmpty { return base }
+        return base.filter { $0.name.lowercased().contains(t.lowercased()) }
     }
 }
 

@@ -60,6 +60,7 @@ protocol DatabaseService {
     // Auto material export templates/logs
     func fetchAutoMaterialExportTemplates(storeId: UUID) async throws -> [AutoMaterialExportTemplate]
     func upsertAutoMaterialExportTemplate(_ template: AutoMaterialExportTemplate) async throws
+    func deleteAutoMaterialExportTemplate(id: UUID) async throws
     func fetchAutoMaterialExportLogs(storeId: UUID, limit: Int) async throws -> [AutoMaterialExportLog]
     func fetchAutoMaterialExportLogsForTransaction(storeId: UUID, transactionId: UUID) async throws -> [AutoMaterialExportLog]
     func saveAutoMaterialExportLog(_ log: AutoMaterialExportLog) async throws
@@ -377,6 +378,14 @@ class SupabaseDatabaseService: DatabaseService {
         try await client
             .from("auto_material_export_templates")
             .upsert(dto)
+            .execute()
+    }
+    
+    func deleteAutoMaterialExportTemplate(id: UUID) async throws {
+        try await client
+            .from("auto_material_export_templates")
+            .delete()
+            .eq("id", value: id)
             .execute()
     }
     
@@ -815,6 +824,7 @@ class SupabaseDatabaseService: DatabaseService {
     
     func fetchAutoMaterialExportTemplates(storeId: UUID) async throws -> [AutoMaterialExportTemplate] { return [] }
     func upsertAutoMaterialExportTemplate(_ template: AutoMaterialExportTemplate) async throws { print("⚠️ upsertAutoMaterialExportTemplate: Mocked success") }
+    func deleteAutoMaterialExportTemplate(id: UUID) async throws { print("⚠️ deleteAutoMaterialExportTemplate: Mocked success") }
     func fetchAutoMaterialExportLogs(storeId: UUID, limit: Int) async throws -> [AutoMaterialExportLog] { return [] }
     func fetchAutoMaterialExportLogsForTransaction(storeId: UUID, transactionId: UUID) async throws -> [AutoMaterialExportLog] { return [] }
     func saveAutoMaterialExportLog(_ log: AutoMaterialExportLog) async throws { print("⚠️ saveAutoMaterialExportLog: Mocked success") }
