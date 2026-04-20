@@ -168,7 +168,7 @@ class SupabaseDatabaseService: DatabaseService {
     }
     
     func updateProduct(_ product: Product) async throws {
-        print("🔄 [DatabaseManager] Updating product: \(product.name), costPrice: \(product.costPrice)")
+        print("🔄 [DatabaseManager] Updating product: \(product.name), costPrice: \(product.costPrice), isFinishedGood: \(product.isFinishedGood)")
         guard let storeId = StoreManager.shared.currentStore?.id else {
             print("❌ [DatabaseManager] Store ID missing for updateProduct")
             throw NSError(domain: "StoreMissing", code: 1)
@@ -181,12 +181,18 @@ class SupabaseDatabaseService: DatabaseService {
              print("📦 [DatabaseManager] ProductDTO JSON: \(json)")
         }
 
-        try await client
-            .from("products")
-            .update(dto)
-            .eq("id", value: product.id)
-            .execute()
-        print("✅ [DatabaseManager] Update success")
+        do {
+            let result = try await client
+                .from("products")
+                .update(dto)
+                .eq("id", value: product.id)
+                .execute()
+            print("✅ [DatabaseManager] Update success for product: \(product.id), rows affected: \(result.count)")
+        } catch {
+            print("❌ [DatabaseManager] Database update failed: \(error)")
+            print("❌ [DatabaseManager] Error details: \(String(describing: error))")
+            throw error
+        }
     }
     
     func deleteProduct(_ id: UUID) async throws {

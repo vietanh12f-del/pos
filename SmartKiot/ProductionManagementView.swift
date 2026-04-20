@@ -342,6 +342,7 @@ struct ProductionManagementView: View {
                 ManualRestockItemView(
                     viewModel: viewModel,
                     itemToEdit: item,
+                    prefilledProduct: product,
                     isFinishedGoods: true,
                     addTitle: isExportMode ? "Thêm thành phẩm xuất" : "Thêm thành phẩm nhập",
                     editTitle: "Sửa thành phẩm"

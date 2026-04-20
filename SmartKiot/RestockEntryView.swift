@@ -1005,6 +1005,10 @@ struct ManualRestockItemView: View {
     @State private var isUploadingDocument: Bool = false
     @State private var showDocumentPreview: Bool = false
     
+    private var isSimpleFinishedGoodsEdit: Bool {
+        isFinishedGoods && itemToEdit != nil && editTitle.lowercased().contains("sửa thành phẩm")
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -1085,77 +1089,91 @@ struct ManualRestockItemView: View {
                     }
                     
                     let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
-                    HStack {
-                        Text("Số lượng")
-                        Spacer()
-                        Button {
-                            if useKgGram {
-                                let current = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
-                                quantityKgSelection = max(0, current / 1000)
-                                let remainder = max(0, current % 1000)
-                                gramsWheelSelection = (remainder / 50) * 50
-                                if quantityKgSelection > quantityWheelMax {
-                                    quantityWheelMax = max(quantityWheelMax, quantityKgSelection + 200)
-                                }
-                            } else {
-                                if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
-                            }
-                            showQuantityWheel = true
-                        } label: {
-                            let gramsVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
-                            Group {
-                                if useKgGram {
-                                    Text(FormatUtils.formatKgDecimal(fromGrams: gramsVal))
-                                        .fontWeight(.semibold)
-                                } else {
-                                    Text(quantity.isEmpty ? String(quantityWheelSelection) : quantity)
-                                        .fontWeight(.semibold)
-                                }
-                            }
-                        }
-                    }
-                    
                     let isExport = addTitle.lowercased().contains("xuất")
-                    HStack {
-                        Text(isExport ? "Đơn giá xuất" : "Đơn giá nhập")
-                        Spacer()
-                        Button {
-                            if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
-                            showUnitPriceWheel = true
-                        } label: {
-                            Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
-                                .fontWeight(.semibold)
+                    if !isSimpleFinishedGoodsEdit {
+                        HStack {
+                            Text("Số lượng")
+                            Spacer()
+                            Button {
+                                if useKgGram {
+                                    let current = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                                    quantityKgSelection = max(0, current / 1000)
+                                    let remainder = max(0, current % 1000)
+                                    gramsWheelSelection = (remainder / 50) * 50
+                                    if quantityKgSelection > quantityWheelMax {
+                                        quantityWheelMax = max(quantityWheelMax, quantityKgSelection + 200)
+                                    }
+                                } else {
+                                    if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
+                                }
+                                showQuantityWheel = true
+                            } label: {
+                                let gramsVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                                Group {
+                                    if useKgGram {
+                                        Text(FormatUtils.formatKgDecimal(fromGrams: gramsVal))
+                                            .fontWeight(.semibold)
+                                    } else {
+                                        Text(quantity.isEmpty ? String(quantityWheelSelection) : quantity)
+                                            .fontWeight(.semibold)
+                                    }
+                                }
+                            }
                         }
-                    }
-                    
-                    HStack {
-                        Text("Chi phí phát sinh")
-                        Spacer()
-                        Button {
-                            if let v = parseDouble(incurredCost) { additionalCostWheelSelection = Int(v) }
-                            showAdditionalCostWheel = true
-                        } label: {
-                            Text(formatCurrency(parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)))
-                                .fontWeight(.semibold)
+                        
+                        HStack {
+                            Text(isExport ? "Đơn giá xuất" : "Đơn giá nhập")
+                            Spacer()
+                            Button {
+                                if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
+                                showUnitPriceWheel = true
+                            } label: {
+                                Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                    .fontWeight(.semibold)
+                            }
                         }
-                    }
-                    
-                    let pVal = parseDouble(price) ?? Double(unitPriceWheelSelection)
-                    let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
-                    let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
-                    let qVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
-                    let incVal = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
-                    HStack {
-                        Text(isFinishedGoods ? (isFGExport ? "Giá bán" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
-                        Spacer()
-                        if qVal > 0 {
-                            let total = isMatExport ? (pVal * (Double(qVal) / 1000.0)) : ((pVal * (Double(qVal) / 1000.0)) + incVal)
-                            let unitValue = isMatExport ? pVal : (total / (Double(qVal) / 1000.0))
-                            Text(formatCurrency(unitValue))
-                                .fontWeight(.semibold)
-                        } else {
-                            Text("—")
-                                .foregroundStyle(.gray)
+                        
+                        HStack {
+                            Text("Chi phí phát sinh")
+                            Spacer()
+                            Button {
+                                if let v = parseDouble(incurredCost) { additionalCostWheelSelection = Int(v) }
+                                showAdditionalCostWheel = true
+                            } label: {
+                                Text(formatCurrency(parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)))
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        
+                        let pVal = parseDouble(price) ?? Double(unitPriceWheelSelection)
+                        let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
+                        let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
+                        let qVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                        let incVal = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
+                        HStack {
+                            Text(isFinishedGoods ? (isFGExport ? "Giá bán" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
+                            Spacer()
+                            if qVal > 0 {
+                                let total = isMatExport ? (pVal * (Double(qVal) / 1000.0)) : ((pVal * (Double(qVal) / 1000.0)) + incVal)
+                                let unitValue = isMatExport ? pVal : (total / (Double(qVal) / 1000.0))
+                                Text(formatCurrency(unitValue))
+                                    .fontWeight(.semibold)
+                            } else {
+                                Text("—")
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                    } else {
+                        HStack {
+                            Text("Giá bán")
+                            Spacer()
+                            Button {
+                                if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
+                                showUnitPriceWheel = true
+                            } label: {
+                                Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                    .fontWeight(.semibold)
+                            }
                         }
                     }
                     
@@ -1172,149 +1190,151 @@ struct ManualRestockItemView: View {
                         }
                     }
                     
-                    HStack(spacing: 8) {
-                        Text("Nguồn nhập")
-                        Spacer()
-                        TextField("Nhập nguồn", text: $sourceText)
-                            .multilineTextAlignment(.trailing)
-                        Button {
-                            if viewModel.isRecordingManualSource {
-                                viewModel.speechRecognizer.stopRecording()
-                                let spoken = viewModel.manualRecordedSource.trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !spoken.isEmpty { sourceText = spoken }
-                            } else {
-                                do {
-                                    try viewModel.speechRecognizer.startRecording()
-                                    viewModel.isRecordingManualSource = true
-                                    viewModel.manualRecordedSource = ""
-                                } catch { }
-                            }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill((viewModel.isRecordingManualSource ? Color.red : Color.gray).opacity(0.15))
-                                    .frame(width: 34, height: 34)
-                                Image(systemName: viewModel.isRecordingManualSource ? "waveform" : "mic.fill")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(viewModel.isRecordingManualSource ? Color.red : .gray)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                        Button {
-                            let options = viewModel.sourceHistory(for: name)
-                            if !options.isEmpty {
-                                sourceHistoryOptions = options
-                                showSourceHistoryPicker = true
-                            }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.gray.opacity(0.15))
-                                    .frame(width: 34, height: 34)
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(.gray)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                        .disabled(viewModel.sourceHistory(for: name).isEmpty)
-                    }
-                    .onReceive(viewModel.$manualRecordedSource) { newText in
-                        if viewModel.isRecordingManualSource {
-                            let t = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !t.isEmpty { sourceText = t }
-                        }
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Hóa đơn chứng từ")
+                    if !isSimpleFinishedGoodsEdit {
+                        HStack(spacing: 8) {
+                            Text("Nguồn nhập")
                             Spacer()
-                            if isUploadingDocument {
-                                ProgressView()
-                            } else if documentImageURL != nil {
-                                Text("Đã chọn")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                            } else {
-                                Text("—")
-                                    .foregroundStyle(.gray)
+                            TextField("Nhập nguồn", text: $sourceText)
+                                .multilineTextAlignment(.trailing)
+                            Button {
+                                if viewModel.isRecordingManualSource {
+                                    viewModel.speechRecognizer.stopRecording()
+                                    let spoken = viewModel.manualRecordedSource.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !spoken.isEmpty { sourceText = spoken }
+                                } else {
+                                    do {
+                                        try viewModel.speechRecognizer.startRecording()
+                                        viewModel.isRecordingManualSource = true
+                                        viewModel.manualRecordedSource = ""
+                                    } catch { }
+                                }
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill((viewModel.isRecordingManualSource ? Color.red : Color.gray).opacity(0.15))
+                                        .frame(width: 34, height: 34)
+                                    Image(systemName: viewModel.isRecordingManualSource ? "waveform" : "mic.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundStyle(viewModel.isRecordingManualSource ? Color.red : .gray)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                            Button {
+                                let options = viewModel.sourceHistory(for: name)
+                                if !options.isEmpty {
+                                    sourceHistoryOptions = options
+                                    showSourceHistoryPicker = true
+                                }
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.15))
+                                        .frame(width: 34, height: 34)
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                            .disabled(viewModel.sourceHistory(for: name).isEmpty)
+                        }
+                        .onReceive(viewModel.$manualRecordedSource) { newText in
+                            if viewModel.isRecordingManualSource {
+                                let t = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !t.isEmpty { sourceText = t }
                             }
                         }
-                        HStack(spacing: 12) {
-                            if documentImage != nil || documentImageURL != nil {
-                                Button {
-                                    showDocumentPreview = true
-                                } label: {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color.gray.opacity(0.12))
-                                            .frame(width: 54, height: 54)
-                                        
-                                        if let img = documentImage {
-                                            Image(uiImage: img)
-                                                .resizable()
-                                                .scaledToFill()
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Hóa đơn chứng từ")
+                                Spacer()
+                                if isUploadingDocument {
+                                    ProgressView()
+                                } else if documentImageURL != nil {
+                                    Text("Đã chọn")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                } else {
+                                    Text("—")
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                            HStack(spacing: 12) {
+                                if documentImage != nil || documentImageURL != nil {
+                                    Button {
+                                        showDocumentPreview = true
+                                    } label: {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color.gray.opacity(0.12))
+                                                .frame(width: 54, height: 54)
+                                            
+                                            if let img = documentImage {
+                                                Image(uiImage: img)
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 54, height: 54)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                            } else if let urlString = documentImageURL, let url = URL(string: urlString) {
+                                                AsyncImage(url: url) { phase in
+                                                    switch phase {
+                                                    case .empty:
+                                                        ProgressView()
+                                                    case .success(let image):
+                                                        image
+                                                            .resizable()
+                                                            .scaledToFill()
+                                                    default:
+                                                        Image(systemName: "doc.text.image")
+                                                            .foregroundStyle(.gray)
+                                                    }
+                                                }
                                                 .frame(width: 54, height: 54)
                                                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        } else if let urlString = documentImageURL, let url = URL(string: urlString) {
-                                            AsyncImage(url: url) { phase in
-                                                switch phase {
-                                                case .empty:
-                                                    ProgressView()
-                                                case .success(let image):
-                                                    image
-                                                        .resizable()
-                                                        .scaledToFill()
-                                                default:
-                                                    Image(systemName: "doc.text.image")
-                                                        .foregroundStyle(.gray)
-                                                }
                                             }
-                                            .frame(width: 54, height: 54)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                            
+                                            Image(systemName: "magnifyingglass")
+                                                .font(.caption)
+                                                .foregroundStyle(.white)
+                                                .padding(6)
+                                                .background(Circle().fill(Color.black.opacity(0.45)))
+                                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                                                .padding(4)
                                         }
-                                        
-                                        Image(systemName: "magnifyingglass")
-                                            .font(.caption)
-                                            .foregroundStyle(.white)
-                                            .padding(6)
-                                            .background(Circle().fill(Color.black.opacity(0.45)))
-                                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                                            .padding(4)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                
+                                Button("Chụp ảnh") {
+                                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                        documentPickerSource = .camera
+                                        showCameraPicker = true
+                                    } else {
+                                        showCameraUnavailableAlert = true
                                     }
                                 }
-                                .buttonStyle(.plain)
-                            }
-                            
-                            Button("Chụp ảnh") {
-                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                    documentPickerSource = .camera
-                                    showCameraPicker = true
-                                } else {
-                                    showCameraUnavailableAlert = true
+                                
+                                Button("Thư viện") {
+                                    documentPickerSource = .photoLibrary
+                                    showDocumentPicker = true
                                 }
-                            }
-                            
-                            Button("Thư viện") {
-                                documentPickerSource = .photoLibrary
-                                showDocumentPicker = true
-                            }
-                            
-                            if documentImageURL != nil {
-                                Spacer()
-                                Button("Xóa") {
-                                    documentImage = nil
-                                    documentImageURL = nil
+                                
+                                if documentImageURL != nil {
+                                    Spacer()
+                                    Button("Xóa") {
+                                        documentImage = nil
+                                        documentImageURL = nil
+                                    }
+                                    .foregroundStyle(.red)
                                 }
-                                .foregroundStyle(.red)
                             }
                         }
                     }
                     
-                    if let p = parseDouble(price) {
+                    if !isSimpleFinishedGoodsEdit, let p = parseDouble(price) {
                         let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
                         let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
                         let q = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
@@ -1355,6 +1375,26 @@ struct ManualRestockItemView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(itemToEdit == nil ? "Thêm" : "Lưu") {
+                        if isSimpleFinishedGoodsEdit {
+                            let priceValue = parseDouble(price) ?? Double(unitPriceWheelSelection)
+                            if let p = prefilledProduct ?? viewModel.products.first(where: { $0.name.lowercased() == name.lowercased() }) {
+                                viewModel.updateProduct(
+                                    p,
+                                    name: p.name,
+                                    price: priceValue,
+                                    costPrice: p.costPrice,
+                                    category: Category(rawValue: p.category) ?? .others,
+                                    imageName: p.imageName,
+                                    color: p.color,
+                                    quantity: viewModel.stockLevel(for: p.name),
+                                    imageData: p.imageData,
+                                    barcode: p.barcode,
+                                    imageURL: p.imageURL
+                                )
+                            }
+                            dismiss()
+                            return
+                        }
                         let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
                         let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
                         let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : (Int(quantity) ?? quantityWheelSelection)

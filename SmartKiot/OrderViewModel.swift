@@ -605,6 +605,10 @@ class OrderViewModel: ObservableObject {
             struct DeletePayload: Decodable { let id: UUID }
             do {
                 let payload = try change.decodeOldRecord(as: DeletePayload.self, decoder: decoder)
+                print("⚠️ Realtime delete detected for product ID: \(payload.id)")
+                if let deletedProduct = self.products.first(where: { $0.id == payload.id }) {
+                    print("⚠️ Deleted product name: \(deletedProduct.name), isFinishedGood: \(deletedProduct.isFinishedGood)")
+                }
                 Task { @MainActor in
                     self.products.removeAll { $0.id == payload.id }
                     self.recalculateStats()
@@ -2279,6 +2283,7 @@ class OrderViewModel: ObservableObject {
     }
     
     func updateProduct(_ product: Product, name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil) {
+        print("🔄 [OrderViewModel] updateProduct called for: \(product.name), isFinishedGood: \(product.isFinishedGood)")
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             // Handle Name Change for Inventory
             let oldKey = product.name.lowercased()
@@ -2302,8 +2307,10 @@ class OrderViewModel: ObservableObject {
                 imageData: imageData,
                 imageURL: imageURL, // Use passed URL (handles deletion if nil)
                 stockQuantity: quantity,
-                barcode: barcode
+                barcode: barcode,
+                isFinishedGood: product.isFinishedGood // Preserve the original isFinishedGood value
             )
+            print("📦 [OrderViewModel] Updated product: \(updatedProduct.name), isFinishedGood: \(updatedProduct.isFinishedGood)")
             products[index] = updatedProduct
             
             Task {
@@ -2330,9 +2337,12 @@ class OrderViewModel: ObservableObject {
                 }
                 
                 do {
+                    print("🔄 [OrderViewModel] Attempting to update product in database: \(updatedProduct.name), isFinishedGood: \(updatedProduct.isFinishedGood)")
                     try await database.updateProduct(updatedProduct)
+                    print("✅ [OrderViewModel] Database update successful")
                 } catch {
                     print("❌ Error updating product: \(error)")
+                    print("❌ Error details: \(String(describing: error))")
                 }
             }
         }
