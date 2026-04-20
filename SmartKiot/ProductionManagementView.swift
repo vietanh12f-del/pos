@@ -152,7 +152,7 @@ struct ProductionManagementView: View {
                                         
                                         ScrollView {
                                             LazyVStack(spacing: 0) {
-                                                ForEach(viewModel.materials.filter { item in
+                            ForEach(viewModel.materials.filter { item in
                                                     if searchText.isEmpty { return true }
                                                     let q = searchText.lowercased()
                                                     return item.name.lowercased().contains(q)
@@ -296,7 +296,8 @@ struct ProductionManagementView: View {
             }
             .sheet(isPresented: $showMaterialEdit) {
                 if let m = editingMaterial {
-                    MaterialEditView(viewModel: viewModel, mode: .edit(m))
+                    // Trong nhập / xuất nguyên liệu: không cho chỉnh Giá nhập + Tồn kho
+                    MaterialEditView(viewModel: viewModel, mode: .edit(m), allowEditPriceAndStock: false)
                 }
             }
             .sheet(isPresented: $showTransactionEdit) {

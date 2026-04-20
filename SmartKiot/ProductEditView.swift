@@ -12,6 +12,7 @@ struct ProductEditView: View {
     }
     
     let mode: Mode
+    let allowEditCostAndStock: Bool
     
     @State private var name: String = ""
     @State private var price: String = ""
@@ -54,9 +55,10 @@ struct ProductEditView: View {
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
     let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
     
-    init(viewModel: OrderViewModel, mode: Mode) {
+    init(viewModel: OrderViewModel, mode: Mode, allowEditCostAndStock: Bool = true) {
         self.viewModel = viewModel
         self.mode = mode
+        self.allowEditCostAndStock = allowEditCostAndStock
         
         switch mode {
         case .add:
@@ -158,12 +160,18 @@ struct ProductEditView: View {
                     HStack {
                         Text("Giá vốn")
                         Spacer()
-                        Button {
-                            if let v = Double(importPrice) { costWheelSelection = Int(v) }
-                            showCostWheel = true
-                        } label: {
+                        if allowEditCostAndStock {
+                            Button {
+                                if let v = Double(importPrice) { costWheelSelection = Int(v) }
+                                showCostWheel = true
+                            } label: {
+                                Text(formatCurrency(Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))))
+                                    .fontWeight(.semibold)
+                            }
+                        } else {
                             Text(formatCurrency(Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))))
                                 .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
                         }
                     }
                     
@@ -186,15 +194,21 @@ struct ProductEditView: View {
                     HStack {
                         Text("Tồn kho")
                         Spacer()
-                        Button {
-                            stockWheelSelection = Int(quantity) ?? stockWheelSelection
-                            if stockWheelSelection > stockWheelMax - 50 {
-                                stockWheelMax = stockWheelSelection + 500
+                        if allowEditCostAndStock {
+                            Button {
+                                stockWheelSelection = Int(quantity) ?? stockWheelSelection
+                                if stockWheelSelection > stockWheelMax - 50 {
+                                    stockWheelMax = stockWheelSelection + 500
+                                }
+                                showStockWheel = true
+                            } label: {
+                                Text(quantity)
+                                    .fontWeight(.semibold)
                             }
-                            showStockWheel = true
-                        } label: {
+                        } else {
                             Text(quantity)
                                 .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
                         }
                     }
                     

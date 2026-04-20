@@ -591,7 +591,8 @@ struct InventoryView: View {
                 Text("Bạn có chắc muốn xóa sản phẩm '\(product.name)'? Hành động này không thể hoàn tác.")
             }
             .sheet(item: $editingProduct) { product in
-                ProductEditView(viewModel: viewModel, mode: .edit(product))
+                // Từ Kho hàng hoá: không cho chỉnh Giá vốn + Tồn kho
+                ProductEditView(viewModel: viewModel, mode: .edit(product), allowEditCostAndStock: false)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }

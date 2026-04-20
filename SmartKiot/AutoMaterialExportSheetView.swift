@@ -160,10 +160,52 @@ struct AutoMaterialExportSheetView: View {
     }
     
     private var canConfirm: Bool {
-        if panCount <= 0 { return false }
-        if freshSelected.isEmpty && autoSelected.isEmpty { return false }
-        if totalExportByMaterialName.contains(where: { $0.grams <= 0 }) { return false }
-        return true
+        validationIssues.isEmpty
+    }
+
+    private var validationIssues: [String] {
+        var issues: [String] = []
+
+        if freshSelected.isEmpty && autoSelected.isEmpty {
+            issues.append("Cần chọn ít nhất 1 nguyên liệu.")
+        }
+
+        if afterBoilGrams <= 0 {
+            issues.append("Còn sau luộc phải > 0 kg.")
+        }
+
+        if standardPanWeightGrams <= 0 {
+            issues.append("Khối lượng/chảo (Chuẩn) phải > 0 kg để tính số lượng chảo.")
+        }
+
+        if panCount <= 0 {
+            issues.append("Số lượng chảo xào phải > 0 (được tính từ Còn sau luộc / Chuẩn).")
+        }
+
+        let zeroFreshNames = freshRows
+            .filter { Int($0.totalExportGrams.rounded()) <= 0 }
+            .map { $0.name }
+        if !zeroFreshNames.isEmpty {
+            issues.append("Nguyên liệu tươi chưa nhập số lượng: \(zeroFreshNames.joined(separator: ", ")).")
+        }
+
+        let zeroAutoNames = autoRows
+            .filter { Int($0.totalExportGrams.rounded()) <= 0 }
+            .map { $0.name }
+        if !zeroAutoNames.isEmpty {
+            issues.append("Nguyên liệu xuất tự động chưa hợp lệ (tổng xuất = 0): \(zeroAutoNames.joined(separator: ", ")).")
+        }
+
+        let overRows = totalExportByMaterialName.filter { $0.isOver }
+        if !overRows.isEmpty {
+            let msg = overRows
+                .prefix(3)
+                .map { "\($0.name) (cần: \(FormatUtils.formatWeight($0.grams)), kho: \(FormatUtils.formatWeight($0.stock)))" }
+                .joined(separator: "; ")
+            issues.append("Có nguyên liệu vượt tồn kho: \(msg).")
+        }
+
+        return issues
     }
     
     var body: some View {
@@ -669,14 +711,13 @@ struct AutoMaterialExportSheetView: View {
     private var confirmSection: some View {
         VStack(spacing: 10) {
             Button {
-                if let over = totalExportByMaterialName.first(where: { $0.isOver }) {
-                    errorAlertMessage = "Nguyên liệu \(over.name) trong kho đã hết (tồn kho: \(FormatUtils.formatWeight(over.stock)))."
+                let issues = validationIssues
+                if !issues.isEmpty {
+                    errorAlertMessage = "Vui lòng kiểm tra:\n• " + issues.joined(separator: "\n• ")
                     showErrorAlert = true
-                } else {
-                    let err = validate()
-                    lastValidationError = err
-                    showConfirmAlert = true
+                    return
                 }
+                showConfirmAlert = true
             } label: {
                 Text("Xác nhận")
                     .fontWeight(.bold)
@@ -686,7 +727,7 @@ struct AutoMaterialExportSheetView: View {
                     .foregroundStyle(.white)
                     .cornerRadius(16)
             }
-            .disabled(!canConfirm)
+            .disabled(isSavingTemplate)
             
             if !canConfirm {
                 Text("Kiểm tra số chảo, số lượng và tồn kho trước khi xác nhận")
@@ -824,17 +865,11 @@ struct AutoMaterialExportSheetView: View {
         }
     }
     
-    private func validate() -> String? {
-        if panCount <= 0 { return "Số chảo phải > 0" }
-        if freshSelected.isEmpty && autoSelected.isEmpty { return "Cần chọn ít nhất 1 nguyên liệu" }
-        if totalExportByMaterialName.contains(where: { $0.grams <= 0 }) { return "Tổng xuất phải > 0" }
-        if totalExportByMaterialName.contains(where: { $0.isOver }) { return "Có nguyên liệu vượt tồn kho" }
-        return nil
-    }
-    
     private func confirmExport() async {
-        if let err = validate() {
-            lastValidationError = err
+        let issues = validationIssues
+        if !issues.isEmpty {
+            errorAlertMessage = "Vui lòng kiểm tra:\n• " + issues.joined(separator: "\n• ")
+            showErrorAlert = true
             return
         }
         let templateName = draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? defaultHeaderName : draftName

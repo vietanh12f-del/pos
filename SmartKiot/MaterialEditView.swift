@@ -10,6 +10,7 @@ struct MaterialEditView: View {
     }
     
     let mode: Mode
+    let allowEditPriceAndStock: Bool
     
     @State private var name: String = ""
     @State private var importPrice: String = ""
@@ -63,24 +64,36 @@ struct MaterialEditView: View {
                     HStack {
                         Text("Giá nhập")
                         Spacer()
-                        Button {
-                            if let v = Double(importPrice) { costWheelSelection = Int(v) }
-                            showCostWheel = true
-                        } label: {
+                        if allowEditPriceAndStock {
+                            Button {
+                                if let v = Double(importPrice) { costWheelSelection = Int(v) }
+                                showCostWheel = true
+                            } label: {
+                                Text(formatCurrency(Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))))
+                                    .fontWeight(.semibold)
+                            }
+                        } else {
                             Text(formatCurrency(Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))))
                                 .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
                         }
                     }
                     
                     HStack {
                         Text("Tồn kho")
                         Spacer()
-                        Button {
-                            if let v = Int(stock) { stockWheelSelection = v }
-                            showStockWheel = true
-                        } label: {
+                        if allowEditPriceAndStock {
+                            Button {
+                                if let v = Int(stock) { stockWheelSelection = v }
+                                showStockWheel = true
+                            } label: {
+                                Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)))
+                                    .fontWeight(.semibold)
+                            }
+                        } else {
                             Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)))
                                 .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
                         }
                     }
                 }
