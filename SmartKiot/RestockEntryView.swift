@@ -1006,7 +1006,7 @@ struct ManualRestockItemView: View {
     @State private var showDocumentPreview: Bool = false
     
     private var isSimpleFinishedGoodsEdit: Bool {
-        isFinishedGoods && itemToEdit != nil && editTitle.lowercased().contains("sửa thành phẩm")
+        isFinishedGoods && itemToEdit != nil && editTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "sửa thành phẩm"
     }
     
     var body: some View {
@@ -1090,7 +1090,248 @@ struct ManualRestockItemView: View {
                     
                     let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
                     let isExport = addTitle.lowercased().contains("xuất")
-                    if !isSimpleFinishedGoodsEdit {
+                    let isFinishedGoodsTransactionEdit = isFinishedGoods && itemToEdit != nil && !isSimpleFinishedGoodsEdit && editTitle.lowercased().contains("sửa thành phẩm")
+                    if isSimpleFinishedGoodsEdit {
+                        HStack {
+                            Text("Giá bán")
+                            Spacer()
+                            Button {
+                                if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
+                                showUnitPriceWheel = true
+                            } label: {
+                                Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                    } else if isFinishedGoodsTransactionEdit {
+                        HStack {
+                            Text("Danh mục")
+                            Spacer()
+                            Button {
+                                showCategorySheet = true
+                            } label: {
+                                let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
+                                let placeholder = isMaterialsCtx ? Category.materials.rawValue : Category.others.rawValue
+                                Text(selectedCategoryName.isEmpty ? placeholder : selectedCategoryName)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        
+                        HStack {
+                            Text("Số lượng")
+                            Spacer()
+                            Button {
+                                if useKgGram {
+                                    let current = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                                    quantityKgSelection = max(0, current / 1000)
+                                    let remainder = max(0, current % 1000)
+                                    gramsWheelSelection = (remainder / 50) * 50
+                                    if quantityKgSelection > quantityWheelMax {
+                                        quantityWheelMax = max(quantityWheelMax, quantityKgSelection + 200)
+                                    }
+                                } else {
+                                    if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
+                                }
+                                showQuantityWheel = true
+                            } label: {
+                                let gramsVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                                Group {
+                                    if useKgGram {
+                                        Text(FormatUtils.formatKgDecimal(fromGrams: gramsVal))
+                                            .fontWeight(.semibold)
+                                    } else {
+                                        Text(quantity.isEmpty ? String(quantityWheelSelection) : quantity)
+                                            .fontWeight(.semibold)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if isExport {
+                            HStack {
+                                Text("Đơn giá xuất")
+                                Spacer()
+                                Button {
+                                    if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
+                                    showUnitPriceWheel = true
+                                } label: {
+                                    Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            
+                            HStack {
+                                Text("Chi phí phát sinh")
+                                Spacer()
+                                Button {
+                                    if let v = parseDouble(incurredCost) { additionalCostWheelSelection = Int(v) }
+                                    showAdditionalCostWheel = true
+                                } label: {
+                                    Text(formatCurrency(parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)))
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            
+                            let pVal = parseDouble(price) ?? Double(unitPriceWheelSelection)
+                            let qVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                            let incVal = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
+                            HStack {
+                                Text("Giá xuất")
+                                Spacer()
+                                if qVal > 0 {
+                                    let total = (pVal * (Double(qVal) / 1000.0)) + incVal
+                                    let unitValue = total / (Double(qVal) / 1000.0)
+                                    Text(formatCurrency(unitValue))
+                                        .fontWeight(.semibold)
+                                } else {
+                                    Text("—")
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                        } else {
+                            HStack(spacing: 8) {
+                                Text("Nguồn nhập")
+                                Spacer()
+                                TextField("Nhập nguồn", text: $sourceText)
+                                    .multilineTextAlignment(.trailing)
+                                Button {
+                                    if viewModel.isRecordingManualSource {
+                                        viewModel.speechRecognizer.stopRecording()
+                                        let spoken = viewModel.manualRecordedSource.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if !spoken.isEmpty { sourceText = spoken }
+                                    } else {
+                                        do {
+                                            try viewModel.speechRecognizer.startRecording()
+                                            viewModel.isRecordingManualSource = true
+                                            viewModel.manualRecordedSource = ""
+                                        } catch { }
+                                    }
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill((viewModel.isRecordingManualSource ? Color.red : Color.gray).opacity(0.15))
+                                            .frame(width: 34, height: 34)
+                                        Image(systemName: viewModel.isRecordingManualSource ? "waveform" : "mic.fill")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundStyle(viewModel.isRecordingManualSource ? Color.red : .gray)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .contentShape(Rectangle())
+                                Button {
+                                    let options = viewModel.sourceHistory(for: name)
+                                    if !options.isEmpty {
+                                        sourceHistoryOptions = options
+                                        showSourceHistoryPicker = true
+                                    }
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.gray.opacity(0.15))
+                                            .frame(width: 34, height: 34)
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .contentShape(Rectangle())
+                                .disabled(viewModel.sourceHistory(for: name).isEmpty)
+                            }
+                            .onReceive(viewModel.$manualRecordedSource) { newText in
+                                if viewModel.isRecordingManualSource {
+                                    let t = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    if !t.isEmpty { sourceText = t }
+                                }
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Hóa đơn chứng từ")
+                                    Spacer()
+                                    if isUploadingDocument {
+                                        ProgressView()
+                                    } else if documentImageURL != nil {
+                                        Text("Đã chọn")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    } else {
+                                        Text("—")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                HStack(spacing: 12) {
+                                    if documentImage != nil || documentImageURL != nil {
+                                        Button {
+                                            showDocumentPreview = true
+                                        } label: {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(Color.gray.opacity(0.12))
+                                                    .frame(width: 54, height: 54)
+                                                
+                                                if let img = documentImage {
+                                                    Image(uiImage: img)
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(width: 54, height: 54)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                                } else if let urlString = documentImageURL, let url = URL(string: urlString) {
+                                                    AsyncImage(url: url) { phase in
+                                                        switch phase {
+                                                        case .empty:
+                                                            ProgressView()
+                                                        case .success(let image):
+                                                            image
+                                                                .resizable()
+                                                                .scaledToFill()
+                                                        default:
+                                                            Image(systemName: "doc.text.image")
+                                                                .foregroundStyle(.gray)
+                                                        }
+                                                    }
+                                                    .frame(width: 54, height: 54)
+                                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                                }
+                                                
+                                                Image(systemName: "magnifyingglass")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.white)
+                                                    .padding(6)
+                                                    .background(Circle().fill(Color.black.opacity(0.45)))
+                                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                                                    .padding(4)
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                    
+                                    Button("Chụp ảnh") {
+                                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                            documentPickerSource = .camera
+                                            showCameraPicker = true
+                                        } else {
+                                            showCameraUnavailableAlert = true
+                                        }
+                                    }
+                                    
+                                    Button("Thư viện") {
+                                        documentPickerSource = .photoLibrary
+                                        showDocumentPicker = true
+                                    }
+                                    
+                                    if documentImageURL != nil {
+                                        Spacer()
+                                        Button("Xóa") {
+                                            documentImage = nil
+                                            documentImageURL = nil
+                                        }
+                                        .foregroundStyle(.red)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
                         HStack {
                             Text("Số lượng")
                             Spacer()
@@ -1151,7 +1392,7 @@ struct ManualRestockItemView: View {
                         let qVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
                         let incVal = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
                         HStack {
-                            Text(isFinishedGoods ? (isFGExport ? "Giá bán" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
+                            Text(isFinishedGoods ? (isFGExport ? "Giá xuất" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
                             Spacer()
                             if qVal > 0 {
                                 let total = isMatExport ? (pVal * (Double(qVal) / 1000.0)) : ((pVal * (Double(qVal) / 1000.0)) + incVal)
@@ -1163,34 +1404,24 @@ struct ManualRestockItemView: View {
                                     .foregroundStyle(.gray)
                             }
                         }
-                    } else {
+                    }
+                    
+                    if !isFinishedGoodsTransactionEdit {
                         HStack {
-                            Text("Giá bán")
+                            Text("Danh mục")
                             Spacer()
                             Button {
-                                if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
-                                showUnitPriceWheel = true
+                                showCategorySheet = true
                             } label: {
-                                Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
+                                let placeholder = isMaterialsCtx ? Category.materials.rawValue : Category.others.rawValue
+                                Text(selectedCategoryName.isEmpty ? placeholder : selectedCategoryName)
                                     .fontWeight(.semibold)
                             }
                         }
                     }
                     
-                    HStack {
-                        Text("Danh mục")
-                        Spacer()
-                        Button {
-                            showCategorySheet = true
-                        } label: {
-                            let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
-                            let placeholder = isMaterialsCtx ? Category.materials.rawValue : Category.others.rawValue
-                            Text(selectedCategoryName.isEmpty ? placeholder : selectedCategoryName)
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    
-                    if !isSimpleFinishedGoodsEdit {
+                    if !isSimpleFinishedGoodsEdit && !isExport && !isFinishedGoodsTransactionEdit {
                         HStack(spacing: 8) {
                             Text("Nguồn nhập")
                             Spacer()
@@ -1340,8 +1571,8 @@ struct ManualRestockItemView: View {
                         let q = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
                         if q > 0 {
                             let extra = parseDouble(incurredCost) ?? 0
-                            let total = if isMatExport { p * (Double(q) / 1000.0) } else if isFGExport { p * (Double(q) / 1000.0) } else { (p * (Double(q) / 1000.0)) + extra }
-                            let unitValue = (isFGExport || isMatExport) ? p : (total / (Double(q) / 1000.0))
+                            let total = if isMatExport { p * (Double(q) / 1000.0) } else { (p * (Double(q) / 1000.0)) + extra }
+                            let unitValue = isMatExport ? p : (total / (Double(q) / 1000.0))
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
@@ -1352,7 +1583,7 @@ struct ManualRestockItemView: View {
                                 }
                                 
                                 HStack {
-                                    Text(isFinishedGoods ? (isFGExport ? "Giá bán:" : "Giá bán (bao gồm chi phí):") : (isMatExport ? "Đơn giá xuất:" : "Đơn giá nhập (bao gồm chi phí):"))
+                                    Text(isFinishedGoods ? (isFGExport ? "Giá xuất:" : "Giá bán (bao gồm chi phí):") : (isMatExport ? "Đơn giá xuất:" : "Đơn giá nhập (bao gồm chi phí):"))
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                     Spacer()
