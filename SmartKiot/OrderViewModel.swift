@@ -1738,6 +1738,15 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    func fetchMaterials() async -> [MaterialItem] {
+        do {
+            return try await database.fetchMaterials()
+        } catch {
+            print("⚠️ fetchMaterials error: \(error)")
+            return []
+        }
+    }
+    
     @MainActor
     func performAutoMaterialExport(
         mode: String,

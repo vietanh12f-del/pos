@@ -9,6 +9,7 @@ struct ProductionReportView: View {
     
     @State private var autoLogs: [AutoMaterialExportLog] = []
     @State private var finishedImports: [ProductionTransaction] = []
+    @State private var materials: [MaterialItem] = []
     @State private var isLoading = false
     
     var body: some View {
@@ -111,13 +112,16 @@ struct ProductionReportView: View {
                 let afterBoil = max(0, log.data.afterBoilGrams)
                 let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
                 let importTx = findFinishedImport(for: log)
-                return ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil, yieldPercent: ratio, finishedImportTx: importTx)
+                return ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil, yieldPercent: ratio, finishedImportTx: importTx, materials: materials)
             }
     }
     
     private func reload() async {
         isLoading = true
         defer { isLoading = false }
+        
+        // Fetch materials for pricing
+        materials = await viewModel.fetchMaterials()
         
         let logs = await viewModel.fetchAutoMaterialExportLogs(limit: 500)
         let start = startOfDay(selectedDate)
@@ -156,10 +160,35 @@ private struct ProductionReportRow {
     let afterBoilGrams: Int
     let yieldPercent: Double
     let finishedImportTx: ProductionTransaction?
+    let materials: [MaterialItem]
+    
+    var finishedImportGrams: Int {
+        guard let tx = finishedImportTx else { return 0 }
+        return tx.items.reduce(0) { $0 + $1.quantity }
+    }
+    
+    var finishedProductLossPercent: Double {
+        guard freshTotalGrams > 0, finishedImportGrams > 0 else { return 0 }
+        return (Double(finishedImportGrams) / Double(freshTotalGrams)) * 100
+    }
+    
+    func getMaterialPrice(materialId: UUID?) -> Double {
+        guard let id = materialId else { return 0 }
+        return materials.first(where: { $0.id == id })?.lastUnitPrice ?? 0
+    }
+    
+    var totalMaterialCost: Double {
+        log.data.fresh.reduce(0.0) { sum, material in
+            let pricePerKg = getMaterialPrice(materialId: material.materialId)
+            let weightKg = material.totalExportGrams / 1000.0
+            return sum + (pricePerKg * weightKg)
+        }
+    }
 }
 
 private struct ProductionReportCard: View {
     let row: ProductionReportRow
+    @State private var showMaterialDetails = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -219,13 +248,103 @@ private struct ProductionReportCard: View {
                         .fontWeight(.bold)
                         .foregroundStyle(Color.themePrimary)
                 }
+                GridRow {
+                    Text("Tỉ lệ hao hụt thành phẩm")
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text(String(format: "%.2f%%", row.finishedProductLossPercent))
+                        .fontWeight(.bold)
+                        .foregroundStyle(row.finishedProductLossPercent > 0 ? Color.green : Color.gray)
+                }
             }
             .font(.subheadline)
+            
+            Divider()
+            
+            Button {
+                showMaterialDetails.toggle()
+            } label: {
+                HStack {
+                    Text("Chi tiết nguyên liệu xuất")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: showMaterialDetails ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                }
+                .foregroundStyle(Color.themePrimary)
+            }
+            .buttonStyle(.plain)
+            
+            if showMaterialDetails {
+                materialDetailsSection
+            }
         }
         .padding(12)
         .background(Color.white)
         .cornerRadius(14)
         .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+    }
+    
+    private var materialDetailsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(row.log.data.fresh) { material in
+                let pricePerKg = row.getMaterialPrice(materialId: material.materialId)
+                let weightKg = material.totalExportGrams / 1000.0
+                let totalCost = pricePerKg * weightKg
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(material.name)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    HStack {
+                        Text("Khối lượng:")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Text(FormatUtils.formatWeight(Int(material.totalExportGrams)))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    }
+                    
+                    HStack {
+                        Text("Đơn giá:")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Text(formatCurrency(pricePerKg) + "/kg")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    }
+                    
+                    HStack {
+                        Text("Tổng tiền:")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Text(formatCurrency(totalCost))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                    }
+                }
+                .padding(8)
+                .background(Color.gray.opacity(0.05))
+                .cornerRadius(8)
+            }
+            
+            Divider()
+            
+            HStack {
+                Text("Tổng tiền nguyên liệu")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(formatCurrency(row.totalMaterialCost))
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themePrimary)
+            }
+        }
+        .padding(.top, 4)
     }
     
     private var finishedImportText: String {
