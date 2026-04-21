@@ -177,8 +177,12 @@ private struct ProductionReportRow {
         return materials.first(where: { $0.id == id })?.lastUnitPrice ?? 0
     }
     
+    var allMaterials: [AutoMaterialExportLogRow] {
+        return log.data.fresh + log.data.autoMaterials
+    }
+    
     var totalMaterialCost: Double {
-        log.data.fresh.reduce(0.0) { sum, material in
+        allMaterials.reduce(0.0) { sum, material in
             let pricePerKg = getMaterialPrice(materialId: material.materialId)
             let weightKg = material.totalExportGrams / 1000.0
             return sum + (pricePerKg * weightKg)
@@ -288,47 +292,35 @@ private struct ProductionReportCard: View {
     
     private var materialDetailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(row.log.data.fresh) { material in
-                let pricePerKg = row.getMaterialPrice(materialId: material.materialId)
-                let weightKg = material.totalExportGrams / 1000.0
-                let totalCost = pricePerKg * weightKg
+            // Fresh materials section
+            if !row.log.data.fresh.isEmpty {
+                Text(row.log.data.freshTitle)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+                    .padding(.bottom, 4)
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(material.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    HStack {
-                        Text("Khối lượng:")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Text(FormatUtils.formatWeight(Int(material.totalExportGrams)))
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                    }
-                    
-                    HStack {
-                        Text("Đơn giá:")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Text(formatCurrency(pricePerKg) + "/kg")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                    }
-                    
-                    HStack {
-                        Text("Tổng tiền:")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Text(formatCurrency(totalCost))
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.themePrimary)
-                    }
+                ForEach(row.log.data.fresh) { material in
+                    materialRow(material)
                 }
-                .padding(8)
-                .background(Color.gray.opacity(0.05))
-                .cornerRadius(8)
+            }
+            
+            // Auto materials section
+            if !row.log.data.autoMaterials.isEmpty {
+                if !row.log.data.fresh.isEmpty {
+                    Divider()
+                        .padding(.vertical, 4)
+                }
+                
+                Text(row.log.data.autoMaterialsTitle)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+                    .padding(.bottom, 4)
+                
+                ForEach(row.log.data.autoMaterials) { material in
+                    materialRow(material)
+                }
             }
             
             Divider()
@@ -345,6 +337,49 @@ private struct ProductionReportCard: View {
             }
         }
         .padding(.top, 4)
+    }
+    
+    private func materialRow(_ material: AutoMaterialExportLogRow) -> some View {
+        let pricePerKg = row.getMaterialPrice(materialId: material.materialId)
+        let weightKg = material.totalExportGrams / 1000.0
+        let totalCost = pricePerKg * weightKg
+        
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(material.name)
+                .font(.subheadline)
+                .fontWeight(.medium)
+            
+            HStack {
+                Text("Khối lượng:")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Text(FormatUtils.formatWeight(Int(material.totalExportGrams)))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            
+            HStack {
+                Text("Đơn giá:")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Text(formatCurrency(pricePerKg) + "/kg")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+            }
+            
+            HStack {
+                Text("Tổng tiền:")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Text(formatCurrency(totalCost))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+            }
+        }
+        .padding(8)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(8)
     }
     
     private var finishedImportText: String {
