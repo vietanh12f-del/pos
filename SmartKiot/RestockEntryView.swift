@@ -1611,7 +1611,7 @@ struct ManualRestockItemView: View {
                             if let p = prefilledProduct ?? viewModel.products.first(where: { $0.name.lowercased() == name.lowercased() }) {
                                 viewModel.updateProduct(
                                     p,
-                                    name: p.name,
+                                    name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                                     price: priceValue,
                                     costPrice: p.costPrice,
                                     category: Category(rawValue: selectedCategoryName) ?? .others,
