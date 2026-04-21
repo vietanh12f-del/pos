@@ -1614,7 +1614,7 @@ struct ManualRestockItemView: View {
                                     name: p.name,
                                     price: priceValue,
                                     costPrice: p.costPrice,
-                                    category: Category(rawValue: p.category) ?? .others,
+                                    category: Category(rawValue: selectedCategoryName) ?? .others,
                                     imageName: p.imageName,
                                     color: p.color,
                                     quantity: viewModel.stockLevel(for: p.name),
