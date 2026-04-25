@@ -59,6 +59,7 @@ struct AutoMaterialExportSheetView: View {
     @State private var pendingTemplateToSwitch: AutoMaterialExportTemplate?
     @State private var showErrorAlert = false
     @State private var errorAlertMessage = ""
+    @State private var showPrintSheet = false
 
     init(viewModel: OrderViewModel, defaultHeaderName: String) {
         self.viewModel = viewModel
@@ -710,6 +711,30 @@ struct AutoMaterialExportSheetView: View {
     
     private var confirmSection: some View {
         VStack(spacing: 10) {
+            // Print button
+            Button {
+                let issues = validationIssues
+                if !issues.isEmpty {
+                    errorAlertMessage = "Vui lòng kiểm tra:\n• " + issues.joined(separator: "\n• ")
+                    showErrorAlert = true
+                    return
+                }
+                showPrintSheet = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "printer.fill")
+                    Text("In phiếu xuất")
+                        .fontWeight(.bold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.gray.opacity(0.12))
+                .foregroundStyle(Color.themeTextDark)
+                .cornerRadius(16)
+            }
+            .disabled(isSavingTemplate)
+
+            // Confirm button
             Button {
                 let issues = validationIssues
                 if !issues.isEmpty {
@@ -734,6 +759,24 @@ struct AutoMaterialExportSheetView: View {
                     .font(.caption)
                     .foregroundStyle(.gray)
             }
+        }
+        .sheet(isPresented: $showPrintSheet) {
+            ExportSlipShareSheet(
+                templateName: resolvedTemplateName,
+                creatorName: AuthManager.shared.currentUserProfile?.fullName ?? "",
+                date: Date(),
+                freshTitle: freshTitle,
+                freshRows: freshRows,
+                afterBoilTitle: afterBoilTitle,
+                afterBoilGrams: afterBoilGrams,
+                panCountTitle: panCountTitle,
+                panCount: panCount,
+                panWeightTitle: panWeightTitle,
+                standardPanWeightGrams: standardPanWeightGrams,
+                actualPanWeightGrams: actualPanWeightGrams,
+                autoMaterialsTitle: autoMaterialsTitle,
+                autoRows: autoRows
+            )
         }
     }
     
@@ -1366,5 +1409,214 @@ private struct MaterialMultiSelectSheet: View {
         let t = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if t.isEmpty { return materials }
         return materials.filter { $0.name.lowercased().contains(t.lowercased()) }
+    }
+}
+
+// MARK: - Export Slip Share Sheet
+
+private struct ExportSlipShareSheet: View {
+    let templateName: String
+    let creatorName: String
+    let date: Date
+    let freshTitle: String
+    let freshRows: [AutoMaterialExportLogRow]
+    let afterBoilTitle: String
+    let afterBoilGrams: Int
+    let panCountTitle: String
+    let panCount: Int
+    let panWeightTitle: String
+    let standardPanWeightGrams: Int
+    let actualPanWeightGrams: Double
+    let autoMaterialsTitle: String
+    let autoRows: [AutoMaterialExportLogRow]
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var isSharing = false
+    @State private var shareImage: UIImage? = nil
+
+    private var freshTotalGrams: Int {
+        freshRows.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                slipContent
+                    .padding()
+            }
+            .navigationTitle("Phiếu xuất")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await shareSlip() }
+                    } label: {
+                        if isSharing {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "square.and.arrow.up")
+                                .fontWeight(.bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // The printable slip content
+    private var slipContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            VStack(alignment: .leading, spacing: 6) {
+                Text(templateName)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                HStack(spacing: 8) {
+                    if !creatorName.isEmpty {
+                        Label(creatorName, systemImage: "person.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                    }
+                    Label(formatDateTime(date), systemImage: "clock")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                }
+            }
+
+            Divider()
+
+            // Fresh materials
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(freshTitle)
+                        .font(.headline)
+                    Spacer()
+                    Text("Tổng: \(FormatUtils.formatWeight(freshTotalGrams))")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                }
+                ForEach(freshRows) { row in
+                    HStack {
+                        Text(row.name)
+                            .font(.subheadline)
+                        Spacer()
+                        Text(FormatUtils.formatWeight(Int(max(0, row.totalExportGrams.rounded()))))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
+
+            // Auto materials
+            if !autoRows.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(autoMaterialsTitle)
+                        .font(.headline)
+
+                    // Column headers
+                    HStack {
+                        Text("Nguyên liệu")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("/Chảo (TT)")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .frame(width: 90, alignment: .trailing)
+                        Text("Tổng xuất")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .frame(width: 80, alignment: .trailing)
+                    }
+                    .padding(.bottom, 2)
+
+                    Divider()
+
+                    ForEach(autoRows) { row in
+                        HStack {
+                            Text(row.name)
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())))
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .frame(width: 90, alignment: .trailing)
+                            Text(FormatUtils.formatWeight(Int(max(0, row.totalExportGrams.rounded()))))
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                                .frame(width: 80, alignment: .trailing)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
+            }
+
+            // Footer info
+            VStack(alignment: .leading, spacing: 6) {
+                slipInfoRow(label: afterBoilTitle, value: FormatUtils.formatWeight(afterBoilGrams))
+                slipInfoRow(label: panCountTitle, value: "\(panCount) chảo")
+                slipInfoRow(
+                    label: panWeightTitle,
+                    value: "Chuẩn: \(FormatUtils.formatKgDecimal(fromGrams: standardPanWeightGrams)) kg  •  TT: \(FormatUtils.formatKgDecimal(fromGrams: Int(actualPanWeightGrams.rounded()))) kg"
+                )
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
+        }
+    }
+
+    private func slipInfoRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.gray)
+            Spacer()
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+        }
+    }
+
+    @MainActor
+    private func shareSlip() async {
+        isSharing = true
+        defer { isSharing = false }
+
+        let renderer = ImageRenderer(content:
+            slipContent
+                .padding(20)
+                .background(Color.white)
+                .frame(width: 390)
+        )
+        renderer.scale = 3.0
+
+        guard let image = renderer.uiImage else { return }
+
+        let av = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+        if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let root = scene.windows.first?.rootViewController {
+            var top = root
+            while let presented = top.presentedViewController { top = presented }
+            av.popoverPresentationController?.sourceView = top.view
+            top.present(av, animated: true)
+        }
+    }
+
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "HH:mm  dd/MM/yyyy"
+        return f.string(from: date)
     }
 }
