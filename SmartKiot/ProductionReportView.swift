@@ -12,6 +12,10 @@ struct ProductionReportView: View {
     @State private var materials: [MaterialItem] = []
     @State private var isLoading = false
     
+    // Selected finished good name to filter
+    @State private var selectedFinishedGoodName: String? = nil
+    @State private var showFinishedGoodPicker = false
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -49,7 +53,33 @@ struct ProductionReportView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
+            .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
+                ForEach(allFinishedGoodNamesInDay, id: \.self) { name in
+                    Button(name) { selectedFinishedGoodName = name }
+                }
+                if selectedFinishedGoodName != nil {
+                    Button("Tất cả thành phẩm", role: .destructive) {
+                        selectedFinishedGoodName = nil
+                    }
+                }
+                Button("Huỷ", role: .cancel) { }
+            }
         }
+    }
+    
+    // All unique finished good names imported today
+    private var allFinishedGoodNamesInDay: [String] {
+        let names = finishedImports.flatMap { $0.items.map { $0.name } }
+        return Array(Set(names)).sorted()
+    }
+    
+    // Total grams for selected finished good (or all) across the whole day
+    private var totalFinishedImportGramsInDay: Int {
+        let allItems = finishedImports.flatMap { $0.items }
+        if let name = selectedFinishedGoodName {
+            return allItems.filter { $0.name == name }.reduce(0) { $0 + $1.quantity }
+        }
+        return allItems.reduce(0) { $0 + $1.quantity }
     }
     
     private var header: some View {
@@ -93,7 +123,13 @@ struct ProductionReportView: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         ForEach(reportRows, id: \.log.id) { row in
-                            ProductionReportCard(row: row)
+                            ProductionReportCard(
+                                row: row,
+                                selectedFinishedGoodName: selectedFinishedGoodName,
+                                totalFinishedImportGramsInDay: totalFinishedImportGramsInDay,
+                                hasMultipleFinishedGoods: allFinishedGoodNamesInDay.count > 1,
+                                onSelectFinishedGood: { showFinishedGoodPicker = true }
+                            )
                         }
                     }
                     .padding(.horizontal)
@@ -112,7 +148,14 @@ struct ProductionReportView: View {
                 let afterBoil = max(0, log.data.afterBoilGrams)
                 let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
                 let importTx = findFinishedImport(for: log)
-                return ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil, yieldPercent: ratio, finishedImportTx: importTx, materials: materials)
+                return ProductionReportRow(
+                    log: log,
+                    freshTotalGrams: freshTotal,
+                    afterBoilGrams: afterBoil,
+                    yieldPercent: ratio,
+                    finishedImportTx: importTx,
+                    materials: materials
+                )
             }
     }
     
@@ -120,7 +163,6 @@ struct ProductionReportView: View {
         isLoading = true
         defer { isLoading = false }
         
-        // Fetch materials for pricing
         materials = await viewModel.fetchMaterials()
         
         let logs = await viewModel.fetchAutoMaterialExportLogs(limit: 500)
@@ -131,14 +173,14 @@ struct ProductionReportView: View {
         
         let imports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
         finishedImports = imports.filter { $0.createdAt >= start && $0.createdAt < end }
+        
+        // Reset selection when date changes
+        selectedFinishedGoodName = nil
     }
     
     private func findFinishedImport(for log: AutoMaterialExportLog) -> ProductionTransaction? {
         let candidates = finishedImports.filter { $0.createdAt >= log.createdAt }
-        if let first = candidates.min(by: { $0.createdAt < $1.createdAt }) {
-            return first
-        }
-        return nil
+        return candidates.min(by: { $0.createdAt < $1.createdAt })
     }
     
     private func startOfDay(_ date: Date) -> Date {
@@ -154,6 +196,8 @@ struct ProductionReportView: View {
     }
 }
 
+// MARK: - Row Model
+
 private struct ProductionReportRow {
     let log: AutoMaterialExportLog
     let freshTotalGrams: Int
@@ -162,14 +206,9 @@ private struct ProductionReportRow {
     let finishedImportTx: ProductionTransaction?
     let materials: [MaterialItem]
     
-    var finishedImportGrams: Int {
-        guard let tx = finishedImportTx else { return 0 }
-        return tx.items.reduce(0) { $0 + $1.quantity }
-    }
-    
-    var finishedProductLossPercent: Double {
-        guard freshTotalGrams > 0, finishedImportGrams > 0 else { return 0 }
-        return (Double(finishedImportGrams) / Double(freshTotalGrams)) * 100
+    func finishedProductLossPercent(importGrams: Int) -> Double {
+        guard freshTotalGrams > 0, importGrams > 0 else { return 0 }
+        return (Double(importGrams) / Double(freshTotalGrams)) * 100
     }
     
     func getMaterialPrice(materialId: UUID?) -> Double {
@@ -190,12 +229,24 @@ private struct ProductionReportRow {
     }
 }
 
+// MARK: - Card View
+
 private struct ProductionReportCard: View {
     let row: ProductionReportRow
+    let selectedFinishedGoodName: String?
+    let totalFinishedImportGramsInDay: Int
+    let hasMultipleFinishedGoods: Bool
+    let onSelectFinishedGood: () -> Void
+    
     @State private var showMaterialDetails = false
+    
+    private var lossPercent: Double {
+        row.finishedProductLossPercent(importGrams: totalFinishedImportGramsInDay)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Header
             HStack(alignment: .top) {
                 Text(row.log.templateName)
                     .font(.headline)
@@ -208,17 +259,14 @@ private struct ProductionReportCard: View {
                     .font(.subheadline)
                     .foregroundStyle(.gray)
                 if let name = row.log.creatorName, !name.isEmpty {
-                    Text("•")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                    Text(name)
-                        .font(.subheadline)
-                        .foregroundStyle(.gray)
+                    Text("•").font(.caption).foregroundStyle(.gray)
+                    Text(name).font(.subheadline).foregroundStyle(.gray)
                 }
             }
             
             Divider()
             
+            // Stats grid
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                 GridRow {
                     Text("Nguyên liệu tươi")
@@ -245,10 +293,40 @@ private struct ProductionReportCard: View {
                         .foregroundStyle(Color.themePrimary)
                 }
                 GridRow {
-                    Text("Nhập thành phẩm")
-                        .foregroundStyle(.gray)
+                    // Label with optional picker button
+                    HStack(spacing: 6) {
+                        Text("Nhập thành phẩm")
+                            .foregroundStyle(.gray)
+                        if hasMultipleFinishedGoods {
+                            Button {
+                                onSelectFinishedGood()
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text(selectedFinishedGoodName ?? "Tất cả")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.themePrimary)
+                                    Image(systemName: "chevron.down")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Color.themePrimary.opacity(0.1)))
+                            }
+                            .buttonStyle(.plain)
+                        } else if let name = selectedFinishedGoodName {
+                            Text(name)
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Capsule().fill(Color.gray.opacity(0.1)))
+                        }
+                    }
                     Spacer()
-                    Text(finishedImportText)
+                    Text(totalFinishedImportGramsInDay > 0
+                         ? FormatUtils.formatWeight(totalFinishedImportGramsInDay)
+                         : "—")
                         .fontWeight(.bold)
                         .foregroundStyle(Color.themePrimary)
                 }
@@ -256,15 +334,16 @@ private struct ProductionReportCard: View {
                     Text("Tỉ lệ hao hụt thành phẩm")
                         .foregroundStyle(.gray)
                     Spacer()
-                    Text(String(format: "%.2f%%", row.finishedProductLossPercent))
+                    Text(String(format: "%.2f%%", lossPercent))
                         .fontWeight(.bold)
-                        .foregroundStyle(row.finishedProductLossPercent > 0 ? Color.green : Color.gray)
+                        .foregroundStyle(lossPercent > 0 ? Color.green : Color.gray)
                 }
             }
             .font(.subheadline)
             
             Divider()
             
+            // Material details toggle
             Button {
                 showMaterialDetails.toggle()
             } label: {
@@ -290,34 +369,30 @@ private struct ProductionReportCard: View {
         .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
     }
     
+    // MARK: Material details
+    
     private var materialDetailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Fresh materials section
             if !row.log.data.fresh.isEmpty {
                 Text(row.log.data.freshTitle)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.themePrimary)
                     .padding(.bottom, 4)
-                
                 ForEach(row.log.data.fresh) { material in
                     materialRow(material)
                 }
             }
             
-            // Auto materials section
             if !row.log.data.autoMaterials.isEmpty {
                 if !row.log.data.fresh.isEmpty {
-                    Divider()
-                        .padding(.vertical, 4)
+                    Divider().padding(.vertical, 4)
                 }
-                
                 Text(row.log.data.autoMaterialsTitle)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.themePrimary)
                     .padding(.bottom, 4)
-                
                 ForEach(row.log.data.autoMaterials) { material in
                     materialRow(material)
                 }
@@ -348,44 +423,22 @@ private struct ProductionReportCard: View {
             Text(material.name)
                 .font(.subheadline)
                 .fontWeight(.medium)
-            
             HStack {
-                Text("Khối lượng:")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                Text(FormatUtils.formatWeight(Int(material.totalExportGrams)))
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                Text("Khối lượng:").font(.caption).foregroundStyle(.gray)
+                Text(FormatUtils.formatWeight(Int(material.totalExportGrams))).font(.caption).fontWeight(.semibold)
             }
-            
             HStack {
-                Text("Đơn giá:")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                Text(formatCurrency(pricePerKg) + "/kg")
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                Text("Đơn giá:").font(.caption).foregroundStyle(.gray)
+                Text(formatCurrency(pricePerKg) + "/kg").font(.caption).fontWeight(.semibold)
             }
-            
             HStack {
-                Text("Tổng tiền:")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                Text(formatCurrency(totalCost))
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.themePrimary)
+                Text("Tổng tiền:").font(.caption).foregroundStyle(.gray)
+                Text(formatCurrency(totalCost)).font(.caption).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
             }
         }
         .padding(8)
         .background(Color.gray.opacity(0.05))
         .cornerRadius(8)
-    }
-    
-    private var finishedImportText: String {
-        guard let tx = row.finishedImportTx else { return "—" }
-        let total = tx.items.reduce(0) { $0 + $1.quantity }
-        return FormatUtils.formatWeight(total)
     }
     
     private func formatTime(_ date: Date) -> String {
@@ -396,4 +449,3 @@ private struct ProductionReportCard: View {
         return f.string(from: date)
     }
 }
-
