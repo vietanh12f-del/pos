@@ -1292,8 +1292,24 @@ struct ProductionTransactionDTO: Codable {
     let creator_name: String?
     let production_transaction_items: [ProductionTransactionItemDTO]?
     let store_id: UUID?
-    
-    init(id: UUID, mode: String, total_cost: Double, created_at: Date, note: String?, creator_id: UUID?, creator_name: String?, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?) {
+    // Export buyer & payment info
+    let buyer_name: String?
+    let buyer_phone: String?
+    let buyer_address: String?
+    let grand_total: Double?
+    let paid_amount: Double?
+    let debt_amount: Double?
+    let vat_rate: Double?
+    let vat_amount: Double?
+    let is_paid: Bool?
+    let expected_pay_date: Date?
+    let payment_receipt_url: String?
+
+    init(id: UUID, mode: String, total_cost: Double, created_at: Date, note: String?, creator_id: UUID?, creator_name: String?, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?,
+         buyer_name: String? = nil, buyer_phone: String? = nil, buyer_address: String? = nil,
+         grand_total: Double? = nil, paid_amount: Double? = nil, debt_amount: Double? = nil,
+         vat_rate: Double? = nil, vat_amount: Double? = nil, is_paid: Bool? = nil,
+         expected_pay_date: Date? = nil, payment_receipt_url: String? = nil) {
         self.id = id
         self.mode = mode
         self.total_cost = total_cost
@@ -1303,8 +1319,19 @@ struct ProductionTransactionDTO: Codable {
         self.creator_name = creator_name
         self.production_transaction_items = production_transaction_items
         self.store_id = store_id
+        self.buyer_name = buyer_name
+        self.buyer_phone = buyer_phone
+        self.buyer_address = buyer_address
+        self.grand_total = grand_total
+        self.paid_amount = paid_amount
+        self.debt_amount = debt_amount
+        self.vat_rate = vat_rate
+        self.vat_amount = vat_amount
+        self.is_paid = is_paid
+        self.expected_pay_date = expected_pay_date
+        self.payment_receipt_url = payment_receipt_url
     }
-    
+
     init(from domain: ProductionTransaction) {
         self.id = domain.id
         self.mode = domain.mode
@@ -1315,18 +1342,48 @@ struct ProductionTransactionDTO: Codable {
         self.creator_name = domain.creatorName
         self.production_transaction_items = nil
         self.store_id = nil
+        self.buyer_name = domain.buyerName
+        self.buyer_phone = domain.buyerPhone
+        self.buyer_address = domain.buyerAddress
+        self.grand_total = domain.grandTotal
+        self.paid_amount = domain.paidAmount
+        self.debt_amount = domain.debtAmount
+        self.vat_rate = domain.vatRate
+        self.vat_amount = domain.vatAmount
+        self.is_paid = domain.isPaid
+        self.expected_pay_date = domain.expectedPayDate
+        self.payment_receipt_url = domain.paymentReceiptURL
     }
-    
+
     func toDomain() -> ProductionTransaction {
         let items = production_transaction_items?.map { $0.toDomain() } ?? []
         var tx = ProductionTransaction(id: id, createdAt: created_at, mode: mode, items: items, totalCost: total_cost, note: note)
         tx.creatorId = creator_id
         tx.creatorName = creator_name
+        tx.buyerName = buyer_name
+        tx.buyerPhone = buyer_phone
+        tx.buyerAddress = buyer_address
+        tx.grandTotal = grand_total
+        tx.paidAmount = paid_amount
+        tx.debtAmount = debt_amount
+        tx.vatRate = vat_rate
+        tx.vatAmount = vat_amount
+        tx.isPaid = is_paid ?? false
+        tx.expectedPayDate = expected_pay_date
+        tx.paymentReceiptURL = payment_receipt_url
         return tx
     }
-    
+
     func withStore(_ storeId: UUID) -> ProductionTransactionDTO {
-        return ProductionTransactionDTO(id: id, mode: mode, total_cost: total_cost, created_at: created_at, note: note, creator_id: creator_id, creator_name: creator_name, production_transaction_items: production_transaction_items, store_id: storeId)
+        return ProductionTransactionDTO(
+            id: id, mode: mode, total_cost: total_cost, created_at: created_at,
+            note: note, creator_id: creator_id, creator_name: creator_name,
+            production_transaction_items: production_transaction_items, store_id: storeId,
+            buyer_name: buyer_name, buyer_phone: buyer_phone, buyer_address: buyer_address,
+            grand_total: grand_total, paid_amount: paid_amount, debt_amount: debt_amount,
+            vat_rate: vat_rate, vat_amount: vat_amount, is_paid: is_paid,
+            expected_pay_date: expected_pay_date, payment_receipt_url: payment_receipt_url
+        )
     }
 }
 

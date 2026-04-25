@@ -38,6 +38,7 @@ struct RestockEntryView: View {
     @State private var showSourcePicker = false
     @State private var sourcePickerIndex: Int? = nil
     @State private var sourcePickerOptions: [String] = []
+    @State private var showExportInfoSheet = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -525,28 +526,49 @@ struct RestockEntryView: View {
                 }
                 
                 HStack {
-                    Button {
-                        if let cb = onComplete {
-                            cb(viewModel.restockItems)
-                        } else {
-                            viewModel.completeRestockSession()
+                    if isFinishedGoodsExportContext() {
+                        // "Xuất thành phẩm" → show export info sheet
+                        Button {
+                            showExportInfoSheet = true
+                        } label: {
+                            HStack {
+                                Text("Thông tin xuất")
+                                Image(systemName: "doc.text.fill")
+                            }
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(viewModel.restockItems.isEmpty ? Color.gray : Color.purple)
+                            .foregroundStyle(.white)
+                            .cornerRadius(16)
                         }
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Text("Hoàn tất")
-                            Image(systemName: "checkmark")
+                        .disabled(viewModel.restockItems.isEmpty)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                    } else {
+                        Button {
+                            if let cb = onComplete {
+                                cb(viewModel.restockItems)
+                            } else {
+                                viewModel.completeRestockSession()
+                            }
+                            dismiss()
+                        } label: {
+                            HStack {
+                                Text("Hoàn tất")
+                                Image(systemName: "checkmark")
+                            }
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(viewModel.restockItems.isEmpty ? Color.gray : Color.themePrimary)
+                            .foregroundStyle(.white)
+                            .cornerRadius(16)
                         }
-                        .fontWeight(.bold)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(viewModel.restockItems.isEmpty ? Color.gray : Color.themePrimary)
-                        .foregroundStyle(.white)
-                        .cornerRadius(16)
+                        .disabled(viewModel.restockItems.isEmpty)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                     }
-                    .disabled(viewModel.restockItems.isEmpty)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
                 }
             }
             .padding(.bottom, 6)
@@ -579,6 +601,19 @@ struct RestockEntryView: View {
             viewModel.isRestockMode = false 
             viewModel.cancelVoiceProcessing()
             viewModel.cancelRestockEditingIfNeeded()
+        }
+        .sheet(isPresented: $showExportInfoSheet) {
+            FinishedGoodsExportView(
+                viewModel: viewModel,
+                items: viewModel.restockItems
+            ) {
+                if let cb = onComplete {
+                    cb(viewModel.restockItems)
+                } else {
+                    viewModel.completeProductionTransaction(mode: titleText)
+                }
+                dismiss()
+            }
         }
         .sheet(isPresented: $showManualInput) { 
             ManualRestockItemView(
@@ -851,6 +886,12 @@ private extension RestockEntryView {
         if useMaterialsList { return false }
         let t = titleText.lowercased()
         return inventorySubTab == 0 || t.contains("thành phẩm")
+    }
+
+    func isFinishedGoodsExportContext() -> Bool {
+        if useMaterialsList { return false }
+        let t = titleText.lowercased()
+        return t.contains("xuất thành phẩm") || t.contains("xuất thành phẩm")
     }
 }
 // Helper View for Item Card

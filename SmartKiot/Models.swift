@@ -97,6 +97,18 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     var creatorName: String? = nil
     let totalCost: Double
     var note: String? = nil
+    // Export buyer & payment info
+    var buyerName: String? = nil
+    var buyerPhone: String? = nil
+    var buyerAddress: String? = nil
+    var grandTotal: Double? = nil
+    var paidAmount: Double? = nil
+    var debtAmount: Double? = nil
+    var vatRate: Double? = nil
+    var vatAmount: Double? = nil
+    var isPaid: Bool = false
+    var expectedPayDate: Date? = nil
+    var paymentReceiptURL: String? = nil
     static func == (lhs: ProductionTransaction, rhs: ProductionTransaction) -> Bool {
         return lhs.id == rhs.id
     }

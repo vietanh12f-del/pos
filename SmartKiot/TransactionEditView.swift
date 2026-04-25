@@ -32,7 +32,33 @@ struct TransactionEditView: View {
     @State private var additionalCostWheelRangeBase = 0
     @State private var showAdditionalCostWheelRangePicker = false
     @State private var noteText: String = ""
-    
+
+    // Buyer info (for xuất thành phẩm)
+    @State private var buyerName: String = ""
+    @State private var buyerPhone: String = ""
+    @State private var buyerAddress: String = ""
+    @State private var buyerHistory: [BuyerInfo] = []
+    @State private var showBuyerPicker = false
+
+    // Payment (for xuất thành phẩm)
+    @State private var payFullAmount: Bool = true
+    @State private var partialAmountText: String = ""
+    @State private var expectedPayDate: Date? = nil
+    @State private var showDatePicker = false
+    @State private var isPaid: Bool = false
+    @State private var paymentReceiptImage: UIImage? = nil
+    @State private var paymentReceiptURL: String? = nil
+    @State private var showReceiptCamera = false
+    @State private var showReceiptLibrary = false
+    @State private var isUploadingReceipt = false
+
+    // QR
+    @State private var loadedQRImage: UIImage? = nil
+
+    private var isExportFinishedGoods: Bool {
+        original.mode.lowercased().contains("xuất thành phẩm")
+    }
+
     private var isFinishedGoods: Bool {
         let t = original.mode.lowercased()
         return t.contains("thành phẩm") && !t.contains("nguyên liệu")
@@ -41,6 +67,34 @@ struct TransactionEditView: View {
     private var unitPriceTitle: String {
         let t = original.mode.lowercased()
         return t.contains("xuất") ? "Đơn giá xuất" : "Đơn giá nhập"
+    }
+
+    private var vatEnabled: Bool { StoreManager.shared.currentStoreVATEnabled() }
+    private var vatRate: Double { StoreManager.shared.currentStoreVATRate() }
+
+    private var subtotal: Double {
+        items.reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) + $1.additionalCost }
+    }
+    private var vatAmount: Double { vatEnabled ? subtotal * (vatRate / 100.0) : 0 }
+    private var grandTotal: Double { subtotal + vatAmount }
+    private var paidAmount: Double {
+        if payFullAmount { return grandTotal }
+        return Double(partialAmountText.replacingOccurrences(of: ",", with: "")) ?? 0
+    }
+    private var debtAmount: Double { max(0, grandTotal - paidAmount) }
+
+    private var qrURL: URL? {
+        guard grandTotal > 0,
+              let bankName = StoreManager.shared.currentStore?.bankName, !bankName.isEmpty,
+              let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber, !bankAccount.isEmpty
+        else { return nil }
+        var code = bankName
+        if let range = code.range(of: "\\((.*?)\\)", options: .regularExpression) {
+            code = String(code[range].dropFirst().dropLast())
+        }
+        let amount = Int(paidAmount)
+        let info = "XuatTP \(buyerName.prefix(10))".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "XuatTP"
+        return URL(string: "https://img.vietqr.io/image/\(code)-\(bankAccount)-compact.png?amount=\(amount)&addInfo=\(info)")
     }
     
     var body: some View {
@@ -68,11 +122,6 @@ struct TransactionEditView: View {
                             let src = it.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                             if !src.isEmpty {
                                 Text("Nguồn: \(src)")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                            }
-                            if let url = it.documentImageURL, !url.isEmpty {
-                                Text("Có chứng từ")
                                     .font(.caption)
                                     .foregroundStyle(.gray)
                             }
@@ -124,17 +173,179 @@ struct TransactionEditView: View {
                             }
                         }
                         .padding(.vertical, 6)
-                        
                     }
                 }
-                
+
+                // Buyer info section (only for xuất thành phẩm)
+                if isExportFinishedGoods {
+                    Section(header: Text("Thông tin bên mua")) {
+                        HStack {
+                            if !buyerHistory.isEmpty {
+                                Button {
+                                    showBuyerPicker = true
+                                } label: {
+                                    Label("Lịch sử", systemImage: "clock.arrow.circlepath")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        HStack {
+                            Text("Tên / Công ty").font(.caption).foregroundStyle(.gray).frame(width: 110, alignment: .leading)
+                            TextField("Nhập tên...", text: $buyerName)
+                        }
+                        HStack {
+                            Text("Số điện thoại").font(.caption).foregroundStyle(.gray).frame(width: 110, alignment: .leading)
+                            TextField("Nhập SĐT...", text: $buyerPhone).keyboardType(.phonePad)
+                        }
+                        HStack {
+                            Text("Địa chỉ").font(.caption).foregroundStyle(.gray).frame(width: 110, alignment: .leading)
+                            TextField("Nhập địa chỉ...", text: $buyerAddress)
+                        }
+                    }
+
+                    Section(header: Text("Thanh toán")) {
+                        // Totals
+                        if vatEnabled {
+                            HStack {
+                                Text("Tổng tiền hàng").foregroundStyle(.gray)
+                                Spacer()
+                                Text(formatCurrency(subtotal)).fontWeight(.semibold)
+                            }
+                            HStack {
+                                Text("VAT (\(Int(vatRate))%)").foregroundStyle(.gray)
+                                Spacer()
+                                Text(formatCurrency(vatAmount)).fontWeight(.semibold)
+                            }
+                        }
+                        HStack {
+                            Text("Tổng cộng").fontWeight(.bold)
+                            Spacer()
+                            Text(formatCurrency(grandTotal)).fontWeight(.bold).foregroundStyle(Color.themePrimary)
+                        }
+
+                        // Payment option
+                        Picker("Thanh toán", selection: $payFullAmount) {
+                            Text("100%").tag(true)
+                            Text("Trả một phần").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+
+                        if !payFullAmount {
+                            HStack {
+                                Text("Số tiền trả").foregroundStyle(.gray)
+                                Spacer()
+                                TextField("0", text: $partialAmountText)
+                                    .keyboardType(.numberPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .fontWeight(.semibold)
+                                Text("đ").foregroundStyle(.gray)
+                            }
+                            if debtAmount > 0 {
+                                HStack {
+                                    Text("Công nợ còn lại").foregroundStyle(.red)
+                                    Spacer()
+                                    Text(formatCurrency(debtAmount)).fontWeight(.bold).foregroundStyle(.red)
+                                }
+                                HStack {
+                                    Text("Dự kiến trả hết").foregroundStyle(.gray)
+                                    Spacer()
+                                    Button {
+                                        showDatePicker = true
+                                    } label: {
+                                        Text(expectedPayDate == nil ? "Chưa xác định" : formatDateOnly(expectedPayDate!))
+                                            .foregroundStyle(expectedPayDate == nil ? .gray : Color.themePrimary)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Payment status
+                        HStack {
+                            Text("Trạng thái").foregroundStyle(.gray)
+                            Spacer()
+                            Button {
+                                isPaid.toggle()
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: isPaid ? "checkmark.circle.fill" : "clock.fill")
+                                    Text(isPaid ? "Đã thanh toán" : "Chưa thanh toán")
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundStyle(isPaid ? .green : .orange)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        // Receipt image
+                        HStack {
+                            Text("Chứng từ").foregroundStyle(.gray)
+                            Spacer()
+                            if isUploadingReceipt {
+                                ProgressView()
+                            } else if let img = paymentReceiptImage {
+                                Image(uiImage: img)
+                                    .resizable().scaledToFill()
+                                    .frame(width: 44, height: 44)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            } else if let urlStr = paymentReceiptURL, let url = URL(string: urlStr) {
+                                AsyncImage(url: url) { phase in
+                                    if case .success(let img) = phase {
+                                        img.resizable().scaledToFill()
+                                            .frame(width: 44, height: 44)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    } else {
+                                        Color.gray.opacity(0.2).frame(width: 44, height: 44)
+                                    }
+                                }
+                            }
+                            Button("Chụp") {
+                                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                    showReceiptCamera = true
+                                } else { showReceiptLibrary = true }
+                            }
+                            .font(.caption)
+                        }
+                    }
+
+                    // QR section
+                    if let url = qrURL {
+                        Section(header: Text("Mã QR thanh toán")) {
+                            VStack(spacing: 8) {
+                                Text("Số tiền: \(formatCurrency(paidAmount))")
+                                    .font(.caption).foregroundStyle(.gray)
+                                if let img = loadedQRImage {
+                                    Image(uiImage: img)
+                                        .resizable().scaledToFit()
+                                        .frame(width: 160, height: 160)
+                                        .cornerRadius(10)
+                                } else {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .success(let img):
+                                            img.resizable().scaledToFit()
+                                                .frame(width: 160, height: 160).cornerRadius(10)
+                                        case .empty:
+                                            ProgressView().frame(width: 160, height: 160)
+                                        default:
+                                            Image(systemName: "qrcode").font(.system(size: 50))
+                                                .foregroundStyle(.gray).frame(width: 160, height: 160)
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                        }
+                        .onChange(of: paidAmount) { _, _ in loadQRImage(url: url) }
+                    }
+                }
+
                 Section(header: Text("Ghi chú chỉnh sửa")) {
-                    TextField("Nhập ghi chú", text: Binding(
-                        get: { noteText },
-                        set: { noteText = $0 }
-                    ))
-                    .textInputAutocapitalization(.sentences)
-                    .disableAutocorrection(false)
+                    TextField("", text: $noteText)
+                        .textInputAutocapitalization(.sentences)
+                        .disableAutocorrection(false)
                 }
             }
             .navigationTitle("Sửa giao dịch")
@@ -146,7 +357,33 @@ struct TransactionEditView: View {
                     Button("Lưu") {
                         let total = items.reduce(0) { $0 + $1.totalCost }
                         var updated = ProductionTransaction(id: original.id, createdAt: original.createdAt, mode: original.mode, items: items, totalCost: total)
-                        updated.note = noteText.isEmpty ? original.note : noteText
+                        updated.note = noteText.isEmpty ? nil : noteText
+                        // Preserve / update export info
+                        if isExportFinishedGoods {
+                            updated.buyerName = buyerName.isEmpty ? nil : buyerName
+                            updated.buyerPhone = buyerPhone.isEmpty ? nil : buyerPhone
+                            updated.buyerAddress = buyerAddress.isEmpty ? nil : buyerAddress
+                            updated.grandTotal = grandTotal
+                            updated.paidAmount = paidAmount
+                            updated.debtAmount = debtAmount
+                            updated.vatRate = vatRate
+                            updated.vatAmount = vatAmount
+                            updated.isPaid = isPaid
+                            updated.expectedPayDate = expectedPayDate
+                            updated.paymentReceiptURL = paymentReceiptURL
+                        } else {
+                            updated.buyerName = original.buyerName
+                            updated.buyerPhone = original.buyerPhone
+                            updated.buyerAddress = original.buyerAddress
+                            updated.grandTotal = original.grandTotal
+                            updated.paidAmount = original.paidAmount
+                            updated.debtAmount = original.debtAmount
+                            updated.vatRate = original.vatRate
+                            updated.vatAmount = original.vatAmount
+                            updated.isPaid = original.isPaid
+                            updated.expectedPayDate = original.expectedPayDate
+                            updated.paymentReceiptURL = original.paymentReceiptURL
+                        }
                         Task {
                             _ = await viewModel.updateProductionTransaction(original: original, updated: updated)
                             dismiss()
@@ -158,7 +395,57 @@ struct TransactionEditView: View {
         }
         .onAppear {
             items = original.items
-            noteText = original.note ?? ""
+            noteText = ""
+            buyerHistory = BuyerHistoryStore.shared.load()
+            if isExportFinishedGoods {
+                buyerName = original.buyerName ?? ""
+                buyerPhone = original.buyerPhone ?? ""
+                buyerAddress = original.buyerAddress ?? ""
+                isPaid = original.isPaid
+                expectedPayDate = original.expectedPayDate
+                paymentReceiptURL = original.paymentReceiptURL
+                if let paid = original.paidAmount, let grand = original.grandTotal {
+                    if paid < grand {
+                        payFullAmount = false
+                        partialAmountText = String(Int(paid))
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showBuyerPicker) {
+            BuyerPickerSheet(buyers: buyerHistory) { selected in
+                buyerName = selected.name
+                buyerPhone = selected.phone
+                buyerAddress = selected.address
+            }
+        }
+        .sheet(isPresented: $showDatePicker) {
+            NavigationStack {
+                VStack {
+                    DatePicker("Ngày dự kiến trả", selection: Binding(
+                        get: { expectedPayDate ?? Date() },
+                        set: { expectedPayDate = $0 }
+                    ), displayedComponents: .date)
+                    .datePickerStyle(.graphical).padding()
+                    Spacer()
+                }
+                .navigationTitle("Ngày dự kiến trả")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Đóng") { showDatePicker = false } }
+                    ToolbarItem(placement: .confirmationAction) { Button("Xong") { showDatePicker = false } }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+        .fullScreenCover(isPresented: $showReceiptCamera, onDismiss: uploadReceiptIfNeeded) {
+            ImagePicker(image: $paymentReceiptImage, sourceType: .camera).ignoresSafeArea()
+        }
+        .sheet(isPresented: $showReceiptLibrary, onDismiss: uploadReceiptIfNeeded) {
+            ImagePicker(image: $paymentReceiptImage, sourceType: .photoLibrary)
+        }
+        .sheet(isPresented: $showReceiptLibrary, onDismiss: uploadReceiptIfNeeded) {
+            ImagePicker(image: $paymentReceiptImage, sourceType: .photoLibrary)
         }
         .sheet(item: $editingItem) { item in
             ProductionTransactionItemEditView(
@@ -423,6 +710,41 @@ struct TransactionEditView: View {
             }
         }
     }
-}
+    // MARK: - Helpers
 
- 
+    private func loadQRImage(url: URL) {
+        Task {
+            if let data = try? Data(contentsOf: url), let img = UIImage(data: data) {
+                await MainActor.run { loadedQRImage = img }
+            }
+        }
+    }
+
+    private func uploadReceiptIfNeeded() {
+        guard let img = paymentReceiptImage, paymentReceiptURL == nil else { return }
+        guard let data = img.jpegData(compressionQuality: 0.85) else { return }
+        guard let storeId = StoreManager.shared.currentStore?.id else { return }
+        let fileName = UUID().uuidString
+        isUploadingReceipt = true
+        Task {
+            do {
+                let url = try await StorageManager.shared.uploadRestockDocumentImage(data: data, fileName: fileName, storeId: storeId)
+                await MainActor.run {
+                    paymentReceiptURL = url
+                    isUploadingReceipt = false
+                }
+            } catch {
+                await MainActor.run { isUploadingReceipt = false }
+            }
+        }
+    }
+
+    private func formatDateOnly(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
+    }
+
+}

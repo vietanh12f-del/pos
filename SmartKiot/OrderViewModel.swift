@@ -11,6 +11,25 @@ class OrderViewModel: ObservableObject {
     @Published var walkInName: String = "Khách lẻ"
     @Published var paymentReceiptImageURL: String? = nil
     
+    // Pending export info (set by FinishedGoodsExportView before confirming)
+    var pendingExportNote: String? = nil
+    var pendingExportPaymentReceiptURL: String? = nil
+
+    struct PendingExportInfo {
+        var buyerName: String
+        var buyerPhone: String
+        var buyerAddress: String
+        var grandTotal: Double
+        var paidAmount: Double
+        var debtAmount: Double
+        var vatRate: Double
+        var vatAmount: Double
+        var isPaid: Bool
+        var expectedPayDate: Date?
+        var paymentReceiptURL: String?
+    }
+    var pendingExportInfo: PendingExportInfo? = nil
+    
     @Published var priceHistory: [String: Double] = [:]
     @Published var inventory: [String: Int] = [:]
     @Published var pastOrders: [Bill] = []
@@ -1868,6 +1887,26 @@ class OrderViewModel: ObservableObject {
         var tx = ProductionTransaction(id: UUID(), createdAt: Date(), mode: mode, items: restockItems, totalCost: total)
         tx.creatorId = AuthManager.shared.currentUserProfile?.id
         tx.creatorName = AuthManager.shared.currentUserProfile?.fullName
+        if let note = pendingExportNote {
+            tx.note = note
+        }
+        // Apply pending export info
+        if let info = pendingExportInfo {
+            tx.buyerName = info.buyerName
+            tx.buyerPhone = info.buyerPhone
+            tx.buyerAddress = info.buyerAddress
+            tx.grandTotal = info.grandTotal
+            tx.paidAmount = info.paidAmount
+            tx.debtAmount = info.debtAmount
+            tx.vatRate = info.vatRate
+            tx.vatAmount = info.vatAmount
+            tx.isPaid = info.isPaid
+            tx.expectedPayDate = info.expectedPayDate
+            tx.paymentReceiptURL = info.paymentReceiptURL
+        }
+        pendingExportNote = nil
+        pendingExportPaymentReceiptURL = nil
+        pendingExportInfo = nil
         Task {
             do {
                 try await database.saveProductionTransaction(tx)
