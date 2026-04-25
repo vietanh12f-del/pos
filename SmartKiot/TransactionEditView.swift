@@ -56,7 +56,8 @@ struct TransactionEditView: View {
     @State private var loadedQRImage: UIImage? = nil
 
     private var isExportFinishedGoods: Bool {
-        original.mode.lowercased().contains("xuất thành phẩm")
+        let t = original.mode.lowercased()
+        return t.contains("xuất thành phẩm") || t.contains("nhập nguyên liệu")
     }
 
     private var isFinishedGoods: Bool {
@@ -178,7 +179,7 @@ struct TransactionEditView: View {
 
                 // Buyer info section (only for xuất thành phẩm)
                 if isExportFinishedGoods {
-                    Section(header: Text("Thông tin bên mua")) {
+                    Section(header: Text(original.mode.lowercased().contains("nhập") ? "Thông tin bên nhập" : "Thông tin bên mua")) {
                         HStack {
                             if !buyerHistory.isEmpty {
                                 Button {
@@ -244,7 +245,7 @@ struct TransactionEditView: View {
                             }
                             if debtAmount > 0 {
                                 HStack {
-                                    Text("Công nợ còn lại").foregroundStyle(.red)
+                                    Text(original.mode.lowercased().contains("nhập") ? "Thiếu nợ còn lại" : "Công nợ còn lại").foregroundStyle(.red)
                                     Spacer()
                                     Text(formatCurrency(debtAmount)).fontWeight(.bold).foregroundStyle(.red)
                                 }
@@ -309,8 +310,8 @@ struct TransactionEditView: View {
                         }
                     }
 
-                    // QR section
-                    if let url = qrURL {
+                    // QR section (only for xuất)
+                    if let url = qrURL, !original.mode.lowercased().contains("nhập") {
                         Section(header: Text("Mã QR thanh toán")) {
                             VStack(spacing: 8) {
                                 Text("Số tiền: \(formatCurrency(paidAmount))")

@@ -46,9 +46,17 @@ class BuyerHistoryStore {
 struct FinishedGoodsExportView: View {
     @ObservedObject var viewModel: OrderViewModel
     let items: [RestockItem]
+    let isImport: Bool          // true = nhập nguyên liệu, false = xuất thành phẩm
     let onConfirm: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+
+    // Derived labels
+    private var partyLabel: String { isImport ? "Thông tin bên nhập" : "Thông tin bên mua" }
+    private var debtLabel: String { isImport ? "Thiếu nợ còn lại" : "Công nợ còn lại" }
+    private var printButtonLabel: String { isImport ? "In bill nhập" : "In bill xuất" }
+    private var navTitle: String { isImport ? "Thông tin nhập" : "Thông tin xuất" }
+    private var billTitle: String { isImport ? "PHIẾU NHẬP NGUYÊN LIỆU" : "PHIẾU XUẤT THÀNH PHẨM" }
 
     // Store info
     private var receiptLines: [String] { StoreManager.shared.currentStoreReceiptHeaderLines() }
@@ -128,7 +136,7 @@ struct FinishedGoodsExportView: View {
                 .padding(.vertical, 12)
             }
             .background(Color.themeBackgroundLight)
-            .navigationTitle("Thông tin xuất")
+            .navigationTitle(navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -198,7 +206,9 @@ struct FinishedGoodsExportView: View {
                 paidAmount: paidAmount,
                 debtAmount: debtAmount,
                 expectedPayDate: expectedPayDate,
-                qrURL: qrURL
+                qrURL: isImport ? nil : qrURL,
+                billTitle: billTitle,
+                debtLabel: debtLabel
             )
         }
         .alert("Thiếu thông tin", isPresented: $showValidationAlert) {
@@ -257,7 +267,7 @@ struct FinishedGoodsExportView: View {
     private var buyerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Thông tin bên mua")
+                Text(partyLabel)
                     .font(.headline)
                 Spacer()
                 if !buyerHistory.isEmpty {
@@ -444,7 +454,7 @@ struct FinishedGoodsExportView: View {
 
                 if debtAmount > 0 {
                     HStack {
-                        Text("Công nợ còn lại:")
+                        Text(debtLabel)
                             .font(.subheadline)
                             .foregroundStyle(.gray)
                         Spacer()
@@ -536,7 +546,7 @@ struct FinishedGoodsExportView: View {
 
     private var qrSection: some View {
         VStack(spacing: 12) {
-            if let url = qrURL {
+            if !isImport, let url = qrURL {
                 Text("Quét mã QR để thanh toán")
                     .font(.subheadline)
                     .foregroundStyle(.gray)
@@ -569,8 +579,14 @@ struct FinishedGoodsExportView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+        .padding(isImport ? 0 : 12)
+        .background(Group {
+            if isImport {
+                Color.clear
+            } else {
+                RoundedRectangle(cornerRadius: 14).fill(Color.white)
+            }
+        })
     }
 
     private var actionButtons: some View {
@@ -586,7 +602,7 @@ struct FinishedGoodsExportView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "printer.fill")
-                    Text("In bill xuất")
+                    Text(printButtonLabel)
                         .fontWeight(.bold)
                 }
                 .frame(maxWidth: .infinity)
@@ -846,6 +862,8 @@ struct ExportBillPrintView: View {
     let debtAmount: Double
     let expectedPayDate: Date?
     var qrURL: URL? = nil
+    var billTitle: String = "PHIẾU XUẤT THÀNH PHẨM"
+    var debtLabel: String = "Còn lại"
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
@@ -889,7 +907,7 @@ struct ExportBillPrintView: View {
                             .multilineTextAlignment(.center)
                     }
                 }
-                Text("PHIẾU XUẤT THÀNH PHẨM")
+                Text(billTitle)
                     .font(.headline)
                     .fontWeight(.bold)
                     .padding(.top, 4)
@@ -979,7 +997,7 @@ struct ExportBillPrintView: View {
                 }
                 if debtAmount > 0 {
                     HStack {
-                        Text("Còn lại").font(.subheadline).foregroundStyle(.red)
+                        Text(debtLabel).font(.subheadline).foregroundStyle(.red)
                         Spacer()
                         Text(formatCurrency(debtAmount)).font(.subheadline).fontWeight(.bold).foregroundStyle(.red)
                     }

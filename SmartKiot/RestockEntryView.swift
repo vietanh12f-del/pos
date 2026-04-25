@@ -39,6 +39,7 @@ struct RestockEntryView: View {
     @State private var sourcePickerIndex: Int? = nil
     @State private var sourcePickerOptions: [String] = []
     @State private var showExportInfoSheet = false
+    @State private var showImportInfoSheet = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -545,6 +546,25 @@ struct RestockEntryView: View {
                         .disabled(viewModel.restockItems.isEmpty)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
+                    } else if isImportMaterialsContext() {
+                        // "Nhập nguyên liệu" → show import info sheet
+                        Button {
+                            showImportInfoSheet = true
+                        } label: {
+                            HStack {
+                                Text("Thông tin nhập")
+                                Image(systemName: "doc.text.fill")
+                            }
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(viewModel.restockItems.isEmpty ? Color.gray : Color.green)
+                            .foregroundStyle(.white)
+                            .cornerRadius(16)
+                        }
+                        .disabled(viewModel.restockItems.isEmpty)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                     } else {
                         Button {
                             if let cb = onComplete {
@@ -605,7 +625,22 @@ struct RestockEntryView: View {
         .sheet(isPresented: $showExportInfoSheet) {
             FinishedGoodsExportView(
                 viewModel: viewModel,
-                items: viewModel.restockItems
+                items: viewModel.restockItems,
+                isImport: false
+            ) {
+                if let cb = onComplete {
+                    cb(viewModel.restockItems)
+                } else {
+                    viewModel.completeProductionTransaction(mode: titleText)
+                }
+                dismiss()
+            }
+        }
+        .sheet(isPresented: $showImportInfoSheet) {
+            FinishedGoodsExportView(
+                viewModel: viewModel,
+                items: viewModel.restockItems,
+                isImport: true
             ) {
                 if let cb = onComplete {
                     cb(viewModel.restockItems)
@@ -892,6 +927,11 @@ private extension RestockEntryView {
         if useMaterialsList { return false }
         let t = titleText.lowercased()
         return t.contains("xuất thành phẩm") || t.contains("xuất thành phẩm")
+    }
+
+    func isImportMaterialsContext() -> Bool {
+        let t = titleText.lowercased()
+        return t.contains("nhập nguyên liệu")
     }
 }
 // Helper View for Item Card
