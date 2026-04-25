@@ -3,27 +3,32 @@ import SwiftUI
 struct ProductionReportView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Environment(\.dismiss) private var dismiss
-    
-    @State private var selectedDate: Date = Date()
-    @State private var showDatePicker = false
-    
-    @State private var autoLogs: [AutoMaterialExportLog] = []
-    @State private var finishedImports: [ProductionTransaction] = []
-    @State private var materials: [MaterialItem] = []
-    @State private var isLoading = false
-    
-    // Selected finished good name to filter
-    @State private var selectedFinishedGoodName: String? = nil
-    @State private var showFinishedGoodPicker = false
 
-    // Material export report
     @State private var showMaterialExportReport = false
-    @State private var manualExports: [ProductionTransaction] = []
-    
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                header
+                Button {
+                    showMaterialExportReport = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.up.doc.fill")
+                            .font(.subheadline)
+                        Text("Báo cáo xuất nguyên liệu")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                    .foregroundStyle(Color.themePrimary)
+                    .padding(.horizontal)
+                    .padding(.vertical, 14)
+                    .background(Color.themePrimary.opacity(0.06))
+                }
+                .buttonStyle(.plain)
                 Divider()
                 Spacer()
             }
@@ -34,209 +39,10 @@ struct ProductionReportView: View {
                     Button("Đóng") { dismiss() }
                 }
             }
-            .task { await reload() }
-            .onChange(of: selectedDate) { _, _ in
-                Task { await reload() }
-            }
-            .sheet(isPresented: $showDatePicker) {
-                NavigationStack {
-                    VStack {
-                        DatePicker("Chọn ngày", selection: $selectedDate, displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .padding()
-                        Spacer()
-                    }
-                    .navigationTitle("Thời gian")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Đóng") { showDatePicker = false }
-                        }
-                    }
-                }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
-            .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
-                ForEach(allFinishedGoodNamesInDay, id: \.self) { name in
-                    Button(name) { selectedFinishedGoodName = name }
-                }
-                if selectedFinishedGoodName != nil {
-                    Button("Tất cả thành phẩm", role: .destructive) {
-                        selectedFinishedGoodName = nil
-                    }
-                }
-                Button("Huỷ", role: .cancel) { }
-            }
         }
         .sheet(isPresented: $showMaterialExportReport) {
-            MaterialExportReportView(
-                selectedDate: selectedDate,
-                autoLogs: autoLogs,
-                manualExports: manualExports,
-                materials: materials,
-                finishedImports: finishedImports
-            )
+            MaterialExportReportView(viewModel: viewModel)
         }
-    }
-    
-    // All unique finished good names imported today
-    private var allFinishedGoodNamesInDay: [String] {
-        let names = finishedImports.flatMap { $0.items.map { $0.name } }
-        return Array(Set(names)).sorted()
-    }
-    
-    // Total grams for selected finished good (or all) across the whole day
-    private var totalFinishedImportGramsInDay: Int {
-        let allItems = finishedImports.flatMap { $0.items }
-        if let name = selectedFinishedGoodName {
-            return allItems.filter { $0.name == name }.reduce(0) { $0 + $1.quantity }
-        }
-        return allItems.reduce(0) { $0 + $1.quantity }
-    }
-    
-    private var header: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Thời gian")
-                    .font(.subheadline)
-                    .foregroundStyle(.gray)
-                Spacer()
-                Button {
-                    showDatePicker = true
-                } label: {
-                    Text(formatDateOnly(selectedDate))
-                        .fontWeight(.bold)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(Color.gray.opacity(0.15)))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 10)
-
-            Button {
-                showMaterialExportReport = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.up.doc.fill")
-                        .font(.subheadline)
-                    Text("Báo cáo xuất nguyên liệu")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-                .foregroundStyle(Color.themePrimary)
-                .padding(.horizontal)
-                .padding(.vertical, 10)
-                .background(Color.themePrimary.opacity(0.06))
-            }
-            .buttonStyle(.plain)
-        }
-        .background(Color.themeBackgroundLight)
-    }
-    
-    private var content: some View {
-        Group {
-            if isLoading {
-                VStack {
-                    ProgressView()
-                    Spacer()
-                }
-                .padding()
-            } else if reportRows.isEmpty {
-                VStack(spacing: 10) {
-                    Text("Chưa có dữ liệu trong ngày")
-                        .foregroundStyle(.gray)
-                    Spacer()
-                }
-                .padding()
-            } else {
-                ScrollView {
-                    VStack(spacing: 12) {
-                        ForEach(reportRows, id: \.log.id) { row in
-                            ProductionReportCard(
-                                row: row,
-                                selectedFinishedGoodName: selectedFinishedGoodName,
-                                totalFinishedImportGramsInDay: totalFinishedImportGramsInDay,
-                                hasMultipleFinishedGoods: allFinishedGoodNamesInDay.count > 1,
-                                onSelectFinishedGood: { showFinishedGoodPicker = true }
-                            )
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
-                }
-                .background(Color.themeBackgroundLight)
-            }
-        }
-    }
-    
-    private var reportRows: [ProductionReportRow] {
-        autoLogs
-            .sorted { $0.createdAt > $1.createdAt }
-            .map { log in
-                let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
-                let afterBoil = max(0, log.data.afterBoilGrams)
-                let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
-                let importTx = findFinishedImport(for: log)
-                return ProductionReportRow(
-                    log: log,
-                    freshTotalGrams: freshTotal,
-                    afterBoilGrams: afterBoil,
-                    yieldPercent: ratio,
-                    finishedImportTx: importTx,
-                    materials: materials
-                )
-            }
-    }
-    
-    private func reload() async {
-        isLoading = true
-        defer { isLoading = false }
-        
-        materials = await viewModel.fetchMaterials()
-        
-        let logs = await viewModel.fetchAutoMaterialExportLogs(limit: 500)
-        let start = startOfDay(selectedDate)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
-        
-        autoLogs = logs.filter { $0.createdAt >= start && $0.createdAt < end }
-        
-        let imports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
-        finishedImports = imports.filter { $0.createdAt >= start && $0.createdAt < end }
-        
-        // Fetch manual exports (Xuất nguyên liệu - not auto)
-        let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
-        // Filter out transactions that were created by auto export (linked via autoLogs)
-        let autoTransactionIds = Set(autoLogs.map { $0.productionTransactionId })
-        manualExports = allExports.filter {
-            $0.createdAt >= start && $0.createdAt < end && !autoTransactionIds.contains($0.id)
-        }
-
-        // Reset selection when date changes
-        selectedFinishedGoodName = nil
-    }
-    
-    private func findFinishedImport(for log: AutoMaterialExportLog) -> ProductionTransaction? {
-        let candidates = finishedImports.filter { $0.createdAt >= log.createdAt }
-        return candidates.min(by: { $0.createdAt < $1.createdAt })
-    }
-    
-    private func startOfDay(_ date: Date) -> Date {
-        Calendar.current.startOfDay(for: date)
-    }
-    
-    private func formatDateOnly(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "vi_VN")
-        f.timeZone = .current
-        f.dateFormat = "dd/MM/yyyy"
-        return f.string(from: date)
     }
 }
 
@@ -632,13 +438,19 @@ private struct ManualExportCard: View {
 // MARK: - Material Export Report View
 
 struct MaterialExportReportView: View {
-    let selectedDate: Date
-    let autoLogs: [AutoMaterialExportLog]
-    let manualExports: [ProductionTransaction]
-    let materials: [MaterialItem]
-    let finishedImports: [ProductionTransaction]
+    @ObservedObject var viewModel: OrderViewModel
 
     @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedDate: Date = Date()
+    @State private var showDatePicker = false
+    @State private var isLoading = false
+
+    @State private var autoLogs: [AutoMaterialExportLog] = []
+    @State private var manualExports: [ProductionTransaction] = []
+    @State private var materials: [MaterialItem] = []
+    @State private var finishedImports: [ProductionTransaction] = []
+
     @State private var selectedFinishedGoodName: String? = nil
     @State private var showFinishedGoodPicker = false
 
@@ -752,6 +564,18 @@ struct MaterialExportReportView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showDatePicker = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                            Text(formatDateOnly(selectedDate))
+                                .fontWeight(.semibold)
+                        }
+                        .font(.subheadline)
+                    }
+                }
             }
             .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
                 ForEach(allFinishedGoodNamesInDay, id: \.self) { name in
@@ -762,7 +586,58 @@ struct MaterialExportReportView: View {
                 }
                 Button("Huỷ", role: .cancel) { }
             }
+            .sheet(isPresented: $showDatePicker) {
+                NavigationStack {
+                    VStack {
+                        DatePicker("Chọn ngày", selection: $selectedDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .padding()
+                        Spacer()
+                    }
+                    .navigationTitle("Thời gian")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showDatePicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
         }
+        .task { await reload() }
+        .onChange(of: selectedDate) { _, _ in
+            Task { await reload() }
+        }
+    }
+
+    private func reload() async {
+        isLoading = true
+        defer { isLoading = false }
+
+        materials = await viewModel.fetchMaterials()
+
+        let logs = await viewModel.fetchAutoMaterialExportLogs(limit: 500)
+        let start = startOfDay(selectedDate)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+
+        autoLogs = logs.filter { $0.createdAt >= start && $0.createdAt < end }
+
+        let imports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
+        finishedImports = imports.filter { $0.createdAt >= start && $0.createdAt < end }
+
+        let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
+        let autoTransactionIds = Set(autoLogs.map { $0.productionTransactionId })
+        manualExports = allExports.filter {
+            $0.createdAt >= start && $0.createdAt < end && !autoTransactionIds.contains($0.id)
+        }
+
+        selectedFinishedGoodName = nil
+    }
+
+    private func startOfDay(_ date: Date) -> Date {
+        Calendar.current.startOfDay(for: date)
     }
 
     private func formatDateOnly(_ date: Date) -> String {
@@ -772,5 +647,4 @@ struct MaterialExportReportView: View {
         f.dateFormat = "dd/MM/yyyy"
         return f.string(from: date)
     }
-
 }
