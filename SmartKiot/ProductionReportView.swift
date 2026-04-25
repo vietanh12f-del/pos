@@ -74,7 +74,8 @@ struct ProductionReportView: View {
                 selectedDate: selectedDate,
                 autoLogs: autoLogs,
                 manualExports: manualExports,
-                materials: materials
+                materials: materials,
+                finishedImports: finishedImports
             )
         }
     }
@@ -147,87 +148,28 @@ struct ProductionReportView: View {
                     Spacer()
                 }
                 .padding()
+            } else if reportRows.isEmpty {
+                VStack(spacing: 10) {
+                    Text("Chưa có dữ liệu trong ngày")
+                        .foregroundStyle(.gray)
+                    Spacer()
+                }
+                .padding()
             } else {
                 ScrollView {
-                    VStack(spacing: 0) {
-                        // ── Header: Báo cáo xuất nguyên liệu ──
-                        HStack {
-                            Text("Báo cáo xuất nguyên liệu")
-                                .font(.headline)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.themeTextDark)
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                        .padding(.bottom, 8)
-
-                        // ── Báo cáo xuất tự động ──
-                        HStack {
-                            Label("Báo cáo xuất tự động", systemImage: "wand.and.stars")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.purple)
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
-
-                        if reportRows.isEmpty {
-                            Text("Không có dữ liệu xuất tự động")
-                                .font(.subheadline)
-                                .foregroundStyle(.gray)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal)
-                                .padding(.bottom, 12)
-                        } else {
-                            VStack(spacing: 12) {
-                                ForEach(reportRows, id: \.log.id) { row in
-                                    ProductionReportCard(
-                                        row: row,
-                                        selectedFinishedGoodName: selectedFinishedGoodName,
-                                        totalFinishedImportGramsInDay: totalFinishedImportGramsInDay,
-                                        hasMultipleFinishedGoods: allFinishedGoodNamesInDay.count > 1,
-                                        onSelectFinishedGood: { showFinishedGoodPicker = true }
-                                    )
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 16)
-                        }
-
-                        Divider()
-                            .padding(.horizontal)
-
-                        // ── Báo cáo xuất thủ công ──
-                        HStack {
-                            Label("Báo cáo xuất thủ công", systemImage: "hand.point.up.fill")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.orange)
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                        .padding(.bottom, 8)
-
-                        if manualExports.isEmpty {
-                            Text("Không có")
-                                .font(.subheadline)
-                                .foregroundStyle(.gray)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal)
-                                .padding(.bottom, 16)
-                        } else {
-                            VStack(spacing: 12) {
-                                ForEach(manualExports.sorted { $0.createdAt > $1.createdAt }) { tx in
-                                    ManualExportCard(tx: tx, materials: materials)
-                                }
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 16)
+                    VStack(spacing: 12) {
+                        ForEach(reportRows, id: \.log.id) { row in
+                            ProductionReportCard(
+                                row: row,
+                                selectedFinishedGoodName: selectedFinishedGoodName,
+                                totalFinishedImportGramsInDay: totalFinishedImportGramsInDay,
+                                hasMultipleFinishedGoods: allFinishedGoodNamesInDay.count > 1,
+                                onSelectFinishedGood: { showFinishedGoodPicker = true }
+                            )
                         }
                     }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
                 }
                 .background(Color.themeBackgroundLight)
             }
@@ -694,58 +636,133 @@ struct MaterialExportReportView: View {
     let autoLogs: [AutoMaterialExportLog]
     let manualExports: [ProductionTransaction]
     let materials: [MaterialItem]
+    let finishedImports: [ProductionTransaction]
 
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedFinishedGoodName: String? = nil
+    @State private var showFinishedGoodPicker = false
 
-    // Aggregate all exported materials (auto + manual) by name
-    private var aggregated: [(name: String, grams: Int, cost: Double)] {
-        var map: [String: (grams: Int, materialId: UUID?)] = [:]
+    private var allFinishedGoodNamesInDay: [String] {
+        let names = finishedImports.flatMap { $0.items.map { $0.name } }
+        return Array(Set(names)).sorted()
+    }
 
-        // From auto logs: fresh + autoMaterials
-        for log in autoLogs {
-            for row in log.data.fresh + log.data.autoMaterials {
-                let key = row.name.lowercased()
-                let g = Int(max(0, row.totalExportGrams.rounded()))
-                map[key] = (
-                    (map[key]?.grams ?? 0) + g,
-                    map[key]?.materialId ?? row.materialId
-                )
-            }
+    private var totalFinishedImportGramsInDay: Int {
+        let allItems = finishedImports.flatMap { $0.items }
+        if let name = selectedFinishedGoodName {
+            return allItems.filter { $0.name == name }.reduce(0) { $0 + $1.quantity }
         }
+        return allItems.reduce(0) { $0 + $1.quantity }
+    }
 
-        // From manual exports
-        for tx in manualExports {
-            for item in tx.items {
-                let key = item.name.lowercased()
-                let g = item.quantity
-                let mid = materials.first(where: { $0.name.lowercased() == key })?.id
-                map[key] = (
-                    (map[key]?.grams ?? 0) + g,
-                    map[key]?.materialId ?? mid
-                )
-            }
-        }
-
-        return map.keys.sorted().map { key in
-            let entry = map[key]!
-            let pricePerKg = materials.first(where: { $0.id == entry.materialId })?.lastUnitPrice
-                ?? materials.first(where: { $0.name.lowercased() == key })?.lastUnitPrice
-                ?? 0
-            let cost = pricePerKg * (Double(entry.grams) / 1000.0)
-            // Capitalize display name
-            let displayName = map.keys.first(where: { $0 == key }).map { _ in
-                autoLogs.flatMap { $0.data.fresh + $0.data.autoMaterials }
-                    .first(where: { $0.name.lowercased() == key })?.name
-                ?? manualExports.flatMap { $0.items }
-                    .first(where: { $0.name.lowercased() == key })?.name
-                ?? key
-            } ?? key
-            return (displayName, entry.grams, cost)
+    private var reportRows: [ProductionReportRow] {
+        autoLogs.sorted { $0.createdAt > $1.createdAt }.map { log in
+            let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
+            let afterBoil = max(0, log.data.afterBoilGrams)
+            let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
+            let importTx = finishedImports
+                .filter { $0.createdAt >= log.createdAt }
+                .min(by: { $0.createdAt < $1.createdAt })
+            return ProductionReportRow(
+                log: log,
+                freshTotalGrams: freshTotal,
+                afterBoilGrams: afterBoil,
+                yieldPercent: ratio,
+                finishedImportTx: importTx,
+                materials: materials
+            )
         }
     }
 
-    private var totalCost: Double {
-        aggregated.reduce(0) { $0 + $1.cost }
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // ── Báo cáo xuất tự động ──
+                    HStack {
+                        Label("Báo cáo xuất tự động", systemImage: "wand.and.stars")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.purple)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
+
+                    if autoLogs.isEmpty {
+                        Text("Không có dữ liệu xuất tự động")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                            .padding(.bottom, 12)
+                    } else {
+                        VStack(spacing: 12) {
+                            ForEach(reportRows, id: \.log.id) { row in
+                                ProductionReportCard(
+                                    row: row,
+                                    selectedFinishedGoodName: selectedFinishedGoodName,
+                                    totalFinishedImportGramsInDay: totalFinishedImportGramsInDay,
+                                    hasMultipleFinishedGoods: allFinishedGoodNamesInDay.count > 1,
+                                    onSelectFinishedGood: { showFinishedGoodPicker = true }
+                                )
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
+                    }
+
+                    Divider().padding(.horizontal)
+
+                    // ── Báo cáo xuất thủ công ──
+                    HStack {
+                        Label("Báo cáo xuất thủ công", systemImage: "hand.point.up.fill")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.orange)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
+
+                    if manualExports.isEmpty {
+                        Text("Không có")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                            .padding(.bottom, 16)
+                    } else {
+                        VStack(spacing: 12) {
+                            ForEach(manualExports.sorted { $0.createdAt > $1.createdAt }) { tx in
+                                ManualExportCard(tx: tx, materials: materials)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 16)
+                    }
+                }
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Xuất nguyên liệu \(formatDateOnly(selectedDate))")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+            .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
+                ForEach(allFinishedGoodNamesInDay, id: \.self) { name in
+                    Button(name) { selectedFinishedGoodName = name }
+                }
+                if selectedFinishedGoodName != nil {
+                    Button("Tất cả thành phẩm", role: .destructive) { selectedFinishedGoodName = nil }
+                }
+                Button("Huỷ", role: .cancel) { }
+            }
+        }
     }
 
     private func formatDateOnly(_ date: Date) -> String {
@@ -756,258 +773,4 @@ struct MaterialExportReportView: View {
         return f.string(from: date)
     }
 
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    // Summary counts
-                    HStack(spacing: 12) {
-                        summaryTile(
-                            icon: "wand.and.stars",
-                            label: "Xuất tự động",
-                            value: "\(autoLogs.count) lần",
-                            color: .purple
-                        )
-                        summaryTile(
-                            icon: "hand.point.up.fill",
-                            label: "Xuất thủ công",
-                            value: "\(manualExports.count) lần",
-                            color: .orange
-                        )
-                    }
-                    .padding(.horizontal)
-
-                    // Material breakdown
-                    if aggregated.isEmpty {
-                        VStack(spacing: 10) {
-                            Image(systemName: "tray")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.gray.opacity(0.4))
-                            Text("Không có dữ liệu xuất nguyên liệu")
-                                .foregroundStyle(.gray)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(40)
-                    } else {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Header row
-                            HStack {
-                                Text("Nguyên liệu")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                Text("Khối lượng")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                    .frame(width: 90, alignment: .trailing)
-                                Text("Thành tiền")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                    .frame(width: 90, alignment: .trailing)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.gray.opacity(0.06))
-
-                            ForEach(aggregated, id: \.name) { item in
-                                VStack(spacing: 0) {
-                                    HStack {
-                                        Text(item.name)
-                                            .font(.subheadline)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                        Text(FormatUtils.formatWeight(item.grams))
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(Color.themePrimary)
-                                            .frame(width: 90, alignment: .trailing)
-                                        Text(formatCurrency(item.cost))
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .frame(width: 90, alignment: .trailing)
-                                    }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 10)
-                                    Divider().padding(.leading, 12)
-                                }
-                            }
-
-                            // Total row
-                            HStack {
-                                Text("Tổng cộng")
-                                    .font(.subheadline)
-                                    .fontWeight(.bold)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                Text("")
-                                    .frame(width: 90)
-                                Text(formatCurrency(totalCost))
-                                    .font(.subheadline)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(Color.themePrimary)
-                                    .frame(width: 90, alignment: .trailing)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.themePrimary.opacity(0.05))
-                        }
-                        .background(Color.white)
-                        .cornerRadius(14)
-                        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
-                        .padding(.horizontal)
-
-                        // Auto logs detail
-                        if !autoLogs.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Xuất tự động (\(autoLogs.count) lần)")
-                                    .font(.headline)
-                                    .padding(.horizontal)
-
-                                ForEach(autoLogs.sorted { $0.createdAt > $1.createdAt }) { log in
-                                    autoLogRow(log)
-                                }
-                            }
-                        }
-
-                        // Manual exports detail
-                        if !manualExports.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Xuất thủ công (\(manualExports.count) lần)")
-                                    .font(.headline)
-                                    .padding(.horizontal)
-
-                                ForEach(manualExports.sorted { $0.createdAt > $1.createdAt }) { tx in
-                                    manualExportRow(tx)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.vertical, 12)
-            }
-            .background(Color.themeBackgroundLight)
-            .navigationTitle("Xuất nguyên liệu \(formatDateOnly(selectedDate))")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Đóng") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func summaryTile(icon: String, label: String, value: String, color: Color) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-                .frame(width: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                Text(value)
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-            }
-            Spacer()
-        }
-        .padding(12)
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
-    }
-
-    private func autoLogRow(_ log: AutoMaterialExportLog) -> some View {
-        let totalFresh = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
-        let totalAuto = log.data.autoMaterials.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
-
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "wand.and.stars")
-                    .font(.caption)
-                    .foregroundStyle(.purple)
-                Text(log.templateName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Spacer()
-                Text(formatTime(log.createdAt))
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-            }
-            HStack(spacing: 16) {
-                Label(FormatUtils.formatWeight(totalFresh), systemImage: "leaf.fill")
-                    .font(.caption)
-                    .foregroundStyle(.green)
-                Label(FormatUtils.formatWeight(totalAuto), systemImage: "gearshape.fill")
-                    .font(.caption)
-                    .foregroundStyle(.purple)
-                if let creator = log.creatorName, !creator.isEmpty {
-                    Label(creator, systemImage: "person.fill")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-            }
-        }
-        .padding(10)
-        .background(Color.white)
-        .cornerRadius(10)
-        .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
-        .padding(.horizontal)
-    }
-
-    private func manualExportRow(_ tx: ProductionTransaction) -> some View {
-        let total = tx.items.reduce(0) { $0 + $1.quantity }
-
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "hand.point.up.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                Text("Xuất thủ công")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Spacer()
-                Text(formatTime(tx.createdAt))
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-            }
-            HStack(spacing: 8) {
-                ForEach(tx.items.prefix(3)) { item in
-                    Text(item.name)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(Color.orange.opacity(0.1)))
-                        .foregroundStyle(.orange)
-                }
-                if tx.items.count > 3 {
-                    Text("+\(tx.items.count - 3)")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-            }
-            HStack(spacing: 16) {
-                Label(FormatUtils.formatWeight(total), systemImage: "scalemass.fill")
-                    .font(.caption)
-                    .foregroundStyle(Color.themePrimary)
-                if let creator = tx.creatorName, !creator.isEmpty {
-                    Label(creator, systemImage: "person.fill")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-            }
-        }
-        .padding(10)
-        .background(Color.white)
-        .cornerRadius(10)
-        .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
-        .padding(.horizontal)
-    }
-
-    private func formatTime(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "vi_VN")
-        f.timeZone = .current
-        f.dateFormat = "HH:mm"
-        return f.string(from: date)
-    }
 }
