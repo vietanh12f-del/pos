@@ -25,7 +25,7 @@ struct ProductionReportView: View {
             VStack(spacing: 0) {
                 header
                 Divider()
-                content
+                Spacer()
             }
             .navigationTitle("Báo cáo sản xuất")
             .navigationBarTitleDisplayMode(.inline)
