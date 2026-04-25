@@ -147,28 +147,87 @@ struct ProductionReportView: View {
                     Spacer()
                 }
                 .padding()
-            } else if reportRows.isEmpty {
-                VStack(spacing: 10) {
-                    Text("Chưa có dữ liệu trong ngày")
-                        .foregroundStyle(.gray)
-                    Spacer()
-                }
-                .padding()
             } else {
                 ScrollView {
-                    VStack(spacing: 12) {
-                        ForEach(reportRows, id: \.log.id) { row in
-                            ProductionReportCard(
-                                row: row,
-                                selectedFinishedGoodName: selectedFinishedGoodName,
-                                totalFinishedImportGramsInDay: totalFinishedImportGramsInDay,
-                                hasMultipleFinishedGoods: allFinishedGoodNamesInDay.count > 1,
-                                onSelectFinishedGood: { showFinishedGoodPicker = true }
-                            )
+                    VStack(spacing: 0) {
+                        // ── Header: Báo cáo xuất nguyên liệu ──
+                        HStack {
+                            Text("Báo cáo xuất nguyên liệu")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                        .padding(.bottom, 8)
+
+                        // ── Báo cáo xuất tự động ──
+                        HStack {
+                            Label("Báo cáo xuất tự động", systemImage: "wand.and.stars")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.purple)
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+
+                        if reportRows.isEmpty {
+                            Text("Không có dữ liệu xuất tự động")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                                .padding(.bottom, 12)
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(reportRows, id: \.log.id) { row in
+                                    ProductionReportCard(
+                                        row: row,
+                                        selectedFinishedGoodName: selectedFinishedGoodName,
+                                        totalFinishedImportGramsInDay: totalFinishedImportGramsInDay,
+                                        hasMultipleFinishedGoods: allFinishedGoodNamesInDay.count > 1,
+                                        onSelectFinishedGood: { showFinishedGoodPicker = true }
+                                    )
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 16)
+                        }
+
+                        Divider()
+                            .padding(.horizontal)
+
+                        // ── Báo cáo xuất thủ công ──
+                        HStack {
+                            Label("Báo cáo xuất thủ công", systemImage: "hand.point.up.fill")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.orange)
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                        .padding(.bottom, 8)
+
+                        if manualExports.isEmpty {
+                            Text("Không có")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                                .padding(.bottom, 16)
+                        } else {
+                            VStack(spacing: 12) {
+                                ForEach(manualExports.sorted { $0.createdAt > $1.createdAt }) { tx in
+                                    ManualExportCard(tx: tx, materials: materials)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 16)
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
                 }
                 .background(Color.themeBackgroundLight)
             }
@@ -211,7 +270,11 @@ struct ProductionReportView: View {
         
         // Fetch manual exports (Xuất nguyên liệu - not auto)
         let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
-        manualExports = allExports.filter { $0.createdAt >= start && $0.createdAt < end }
+        // Filter out transactions that were created by auto export (linked via autoLogs)
+        let autoTransactionIds = Set(autoLogs.map { $0.productionTransactionId })
+        manualExports = allExports.filter {
+            $0.createdAt >= start && $0.createdAt < end && !autoTransactionIds.contains($0.id)
+        }
 
         // Reset selection when date changes
         selectedFinishedGoodName = nil
@@ -480,6 +543,141 @@ private struct ProductionReportCard: View {
         .cornerRadius(8)
     }
     
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "HH:mm"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Manual Export Card (same style as ProductionReportCard)
+
+private struct ManualExportCard: View {
+    let tx: ProductionTransaction
+    let materials: [MaterialItem]
+
+    @State private var showDetails = false
+
+    private func getMaterialPrice(for name: String) -> Double {
+        materials.first(where: { $0.name.lowercased() == name.lowercased() })?.lastUnitPrice ?? 0
+    }
+
+    private var totalCost: Double {
+        tx.items.reduce(0.0) { sum, item in
+            let pricePerKg = getMaterialPrice(for: item.name)
+            let weightKg = Double(item.quantity) / 1000.0
+            return sum + (pricePerKg * weightKg)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header row
+            HStack(alignment: .top) {
+                Label("Xuất thủ công", systemImage: "hand.point.up.fill")
+                    .font(.headline)
+                    .foregroundStyle(Color.themeTextDark)
+                Spacer()
+            }
+
+            HStack(spacing: 6) {
+                Text(formatTime(tx.createdAt))
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                if let name = tx.creatorName, !name.isEmpty {
+                    Text("•").font(.caption).foregroundStyle(.gray)
+                    Text(name).font(.subheadline).foregroundStyle(.gray)
+                }
+            }
+
+            Divider()
+
+            // Items summary
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                ForEach(tx.items) { item in
+                    GridRow {
+                        Text(item.name)
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        Text(FormatUtils.formatWeight(item.quantity))
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                    }
+                }
+            }
+            .font(.subheadline)
+
+            Divider()
+
+            // Detail toggle
+            Button {
+                showDetails.toggle()
+            } label: {
+                HStack {
+                    Text("Chi tiết nguyên liệu xuất")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Image(systemName: showDetails ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                }
+                .foregroundStyle(Color.themePrimary)
+            }
+            .buttonStyle(.plain)
+
+            if showDetails {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(tx.items) { item in
+                        let pricePerKg = getMaterialPrice(for: item.name)
+                        let weightKg = Double(item.quantity) / 1000.0
+                        let itemCost = pricePerKg * weightKg
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.name)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            HStack {
+                                Text("Khối lượng:").font(.caption).foregroundStyle(.gray)
+                                Text(FormatUtils.formatWeight(item.quantity)).font(.caption).fontWeight(.semibold)
+                            }
+                            HStack {
+                                Text("Đơn giá:").font(.caption).foregroundStyle(.gray)
+                                Text(formatCurrency(pricePerKg) + "/kg").font(.caption).fontWeight(.semibold)
+                            }
+                            HStack {
+                                Text("Tổng tiền:").font(.caption).foregroundStyle(.gray)
+                                Text(formatCurrency(itemCost)).font(.caption).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
+                            }
+                        }
+                        .padding(8)
+                        .background(Color.gray.opacity(0.05))
+                        .cornerRadius(8)
+                    }
+
+                    Divider()
+
+                    HStack {
+                        Text("Tổng tiền nguyên liệu")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text(formatCurrency(totalCost))
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+    }
+
     private func formatTime(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "vi_VN")
