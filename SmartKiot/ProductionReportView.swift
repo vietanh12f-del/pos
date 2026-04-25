@@ -442,21 +442,38 @@ struct MaterialExportReportView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    // Date selection
     @State private var selectedDate: Date = Date()
+    @State private var isRangeMode: Bool = false
+    @State private var rangeStart: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
+    @State private var rangeEnd: Date = Date()
     @State private var showDatePicker = false
+
     @State private var isLoading = false
 
+    // Data (single day)
     @State private var autoLogs: [AutoMaterialExportLog] = []
     @State private var manualExports: [ProductionTransaction] = []
     @State private var materials: [MaterialItem] = []
     @State private var finishedImports: [ProductionTransaction] = []
-
     @State private var selectedFinishedGoodName: String? = nil
     @State private var showFinishedGoodPicker = false
 
+    // Data (range mode)
+    @State private var rangeData: [String: DayReportData] = [:]
+    @State private var expandedDays: Set<String> = []
+
+    struct DayReportData {
+        let date: Date
+        var autoLogs: [AutoMaterialExportLog]
+        var manualExports: [ProductionTransaction]
+        var finishedImports: [ProductionTransaction]
+    }
+
+    // MARK: - Computed
+
     private var allFinishedGoodNamesInDay: [String] {
-        let names = finishedImports.flatMap { $0.items.map { $0.name } }
-        return Array(Set(names)).sorted()
+        Array(Set(finishedImports.flatMap { $0.items.map { $0.name } })).sorted()
     }
 
     private var totalFinishedImportGramsInDay: Int {
@@ -472,108 +489,54 @@ struct MaterialExportReportView: View {
             let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
             let afterBoil = max(0, log.data.afterBoilGrams)
             let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
-            let importTx = finishedImports
-                .filter { $0.createdAt >= log.createdAt }
-                .min(by: { $0.createdAt < $1.createdAt })
-            return ProductionReportRow(
-                log: log,
-                freshTotalGrams: freshTotal,
-                afterBoilGrams: afterBoil,
-                yieldPercent: ratio,
-                finishedImportTx: importTx,
-                materials: materials
-            )
+            let importTx = finishedImports.filter { $0.createdAt >= log.createdAt }.min(by: { $0.createdAt < $1.createdAt })
+            return ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
+                yieldPercent: ratio, finishedImportTx: importTx, materials: materials)
         }
     }
 
+    private var sortedRangeDays: [DayReportData] {
+        rangeData.values.sorted { $0.date > $1.date }
+    }
+
+    private var navTitle: String {
+        isRangeMode ? "\(formatDateOnly(rangeStart)) – \(formatDateOnly(rangeEnd))" : "Xuất nguyên liệu \(formatDateOnly(selectedDate))"
+    }
+
+    private var dateButtonLabel: String {
+        isRangeMode ? "\(formatDateOnly(rangeStart)) – \(formatDateOnly(rangeEnd))" : formatDateOnly(selectedDate)
+    }
+
+    // MARK: - Body
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    // ── Báo cáo xuất tự động ──
-                    HStack {
-                        Label("Báo cáo xuất tự động", systemImage: "wand.and.stars")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.purple)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-                    .padding(.bottom, 8)
-
-                    if autoLogs.isEmpty {
-                        Text("Không có dữ liệu xuất tự động")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                            .padding(.bottom, 12)
-                    } else {
-                        VStack(spacing: 12) {
-                            ForEach(reportRows, id: \.log.id) { row in
-                                ProductionReportCard(
-                                    row: row,
-                                    selectedFinishedGoodName: selectedFinishedGoodName,
-                                    totalFinishedImportGramsInDay: totalFinishedImportGramsInDay,
-                                    hasMultipleFinishedGoods: allFinishedGoodNamesInDay.count > 1,
-                                    onSelectFinishedGood: { showFinishedGoodPicker = true }
-                                )
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 16)
-                    }
-
-                    Divider().padding(.horizontal)
-
-                    // ── Báo cáo xuất thủ công ──
-                    HStack {
-                        Label("Báo cáo xuất thủ công", systemImage: "hand.point.up.fill")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.orange)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 16)
-                    .padding(.bottom, 8)
-
-                    if manualExports.isEmpty {
-                        Text("Không có")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal)
-                            .padding(.bottom, 16)
-                    } else {
-                        VStack(spacing: 12) {
-                            ForEach(manualExports.sorted { $0.createdAt > $1.createdAt }) { tx in
-                                ManualExportCard(tx: tx, materials: materials)
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 16)
-                    }
+            Group {
+                if isLoading {
+                    VStack { ProgressView(); Spacer() }.padding()
+                } else if isRangeMode {
+                    rangeContent
+                } else {
+                    singleDayContent
                 }
             }
             .background(Color.themeBackgroundLight)
-            .navigationTitle("Xuất nguyên liệu \(formatDateOnly(selectedDate))")
+            .navigationTitle(navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showDatePicker = true
-                    } label: {
+                    Button { showDatePicker = true } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: "calendar")
-                            Text(formatDateOnly(selectedDate))
+                            Image(systemName: isRangeMode ? "calendar.badge.clock" : "calendar")
+                            Text(dateButtonLabel)
                                 .fontWeight(.semibold)
+                                .lineLimit(1)
                         }
-                        .font(.subheadline)
+                        .font(.caption)
+                        .foregroundStyle(isRangeMode ? Color.orange : Color.themePrimary)
                     }
                 }
             }
@@ -587,58 +550,213 @@ struct MaterialExportReportView: View {
                 Button("Huỷ", role: .cancel) { }
             }
             .sheet(isPresented: $showDatePicker) {
-                NavigationStack {
-                    VStack {
-                        DatePicker("Chọn ngày", selection: $selectedDate, displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .padding()
-                        Spacer()
-                    }
-                    .navigationTitle("Thời gian")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Đóng") { showDatePicker = false }
-                        }
-                    }
+                DateRangePickerSheet(
+                    isRangeMode: $isRangeMode,
+                    selectedDate: $selectedDate,
+                    rangeStart: $rangeStart,
+                    rangeEnd: $rangeEnd
+                ) {
+                    showDatePicker = false
+                    Task { await reload() }
                 }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
             }
         }
         .task { await reload() }
-        .onChange(of: selectedDate) { _, _ in
-            Task { await reload() }
+    }
+
+    // MARK: - Single day content
+
+    private var singleDayContent: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                autoSection(logs: reportRows, finishedImports: finishedImports)
+                Divider().padding(.horizontal)
+                manualSection(exports: manualExports)
+            }
         }
+    }
+
+    // MARK: - Range content
+
+    private var rangeContent: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                if sortedRangeDays.isEmpty {
+                    Text("Không có dữ liệu trong khoảng ngày đã chọn")
+                        .foregroundStyle(.gray).padding(40)
+                } else {
+                    ForEach(sortedRangeDays, id: \.date) { dayData in
+                        let key = dayKey(dayData.date)
+                        let isExpanded = expandedDays.contains(key)
+                        let dayRows = makeRows(logs: dayData.autoLogs, finishedImports: dayData.finishedImports)
+
+                        VStack(spacing: 0) {
+                            Button {
+                                if isExpanded { expandedDays.remove(key) }
+                                else { expandedDays.insert(key) }
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                        .font(.caption).foregroundStyle(.gray).frame(width: 16)
+                                    Text(formatDateOnly(dayData.date))
+                                        .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
+                                    Spacer()
+                                    if !dayData.autoLogs.isEmpty {
+                                        Label("\(dayData.autoLogs.count)", systemImage: "wand.and.stars")
+                                            .font(.caption).foregroundStyle(.purple)
+                                    }
+                                    if !dayData.manualExports.isEmpty {
+                                        Label("\(dayData.manualExports.count)", systemImage: "hand.point.up.fill")
+                                            .font(.caption).foregroundStyle(.orange)
+                                    }
+                                    if dayData.autoLogs.isEmpty && dayData.manualExports.isEmpty {
+                                        Text("Không có").font(.caption).foregroundStyle(.gray)
+                                    }
+                                }
+                                .padding(.horizontal).padding(.vertical, 12).background(Color.white)
+                            }
+                            .buttonStyle(.plain)
+
+                            if isExpanded {
+                                VStack(spacing: 0) {
+                                    autoSection(logs: dayRows, finishedImports: dayData.finishedImports)
+                                    Divider().padding(.horizontal)
+                                    manualSection(exports: dayData.manualExports)
+                                }
+                                .background(Color.themeBackgroundLight)
+                            }
+                        }
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                        .padding(.horizontal)
+                    }
+                }
+            }
+            .padding(.vertical, 12)
+        }
+    }
+
+    // MARK: - Reusable sections
+
+    @ViewBuilder
+    private func autoSection(logs: [ProductionReportRow], finishedImports: [ProductionTransaction]) -> some View {
+        HStack {
+            Label("Báo cáo xuất tự động", systemImage: "wand.and.stars")
+                .font(.subheadline).fontWeight(.semibold).foregroundStyle(.purple)
+            Spacer()
+        }
+        .padding(.horizontal).padding(.top, 12).padding(.bottom, 6)
+
+        if logs.isEmpty {
+            Text("Không có dữ liệu xuất tự động")
+                .font(.subheadline).foregroundStyle(.gray)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal).padding(.bottom, 10)
+        } else {
+            let allNames = Array(Set(finishedImports.flatMap { $0.items.map { $0.name } })).sorted()
+            let totalGrams = finishedImports.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
+            VStack(spacing: 12) {
+                ForEach(logs, id: \.log.id) { row in
+                    ProductionReportCard(
+                        row: row,
+                        selectedFinishedGoodName: selectedFinishedGoodName,
+                        totalFinishedImportGramsInDay: totalGrams,
+                        hasMultipleFinishedGoods: allNames.count > 1,
+                        onSelectFinishedGood: { showFinishedGoodPicker = true }
+                    )
+                }
+            }
+            .padding(.horizontal).padding(.bottom, 12)
+        }
+    }
+
+    @ViewBuilder
+    private func manualSection(exports: [ProductionTransaction]) -> some View {
+        HStack {
+            Label("Báo cáo xuất thủ công", systemImage: "hand.point.up.fill")
+                .font(.subheadline).fontWeight(.semibold).foregroundStyle(.orange)
+            Spacer()
+        }
+        .padding(.horizontal).padding(.top, 12).padding(.bottom, 6)
+
+        if exports.isEmpty {
+            Text("Không có")
+                .font(.subheadline).foregroundStyle(.gray)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal).padding(.bottom, 12)
+        } else {
+            VStack(spacing: 12) {
+                ForEach(exports.sorted { $0.createdAt > $1.createdAt }) { tx in
+                    ManualExportCard(tx: tx, materials: materials)
+                }
+            }
+            .padding(.horizontal).padding(.bottom, 12)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func makeRows(logs: [AutoMaterialExportLog], finishedImports: [ProductionTransaction]) -> [ProductionReportRow] {
+        logs.sorted { $0.createdAt > $1.createdAt }.map { log in
+            let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
+            let afterBoil = max(0, log.data.afterBoilGrams)
+            let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
+            let importTx = finishedImports.filter { $0.createdAt >= log.createdAt }.min(by: { $0.createdAt < $1.createdAt })
+            return ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
+                yieldPercent: ratio, finishedImportTx: importTx, materials: materials)
+        }
+    }
+
+    private func dayKey(_ date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
     }
 
     private func reload() async {
         isLoading = true
         defer { isLoading = false }
-
         materials = await viewModel.fetchMaterials()
+        if isRangeMode { await reloadRange() } else { await reloadSingleDay() }
+    }
 
-        let logs = await viewModel.fetchAutoMaterialExportLogs(limit: 500)
+    private func reloadSingleDay() async {
         let start = startOfDay(selectedDate)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
-
+        let logs = await viewModel.fetchAutoMaterialExportLogs(limit: 500)
         autoLogs = logs.filter { $0.createdAt >= start && $0.createdAt < end }
-
         let imports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
         finishedImports = imports.filter { $0.createdAt >= start && $0.createdAt < end }
-
         let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
-        let autoTransactionIds = Set(autoLogs.map { $0.productionTransactionId })
-        manualExports = allExports.filter {
-            $0.createdAt >= start && $0.createdAt < end && !autoTransactionIds.contains($0.id)
-        }
-
+        let autoIds = Set(autoLogs.map { $0.productionTransactionId })
+        manualExports = allExports.filter { $0.createdAt >= start && $0.createdAt < end && !autoIds.contains($0.id) }
         selectedFinishedGoodName = nil
     }
 
-    private func startOfDay(_ date: Date) -> Date {
-        Calendar.current.startOfDay(for: date)
+    private func reloadRange() async {
+        let start = startOfDay(rangeStart)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay(rangeEnd)) ?? startOfDay(rangeEnd)
+        let allLogs = await viewModel.fetchAutoMaterialExportLogs(limit: 2000)
+        let allImports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
+        let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
+        let allAutoIds = Set(allLogs.map { $0.productionTransactionId })
+        var result: [String: DayReportData] = [:]
+        var cursor = start
+        while cursor < end {
+            let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: cursor) ?? cursor
+            let key = dayKey(cursor)
+            result[key] = DayReportData(
+                date: cursor,
+                autoLogs: allLogs.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd },
+                manualExports: allExports.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd && !allAutoIds.contains($0.id) },
+                finishedImports: allImports.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
+            )
+            cursor = dayEnd
+        }
+        rangeData = result
+        if let firstKey = result.keys.sorted().last { expandedDays = [firstKey] }
     }
+
+    private func startOfDay(_ date: Date) -> Date { Calendar.current.startOfDay(for: date) }
 
     private func formatDateOnly(_ date: Date) -> String {
         let f = DateFormatter()
@@ -646,5 +764,69 @@ struct MaterialExportReportView: View {
         f.timeZone = .current
         f.dateFormat = "dd/MM/yyyy"
         return f.string(from: date)
+    }
+}
+
+// MARK: - Date Range Picker Sheet
+
+private struct DateRangePickerSheet: View {
+    @Binding var isRangeMode: Bool
+    @Binding var selectedDate: Date
+    @Binding var rangeStart: Date
+    @Binding var rangeEnd: Date
+    let onDone: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Chọn khoảng ngày", isOn: $isRangeMode)
+                        .tint(Color.themePrimary)
+                }
+
+                if isRangeMode {
+                    Section(header: Text("Từ ngày")) {
+                        DatePicker("", selection: $rangeStart, in: ...rangeEnd, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .onChange(of: rangeStart) { _, newVal in
+                                if newVal > rangeEnd { rangeEnd = newVal }
+                            }
+                    }
+                    Section(header: Text("Đến ngày")) {
+                        DatePicker("", selection: $rangeEnd, in: rangeStart..., displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                    }
+                    Section {
+                        HStack {
+                            Image(systemName: "info.circle").foregroundStyle(.gray)
+                            Text("Khoảng \(daysBetween(rangeStart, rangeEnd) + 1) ngày")
+                                .font(.subheadline).foregroundStyle(.gray)
+                        }
+                    }
+                } else {
+                    Section(header: Text("Chọn ngày")) {
+                        DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                    }
+                }
+            }
+            .navigationTitle("Thời gian")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Huỷ") { onDone() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Xong") { onDone() }.fontWeight(.bold)
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func daysBetween(_ from: Date, _ to: Date) -> Int {
+        let cal = Calendar.current
+        return cal.dateComponents([.day], from: cal.startOfDay(for: from), to: cal.startOfDay(for: to)).day ?? 0
     }
 }
