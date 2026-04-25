@@ -10,7 +10,7 @@ struct BuyerInfo: Identifiable, Codable, Equatable {
     var totalDebt: Double = 0
 }
 
-// MARK: - BuyerHistoryStore
+// MARK: - BuyerHistoryStore (legacy UserDefaults - kept for migration)
 
 class BuyerHistoryStore {
     static let shared = BuyerHistoryStore()
@@ -53,10 +53,16 @@ struct FinishedGoodsExportView: View {
 
     // Derived labels
     private var partyLabel: String { isImport ? "Thông tin bên nhập" : "Thông tin bên mua" }
+    private var partyNameLabel: String { isImport ? "Tên cơ sở cung cấp" : "Tên người mua / Công ty" }
+    private var itemsSectionLabel: String { isImport ? "Nguyên liệu nhập" : "Thành phẩm xuất" }
     private var debtLabel: String { isImport ? "Thiếu nợ còn lại" : "Công nợ còn lại" }
     private var printButtonLabel: String { isImport ? "In bill nhập" : "In bill xuất" }
     private var navTitle: String { isImport ? "Thông tin nhập" : "Thông tin xuất" }
     private var billTitle: String { isImport ? "PHIẾU NHẬP NGUYÊN LIỆU" : "PHIẾU XUẤT THÀNH PHẨM" }
+    private var billNavTitle: String { isImport ? "Bill nhập nguyên liệu" : "Bill xuất thành phẩm" }
+    private var billPartyHeader: String { isImport ? "THÔNG TIN CƠ SỞ CUNG CẤP" : "THÔNG TIN BÊN MUA" }
+    private var partyType: String { isImport ? "supplier" : "buyer" }
+    private var validationNameLabel: String { isImport ? "Tên cơ sở cung cấp" : "Tên người mua" }
 
     // Store info
     private var receiptLines: [String] { StoreManager.shared.currentStoreReceiptHeaderLines() }
@@ -67,7 +73,7 @@ struct FinishedGoodsExportView: View {
     @State private var buyerName: String = ""
     @State private var buyerPhone: String = ""
     @State private var buyerAddress: String = ""
-    @State private var buyerHistory: [BuyerInfo] = []
+    @State private var buyerHistory: [TradingParty] = []
     @State private var showBuyerPicker = false
     @State private var pastDebt: Double = 0
 
@@ -145,7 +151,7 @@ struct FinishedGoodsExportView: View {
             }
         }
         .onAppear {
-            buyerHistory = BuyerHistoryStore.shared.load()
+            Task { await loadPartyHistory() }
             loadQRImage()
         }
         .onChange(of: paidAmount) { _, _ in loadQRImage() }
@@ -208,7 +214,9 @@ struct FinishedGoodsExportView: View {
                 expectedPayDate: expectedPayDate,
                 qrURL: isImport ? nil : qrURL,
                 billTitle: billTitle,
-                debtLabel: debtLabel
+                debtLabel: debtLabel,
+                billNavTitle: billNavTitle,
+                billPartyHeader: billPartyHeader
             )
         }
         .alert("Thiếu thông tin", isPresented: $showValidationAlert) {
@@ -291,7 +299,7 @@ struct FinishedGoodsExportView: View {
 
             VStack(spacing: 8) {
                 HStack {
-                    Text("Tên người mua / Công ty")
+                    Text(partyNameLabel)
                         .font(.caption)
                         .foregroundStyle(.gray)
                         .frame(width: 140, alignment: .leading)
@@ -340,7 +348,7 @@ struct FinishedGoodsExportView: View {
 
     private var itemsSummarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Thành phẩm xuất")
+            Text(itemsSectionLabel)
                 .font(.headline)
 
             ForEach(items) { item in
@@ -672,11 +680,23 @@ struct FinishedGoodsExportView: View {
         let phone = buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines)
         let address = buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         var missing: [String] = []
-        if name.isEmpty { missing.append("Tên người mua") }
+        if name.isEmpty { missing.append(validationNameLabel) }
         if phone.isEmpty { missing.append("Số điện thoại") }
         if address.isEmpty { missing.append("Địa chỉ") }
         if missing.isEmpty { return nil }
         return "Vui lòng điền: " + missing.joined(separator: ", ")
+    }
+
+    private func loadPartyHistory() async {
+        do {
+            buyerHistory = try await viewModel.databaseService.fetchTradingParties(type: partyType)
+        } catch {
+            // Fallback to legacy UserDefaults
+            let legacy = BuyerHistoryStore.shared.load()
+            buyerHistory = legacy.map {
+                TradingParty(id: $0.id, partyType: partyType, name: $0.name, phone: $0.phone, address: $0.address, totalDebt: $0.totalDebt)
+            }
+        }
     }
 
     private func updatePastDebt() {
@@ -729,24 +749,31 @@ struct FinishedGoodsExportView: View {
         isConfirming = true
         defer { isConfirming = false }
 
-        // Save buyer to history
-        let buyer = BuyerInfo(
+        // Save party to DB
+        let party = TradingParty(
+            id: buyerHistory.first(where: {
+                $0.name.lowercased() == buyerName.lowercased() && $0.phone == buyerPhone
+            })?.id ?? UUID(),
+            partyType: partyType,
             name: buyerName.trimmingCharacters(in: .whitespacesAndNewlines),
             phone: buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines),
             address: buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines),
-            totalDebt: debtAmount
+            totalDebt: debtAmount,
+            updatedAt: Date()
         )
-        BuyerHistoryStore.shared.upsert(buyer)
+        Task {
+            try? await viewModel.databaseService.upsertTradingParty(party)
+        }
 
         // Build note
-        let note = "Bên mua: \(buyer.name) | SĐT: \(buyer.phone) | ĐC: \(buyer.address) | Thanh toán: \(formatCurrency(paidAmount)) | Công nợ: \(formatCurrency(debtAmount))"
+        let note = "\(isImport ? "Cơ sở cung cấp" : "Bên mua"): \(party.name) | SĐT: \(party.phone) | ĐC: \(party.address) | Thanh toán: \(formatCurrency(paidAmount)) | \(debtLabel): \(formatCurrency(debtAmount))"
 
         viewModel.pendingExportNote = note
         viewModel.pendingExportPaymentReceiptURL = paymentReceiptURL
         viewModel.pendingExportInfo = OrderViewModel.PendingExportInfo(
-            buyerName: buyer.name,
-            buyerPhone: buyer.phone,
-            buyerAddress: buyer.address,
+            buyerName: party.name,
+            buyerPhone: party.phone,
+            buyerAddress: party.address,
             grandTotal: grandTotal,
             paidAmount: paidAmount,
             debtAmount: debtAmount,
@@ -780,8 +807,8 @@ struct FinishedGoodsExportView: View {
 // MARK: - Buyer Picker Sheet
 
 struct BuyerPickerSheet: View {
-    let buyers: [BuyerInfo]
-    let onSelect: (BuyerInfo) -> Void
+    let buyers: [TradingParty]
+    let onSelect: (TradingParty) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
 
@@ -821,8 +848,8 @@ struct BuyerPickerSheet: View {
                     }
                 }
             }
-            .searchable(text: $searchText, prompt: "Tìm bên mua...")
-            .navigationTitle("Lịch sử bên mua")
+            .searchable(text: $searchText, prompt: "Tìm...")
+            .navigationTitle("Lịch sử")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -832,7 +859,7 @@ struct BuyerPickerSheet: View {
         }
     }
 
-    private var filtered: [BuyerInfo] {
+    private var filtered: [TradingParty] {
         let t = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if t.isEmpty { return buyers }
         return buyers.filter {
@@ -864,6 +891,8 @@ struct ExportBillPrintView: View {
     var qrURL: URL? = nil
     var billTitle: String = "PHIẾU XUẤT THÀNH PHẨM"
     var debtLabel: String = "Còn lại"
+    var billNavTitle: String = "Bill xuất thành phẩm"
+    var billPartyHeader: String = "THÔNG TIN BÊN MUA"
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
@@ -874,7 +903,7 @@ struct ExportBillPrintView: View {
                 billContent
                     .padding()
             }
-            .navigationTitle("Bill xuất thành phẩm")
+            .navigationTitle(billNavTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -933,7 +962,7 @@ struct ExportBillPrintView: View {
 
             // Buyer info
             VStack(alignment: .leading, spacing: 4) {
-                Text("THÔNG TIN BÊN MUA")
+                Text(billPartyHeader)
                     .font(.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(.gray)

@@ -78,6 +78,10 @@ protocol DatabaseService {
     // Categories
     func saveCategory(_ name: String, kind: String) async throws
     func fetchCategories(kind: String) async throws -> [String]
+
+    // Trading Parties (buyers & suppliers)
+    func fetchTradingParties(type: String) async throws -> [TradingParty]
+    func upsertTradingParty(_ party: TradingParty) async throws
 }
 
 // MARK: - Supabase Implementation
@@ -127,6 +131,29 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
             .value
         return rows.map { $0.name }
+    }
+
+    // MARK: - Trading Parties
+    func fetchTradingParties(type: String) async throws -> [TradingParty] {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        let rows: [TradingPartyDTO] = try await client.database
+            .from("trading_parties")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .eq("party_type", value: type)
+            .order("updated_at", ascending: false)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+
+    func upsertTradingParty(_ party: TradingParty) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        let dto = TradingPartyDTO(from: party, storeId: storeId)
+        try await client.database
+            .from("trading_parties")
+            .upsert(dto)
+            .execute()
     }
     
     // MARK: - Products
@@ -842,9 +869,11 @@ class SupabaseDatabaseService: DatabaseService {
     func saveMaterial(_ material: MaterialItem) async throws { print("⚠️ saveMaterial: Mocked success") }
     func updateMaterial(_ material: MaterialItem) async throws { print("⚠️ updateMaterial: Mocked success") }
     func deleteMaterial(_ id: UUID) async throws { print("⚠️ deleteMaterial: Mocked success") }
-}
     func saveCategory(_ name: String, kind: String) async throws { print("⚠️ saveCategory(\(name), \(kind)): Mocked success") }
     func fetchCategories(kind: String) async throws -> [String] { return [] }
+    func fetchTradingParties(type: String) async throws -> [TradingParty] { return [] }
+    func upsertTradingParty(_ party: TradingParty) async throws { print("⚠️ upsertTradingParty: Mocked success") }
+}
 #endif
 
 
@@ -1585,5 +1614,51 @@ struct ProductionEditDTO: Codable {
     
     func toDomain() -> ProductionEdit {
         return ProductionEdit(id: id, transactionId: transaction_id, createdAt: created_at, oldTotal: old_total, newTotal: new_total, editorId: editor_id, editorName: editor_name, note: note, details: details)
+    }
+}
+
+// MARK: - TradingParty Model & DTO
+
+struct TradingParty: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var partyType: String  // "buyer" | "supplier"
+    var name: String
+    var phone: String
+    var address: String
+    var totalDebt: Double = 0
+    var updatedAt: Date = Date()
+}
+
+struct TradingPartyDTO: Codable {
+    let id: UUID
+    let store_id: UUID
+    let party_type: String
+    let name: String
+    let phone: String?
+    let address: String?
+    let total_debt: Double?
+    let updated_at: Date?
+
+    init(from domain: TradingParty, storeId: UUID) {
+        self.id = domain.id
+        self.store_id = storeId
+        self.party_type = domain.partyType
+        self.name = domain.name
+        self.phone = domain.phone
+        self.address = domain.address
+        self.total_debt = domain.totalDebt
+        self.updated_at = domain.updatedAt
+    }
+
+    func toDomain() -> TradingParty {
+        TradingParty(
+            id: id,
+            partyType: party_type,
+            name: name,
+            phone: phone ?? "",
+            address: address ?? "",
+            totalDebt: total_debt ?? 0,
+            updatedAt: updated_at ?? Date()
+        )
     }
 }

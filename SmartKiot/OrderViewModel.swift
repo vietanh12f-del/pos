@@ -163,6 +163,8 @@ class OrderViewModel: ObservableObject {
     // Database Service
     private let database: DatabaseService = SupabaseDatabaseService()
     
+    var databaseService: DatabaseService { database }
+    
     // Connection Status
     @Published var isDatabaseConnected: Bool = false
     @Published var databaseError: String? = nil

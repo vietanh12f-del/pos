@@ -37,7 +37,7 @@ struct TransactionEditView: View {
     @State private var buyerName: String = ""
     @State private var buyerPhone: String = ""
     @State private var buyerAddress: String = ""
-    @State private var buyerHistory: [BuyerInfo] = []
+    @State private var buyerHistory: [TradingParty] = []
     @State private var showBuyerPicker = false
 
     // Payment (for xuất thành phẩm)
@@ -397,9 +397,13 @@ struct TransactionEditView: View {
         .onAppear {
             items = original.items
             noteText = ""
-            buyerHistory = BuyerHistoryStore.shared.load()
-            if isExportFinishedGoods {
-                buyerName = original.buyerName ?? ""
+            let partyType = original.mode.lowercased().contains("nhập") ? "supplier" : "buyer"
+            Task {
+                if let parties = try? await viewModel.databaseService.fetchTradingParties(type: partyType) {
+                    await MainActor.run { buyerHistory = parties }
+                }
+            }
+            if isExportFinishedGoods {                buyerName = original.buyerName ?? ""
                 buyerPhone = original.buyerPhone ?? ""
                 buyerAddress = original.buyerAddress ?? ""
                 isPaid = original.isPaid
@@ -419,8 +423,7 @@ struct TransactionEditView: View {
                 buyerPhone = selected.phone
                 buyerAddress = selected.address
             }
-        }
-        .sheet(isPresented: $showDatePicker) {
+        }        .sheet(isPresented: $showDatePicker) {
             NavigationStack {
                 VStack {
                     DatePicker("Ngày dự kiến trả", selection: Binding(
