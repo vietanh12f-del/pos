@@ -5,30 +5,38 @@ struct ProductionReportView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showMaterialExportReport = false
+    @State private var showMaterialImportReport = false
+    @State private var showFinishedImportReport = false
+    @State private var showFinishedExportReport = false
+
+    private struct ReportButton {
+        let title: String
+        let icon: String
+        let color: Color
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Button {
+                reportButton(title: "Báo cáo xuất nguyên liệu",
+                             icon: "arrow.up.doc.fill", color: .purple) {
                     showMaterialExportReport = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.up.doc.fill")
-                            .font(.subheadline)
-                        Text("Báo cáo xuất nguyên liệu")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                    }
-                    .foregroundStyle(Color.themePrimary)
-                    .padding(.horizontal)
-                    .padding(.vertical, 14)
-                    .background(Color.themePrimary.opacity(0.06))
                 }
-                .buttonStyle(.plain)
+                Divider()
+                reportButton(title: "Báo cáo nhập nguyên liệu",
+                             icon: "arrow.down.doc.fill", color: .green) {
+                    showMaterialImportReport = true
+                }
+                Divider()
+                reportButton(title: "Báo cáo nhập thành phẩm",
+                             icon: "tray.and.arrow.down.fill", color: .blue) {
+                    showFinishedImportReport = true
+                }
+                Divider()
+                reportButton(title: "Báo cáo xuất thành phẩm",
+                             icon: "tray.and.arrow.up.fill", color: .orange) {
+                    showFinishedExportReport = true
+                }
                 Divider()
                 Spacer()
             }
@@ -43,6 +51,57 @@ struct ProductionReportView: View {
         .sheet(isPresented: $showMaterialExportReport) {
             MaterialExportReportView(viewModel: viewModel)
         }
+        .sheet(isPresented: $showMaterialImportReport) {
+            GenericProductionReportView(
+                viewModel: viewModel,
+                mode: "Xuất Nguyên liệu",  // fetch mode
+                title: "Nhập nguyên liệu",
+                accentColor: .green,
+                reportKind: .materialImport
+            )
+        }
+        .sheet(isPresented: $showFinishedImportReport) {
+            GenericProductionReportView(
+                viewModel: viewModel,
+                mode: "Nhập Thành Phẩm",
+                title: "Nhập thành phẩm",
+                accentColor: .blue,
+                reportKind: .finishedImport
+            )
+        }
+        .sheet(isPresented: $showFinishedExportReport) {
+            GenericProductionReportView(
+                viewModel: viewModel,
+                mode: "Xuất Thành Phẩm",
+                title: "Xuất thành phẩm",
+                accentColor: .orange,
+                reportKind: .finishedExport
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func reportButton(title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.subheadline)
+                    .foregroundStyle(color)
+                    .frame(width: 24)
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themeTextDark)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 14)
+            .background(color.opacity(0.04))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -828,5 +887,421 @@ private struct DateRangePickerSheet: View {
     private func daysBetween(_ from: Date, _ to: Date) -> Int {
         let cal = Calendar.current
         return cal.dateComponents([.day], from: cal.startOfDay(for: from), to: cal.startOfDay(for: to)).day ?? 0
+    }
+}
+
+// MARK: - Generic Production Report View
+// Used for: Nhập nguyên liệu, Nhập thành phẩm, Xuất thành phẩm
+
+enum ProductionReportKind {
+    case materialImport   // Nhập nguyên liệu
+    case finishedImport   // Nhập thành phẩm
+    case finishedExport   // Xuất thành phẩm
+}
+
+struct GenericProductionReportView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    let mode: String
+    let title: String
+    let accentColor: Color
+    let reportKind: ProductionReportKind
+
+    @Environment(\.dismiss) private var dismiss
+
+    // Date
+    @State private var selectedDate: Date = Date()
+    @State private var isRangeMode = false
+    @State private var rangeStart: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
+    @State private var rangeEnd: Date = Date()
+    @State private var showDatePicker = false
+
+    @State private var isLoading = false
+    @State private var transactions: [ProductionTransaction] = []
+    @State private var materials: [MaterialItem] = []
+
+    // Range mode
+    @State private var rangeData: [String: [ProductionTransaction]] = [:]
+    @State private var expandedDays: Set<String> = []
+
+    // MARK: - Computed
+
+    private var navTitle: String {
+        isRangeMode ? "\(title): \(formatDateOnly(rangeStart)) – \(formatDateOnly(rangeEnd))" : "\(title) \(formatDateOnly(selectedDate))"
+    }
+
+    private var sortedRangeDays: [(key: String, date: Date, txs: [ProductionTransaction])] {
+        rangeData.map { key, txs in
+            let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+            let date = f.date(from: key) ?? Date()
+            return (key, date, txs)
+        }.sorted { $0.date > $1.date }
+    }
+
+    // Summary stats for a list of transactions
+    private func stats(for txs: [ProductionTransaction]) -> (count: Int, totalCost: Double, totalQty: Int, totalRevenue: Double, totalDebt: Double, unpaidCount: Int) {
+        let count = txs.count
+        let totalCost = txs.reduce(0) { $0 + $1.totalCost }
+        let totalQty = txs.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
+        let totalRevenue = txs.compactMap { $0.grandTotal }.reduce(0, +)
+        let totalDebt = txs.compactMap { $0.debtAmount }.reduce(0, +)
+        let unpaidCount = txs.filter { !$0.isPaid }.count
+        return (count, totalCost, totalQty, totalRevenue, totalDebt, unpaidCount)
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isLoading {
+                    VStack { ProgressView(); Spacer() }.padding()
+                } else if isRangeMode {
+                    rangeContent
+                } else {
+                    singleDayContent
+                }
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle(navTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showDatePicker = true } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: isRangeMode ? "calendar.badge.clock" : "calendar")
+                            Text(isRangeMode ? "\(formatDateOnly(rangeStart))–\(formatDateOnly(rangeEnd))" : formatDateOnly(selectedDate))
+                                .fontWeight(.semibold).lineLimit(1)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(isRangeMode ? Color.orange : accentColor)
+                    }
+                }
+            }
+            .sheet(isPresented: $showDatePicker) {
+                DateRangePickerSheet(
+                    isRangeMode: $isRangeMode,
+                    selectedDate: $selectedDate,
+                    rangeStart: $rangeStart,
+                    rangeEnd: $rangeEnd
+                ) {
+                    showDatePicker = false
+                    Task { await reload() }
+                }
+            }
+        }
+        .task { await reload() }
+    }
+
+    // MARK: - Single day
+
+    private var singleDayContent: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                if transactions.isEmpty {
+                    emptyView
+                } else {
+                    summaryCard(txs: transactions)
+                    ForEach(transactions.sorted { $0.createdAt > $1.createdAt }) { tx in
+                        transactionCard(tx)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+        }
+    }
+
+    // MARK: - Range content
+
+    private var rangeContent: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                // Overall summary across all days
+                if !rangeData.isEmpty {
+                    let allTxs = rangeData.values.flatMap { $0 }
+                    if !allTxs.isEmpty {
+                        summaryCard(txs: allTxs)
+                            .padding(.horizontal)
+                    }
+                }
+
+                if sortedRangeDays.isEmpty {
+                    emptyView.padding(.horizontal)
+                } else {
+                    ForEach(sortedRangeDays, id: \.key) { item in
+                        let isExpanded = expandedDays.contains(item.key)
+                        VStack(spacing: 0) {
+                            // Day header
+                            Button {
+                                if isExpanded { expandedDays.remove(item.key) }
+                                else { expandedDays.insert(item.key) }
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                        .font(.caption).foregroundStyle(.gray).frame(width: 16)
+                                    Text(formatDateOnly(item.date))
+                                        .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
+                                    Spacer()
+                                    if item.txs.isEmpty {
+                                        Text("Không có").font(.caption).foregroundStyle(.gray)
+                                    } else {
+                                        Text("\(item.txs.count) giao dịch")
+                                            .font(.caption).foregroundStyle(accentColor)
+                                        let s = stats(for: item.txs)
+                                        Text("• \(formatCurrency(s.totalCost))")
+                                            .font(.caption).foregroundStyle(.gray)
+                                    }
+                                }
+                                .padding(.horizontal).padding(.vertical, 12).background(Color.white)
+                            }
+                            .buttonStyle(.plain)
+
+                            if isExpanded && !item.txs.isEmpty {
+                                VStack(spacing: 12) {
+                                    ForEach(item.txs.sorted { $0.createdAt > $1.createdAt }) { tx in
+                                        transactionCard(tx)
+                                    }
+                                }
+                                .padding(.horizontal, 12).padding(.vertical, 10)
+                                .background(Color.themeBackgroundLight)
+                            }
+                        }
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                        .padding(.horizontal)
+                    }
+                }
+            }
+            .padding(.vertical, 12)
+        }
+    }
+
+    // MARK: - Summary card
+
+    private func summaryCard(txs: [ProductionTransaction]) -> some View {
+        let s = stats(for: txs)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Tổng kết")
+                .font(.headline).fontWeight(.bold)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                statTile(label: "Số giao dịch", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
+                statTile(label: isMaterial ? "Tổng chi phí" : "Tổng giá trị", value: formatCurrency(isMaterial ? s.totalCost : s.totalRevenue), icon: "banknote.fill", color: .green)
+                if isMaterial {
+                    statTile(label: "Tổng khối lượng", value: FormatUtils.formatWeight(s.totalQty), icon: "scalemass.fill", color: .blue)
+                } else {
+                    statTile(label: "Đã thanh toán", value: formatCurrency(s.totalRevenue - s.totalDebt), icon: "checkmark.circle.fill", color: .green)
+                }
+                if reportKind == .finishedExport {
+                    statTile(label: "Còn nợ", value: formatCurrency(s.totalDebt), icon: "exclamationmark.circle.fill", color: s.totalDebt > 0 ? .red : .gray)
+                } else {
+                    statTile(label: "Tổng khối lượng", value: FormatUtils.formatWeight(s.totalQty), icon: "scalemass.fill", color: .blue)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+    }
+
+    private func statTile(label: String, value: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon).foregroundStyle(color).frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.caption).foregroundStyle(.gray)
+                Text(value).font(.subheadline).fontWeight(.bold)
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(color.opacity(0.06))
+        .cornerRadius(10)
+    }
+
+    // MARK: - Transaction card
+
+    @State private var expandedTxIds: Set<UUID> = []
+
+    private func transactionCard(_ tx: ProductionTransaction) -> some View {
+        let isExpanded = expandedTxIds.contains(tx.id)
+        return VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(formatTime(tx.createdAt))
+                            .font(.subheadline).fontWeight(.semibold)
+                        if let name = tx.creatorName, !name.isEmpty {
+                            Text("•").font(.caption).foregroundStyle(.gray)
+                            Text(name).font(.subheadline).foregroundStyle(.gray)
+                        }
+                    }
+                    if let note = tx.note, !note.isEmpty {
+                        Text(note).font(.caption).foregroundStyle(.gray).lineLimit(1)
+                    }
+                }
+                Spacer()
+                // Payment badge for finishedExport
+                if reportKind == .finishedExport {
+                    Text(tx.isPaid ? "Đã TT" : "Chưa TT")
+                        .font(.caption2).fontWeight(.bold)
+                        .foregroundStyle(tx.isPaid ? .green : .orange)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(tx.isPaid ? Color.green.opacity(0.12) : Color.orange.opacity(0.12)))
+                }
+            }
+
+            Divider()
+
+            // Items list
+            VStack(spacing: 6) {
+                ForEach(tx.items) { item in
+                    HStack {
+                        Text(item.name).font(.subheadline)
+                        Spacer()
+                        Text(isMaterial ? FormatUtils.formatWeight(item.quantity) : "\(item.quantity) kg")
+                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(accentColor)
+                        Text(formatCurrency(item.unitPrice) + (isMaterial ? "/kg" : ""))
+                            .font(.caption).foregroundStyle(.gray)
+                    }
+                }
+            }
+
+            // Buyer info for finishedExport
+            if reportKind == .finishedExport, let buyer = tx.buyerName, !buyer.isEmpty {
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: "person.fill").font(.caption).foregroundStyle(.gray)
+                        Text(buyer).font(.subheadline).fontWeight(.semibold)
+                        if let phone = tx.buyerPhone, !phone.isEmpty {
+                            Text("•").font(.caption).foregroundStyle(.gray)
+                            Text(phone).font(.caption).foregroundStyle(.gray)
+                        }
+                    }
+                    if let addr = tx.buyerAddress, !addr.isEmpty {
+                        Text(addr).font(.caption).foregroundStyle(.gray)
+                    }
+                }
+            }
+
+            // Financial summary
+            Divider()
+            if reportKind == .finishedExport {
+                VStack(spacing: 4) {
+                    if let vat = tx.vatAmount, vat > 0 {
+                        HStack {
+                            Text("VAT (\(Int(tx.vatRate ?? 0))%)").font(.caption).foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(vat)).font(.caption).fontWeight(.semibold)
+                        }
+                    }
+                    HStack {
+                        Text("Tổng cộng").font(.subheadline).fontWeight(.bold)
+                        Spacer()
+                        Text(formatCurrency(tx.grandTotal ?? tx.totalCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(accentColor)
+                    }
+                    if let paid = tx.paidAmount {
+                        HStack {
+                            Text("Đã thanh toán").font(.caption).foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(paid)).font(.caption).fontWeight(.semibold).foregroundStyle(.green)
+                        }
+                    }
+                    if let debt = tx.debtAmount, debt > 0 {
+                        HStack {
+                            Text("Còn nợ").font(.caption).foregroundStyle(.red)
+                            Spacer()
+                            Text(formatCurrency(debt)).font(.caption).fontWeight(.bold).foregroundStyle(.red)
+                        }
+                        if let payDate = tx.expectedPayDate {
+                            HStack {
+                                Text("Dự kiến trả:").font(.caption).foregroundStyle(.gray)
+                                Spacer()
+                                Text(formatDateOnly(payDate)).font(.caption).fontWeight(.semibold)
+                            }
+                        }
+                    }
+                }
+            } else {
+                HStack {
+                    Text("Tổng chi phí").font(.subheadline).fontWeight(.bold)
+                    Spacer()
+                    Text(formatCurrency(tx.totalCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(accentColor)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+    }
+
+    private var emptyView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "tray").font(.system(size: 40)).foregroundStyle(.gray.opacity(0.4))
+            Text("Không có dữ liệu").foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity).padding(40)
+    }
+
+    private var isMaterial: Bool { reportKind == .materialImport }
+
+    // MARK: - Data loading
+
+    private func reload() async {
+        isLoading = true
+        defer { isLoading = false }
+        materials = await viewModel.fetchMaterials()
+        if isRangeMode { await reloadRange() } else { await reloadSingleDay() }
+    }
+
+    private func reloadSingleDay() async {
+        let start = startOfDay(selectedDate)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+        let all = await viewModel.fetchProductionTransactions(mode: mode)
+        transactions = all.filter { $0.createdAt >= start && $0.createdAt < end }
+    }
+
+    private func reloadRange() async {
+        let start = startOfDay(rangeStart)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay(rangeEnd)) ?? startOfDay(rangeEnd)
+        let all = await viewModel.fetchProductionTransactions(mode: mode)
+        let filtered = all.filter { $0.createdAt >= start && $0.createdAt < end }
+        var result: [String: [ProductionTransaction]] = [:]
+        var cursor = start
+        while cursor < end {
+            let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: cursor) ?? cursor
+            let key = dayKey(cursor)
+            result[key] = filtered.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
+            cursor = dayEnd
+        }
+        rangeData = result
+        if let firstKey = result.keys.sorted().last { expandedDays = [firstKey] }
+    }
+
+    // MARK: - Helpers
+
+    private func dayKey(_ date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: date)
+    }
+
+    private func startOfDay(_ date: Date) -> Date { Calendar.current.startOfDay(for: date) }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "HH:mm"
+        return f.string(from: date)
+    }
+
+    private func formatDateOnly(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
     }
 }
