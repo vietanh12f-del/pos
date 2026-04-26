@@ -83,13 +83,17 @@ struct CustomerManagementView: View {
     }
 
     private var filteredLeads: [WebsiteLead] {
+        var list = leads
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if q.isEmpty { return leads.sorted { $0.createdAt > $1.createdAt } }
-        return leads.filter {
-            $0.fullName.lowercased().contains(q) ||
-            $0.phone.lowercased().contains(q) ||
-            ($0.serviceType?.lowercased().contains(q) ?? false)
-        }.sorted { $0.createdAt > $1.createdAt }
+        if !q.isEmpty {
+            list = list.filter {
+                $0.fullName.lowercased().contains(q) ||
+                $0.phone.lowercased().contains(q) ||
+                ($0.serviceType?.lowercased().contains(q) ?? false) ||
+                ($0.email?.lowercased().contains(q) ?? false)
+            }
+        }
+        return list.sorted { $0.createdAt > $1.createdAt }
     }
 
     private var totalDebt: Double {
@@ -97,7 +101,7 @@ struct CustomerManagementView: View {
     }
 
     private var newLeadsCount: Int {
-        leads.filter { $0.status == "new" }.count
+        filteredLeads.filter { $0.status == "new" }.count
     }
 
     var body: some View {
@@ -190,7 +194,7 @@ struct CustomerManagementView: View {
             } else {
                 // Summary bar
                 HStack(spacing: 16) {
-                    Label("\(leads.count) liên hệ", systemImage: "person.crop.circle")
+                    Label("\(filteredLeads.count) liên hệ", systemImage: "person.crop.circle")
                         .font(.caption).foregroundStyle(.gray)
                     if newLeadsCount > 0 {
                         Label("\(newLeadsCount) mới", systemImage: "bell.fill")
@@ -604,14 +608,16 @@ struct PartyDetailView: View {
 private struct LeadRowView: View {
     let lead: WebsiteLead
 
+    private var isPartner: Bool { lead.leadType == "partner" }
+
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(lead.leadType == "appointment" ? Color.blue.opacity(0.12) : Color.teal.opacity(0.12))
+                    .fill(iconColor.opacity(0.12))
                     .frame(width: 44, height: 44)
-                Image(systemName: lead.leadType == "appointment" ? "calendar.badge.plus" : "bubble.left.fill")
-                    .foregroundStyle(lead.leadType == "appointment" ? .blue : .teal)
+                Image(systemName: iconName)
+                    .foregroundStyle(iconColor)
             }
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -625,19 +631,44 @@ private struct LeadRowView: View {
                     }
                 }
                 Text(lead.phone).font(.caption).foregroundStyle(.gray)
-                if let svc = lead.serviceType, !svc.isEmpty {
+                if isPartner, let email = lead.email, !email.isEmpty {
+                    Text(email).font(.caption).foregroundStyle(.blue)
+                } else if let svc = lead.serviceType, !svc.isEmpty {
                     Text(svc).font(.caption).foregroundStyle(Color.themePrimary)
                 }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text(lead.leadType == "appointment" ? "Đặt lịch" : "Tư vấn")
-                    .font(.caption2).foregroundStyle(lead.leadType == "appointment" ? .blue : .teal)
+                Text(typeLabel).font(.caption2).foregroundStyle(iconColor)
                 Text(formatDateOnly(lead.createdAt)).font(.caption2).foregroundStyle(.gray)
             }
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.gray)
         }
         .padding(.vertical, 4)
+    }
+
+    private var iconName: String {
+        switch lead.leadType {
+        case "partner": return "building.2.fill"
+        case "appointment": return "calendar.badge.plus"
+        default: return "bubble.left.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        switch lead.leadType {
+        case "partner": return .orange
+        case "appointment": return .blue
+        default: return .teal
+        }
+    }
+
+    private var typeLabel: String {
+        switch lead.leadType {
+        case "partner": return "Đối tác"
+        case "appointment": return "Đặt lịch"
+        default: return "Tư vấn"
+        }
     }
 
     private func formatDateOnly(_ date: Date) -> String {
@@ -661,6 +692,9 @@ struct WebsiteLeadDetailView: View {
                 Section(header: Text("Thông tin liên hệ")) {
                     infoRow(label: "Họ tên", value: lead.fullName, icon: "person.fill")
                     infoRow(label: "Số điện thoại", value: lead.phone, icon: "phone.fill")
+                    if let email = lead.email, !email.isEmpty {
+                        infoRow(label: "Email", value: email, icon: "envelope.fill")
+                    }
                     if let svc = lead.serviceType, !svc.isEmpty {
                         infoRow(label: "Dịch vụ", value: svc, icon: "sparkles")
                     }
@@ -699,7 +733,7 @@ struct WebsiteLeadDetailView: View {
                     }
                 }
             }
-            .navigationTitle(lead.leadType == "appointment" ? "Đặt lịch hẹn" : "Tư vấn dịch vụ")
+            .navigationTitle(lead.leadType == "appointment" ? "Đặt lịch hẹn" : lead.leadType == "partner" ? "Đăng ký đối tác" : "Tư vấn dịch vụ")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
