@@ -209,7 +209,7 @@ struct CustomerManagementView: View {
 
                 List {
                     ForEach(filteredLeads) { lead in
-                        Button { selectedLead = lead } label: { LeadRowView(lead: lead) }
+                        Button { selectedLead = lead } label: { LeadRowView(lead: lead, onStatusChanged: { Task { await loadAll() } }) }
                             .listRowBackground(Color.white)
                     }
                 }
@@ -609,8 +609,19 @@ struct PartyDetailView: View {
 
 private struct LeadRowView: View {
     let lead: WebsiteLead
+    let onStatusChanged: () -> Void
+
+    @State private var showStatusPicker = false
+    @State private var isSaving = false
 
     private var isPartner: Bool { lead.leadType == "partner" }
+
+    private let statuses: [(value: String, label: String, color: Color)] = [
+        ("new",       "Mới",        .teal),
+        ("contacted", "Đã liên hệ", .blue),
+        ("done",      "Hoàn tất",   .green),
+        ("cancelled", "Đã huỷ",     .red),
+    ]
 
     var body: some View {
         HStack(spacing: 12) {
@@ -622,10 +633,8 @@ private struct LeadRowView: View {
                     .foregroundStyle(iconColor)
             }
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(lead.fullName)
-                        .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
-                }
+                Text(lead.fullName)
+                    .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
                 Text(lead.phone).font(.caption).foregroundStyle(.gray)
                 if isPartner, let email = lead.email, !email.isEmpty {
                     Text(email).font(.caption).foregroundStyle(.blue)
@@ -634,25 +643,62 @@ private struct LeadRowView: View {
                 }
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                // Status badge
-                HStack(spacing: 3) {
-                    Circle().fill(statusColor(lead.status)).frame(width: 6, height: 6)
-                    Text(statusLabel(lead.status))
-                        .font(.caption2).fontWeight(.semibold)
-                        .foregroundStyle(statusColor(lead.status))
+            VStack(alignment: .trailing, spacing: 4) {
+                // Status button - tap to change inline
+                Button {
+                    showStatusPicker = true
+                } label: {
+                    HStack(spacing: 4) {
+                        if isSaving {
+                            ProgressView().scaleEffect(0.7)
+                        } else {
+                            Circle().fill(statusColor(lead.status)).frame(width: 6, height: 6)
+                        }
+                        Text(statusLabel(lead.status))
+                            .font(.caption2).fontWeight(.semibold)
+                            .foregroundStyle(statusColor(lead.status))
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 8))
+                            .foregroundStyle(statusColor(lead.status).opacity(0.7))
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Capsule().fill(statusColor(lead.status).opacity(0.1)))
                 }
+                .buttonStyle(.plain)
+                .disabled(isSaving)
+
                 Text(typeLabel).font(.caption2).foregroundStyle(iconColor)
                 if lead.leadType == "appointment", let slot = lead.timeSlot, !slot.isEmpty {
                     let dateStr = lead.bookingDate.map { " · \($0)" } ?? ""
-                    Text("\(slot)\(dateStr)")
-                        .font(.caption2).foregroundStyle(.blue)
+                    Text("\(slot)\(dateStr)").font(.caption2).foregroundStyle(.blue)
                 }
                 Text(formatDateOnly(lead.createdAt)).font(.caption2).foregroundStyle(.gray)
             }
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.gray)
         }
         .padding(.vertical, 4)
+        .confirmationDialog("Đổi trạng thái", isPresented: $showStatusPicker, titleVisibility: .visible) {
+            ForEach(statuses, id: \.value) { s in
+                Button(s.label) {
+                    Task { await changeStatus(to: s.value) }
+                }
+            }
+            Button("Huỷ", role: .cancel) { }
+        }
+    }
+
+    private func changeStatus(to newStatus: String) async {
+        guard newStatus != lead.status else { return }
+        isSaving = true
+        do {
+            try await SupabaseDatabaseService().updateWebsiteLeadStatus(
+                id: lead.id, status: newStatus, note: lead.note
+            )
+            onStatusChanged()
+        } catch {
+            print("❌ changeStatus error: \(error)")
+        }
+        isSaving = false
     }
 
     private var iconName: String {
