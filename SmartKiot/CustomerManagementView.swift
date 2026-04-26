@@ -643,6 +643,11 @@ private struct LeadRowView: View {
                         .foregroundStyle(statusColor(lead.status))
                 }
                 Text(typeLabel).font(.caption2).foregroundStyle(iconColor)
+                if lead.leadType == "appointment", let slot = lead.timeSlot, !slot.isEmpty {
+                    let dateStr = lead.bookingDate.map { " · \($0)" } ?? ""
+                    Text("\(slot)\(dateStr)")
+                        .font(.caption2).foregroundStyle(.blue)
+                }
                 Text(formatDateOnly(lead.createdAt)).font(.caption2).foregroundStyle(.gray)
             }
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(.gray)
