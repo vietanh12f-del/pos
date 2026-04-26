@@ -67,6 +67,29 @@ struct SettingsView: View {
                                 storeManager.currentStore = nil // Triggers StoreSelectionView in ContentView
                             }
                         }
+
+                        // Store UUID - tap to copy
+                        Button {
+                            UIPasteboard.general.string = store.id.uuidString
+                        } label: {
+                            HStack(spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Store ID")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text(store.id.uuidString)
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.themePrimary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+                                Spacer()
+                                Image(systemName: "doc.on.doc")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.themePrimary)
+                            }
+                        }
+                        .buttonStyle(.plain)
                         
                         if storeManager.hasPermission(.manageEmployees) {
                              NavigationLink(destination: EmployeeManagementView(tabBarManager: tabBarManager)) {
