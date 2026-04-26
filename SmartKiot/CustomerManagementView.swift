@@ -7,13 +7,13 @@ struct CustomerManagementView: View {
     @State private var parties: [TradingParty] = []
     @State private var isLoading = false
     @State private var searchText = ""
-    @State private var selectedType: PartyTypeFilter = .all
+    @State private var selectedType: PartyTypeFilter = .buyer
     @State private var selectedParty: TradingParty? = nil
 
     enum PartyTypeFilter: String, CaseIterable {
-        case all = "Tất cả"
         case buyer = "Khách hàng"
         case supplier = "Cơ sở cung cấp"
+        case all = "Từ Website"
         var dbType: String? {
             switch self {
             case .all: return nil
