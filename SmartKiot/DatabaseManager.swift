@@ -161,10 +161,11 @@ class SupabaseDatabaseService: DatabaseService {
 
     func fetchWebsiteLeads() async throws -> [WebsiteLead] {
         guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        // Fetch leads matching this store OR leads with no store_id (submitted before store was configured)
         let rows: [WebsiteLeadDTO] = try await client.database
             .from("website_leads")
             .select("*")
-            .eq("store_id", value: storeId)
+            .or("store_id.eq.\(storeId.uuidString),store_id.is.null")
             .order("created_at", ascending: false)
             .limit(200)
             .execute()
