@@ -82,6 +82,9 @@ protocol DatabaseService {
     // Trading Parties (buyers & suppliers)
     func fetchTradingParties(type: String) async throws -> [TradingParty]
     func upsertTradingParty(_ party: TradingParty) async throws
+
+    // Website leads
+    func fetchWebsiteLeads() async throws -> [WebsiteLead]
 }
 
 // MARK: - Supabase Implementation
@@ -154,6 +157,19 @@ class SupabaseDatabaseService: DatabaseService {
             .from("trading_parties")
             .upsert(dto)
             .execute()
+    }
+
+    func fetchWebsiteLeads() async throws -> [WebsiteLead] {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        let rows: [WebsiteLeadDTO] = try await client.database
+            .from("website_leads")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .order("created_at", ascending: false)
+            .limit(200)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
     }
     
     // MARK: - Products
@@ -873,6 +889,7 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchCategories(kind: String) async throws -> [String] { return [] }
     func fetchTradingParties(type: String) async throws -> [TradingParty] { return [] }
     func upsertTradingParty(_ party: TradingParty) async throws { print("⚠️ upsertTradingParty: Mocked success") }
+    func fetchWebsiteLeads() async throws -> [WebsiteLead] { return [] }
 }
 #endif
 

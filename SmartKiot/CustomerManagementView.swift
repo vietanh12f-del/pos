@@ -1,14 +1,57 @@
 import SwiftUI
 
+// MARK: - Website Lead Model
+
+struct WebsiteLead: Identifiable, Codable {
+    var id: UUID = UUID()
+    var leadType: String  // "consultation" | "appointment"
+    var fullName: String
+    var phone: String
+    var serviceType: String?
+    var note: String?
+    var createdAt: Date
+    var status: String  // "new" | "contacted" | "done" | "cancelled"
+    // Appointment fields
+    var bookingDate: String?
+    var timeSlot: String?
+    var email: String?
+    var branch: String?
+}
+
+struct WebsiteLeadDTO: Codable {
+    let id: UUID
+    let lead_type: String
+    let full_name: String
+    let phone: String
+    let service_type: String?
+    let note: String?
+    let created_at: Date
+    let status: String
+    let booking_date: String?
+    let time_slot: String?
+    let email: String?
+    let branch: String?
+
+    func toDomain() -> WebsiteLead {
+        WebsiteLead(
+            id: id, leadType: lead_type, fullName: full_name, phone: phone,
+            serviceType: service_type, note: note, createdAt: created_at, status: status,
+            bookingDate: booking_date, timeSlot: time_slot, email: email, branch: branch
+        )
+    }
+}
+
 // MARK: - Customer Management View
 
 struct CustomerManagementView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var parties: [TradingParty] = []
+    @State private var leads: [WebsiteLead] = []
     @State private var isLoading = false
     @State private var searchText = ""
     @State private var selectedType: PartyTypeFilter = .buyer
     @State private var selectedParty: TradingParty? = nil
+    @State private var selectedLead: WebsiteLead? = nil
 
     enum PartyTypeFilter: String, CaseIterable {
         case buyer = "Khách hàng"
@@ -23,7 +66,7 @@ struct CustomerManagementView: View {
         }
     }
 
-    private var filtered: [TradingParty] {
+    private var filteredParties: [TradingParty] {
         var list = parties
         if let type = selectedType.dbType {
             list = list.filter { $0.partyType == type }
@@ -39,8 +82,22 @@ struct CustomerManagementView: View {
         return list.sorted { $0.name < $1.name }
     }
 
+    private var filteredLeads: [WebsiteLead] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if q.isEmpty { return leads.sorted { $0.createdAt > $1.createdAt } }
+        return leads.filter {
+            $0.fullName.lowercased().contains(q) ||
+            $0.phone.lowercased().contains(q) ||
+            ($0.serviceType?.lowercased().contains(q) ?? false)
+        }.sorted { $0.createdAt > $1.createdAt }
+    }
+
     private var totalDebt: Double {
-        filtered.reduce(0) { $0 + $1.totalDebt }
+        filteredParties.reduce(0) { $0 + $1.totalDebt }
+    }
+
+    private var newLeadsCount: Int {
+        leads.filter { $0.status == "new" }.count
     }
 
     var body: some View {
@@ -57,71 +114,113 @@ struct CustomerManagementView: View {
                 .padding(.vertical, 10)
                 .background(Color.themeBackgroundLight)
 
-                // Debt summary
-                if totalDebt > 0 {
-                    HStack {
-                        Image(systemName: "exclamationmark.circle.fill")
-                            .foregroundStyle(.orange)
-                        Text("Tổng công nợ: \(formatCurrency(totalDebt))")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.orange)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background(Color.orange.opacity(0.06))
-                }
-
-                if isLoading {
-                    VStack { ProgressView(); Spacer() }.padding()
-                } else if filtered.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "person.2")
-                            .font(.system(size: 50))
-                            .foregroundStyle(.gray.opacity(0.4))
-                        Text("Chưa có dữ liệu")
-                            .foregroundStyle(.gray)
-                        Spacer()
-                    }
-                    .padding(.top, 60)
+                if selectedType == .all {
+                    // Website leads
+                    websiteLeadsContent
                 } else {
-                    List {
-                        ForEach(filtered) { party in
-                            Button {
-                                selectedParty = party
-                            } label: {
-                                PartyRowView(party: party)
-                            }
-                            .listRowBackground(Color.white)
+                    // Buyers / Suppliers
+                    if totalDebt > 0 {
+                        HStack {
+                            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+                            Text("Tổng công nợ: \(formatCurrency(totalDebt))")
+                                .font(.subheadline).fontWeight(.semibold).foregroundStyle(.orange)
+                            Spacer()
                         }
+                        .padding(.horizontal).padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.06))
                     }
-                    .listStyle(.plain)
+                    partiesContent
                 }
             }
             .background(Color.themeBackgroundLight)
             .navigationTitle("Quản lý khách hàng")
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "Tìm tên, SĐT, địa chỉ...")
+            .searchable(text: $searchText, prompt: "Tìm tên, SĐT...")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
             }
-            .task { await loadParties() }
+            .task { await loadAll() }
             .sheet(item: $selectedParty) { party in
                 PartyDetailView(party: party)
+            }
+            .sheet(item: $selectedLead) { lead in
+                WebsiteLeadDetailView(lead: lead)
             }
         }
     }
 
-    private func loadParties() async {
+    // MARK: - Parties content
+
+    private var partiesContent: some View {
+        Group {
+            if isLoading {
+                VStack { ProgressView(); Spacer() }.padding()
+            } else if filteredParties.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "person.2").font(.system(size: 50)).foregroundStyle(.gray.opacity(0.4))
+                    Text("Chưa có dữ liệu").foregroundStyle(.gray)
+                    Spacer()
+                }.padding(.top, 60)
+            } else {
+                List {
+                    ForEach(filteredParties) { party in
+                        Button { selectedParty = party } label: { PartyRowView(party: party) }
+                            .listRowBackground(Color.white)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Website leads content
+
+    private var websiteLeadsContent: some View {
+        Group {
+            if isLoading {
+                VStack { ProgressView(); Spacer() }.padding()
+            } else if filteredLeads.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "globe").font(.system(size: 50)).foregroundStyle(.gray.opacity(0.4))
+                    Text("Chưa có khách từ website").foregroundStyle(.gray)
+                    Spacer()
+                }.padding(.top, 60)
+            } else {
+                // Summary bar
+                HStack(spacing: 16) {
+                    Label("\(leads.count) liên hệ", systemImage: "person.crop.circle")
+                        .font(.caption).foregroundStyle(.gray)
+                    if newLeadsCount > 0 {
+                        Label("\(newLeadsCount) mới", systemImage: "bell.fill")
+                            .font(.caption).fontWeight(.semibold).foregroundStyle(.teal)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal).padding(.vertical, 8)
+                .background(Color.teal.opacity(0.05))
+
+                List {
+                    ForEach(filteredLeads) { lead in
+                        Button { selectedLead = lead } label: { LeadRowView(lead: lead) }
+                            .listRowBackground(Color.white)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+
+    private func loadAll() async {
         isLoading = true
         defer { isLoading = false }
         async let buyers = (try? SupabaseDatabaseService().fetchTradingParties(type: "buyer")) ?? []
         async let suppliers = (try? SupabaseDatabaseService().fetchTradingParties(type: "supplier")) ?? []
-        let (b, s) = await (buyers, suppliers)
+        async let fetchedLeads = (try? SupabaseDatabaseService().fetchWebsiteLeads()) ?? []
+        let (b, s, l) = await (buyers, suppliers, fetchedLeads)
         parties = b + s
+        leads = l
     }
 }
 
@@ -496,6 +595,165 @@ struct PartyDetailView: View {
         f.locale = Locale(identifier: "vi_VN")
         f.timeZone = .current
         f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Lead Row View
+
+private struct LeadRowView: View {
+    let lead: WebsiteLead
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(lead.leadType == "appointment" ? Color.blue.opacity(0.12) : Color.teal.opacity(0.12))
+                    .frame(width: 44, height: 44)
+                Image(systemName: lead.leadType == "appointment" ? "calendar.badge.plus" : "bubble.left.fill")
+                    .foregroundStyle(lead.leadType == "appointment" ? .blue : .teal)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(lead.fullName)
+                        .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
+                    if lead.status == "new" {
+                        Text("Mới")
+                            .font(.caption2).fontWeight(.bold).foregroundStyle(.white)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(Color.teal))
+                    }
+                }
+                Text(lead.phone).font(.caption).foregroundStyle(.gray)
+                if let svc = lead.serviceType, !svc.isEmpty {
+                    Text(svc).font(.caption).foregroundStyle(Color.themePrimary)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(lead.leadType == "appointment" ? "Đặt lịch" : "Tư vấn")
+                    .font(.caption2).foregroundStyle(lead.leadType == "appointment" ? .blue : .teal)
+                Text(formatDateOnly(lead.createdAt)).font(.caption2).foregroundStyle(.gray)
+            }
+            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.gray)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func formatDateOnly(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "dd/MM"
+        return f.string(from: date)
+    }
+}
+
+// MARK: - Website Lead Detail View
+
+struct WebsiteLeadDetailView: View {
+    let lead: WebsiteLead
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section(header: Text("Thông tin liên hệ")) {
+                    infoRow(label: "Họ tên", value: lead.fullName, icon: "person.fill")
+                    infoRow(label: "Số điện thoại", value: lead.phone, icon: "phone.fill")
+                    if let svc = lead.serviceType, !svc.isEmpty {
+                        infoRow(label: "Dịch vụ", value: svc, icon: "sparkles")
+                    }
+                    if let note = lead.note, !note.isEmpty {
+                        infoRow(label: "Ghi chú", value: note, icon: "note.text")
+                    }
+                }
+
+                if lead.leadType == "appointment" {
+                    Section(header: Text("Thông tin đặt lịch")) {
+                        if let date = lead.bookingDate, !date.isEmpty {
+                            infoRow(label: "Ngày hẹn", value: date, icon: "calendar")
+                        }
+                        if let slot = lead.timeSlot, !slot.isEmpty {
+                            infoRow(label: "Giờ hẹn", value: slot, icon: "clock.fill")
+                        }
+                        if let branch = lead.branch, !branch.isEmpty {
+                            infoRow(label: "Chi nhánh", value: branch, icon: "mappin.circle.fill")
+                        }
+                        if let email = lead.email, !email.isEmpty {
+                            infoRow(label: "Email", value: email, icon: "envelope.fill")
+                        }
+                    }
+                }
+
+                Section(header: Text("Trạng thái")) {
+                    HStack {
+                        Image(systemName: statusIcon(lead.status))
+                            .foregroundStyle(statusColor(lead.status))
+                        Text(statusLabel(lead.status))
+                            .foregroundStyle(statusColor(lead.status))
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text(formatDateTime(lead.createdAt))
+                            .font(.caption).foregroundStyle(.gray)
+                    }
+                }
+            }
+            .navigationTitle(lead.leadType == "appointment" ? "Đặt lịch hẹn" : "Tư vấn dịch vụ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func infoRow(label: String, value: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(Color.themePrimary).frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.caption).foregroundStyle(.gray)
+                Text(value).font(.subheadline)
+            }
+        }
+    }
+
+    private func statusIcon(_ s: String) -> String {
+        switch s {
+        case "new": return "bell.fill"
+        case "contacted": return "phone.fill"
+        case "done": return "checkmark.circle.fill"
+        case "cancelled": return "xmark.circle.fill"
+        default: return "circle"
+        }
+    }
+
+    private func statusColor(_ s: String) -> Color {
+        switch s {
+        case "new": return .teal
+        case "contacted": return .blue
+        case "done": return .green
+        case "cancelled": return .red
+        default: return .gray
+        }
+    }
+
+    private func statusLabel(_ s: String) -> String {
+        switch s {
+        case "new": return "Mới"
+        case "contacted": return "Đã liên hệ"
+        case "done": return "Hoàn tất"
+        case "cancelled": return "Đã huỷ"
+        default: return s
+        }
+    }
+
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "HH:mm dd/MM/yyyy"
         return f.string(from: date)
     }
 }
