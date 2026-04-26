@@ -60,3 +60,27 @@ CREATE POLICY "Store members can update website leads" ON website_leads
 
 -- Refresh PostgREST schema cache
 NOTIFY pgrst, 'reload config';
+
+-- ============================================================
+-- Fix: Allow store members to update leads with NULL store_id
+-- Run this if leads from website (store_id = NULL) cannot be updated
+-- ============================================================
+
+DROP POLICY IF EXISTS "Store members can update website leads" ON website_leads;
+CREATE POLICY "Store members can update website leads" ON website_leads
+    FOR UPDATE
+    USING (
+        store_id IS NULL
+        OR store_id IN (SELECT store_id FROM store_members WHERE user_id = auth.uid())
+    );
+
+-- Also fix SELECT policy for NULL store_id leads
+DROP POLICY IF EXISTS "Store members can read website leads" ON website_leads;
+CREATE POLICY "Store members can read website leads" ON website_leads
+    FOR SELECT
+    USING (
+        store_id IS NULL
+        OR store_id IN (SELECT store_id FROM store_members WHERE user_id = auth.uid())
+    );
+
+NOTIFY pgrst, 'reload config';

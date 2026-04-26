@@ -85,6 +85,7 @@ protocol DatabaseService {
 
     // Website leads
     func fetchWebsiteLeads() async throws -> [WebsiteLead]
+    func updateWebsiteLeadStatus(id: UUID, status: String, note: String?) async throws
 }
 
 // MARK: - Supabase Implementation
@@ -171,6 +172,18 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
             .value
         return rows.map { $0.toDomain() }
+    }
+
+    func updateWebsiteLeadStatus(id: UUID, status: String, note: String?) async throws {
+        struct UpdatePayload: Encodable {
+            let status: String
+            let note: String?
+        }
+        try await client.database
+            .from("website_leads")
+            .update(UpdatePayload(status: status, note: note))
+            .eq("id", value: id)
+            .execute()
     }
     
     // MARK: - Products
@@ -891,6 +904,7 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchTradingParties(type: String) async throws -> [TradingParty] { return [] }
     func upsertTradingParty(_ party: TradingParty) async throws { print("⚠️ upsertTradingParty: Mocked success") }
     func fetchWebsiteLeads() async throws -> [WebsiteLead] { return [] }
+    func updateWebsiteLeadStatus(id: UUID, status: String, note: String?) async throws { print("⚠️ updateWebsiteLeadStatus: Mocked success") }
 }
 #endif
 

@@ -150,7 +150,9 @@ struct CustomerManagementView: View {
                 PartyDetailView(party: party)
             }
             .sheet(item: $selectedLead) { lead in
-                WebsiteLeadDetailView(lead: lead)
+                WebsiteLeadDetailView(lead: lead) {
+                    Task { await loadAll() }
+                }
             }
         }
     }
@@ -623,12 +625,6 @@ private struct LeadRowView: View {
                 HStack(spacing: 6) {
                     Text(lead.fullName)
                         .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
-                    if lead.status == "new" {
-                        Text("Mới")
-                            .font(.caption2).fontWeight(.bold).foregroundStyle(.white)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Capsule().fill(Color.teal))
-                    }
                 }
                 Text(lead.phone).font(.caption).foregroundStyle(.gray)
                 if isPartner, let email = lead.email, !email.isEmpty {
@@ -639,6 +635,13 @@ private struct LeadRowView: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
+                // Status badge
+                HStack(spacing: 3) {
+                    Circle().fill(statusColor(lead.status)).frame(width: 6, height: 6)
+                    Text(statusLabel(lead.status))
+                        .font(.caption2).fontWeight(.semibold)
+                        .foregroundStyle(statusColor(lead.status))
+                }
                 Text(typeLabel).font(.caption2).foregroundStyle(iconColor)
                 Text(formatDateOnly(lead.createdAt)).font(.caption2).foregroundStyle(.gray)
             }
@@ -678,17 +681,58 @@ private struct LeadRowView: View {
         f.dateFormat = "dd/MM"
         return f.string(from: date)
     }
+
+    private func statusColor(_ s: String) -> Color {
+        switch s {
+        case "new":       return .teal
+        case "contacted": return .blue
+        case "done":      return .green
+        case "cancelled": return .red
+        default:          return .gray
+        }
+    }
+
+    private func statusLabel(_ s: String) -> String {
+        switch s {
+        case "new":       return "Mới"
+        case "contacted": return "Đã liên hệ"
+        case "done":      return "Hoàn tất"
+        case "cancelled": return "Đã huỷ"
+        default:          return s
+        }
+    }
 }
 
 // MARK: - Website Lead Detail View
 
 struct WebsiteLeadDetailView: View {
     let lead: WebsiteLead
+    let onSaved: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
+
+    @State private var currentStatus: String
+    @State private var internalNote: String
+    @State private var isSaving = false
+    @State private var showSavedToast = false
+
+    init(lead: WebsiteLead, onSaved: (() -> Void)? = nil) {
+        self.lead = lead
+        self.onSaved = onSaved
+        _currentStatus = State(initialValue: lead.status)
+        _internalNote = State(initialValue: lead.note ?? "")
+    }
+
+    private let statuses: [(value: String, label: String, icon: String, color: Color)] = [
+        ("new",       "Mới",          "bell.fill",           .teal),
+        ("contacted", "Đã liên hệ",   "phone.fill",          .blue),
+        ("done",      "Hoàn tất",     "checkmark.circle.fill",.green),
+        ("cancelled", "Đã huỷ",       "xmark.circle.fill",   .red),
+    ]
 
     var body: some View {
         NavigationStack {
             List {
+                // Info section
                 Section(header: Text("Thông tin liên hệ")) {
                     infoRow(label: "Họ tên", value: lead.fullName, icon: "person.fill")
                     infoRow(label: "Số điện thoại", value: lead.phone, icon: "phone.fill")
@@ -698,11 +742,9 @@ struct WebsiteLeadDetailView: View {
                     if let svc = lead.serviceType, !svc.isEmpty {
                         infoRow(label: "Dịch vụ", value: svc, icon: "sparkles")
                     }
-                    if let note = lead.note, !note.isEmpty {
-                        infoRow(label: "Ghi chú", value: note, icon: "note.text")
-                    }
                 }
 
+                // Appointment details
                 if lead.leadType == "appointment" {
                     Section(header: Text("Thông tin đặt lịch")) {
                         if let date = lead.bookingDate, !date.isEmpty {
@@ -714,32 +756,125 @@ struct WebsiteLeadDetailView: View {
                         if let branch = lead.branch, !branch.isEmpty {
                             infoRow(label: "Chi nhánh", value: branch, icon: "mappin.circle.fill")
                         }
-                        if let email = lead.email, !email.isEmpty {
-                            infoRow(label: "Email", value: email, icon: "envelope.fill")
-                        }
                     }
                 }
 
+                // Status section
                 Section(header: Text("Trạng thái")) {
+                    ForEach(statuses, id: \.value) { s in
+                        Button {
+                            currentStatus = s.value
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: s.icon)
+                                    .foregroundStyle(s.color)
+                                    .frame(width: 22)
+                                Text(s.label)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Spacer()
+                                if currentStatus == s.value {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(s.color)
+                                        .fontWeight(.bold)
+                                }
+                            }
+                        }
+                        .listRowBackground(currentStatus == s.value ? s.color.opacity(0.06) : Color.white)
+                    }
+                }
+
+                // Note section
+                Section(header: Text("Ghi chú nội bộ")) {
+                    ZStack(alignment: .topLeading) {
+                        if internalNote.isEmpty {
+                            Text("Thêm ghi chú...")
+                                .foregroundStyle(.gray.opacity(0.6))
+                                .padding(.top, 8)
+                                .padding(.leading, 4)
+                        }
+                        TextEditor(text: $internalNote)
+                            .frame(minHeight: 80)
+                            .scrollContentBackground(.hidden)
+                    }
+                }
+
+                // Metadata
+                Section {
                     HStack {
-                        Image(systemName: statusIcon(lead.status))
-                            .foregroundStyle(statusColor(lead.status))
-                        Text(statusLabel(lead.status))
-                            .foregroundStyle(statusColor(lead.status))
-                            .fontWeight(.semibold)
+                        Text("Loại").foregroundStyle(.gray)
                         Spacer()
-                        Text(formatDateTime(lead.createdAt))
-                            .font(.caption).foregroundStyle(.gray)
+                        Text(typeLabel(lead.leadType))
+                    }
+                    HStack {
+                        Text("Thời gian").foregroundStyle(.gray)
+                        Spacer()
+                        Text(formatDateTime(lead.createdAt)).font(.caption)
                     }
                 }
             }
-            .navigationTitle(lead.leadType == "appointment" ? "Đặt lịch hẹn" : lead.leadType == "partner" ? "Đăng ký đối tác" : "Tư vấn dịch vụ")
+            .navigationTitle(navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if isSaving {
+                            ProgressView()
+                        } else {
+                            Text("Lưu").fontWeight(.bold)
+                        }
+                    }
+                    .disabled(isSaving)
+                }
             }
+            .overlay(alignment: .bottom) {
+                if showSavedToast {
+                    Text("✅ Đã lưu")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20).padding(.vertical, 10)
+                        .background(Capsule().fill(Color.green))
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: showSavedToast)
+        }
+    }
+
+    private var navTitle: String {
+        switch lead.leadType {
+        case "appointment": return "Đặt lịch hẹn"
+        case "partner":     return "Đăng ký đối tác"
+        default:            return "Tư vấn dịch vụ"
+        }
+    }
+
+    private func typeLabel(_ t: String) -> String {
+        switch t {
+        case "appointment": return "Đặt lịch"
+        case "partner":     return "Đối tác"
+        default:            return "Tư vấn"
+        }
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await SupabaseDatabaseService().updateWebsiteLeadStatus(
+                id: lead.id,
+                status: currentStatus,
+                note: internalNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : internalNote
+            )
+            dismiss()
+            onSaved?()
+        } catch {
+            print("❌ updateWebsiteLeadStatus error: \(error)")
         }
     }
 
@@ -750,36 +885,6 @@ struct WebsiteLeadDetailView: View {
                 Text(label).font(.caption).foregroundStyle(.gray)
                 Text(value).font(.subheadline)
             }
-        }
-    }
-
-    private func statusIcon(_ s: String) -> String {
-        switch s {
-        case "new": return "bell.fill"
-        case "contacted": return "phone.fill"
-        case "done": return "checkmark.circle.fill"
-        case "cancelled": return "xmark.circle.fill"
-        default: return "circle"
-        }
-    }
-
-    private func statusColor(_ s: String) -> Color {
-        switch s {
-        case "new": return .teal
-        case "contacted": return .blue
-        case "done": return .green
-        case "cancelled": return .red
-        default: return .gray
-        }
-    }
-
-    private func statusLabel(_ s: String) -> String {
-        switch s {
-        case "new": return "Mới"
-        case "contacted": return "Đã liên hệ"
-        case "done": return "Hoàn tất"
-        case "cancelled": return "Đã huỷ"
-        default: return s
         }
     }
 
