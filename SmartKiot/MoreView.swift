@@ -4,16 +4,19 @@ struct MoreView: View {
     @Binding var selectedTab: Int
     @Binding var showProductionManagement: Bool
     @Binding var showProductionReport: Bool
-    
+
+    @State private var showCustomerManagement = false
+
     let menuItems: [MenuItem] = [
         MenuItem(id: 5, title: "Chat", icon: "message.fill", color: .blue),
         MenuItem(id: 4, title: "Chi Phí", icon: "banknote.fill", color: .green),
         MenuItem(id: 7, title: "Thống Kê", icon: "chart.bar.xaxis", color: .orange),
         MenuItem(id: 6, title: "Cài Đặt", icon: "gearshape.fill", color: .gray),
         MenuItem(id: 99, title: "Quản Lý Sản Xuất", icon: "gearshape.2.fill", color: .purple),
-        MenuItem(id: 100, title: "Báo Cáo Sản Xuất", icon: "doc.text.magnifyingglass", color: .purple)
+        MenuItem(id: 100, title: "Báo Cáo Sản Xuất", icon: "doc.text.magnifyingglass", color: .purple),
+        MenuItem(id: 101, title: "Quản Lý Khách Hàng", icon: "person.2.fill", color: .teal)
     ]
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -24,6 +27,8 @@ struct MoreView: View {
                                 showProductionManagement = true
                             } else if item.id == 100 {
                                 showProductionReport = true
+                            } else if item.id == 101 {
+                                showCustomerManagement = true
                             } else {
                                 selectedTab = item.id
                             }
@@ -37,7 +42,6 @@ struct MoreView: View {
                                             .font(.title2)
                                             .foregroundStyle(item.color)
                                     )
-                                
                                 Text(item.title)
                                     .font(.headline)
                                     .foregroundStyle(Color.themeTextDark)
@@ -54,6 +58,9 @@ struct MoreView: View {
             }
             .navigationTitle("Thêm")
             .background(Color.themeBackgroundLight)
+        }
+        .sheet(isPresented: $showCustomerManagement) {
+            CustomerManagementView()
         }
     }
 }
