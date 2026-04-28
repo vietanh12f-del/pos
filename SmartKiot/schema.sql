@@ -62,7 +62,8 @@ CREATE TABLE IF NOT EXISTS restock_items (
     suggested_price NUMERIC,
     category TEXT,
     source TEXT,
-    document_image_url TEXT
+    document_image_url TEXT,
+    weight_per_unit_grams INTEGER
 );
 
 ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS additional_cost NUMERIC DEFAULT 0;
@@ -70,6 +71,7 @@ ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS suggested_price NUMERIC;
 ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS source TEXT;
 ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS document_image_url TEXT;
+ALTER TABLE restock_items ADD COLUMN IF NOT EXISTS weight_per_unit_grams INTEGER;
 
 -- 6. Price History Table (for ad-hoc items auto-complete)
 CREATE TABLE IF NOT EXISTS price_history (

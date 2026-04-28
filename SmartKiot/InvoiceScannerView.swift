@@ -275,7 +275,15 @@ struct InvoiceScannerView: View {
     
     private func addItemsToRestock() {
         for item in recognizedItems {
-            viewModel.addRestockItem(item.name, unitPrice: item.unitPrice, quantity: item.quantity, additionalCost: item.additionalCost, suggestedPrice: item.suggestedPrice, category: item.category)
+            viewModel.addRestockItem(
+                item.name,
+                unitPrice: item.unitPrice,
+                quantity: item.quantity,
+                additionalCost: item.additionalCost,
+                suggestedPrice: item.suggestedPrice,
+                category: item.category,
+                weightPerUnitGrams: item.weightPerUnitGrams
+            )
         }
         dismiss()
     }

@@ -41,6 +41,10 @@ struct RestockEntryView: View {
     @State private var showExportInfoSheet = false
     @State private var showImportInfoSheet = false
     
+    private var isUnitFinishedGoodsImport: Bool {
+        !useMaterialsList && inventorySubTab == 0 && titleText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "nhập hàng"
+    }
+    
     var body: some View {
         ZStack(alignment: .bottom) {
             // Background
@@ -269,18 +273,38 @@ struct RestockEntryView: View {
                                                         }
                                                     }
                                                 } else {
-                                                    // Tab Thành phẩm: thêm nhanh 1kg cho cả nhập/xuất
-                                                    let qty = 1000
-                                                    let unit = p.price
-                                                    if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == p.name.lowercased() }) {
-                                                        viewModel.restockItems[idx].quantity += qty
-                                                        viewModel.restockItems[idx].unitPrice = unit
-                                                        viewModel.restockItems[idx].category = p.category
-                                                        lastAddedItemId = viewModel.restockItems[idx].id
+                                                    let key = p.name.lowercased()
+                                                    if isUnitFinishedGoodsImport && !isExport {
+                                                        let unitQty = 1
+                                                        let unit = p.price
+                                                        if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == key }) {
+                                                            viewModel.restockItems[idx].quantity += unitQty
+                                                            viewModel.restockItems[idx].unitPrice = unit
+                                                            viewModel.restockItems[idx].category = p.category
+                                                            if viewModel.restockItems[idx].weightPerUnitGrams == nil {
+                                                                viewModel.restockItems[idx].weightPerUnitGrams = 0
+                                                            }
+                                                            lastAddedItemId = viewModel.restockItems[idx].id
+                                                        } else {
+                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: unitQty, additionalCost: 0, suggestedPrice: nil, category: p.category)
+                                                            if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == key }) {
+                                                                viewModel.restockItems[newIdx].weightPerUnitGrams = 0
+                                                                lastAddedItemId = viewModel.restockItems[newIdx].id
+                                                            }
+                                                        }
                                                     } else {
-                                                        viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: nil, category: p.category)
-                                                        if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == p.name.lowercased() }) {
-                                                            lastAddedItemId = viewModel.restockItems[newIdx].id
+                                                        let qty = 1000
+                                                        let unit = p.price
+                                                        if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == key }) {
+                                                            viewModel.restockItems[idx].quantity += qty
+                                                            viewModel.restockItems[idx].unitPrice = unit
+                                                            viewModel.restockItems[idx].category = p.category
+                                                            lastAddedItemId = viewModel.restockItems[idx].id
+                                                        } else {
+                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: nil, category: p.category)
+                                                            if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == key }) {
+                                                                lastAddedItemId = viewModel.restockItems[newIdx].id
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -431,7 +455,7 @@ struct RestockEntryView: View {
                                                 }
                                             }
                                             HStack(spacing: 10) {
-                                                let isWeight = useMaterialsList || titleText.lowercased().contains("thành phẩm")
+                                                let isWeight = useMaterialsList || (titleText.lowercased().contains("thành phẩm") && (item.weightPerUnitGrams == nil))
                                                 HStack(spacing: 6) {
                                                     Text("SL:")
                                                         .font(.caption)
@@ -449,7 +473,7 @@ struct RestockEntryView: View {
                                                 .contentShape(Rectangle())
                                                 .onTapGesture {
                                                     summaryEditingIndex = idx
-                                                    summaryIsMaterials = useMaterialsList || titleText.lowercased().contains("thành phẩm")
+                                                    summaryIsMaterials = useMaterialsList || (titleText.lowercased().contains("thành phẩm") && (item.weightPerUnitGrams == nil))
                                                     if summaryIsMaterials {
                                                         let grams = max(0, item.quantity)
                                                         summaryQtyKgSelection = grams / 1000
@@ -654,6 +678,7 @@ struct RestockEntryView: View {
             ManualRestockItemView(
                 viewModel: viewModel, 
                 isFinishedGoods: isFinishedGoodsContext(),
+                treatFinishedGoodsAsUnits: isUnitFinishedGoodsImport,
                 addTitle: computedAddTitle(),
                 editTitle: computedEditTitle()
             ) 
@@ -683,6 +708,7 @@ struct RestockEntryView: View {
                 viewModel: viewModel, 
                 prefilledProduct: product, 
                 isFinishedGoods: isFinishedGoodsContext(),
+                treatFinishedGoodsAsUnits: isUnitFinishedGoodsImport,
                 addTitle: computedAddTitle(),
                 editTitle: computedEditTitle()
             )
@@ -692,6 +718,7 @@ struct RestockEntryView: View {
                 viewModel: viewModel, 
                 itemToEdit: item, 
                 isFinishedGoods: isFinishedGoodsContext(),
+                treatFinishedGoodsAsUnits: isUnitFinishedGoodsImport,
                 addTitle: computedAddTitle(),
                 editTitle: computedEditTitle()
             )
@@ -1011,7 +1038,7 @@ struct RestockItemCard: View {
                 }) {
                     Image(systemName: item.isConfirmed ? "checkmark.circle.fill" : "circle")
                         .font(.title2)
-                        .foregroundStyle(item.isConfirmed ? .green : .gray.opacity(0.3))
+                        .foregroundStyle(item.isConfirmed ? Color.green : Color.gray.opacity(0.3))
                 }
             }
         }
@@ -1031,6 +1058,7 @@ struct ManualRestockItemView: View {
     var itemToEdit: RestockItem? = nil
     var prefilledProduct: Product? = nil
     var isFinishedGoods: Bool = false
+    var treatFinishedGoodsAsUnits: Bool = false
     var addTitle: String = "Thêm hàng nhập"
     var editTitle: String = "Sửa hàng nhập"
     @Environment(\.dismiss) var dismiss
@@ -1069,6 +1097,10 @@ struct ManualRestockItemView: View {
     @State private var suggestedPriceHundredsSelection = 0
     @State private var suggestedPriceWheelRangeBase = 0
     @State private var showSuggestedPriceWheelRangePicker = false
+    @State private var showWeightPerUnitWheel = false
+    @State private var weightPerUnitKgSelection = 0
+    @State private var weightPerUnitGramsSelection = 0
+    @State private var weightPerUnitMax = 100
     @State private var selectedCategoryName: String = Category.materials.rawValue
     @State private var showCategorySheet = false
     @State private var newCategoryName: String = ""
@@ -1085,6 +1117,11 @@ struct ManualRestockItemView: View {
     @State private var documentImageURL: String?
     @State private var isUploadingDocument: Bool = false
     @State private var showDocumentPreview: Bool = false
+    
+    @State private var importFromFinishedGood = false
+    @State private var showFinishedGoodPicker = false
+    @State private var showValidationAlert = false
+    @State private var validationAlertMessage = ""
     
     private var isSimpleFinishedGoodsEdit: Bool {
         isFinishedGoods && itemToEdit != nil && editTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "sửa thành phẩm"
@@ -1150,28 +1187,15 @@ struct ManualRestockItemView: View {
                             }
                         }
                     }
-                    if !name.isEmpty {
-                        let isWeightContext = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
-                        let current = viewModel.currentStockLevel(for: name)
-                        HStack(spacing: 4) {
-                            Text("Tồn hiện tại:")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            if isWeightContext {
-                                Text(FormatUtils.formatWeight(current))
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                            } else {
-                                Text(String(current))
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                            }
-                        }
+                    
+                    if !isFinishedGoods {
+                        Toggle("Nhập từ thành phẩm", isOn: $importFromFinishedGood)
+                            .padding(.vertical, 4)
+                            .tint(Color.themePrimary)
                     }
                     
-                    let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
-                    let isExport = addTitle.lowercased().contains("xuất")
-                    let isFinishedGoodsTransactionEdit = isFinishedGoods && itemToEdit != nil && !isSimpleFinishedGoodsEdit && editTitle.lowercased().contains("sửa thành phẩm")
+                    currentStockLevelView()
+                    
                     if isSimpleFinishedGoodsEdit {
                         HStack {
                             Text("Giá bán")
@@ -1198,35 +1222,7 @@ struct ManualRestockItemView: View {
                             }
                         }
                         
-                        HStack {
-                            Text("Số lượng")
-                            Spacer()
-                            Button {
-                                if useKgGram {
-                                    let current = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
-                                    quantityKgSelection = max(0, current / 1000)
-                                    let remainder = max(0, current % 1000)
-                                    gramsWheelSelection = (remainder / 50) * 50
-                                    if quantityKgSelection > quantityWheelMax {
-                                        quantityWheelMax = max(quantityWheelMax, quantityKgSelection + 200)
-                                    }
-                                } else {
-                                    if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
-                                }
-                                showQuantityWheel = true
-                            } label: {
-                                let gramsVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
-                                Group {
-                                    if useKgGram {
-                                        Text(FormatUtils.formatKgDecimal(fromGrams: gramsVal))
-                                            .fontWeight(.semibold)
-                                    } else {
-                                        Text(quantity.isEmpty ? String(quantityWheelSelection) : quantity)
-                                            .fontWeight(.semibold)
-                                    }
-                                }
-                            }
-                        }
+                        quantityRow()
                         
                         if isExport {
                             HStack {
@@ -1259,189 +1255,16 @@ struct ManualRestockItemView: View {
                             HStack {
                                 Text("Giá xuất")
                                 Spacer()
-                                if qVal > 0 {
-                                    let total = (pVal * (Double(qVal) / 1000.0)) + incVal
-                                    let unitValue = total / (Double(qVal) / 1000.0)
-                                    Text(formatCurrency(unitValue))
-                                        .fontWeight(.semibold)
-                                } else {
-                                    Text("—")
-                                        .foregroundStyle(.gray)
-                                }
+                                Text(getCalculatedUnitPriceDisplay(pVal: pVal, qVal: qVal, incVal: incVal, isMatExport: false))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(qVal > 0 ? Color.primary : Color.gray)
                             }
                         } else {
-                            HStack(spacing: 8) {
-                                Text("Nguồn nhập")
-                                Spacer()
-                                TextField("Nhập nguồn", text: $sourceText)
-                                    .multilineTextAlignment(.trailing)
-                                Button {
-                                    if viewModel.isRecordingManualSource {
-                                        viewModel.speechRecognizer.stopRecording()
-                                        let spoken = viewModel.manualRecordedSource.trimmingCharacters(in: .whitespacesAndNewlines)
-                                        if !spoken.isEmpty { sourceText = spoken }
-                                    } else {
-                                        do {
-                                            try viewModel.speechRecognizer.startRecording()
-                                            viewModel.isRecordingManualSource = true
-                                            viewModel.manualRecordedSource = ""
-                                        } catch { }
-                                    }
-                                } label: {
-                                    ZStack {
-                                        Circle()
-                                            .fill((viewModel.isRecordingManualSource ? Color.red : Color.gray).opacity(0.15))
-                                            .frame(width: 34, height: 34)
-                                        Image(systemName: viewModel.isRecordingManualSource ? "waveform" : "mic.fill")
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundStyle(viewModel.isRecordingManualSource ? Color.red : .gray)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .contentShape(Rectangle())
-                                Button {
-                                    let options = viewModel.sourceHistory(for: name)
-                                    if !options.isEmpty {
-                                        sourceHistoryOptions = options
-                                        showSourceHistoryPicker = true
-                                    }
-                                } label: {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.gray.opacity(0.15))
-                                            .frame(width: 34, height: 34)
-                                        Image(systemName: "clock.arrow.circlepath")
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundStyle(.gray)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .contentShape(Rectangle())
-                                .disabled(viewModel.sourceHistory(for: name).isEmpty)
-                            }
-                            .onReceive(viewModel.$manualRecordedSource) { newText in
-                                if viewModel.isRecordingManualSource {
-                                    let t = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    if !t.isEmpty { sourceText = t }
-                                }
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("Hóa đơn chứng từ")
-                                    Spacer()
-                                    if isUploadingDocument {
-                                        ProgressView()
-                                    } else if documentImageURL != nil {
-                                        Text("Đã chọn")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                    } else {
-                                        Text("—")
-                                            .foregroundStyle(.gray)
-                                    }
-                                }
-                                HStack(spacing: 12) {
-                                    if documentImage != nil || documentImageURL != nil {
-                                        Button {
-                                            showDocumentPreview = true
-                                        } label: {
-                                            ZStack {
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .fill(Color.gray.opacity(0.12))
-                                                    .frame(width: 54, height: 54)
-                                                
-                                                if let img = documentImage {
-                                                    Image(uiImage: img)
-                                                        .resizable()
-                                                        .scaledToFill()
-                                                        .frame(width: 54, height: 54)
-                                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                                } else if let urlString = documentImageURL, let url = URL(string: urlString) {
-                                                    AsyncImage(url: url) { phase in
-                                                        switch phase {
-                                                        case .empty:
-                                                            ProgressView()
-                                                        case .success(let image):
-                                                            image
-                                                                .resizable()
-                                                                .scaledToFill()
-                                                        default:
-                                                            Image(systemName: "doc.text.image")
-                                                                .foregroundStyle(.gray)
-                                                        }
-                                                    }
-                                                    .frame(width: 54, height: 54)
-                                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                                }
-                                                
-                                                Image(systemName: "magnifyingglass")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.white)
-                                                    .padding(6)
-                                                    .background(Circle().fill(Color.black.opacity(0.45)))
-                                                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                                                    .padding(4)
-                                            }
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                    
-                                    Button("Chụp ảnh") {
-                                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                            documentPickerSource = .camera
-                                            showCameraPicker = true
-                                        } else {
-                                            showCameraUnavailableAlert = true
-                                        }
-                                    }
-                                    
-                                    Button("Thư viện") {
-                                        documentPickerSource = .photoLibrary
-                                        showDocumentPicker = true
-                                    }
-                                    
-                                    if documentImageURL != nil {
-                                        Spacer()
-                                        Button("Xóa") {
-                                            documentImage = nil
-                                            documentImageURL = nil
-                                        }
-                                        .foregroundStyle(.red)
-                                    }
-                                }
-                            }
+                            sourceInputView()
+                            documentImageSection()
                         }
                     } else {
-                        HStack {
-                            Text("Số lượng")
-                            Spacer()
-                            Button {
-                                if useKgGram {
-                                    let current = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
-                                    quantityKgSelection = max(0, current / 1000)
-                                    let remainder = max(0, current % 1000)
-                                    gramsWheelSelection = (remainder / 50) * 50
-                                    if quantityKgSelection > quantityWheelMax {
-                                        quantityWheelMax = max(quantityWheelMax, quantityKgSelection + 200)
-                                    }
-                                } else {
-                                    if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
-                                }
-                                showQuantityWheel = true
-                            } label: {
-                                let gramsVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
-                                Group {
-                                    if useKgGram {
-                                        Text(FormatUtils.formatKgDecimal(fromGrams: gramsVal))
-                                            .fontWeight(.semibold)
-                                    } else {
-                                        Text(quantity.isEmpty ? String(quantityWheelSelection) : quantity)
-                                            .fontWeight(.semibold)
-                                    }
-                                }
-                            }
-                        }
+                        quantityRow()
                         
                         HStack {
                             Text(isExport ? "Đơn giá xuất" : "Đơn giá nhập")
@@ -1475,15 +1298,9 @@ struct ManualRestockItemView: View {
                         HStack {
                             Text(isFinishedGoods ? (isFGExport ? "Giá xuất" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
                             Spacer()
-                            if qVal > 0 {
-                                let total = isMatExport ? (pVal * (Double(qVal) / 1000.0)) : ((pVal * (Double(qVal) / 1000.0)) + incVal)
-                                let unitValue = isMatExport ? pVal : (total / (Double(qVal) / 1000.0))
-                                Text(formatCurrency(unitValue))
-                                    .fontWeight(.semibold)
-                            } else {
-                                Text("—")
-                                    .foregroundStyle(.gray)
-                            }
+                            Text(getCalculatedUnitPriceDisplay(pVal: pVal, qVal: qVal, incVal: incVal, isMatExport: isMatExport))
+                                .fontWeight(.semibold)
+                                .foregroundStyle(qVal > 0 ? Color.primary : Color.gray)
                         }
                     }
                     
@@ -1502,148 +1319,24 @@ struct ManualRestockItemView: View {
                         }
                     }
                     
-                    if !isSimpleFinishedGoodsEdit && !isExport && !isFinishedGoodsTransactionEdit {
-                        HStack(spacing: 8) {
-                            Text("Nguồn nhập")
+                    if treatFinishedGoodsAsUnits || importFromFinishedGood {
+                        HStack {
+                            Text("Khối lượng/đơn vị (KL)")
                             Spacer()
-                            TextField("Nhập nguồn", text: $sourceText)
-                                .multilineTextAlignment(.trailing)
                             Button {
-                                if viewModel.isRecordingManualSource {
-                                    viewModel.speechRecognizer.stopRecording()
-                                    let spoken = viewModel.manualRecordedSource.trimmingCharacters(in: .whitespacesAndNewlines)
-                                    if !spoken.isEmpty { sourceText = spoken }
-                                } else {
-                                    do {
-                                        try viewModel.speechRecognizer.startRecording()
-                                        viewModel.isRecordingManualSource = true
-                                        viewModel.manualRecordedSource = ""
-                                    } catch { }
-                                }
+                                showWeightPerUnitWheel = true
                             } label: {
-                                ZStack {
-                                    Circle()
-                                        .fill((viewModel.isRecordingManualSource ? Color.red : Color.gray).opacity(0.15))
-                                        .frame(width: 34, height: 34)
-                                    Image(systemName: viewModel.isRecordingManualSource ? "waveform" : "mic.fill")
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundStyle(viewModel.isRecordingManualSource ? Color.red : .gray)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .contentShape(Rectangle())
-                            Button {
-                                let options = viewModel.sourceHistory(for: name)
-                                if !options.isEmpty {
-                                    sourceHistoryOptions = options
-                                    showSourceHistoryPicker = true
-                                }
-                            } label: {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.15))
-                                        .frame(width: 34, height: 34)
-                                    Image(systemName: "clock.arrow.circlepath")
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundStyle(.gray)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .contentShape(Rectangle())
-                            .disabled(viewModel.sourceHistory(for: name).isEmpty)
-                        }
-                        .onReceive(viewModel.$manualRecordedSource) { newText in
-                            if viewModel.isRecordingManualSource {
-                                let t = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !t.isEmpty { sourceText = t }
+                                let grams = weightPerUnitKgSelection * 1000 + weightPerUnitGramsSelection
+                                Text(grams > 0 ? FormatUtils.formatWeight(grams) : "—")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(grams > 0 ? Color.primary : Color.gray)
                             }
                         }
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("Hóa đơn chứng từ")
-                                Spacer()
-                                if isUploadingDocument {
-                                    ProgressView()
-                                } else if documentImageURL != nil {
-                                    Text("Đã chọn")
-                                        .font(.caption)
-                                        .foregroundStyle(.gray)
-                                } else {
-                                    Text("—")
-                                        .foregroundStyle(.gray)
-                                }
-                            }
-                            HStack(spacing: 12) {
-                                if documentImage != nil || documentImageURL != nil {
-                                    Button {
-                                        showDocumentPreview = true
-                                    } label: {
-                                        ZStack {
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(Color.gray.opacity(0.12))
-                                                .frame(width: 54, height: 54)
-                                            
-                                            if let img = documentImage {
-                                                Image(uiImage: img)
-                                                    .resizable()
-                                                    .scaledToFill()
-                                                    .frame(width: 54, height: 54)
-                                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                            } else if let urlString = documentImageURL, let url = URL(string: urlString) {
-                                                AsyncImage(url: url) { phase in
-                                                    switch phase {
-                                                    case .empty:
-                                                        ProgressView()
-                                                    case .success(let image):
-                                                        image
-                                                            .resizable()
-                                                            .scaledToFill()
-                                                    default:
-                                                        Image(systemName: "doc.text.image")
-                                                            .foregroundStyle(.gray)
-                                                    }
-                                                }
-                                                .frame(width: 54, height: 54)
-                                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                            }
-                                            
-                                            Image(systemName: "magnifyingglass")
-                                                .font(.caption)
-                                                .foregroundStyle(.white)
-                                                .padding(6)
-                                                .background(Circle().fill(Color.black.opacity(0.45)))
-                                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                                                .padding(4)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                                
-                                Button("Chụp ảnh") {
-                                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                                        documentPickerSource = .camera
-                                        showCameraPicker = true
-                                    } else {
-                                        showCameraUnavailableAlert = true
-                                    }
-                                }
-                                
-                                Button("Thư viện") {
-                                    documentPickerSource = .photoLibrary
-                                    showDocumentPicker = true
-                                }
-                                
-                                if documentImageURL != nil {
-                                    Spacer()
-                                    Button("Xóa") {
-                                        documentImage = nil
-                                        documentImageURL = nil
-                                    }
-                                    .foregroundStyle(.red)
-                                }
-                            }
-                        }
+                    }
+                    
+                    if !isSimpleFinishedGoodsEdit && !isExport && !isFinishedGoodsTransactionEdit {
+                        sourceInputView()
+                        documentImageSection()
                     }
                     
                     if !isSimpleFinishedGoodsEdit, let p = parseDouble(price) {
@@ -1652,8 +1345,7 @@ struct ManualRestockItemView: View {
                         let q = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
                         if q > 0 {
                             let extra = parseDouble(incurredCost) ?? 0
-                            let total = if isMatExport { p * (Double(q) / 1000.0) } else { (p * (Double(q) / 1000.0)) + extra }
-                            let unitValue = isMatExport ? p : (total / (Double(q) / 1000.0))
+                            let total = getCalculatedTotal(pVal: p, qVal: q, incVal: extra, isMatExport: isMatExport)
                             
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
@@ -1668,7 +1360,7 @@ struct ManualRestockItemView: View {
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                     Spacer()
-                                    Text(formatCurrency(unitValue))
+                                    Text(getCalculatedUnitPriceDisplay(pVal: p, qVal: q, incVal: extra, isMatExport: isMatExport))
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                 }
@@ -1687,150 +1379,64 @@ struct ManualRestockItemView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(itemToEdit == nil ? "Thêm" : "Lưu") {
-                        if isSimpleFinishedGoodsEdit {
-                            let priceValue = parseDouble(price) ?? Double(unitPriceWheelSelection)
-                            if let p = prefilledProduct ?? viewModel.products.first(where: { $0.name.lowercased() == name.lowercased() }) {
-                                viewModel.updateProduct(
-                                    p,
-                                    name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-                                    price: priceValue,
-                                    costPrice: p.costPrice,
-                                    category: Category(rawValue: selectedCategoryName) ?? .others,
-                                    imageName: p.imageName,
-                                    color: p.color,
-                                    quantity: viewModel.stockLevel(for: p.name),
-                                    imageData: p.imageData,
-                                    barcode: p.barcode,
-                                    imageURL: p.imageURL
-                                )
-                            }
-                            dismiss()
-                            return
-                        }
-                        let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
-                        let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
-                        let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : (Int(quantity) ?? quantityWheelSelection)
-                        guard !name.isEmpty, q > 0 else { return }
-                        let extra = parseDouble(incurredCost) ?? 0
-                        let suggested: Double? = (!isFinishedGoods ? Double(suggestedPriceWheelSelection) : nil)
-                        
-                        if var item = itemToEdit {
-                            item.name = name
-                            item.quantity = q
-                            item.unitPrice = p
-                            item.additionalCost = extra
-                            item.suggestedPrice = suggested
-                            item.category = selectedCategoryName
-                            let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            item.source = src.isEmpty ? nil : src
-                            item.documentImageURL = documentImageURL
-                            item.isConfirmed = true
-                            viewModel.updateRestockItem(item)
-                        } else {
-                            let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            viewModel.addRestockItem(
-                                name,
-                                unitPrice: p,
-                                quantity: q,
-                                additionalCost: extra,
-                                suggestedPrice: suggested,
-                                category: selectedCategoryName,
-                                source: src.isEmpty ? nil : src,
-                                documentImageURL: documentImageURL
-                            )
-                        }
-                        dismiss()
+                        handleConfirmation()
                     }
                     .disabled(name.isEmpty)
                 }
             }
+            .alert("Lỗi", isPresented: $showValidationAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(validationAlertMessage)
+            }
         }
         .presentationDetents([.height(550)])
         .onAppear {
-            if let item = itemToEdit {
-                name = item.name
-                sourceText = item.source ?? ""
-                documentImageURL = item.documentImageURL
-                let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
-                if useKgGram {
-                    quantity = FormatUtils.formatKgDecimal(fromGrams: item.quantity)
-                } else {
-                    quantity = String(item.quantity)
-                }
-                price = String(format: "%.0f", item.unitPrice)
-                incurredCost = String(format: "%.0f", item.additionalCost)
-                quantityWheelSelection = item.quantity
-                unitPriceWheelSelection = Int(item.unitPrice)
-                additionalCostWheelSelection = Int(item.additionalCost)
-                if let cat = item.category, !cat.isEmpty {
-                    selectedCategoryName = cat
-                }
-                if !isFinishedGoods {
-                    if let sp = item.suggestedPrice {
-                        suggestedPriceWheelSelection = Int(sp)
-                    } else {
-                        suggestedPriceWheelSelection = max(Int(item.unitPrice * 1.3), Int(item.unitPrice))
+            handleOnAppear()
+        }
+        .sheet(isPresented: $showWeightPerUnitWheel) {
+            VStack(spacing: 12) {
+                Text("Khối lượng/đơn vị").font(.headline)
+                HStack {
+                    VStack {
+                        Text("Kg").font(.caption).foregroundStyle(.gray)
+                        Picker("", selection: $weightPerUnitKgSelection) {
+                            ForEach(Array(0...weightPerUnitMax), id: \.self) { kg in
+                                Text("\(kg)").tag(kg)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: weightPerUnitKgSelection) { _, v in
+                            if v >= weightPerUnitMax - 5 { weightPerUnitMax += 50 }
+                        }
+                    }
+                    VStack {
+                        Text("Gam").font(.caption).foregroundStyle(.gray)
+                        Picker("", selection: $weightPerUnitGramsSelection) {
+                            ForEach(Array(stride(from: 0, through: 950, by: 50)), id: \.self) { g in
+                                Text("\(g)").tag(g)
+                            }
+                        }
+                        .pickerStyle(.wheel)
                     }
                 }
-                // no selling price wheel
-            } else if let product = prefilledProduct {
-                name = product.name
-                // Use last known cost price as default import price
-                // If costPrice is 0, use 70% of selling price as a heuristic guess
-                let defaultCost = product.costPrice > 0 ? product.costPrice : product.price * 0.7
-                price = String(format: "%.0f", defaultCost)
-                
-                unitPriceWheelSelection = Int(defaultCost)
-                if !isFinishedGoods {
-                    suggestedPriceWheelSelection = Int(product.price)
+                HStack {
+                    Button("Đóng") { showWeightPerUnitWheel = false }
+                    Spacer()
+                    Button("Lưu") { showWeightPerUnitWheel = false }
                 }
+                .font(.headline)
             }
-            
-            if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                if let latest = viewModel.latestSource(for: name) {
-                    sourceText = latest
-                }
-            }
+            .padding()
+            .presentationDetents([.height(320)])
         }
         .sheet(isPresented: $showNamePicker) {
             NavigationStack {
                 let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
-                let items: [String] = {
-                    if isMaterialsCtx {
-                        return viewModel.materials.map { $0.name }
-                    }
-                    return viewModel.products.map { $0.name }
-                }()
-                
                 List {
-                    ForEach(items.filter {
-                        let t = nameSearch.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if t.isEmpty { return true }
-                        return $0.lowercased().contains(t.lowercased())
-                    }, id: \.self) { n in
+                    ForEach(filteredPickerItems(isMaterialsCtx: isMaterialsCtx), id: \.self) { n in
                         Button {
-                            name = n
-                            if isMaterialsCtx {
-                                selectedCategoryName = Category.materials.rawValue
-                                if let mat = viewModel.materials.first(where: { $0.name == n }) {
-                                    let v = Int(mat.lastUnitPrice)
-                                    unitPriceWheelSelection = v
-                                    price = String(v)
-                                }
-                            } else {
-                                if let p = viewModel.products.first(where: { $0.name == n }) {
-                                    selectedCategoryName = p.category
-                                    let defaultCost = p.costPrice > 0 ? p.costPrice : p.price * 0.7
-                                    unitPriceWheelSelection = Int(defaultCost)
-                                    price = String(Int(defaultCost))
-                                }
-                            }
-                            if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                if let latest = viewModel.latestSource(for: n) {
-                                    sourceText = latest
-                                }
-                            }
-                            showNamePicker = false
+                            handleItemSelection(n, isMaterialsCtx: isMaterialsCtx)
                         } label: {
                             Text(n)
                         }
@@ -1913,14 +1519,10 @@ struct ManualRestockItemView: View {
                 NavigationStack {
                     Form {
                         Section("Chọn danh mục") {
-                            let baseCats = Category.allCases.filter { $0 != .all }.map { $0.rawValue }
                             let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
-                            let dynamicCats = isMaterialsCtx ? Array(viewModel.materialCategories) : Array(viewModel.productCategories)
-                            let allCats = Array(Set(baseCats + dynamicCats)).sorted()
-                            ForEach(allCats, id: \.self) { cat in
+                            ForEach(getCategoryOptions(isMaterialsCtx: isMaterialsCtx), id: \.self) { cat in
                                 Button {
-                                    selectedCategoryName = cat
-                                    showCategorySheet = false
+                                    handleCategorySelection(cat)
                                 } label: {
                                     HStack {
                                         Text(cat)
@@ -1938,15 +1540,7 @@ struct ManualRestockItemView: View {
                                 .textInputAutocapitalization(.words)
                                 .disableAutocorrection(true)
                             Button("Lưu danh mục") {
-                                let trimmed = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !trimmed.isEmpty {
-                                    selectedCategoryName = trimmed
-                                    let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
-                                    if isMaterialsCtx { viewModel.addMaterialCategory(trimmed) }
-                                    else { viewModel.addProductCategory(trimmed) }
-                                    newCategoryName = ""
-                                    showCategorySheet = false
-                                }
+                                handleSaveNewCategory()
                             }
                             .disabled(newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
@@ -2020,14 +1614,7 @@ struct ManualRestockItemView: View {
                     Button("Đóng") { showQuantityWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        if useKgGram {
-                            let total = quantityKgSelection * 1000 + gramsWheelSelection
-                            quantityWheelSelection = total
-                            quantity = FormatUtils.formatKgDecimal(fromGrams: total)
-                        } else {
-                            quantity = String(quantityWheelSelection)
-                        }
-                        showQuantityWheel = false
+                        handleSaveQuantity(useKgGram: useKgGram)
                     }
                 }
                 .font(.headline)
@@ -2106,8 +1693,7 @@ struct ManualRestockItemView: View {
                     Button("Đóng") { showUnitPriceWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        price = String(unitPriceWheelSelection)
-                        showUnitPriceWheel = false
+                        handleSaveUnitPrice()
                     }
                 }
                 .font(.headline)
@@ -2191,8 +1777,7 @@ struct ManualRestockItemView: View {
                     Button("Đóng") { showAdditionalCostWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        incurredCost = String(additionalCostWheelSelection)
-                        showAdditionalCostWheel = false
+                        handleSaveAdditionalCost()
                     }
                 }
                 .font(.headline)
@@ -2337,6 +1922,491 @@ struct ManualRestockItemView: View {
         return Double(clean)
     }
     
+    private func getQuantityDisplay(useKgGram: Bool) -> String {
+        let gramsVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+        if useKgGram {
+            return FormatUtils.formatKgDecimal(fromGrams: gramsVal)
+        } else {
+            return quantity.isEmpty ? String(quantityWheelSelection) : quantity
+        }
+    }
+
+    private func getCalculatedUnitPriceDisplay(pVal: Double, qVal: Int, incVal: Double, isMatExport: Bool) -> String {
+        if qVal > 0 {
+            let total = getCalculatedTotal(pVal: pVal, qVal: qVal, incVal: incVal, isMatExport: isMatExport)
+            let unitValue = isMatExport ? pVal : (total / (Double(qVal) / 1000.0))
+            return formatCurrency(unitValue)
+        } else {
+            return "—"
+        }
+    }
+
+    private func getCalculatedTotal(pVal: Double, qVal: Int, incVal: Double, isMatExport: Bool) -> Double {
+        let quantityInKg = Double(qVal) / 1000.0
+        return isMatExport ? (pVal * quantityInKg) : ((pVal * quantityInKg) + incVal)
+    }
+
+    private func handleItemSelection(_ n: String, isMaterialsCtx: Bool) {
+        name = n
+        if isMaterialsCtx {
+            selectedCategoryName = Category.materials.rawValue
+            if let mat = viewModel.materials.first(where: { $0.name == n }) {
+                let v = Int(mat.lastUnitPrice)
+                unitPriceWheelSelection = v
+                price = String(v)
+            }
+        } else {
+            if let p = viewModel.products.first(where: { $0.name == n }) {
+                selectedCategoryName = p.category
+                let defaultCost = p.costPrice > 0 ? p.costPrice : p.price * 0.7
+                unitPriceWheelSelection = Int(defaultCost)
+                price = String(Int(defaultCost))
+            }
+        }
+        if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let latest = viewModel.latestSource(for: n) {
+                sourceText = latest
+            }
+        }
+        showNamePicker = false
+     }
+
+    private func filteredPickerItems(isMaterialsCtx: Bool) -> [String] {
+        let items: [String] = isMaterialsCtx ? viewModel.materials.map { $0.name } : viewModel.products.map { $0.name }
+        let t = nameSearch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if t.isEmpty { return items }
+        return items.filter { $0.lowercased().contains(t) }
+     }
+
+    private func handleConfirmation() {
+        if isSimpleFinishedGoodsEdit {
+            let priceValue = parseDouble(price) ?? Double(unitPriceWheelSelection)
+            if let p = prefilledProduct ?? viewModel.products.first(where: { $0.name.lowercased() == name.lowercased() }) {
+                viewModel.updateProduct(
+                    p,
+                    name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                    price: priceValue,
+                    costPrice: p.costPrice,
+                    category: Category(rawValue: selectedCategoryName) ?? .others,
+                    imageName: p.imageName,
+                    color: p.color,
+                    quantity: viewModel.stockLevel(for: p.name),
+                    imageData: p.imageData,
+                    barcode: p.barcode,
+                    imageURL: p.imageURL
+                )
+            }
+            dismiss()
+            return
+        }
+        
+        if importFromFinishedGood {
+            let perUnitGrams = weightPerUnitKgSelection * 1000 + weightPerUnitGramsSelection
+            if perUnitGrams <= 0 {
+                validationAlertMessage = "Vui lòng nhập 'Khối lượng/đơn vị' khi chọn Nhập từ thành phẩm."
+                showValidationAlert = true
+                return
+            }
+            if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                validationAlertMessage = "Vui lòng chọn 'Thành phẩm nguồn'."
+                showValidationAlert = true
+                return
+            }
+        }
+        
+        let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
+        let useKgGram = addTitle.lowercased().contains("nguyên liệu") || (addTitle.lowercased().contains("thành phẩm") && !treatFinishedGoodsAsUnits)
+        let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : (Int(quantity) ?? quantityWheelSelection)
+        guard !name.isEmpty, q > 0 else { return }
+        let extra = parseDouble(incurredCost) ?? 0
+        let suggested: Double? = (!isFinishedGoods ? Double(suggestedPriceWheelSelection) : nil)
+        let perUnitGrams: Int? = {
+            guard treatFinishedGoodsAsUnits || importFromFinishedGood else { return nil }
+            let grams = weightPerUnitKgSelection * 1000 + weightPerUnitGramsSelection
+            return grams
+        }()
+        
+        if var item = itemToEdit {
+            item.name = name
+            item.quantity = q
+            item.unitPrice = p
+            item.additionalCost = extra
+            item.suggestedPrice = suggested
+            item.category = selectedCategoryName
+            item.weightPerUnitGrams = perUnitGrams
+            item.isFinishedGood = isFinishedGoods
+            let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+            item.source = src.isEmpty ? nil : src
+            item.documentImageURL = documentImageURL
+            item.isConfirmed = true
+            viewModel.updateRestockItem(item)
+        } else {
+            let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+            viewModel.addRestockItem(
+                name,
+                unitPrice: p,
+                quantity: q,
+                additionalCost: extra,
+                suggestedPrice: suggested,
+                category: selectedCategoryName,
+                source: src.isEmpty ? nil : src,
+                documentImageURL: documentImageURL,
+                weightPerUnitGrams: perUnitGrams,
+                isFinishedGood: isFinishedGoods
+            )
+        }
+        dismiss()
+    }
+
+    private func getCategoryOptions(isMaterialsCtx: Bool) -> [String] {
+         let baseCats = Category.allCases.filter { $0 != .all }.map { $0.rawValue }
+         let dynamicCats = isMaterialsCtx ? Array(viewModel.materialCategories) : Array(viewModel.productCategories)
+         return Array(Set(baseCats + dynamicCats)).sorted()
+     }
+
+    private func handleCategorySelection(_ cat: String) {
+        selectedCategoryName = cat
+        showCategorySheet = false
+    }
+
+    private func handleSaveNewCategory() {
+         let trimmed = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+         if !trimmed.isEmpty {
+             selectedCategoryName = trimmed
+             let isMaterialsCtx = addTitle.lowercased().contains("nguyên liệu")
+             if isMaterialsCtx { viewModel.addMaterialCategory(trimmed) }
+             else { viewModel.addProductCategory(trimmed) }
+             newCategoryName = ""
+             showCategorySheet = false
+         }
+     }
+
+    private func handleSaveQuantity(useKgGram: Bool) {
+         if useKgGram {
+             let total = quantityKgSelection * 1000 + gramsWheelSelection
+             quantityWheelSelection = total
+             quantity = FormatUtils.formatKgDecimal(fromGrams: total)
+         } else {
+             quantity = String(quantityWheelSelection)
+         }
+         showQuantityWheel = false
+     }
+
+    private func handleSaveUnitPrice() {
+        price = String(unitPriceWheelSelection)
+        showUnitPriceWheel = false
+    }
+
+    private func handleSaveAdditionalCost() {
+        incurredCost = String(additionalCostWheelSelection)
+        showAdditionalCostWheel = false
+    }
+
+    private func handleSaveSuggestedPrice() {
+         suggestedPriceWheelSelection = suggestedPriceWheelSelection
+         showSuggestedPriceWheel = false
+     }
+
+    private func handleOnAppear() {
+        if let item = itemToEdit {
+            name = item.name
+            sourceText = item.source ?? ""
+            documentImageURL = item.documentImageURL
+            let useKgGram = addTitle.lowercased().contains("nguyên liệu") || (addTitle.lowercased().contains("thành phẩm") && !treatFinishedGoodsAsUnits)
+            if useKgGram {
+                quantity = FormatUtils.formatKgDecimal(fromGrams: item.quantity)
+            } else {
+                quantity = String(item.quantity)
+            }
+            price = String(format: "%.0f", item.unitPrice)
+            incurredCost = String(format: "%.0f", item.additionalCost)
+            quantityWheelSelection = item.quantity
+            unitPriceWheelSelection = Int(item.unitPrice)
+            additionalCostWheelSelection = Int(item.additionalCost)
+            if let grams = item.weightPerUnitGrams, grams > 0 {
+                weightPerUnitKgSelection = grams / 1000
+                weightPerUnitGramsSelection = ((grams % 1000) / 50) * 50
+                if weightPerUnitKgSelection > weightPerUnitMax {
+                    weightPerUnitMax = max(weightPerUnitMax, weightPerUnitKgSelection + 50)
+                }
+            }
+            if let cat = item.category, !cat.isEmpty {
+                selectedCategoryName = cat
+            }
+            if !isFinishedGoods {
+                if let sp = item.suggestedPrice {
+                    suggestedPriceWheelSelection = Int(sp)
+                } else {
+                    suggestedPriceWheelSelection = max(Int(item.unitPrice * 1.3), Int(item.unitPrice))
+                }
+                
+                // Detect if source is a finished good
+                if let src = item.source, viewModel.products.contains(where: { $0.isFinishedGood && $0.name.lowercased() == src.lowercased() }) {
+                    importFromFinishedGood = true
+                }
+            }
+            // no selling price wheel
+        } else if let product = prefilledProduct {
+            name = product.name
+            // Use last known cost price as default import price
+            // If costPrice is 0, use 70% of selling price as a heuristic guess
+            let defaultCost = product.costPrice > 0 ? product.costPrice : product.price * 0.7
+            price = String(format: "%.0f", defaultCost)
+            
+            unitPriceWheelSelection = Int(defaultCost)
+            if !isFinishedGoods {
+                suggestedPriceWheelSelection = Int(product.price)
+            }
+        }
+        
+        if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let latest = viewModel.latestSource(for: name) {
+                sourceText = latest
+            }
+        }
+    }
+
+    private var useKgGram: Bool {
+        addTitle.lowercased().contains("nguyên liệu") || (addTitle.lowercased().contains("thành phẩm") && !treatFinishedGoodsAsUnits)
+    }
+
+    private var isExport: Bool {
+        addTitle.lowercased().contains("xuất")
+    }
+
+    private var isFinishedGoodsTransactionEdit: Bool {
+        isFinishedGoods && itemToEdit != nil && !isSimpleFinishedGoodsEdit && editTitle.lowercased().contains("sửa thành phẩm")
+    }
+
+    @ViewBuilder
+    private func currentStockLevelView() -> some View {
+        if !name.isEmpty {
+            let isWeightContext = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
+            let current = viewModel.currentStockLevel(for: name)
+            HStack(spacing: 4) {
+                Text("Tồn hiện tại:")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                if isWeightContext {
+                    Text(FormatUtils.formatWeight(current))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                } else {
+                    Text(String(current))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sourceInputView() -> some View {
+        HStack(spacing: 8) {
+            Text(importFromFinishedGood ? "Thành phẩm nguồn" : "Nguồn nhập")
+            Spacer()
+            if importFromFinishedGood {
+                Button {
+                    showFinishedGoodPicker = true
+                } label: {
+                    Text(sourceText.isEmpty ? "Chọn thành phẩm" : sourceText)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(sourceText.isEmpty ? .gray : .primary)
+                }
+            } else {
+                TextField("Nhập nguồn", text: $sourceText)
+                    .multilineTextAlignment(.trailing)
+                Button {
+                    if viewModel.isRecordingManualSource {
+                        viewModel.speechRecognizer.stopRecording()
+                        let spoken = viewModel.manualRecordedSource.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !spoken.isEmpty { sourceText = spoken }
+                    } else {
+                        do {
+                            try viewModel.speechRecognizer.startRecording()
+                            viewModel.isRecordingManualSource = true
+                            viewModel.manualRecordedSource = ""
+                        } catch { }
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill((viewModel.isRecordingManualSource ? Color.red : Color.gray).opacity(0.15))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: viewModel.isRecordingManualSource ? "waveform" : "mic.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(viewModel.isRecordingManualSource ? Color.red : .gray)
+                    }
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                Button {
+                    let options = viewModel.sourceHistory(for: name)
+                    if !options.isEmpty {
+                        sourceHistoryOptions = options
+                        showSourceHistoryPicker = true
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color.gray.opacity(0.15))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.gray)
+                    }
+                }
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .disabled(viewModel.sourceHistory(for: name).isEmpty)
+            }
+        }
+        .onReceive(viewModel.$manualRecordedSource) { newText in
+            if viewModel.isRecordingManualSource {
+                let t = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !t.isEmpty { sourceText = t }
+            }
+        }
+        .sheet(isPresented: $showFinishedGoodPicker) {
+            NavigationStack {
+                List {
+                    ForEach(viewModel.products.filter { $0.isFinishedGood }, id: \.id) { p in
+                        Button {
+                            sourceText = p.name
+                            showFinishedGoodPicker = false
+                        } label: {
+                            HStack {
+                                Text(p.name)
+                                Spacer()
+                                Text(FormatUtils.formatWeight(p.stockQuantity))
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Chọn thành phẩm")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { showFinishedGoodPicker = false }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func documentImageSection() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Hóa đơn chứng từ")
+                Spacer()
+                if isUploadingDocument {
+                    ProgressView()
+                } else if documentImageURL != nil {
+                    Text("Đã chọn")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                } else {
+                    Text("—")
+                        .foregroundStyle(.gray)
+                }
+            }
+            HStack(spacing: 12) {
+                if documentImage != nil || documentImageURL != nil {
+                    Button {
+                        showDocumentPreview = true
+                    } label: {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.gray.opacity(0.12))
+                                .frame(width: 54, height: 54)
+                            
+                            if let img = documentImage {
+                                Image(uiImage: img)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 54, height: 54)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            } else if let urlString = documentImageURL, let url = URL(string: urlString) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        ProgressView()
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                    default:
+                                        Image(systemName: "doc.text.image")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                .frame(width: 54, height: 54)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            
+                            Image(systemName: "magnifyingglass")
+                                .font(.caption)
+                                .foregroundStyle(.white)
+                                .padding(6)
+                                .background(Circle().fill(Color.black.opacity(0.45)))
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                                .padding(4)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Button("Chụp ảnh") {
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                        documentPickerSource = .camera
+                        showCameraPicker = true
+                    } else {
+                        showCameraUnavailableAlert = true
+                    }
+                }
+                
+                Button("Thư viện") {
+                    documentPickerSource = .photoLibrary
+                    showDocumentPicker = true
+                }
+                
+                if documentImageURL != nil {
+                    Spacer()
+                    Button("Xóa") {
+                        documentImage = nil
+                        documentImageURL = nil
+                    }
+                    .foregroundStyle(.red)
+                }
+            }
+        }
+    }
+    @ViewBuilder
+    private func quantityRow() -> some View {
+        HStack {
+            Text("Số lượng")
+            Spacer()
+            Button {
+                if useKgGram {
+                    let current = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                    quantityKgSelection = max(0, current / 1000)
+                    let remainder = max(0, current % 1000)
+                    gramsWheelSelection = (remainder / 50) * 50
+                    if quantityKgSelection > quantityWheelMax {
+                        quantityWheelMax = max(quantityWheelMax, quantityKgSelection + 200)
+                    }
+                } else {
+                    if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
+                }
+                showQuantityWheel = true
+            } label: {
+                Text(getQuantityDisplay(useKgGram: useKgGram))
+                    .fontWeight(.semibold)
+            }
+        }
+    }
  
 }
 

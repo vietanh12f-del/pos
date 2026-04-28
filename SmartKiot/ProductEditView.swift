@@ -25,6 +25,7 @@ struct ProductEditView: View {
     @State private var selectedIcon: String = "shippingbox.fill"
     @State private var selectedImageData: Data?
     @State private var selectedImageURL: String?
+    @State private var isFinishedGood: Bool = false
     @State private var showBarcodeScanner = false
     @State private var capturedImage: UIImage?
     @State private var showCameraPicker = false
@@ -71,6 +72,7 @@ struct ProductEditView: View {
             _selectedCategory = State(initialValue: .others)
             _selectedColor = State(initialValue: "gray")
             _selectedIcon = State(initialValue: "shippingbox.fill")
+            _isFinishedGood = State(initialValue: false)
         case .edit(let product):
             _name = State(initialValue: product.name)
             _price = State(initialValue: String(Int(product.price)))
@@ -83,6 +85,7 @@ struct ProductEditView: View {
             _selectedIcon = State(initialValue: product.imageName)
             _selectedImageData = State(initialValue: product.imageData)
             _selectedImageURL = State(initialValue: product.imageURL)
+            _isFinishedGood = State(initialValue: product.isFinishedGood)
             if let data = product.imageData, let uiImage = UIImage(data: data) {
                 _capturedImage = State(initialValue: uiImage)
             }
@@ -242,6 +245,9 @@ struct ProductEditView: View {
                                 .font(.caption)
                         }
                     }
+
+                    Toggle("Là thành phẩm", isOn: $isFinishedGood)
+                        .font(.subheadline)
                 }
                 
                 Section(header: Text("Danh mục")) {
@@ -754,9 +760,12 @@ struct ProductEditView: View {
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode)
+            viewModel.createProduct(name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood)
         case .edit(let product):
-            viewModel.updateProduct(product, name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL)
+            // We pass the isFinishedGood from the toggle, allowing users to convert types if needed
+            var updatedProduct = product
+            updatedProduct.isFinishedGood = isFinishedGood
+            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL)
         }
         dismiss()
     }

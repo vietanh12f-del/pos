@@ -30,8 +30,14 @@ struct RestockItem: Identifiable, Hashable, Codable {
     var category: String? = nil
     var source: String? = nil
     var documentImageURL: String? = nil
+    var weightPerUnitGrams: Int? = nil
+    var isFinishedGood: Bool = false // Contextual flag for target product type
     
     var totalCost: Double {
+        if let grams = weightPerUnitGrams, grams > 0 {
+            let totalGrams = Double(quantity) * Double(grams)
+            return (unitPrice * (totalGrams / 1000.0)) + additionalCost
+        }
         if let cat = category, cat.lowercased() == Category.materials.rawValue.lowercased() {
             // quantity is in grams for materials; unitPrice is per kg
             return (unitPrice * (Double(quantity) / 1000.0)) + additionalCost
@@ -41,6 +47,9 @@ struct RestockItem: Identifiable, Hashable, Codable {
     }
     
     var finalUnitCost: Double {
+        if let grams = weightPerUnitGrams, grams > 0 {
+            return quantity > 0 ? totalCost / Double(quantity) : 0
+        }
         if let cat = category, cat.lowercased() == Category.materials.rawValue.lowercased() {
             // unit cost per kg
             let kg = Double(quantity) / 1000.0

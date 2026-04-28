@@ -131,29 +131,26 @@ struct ExternalProductAddView: View {
             barcode: info.barcode
         )
         
-        // Optimistic add to local products
-        viewModel.products.append(newProduct)
-        viewModel.inventory[newProduct.name.lowercased()] = qtyVal
-        
-        // Trigger DB save (async)
+        // Trigger DB save (async) and update local state
         Task {
-            // Implement save logic in ViewModel or direct here
-            // Reusing existing createProduct method logic would be best
              viewModel.createProduct(
                 name: name,
                 price: priceVal,
                 costPrice: costVal,
-                category: .others, // Or infer
+                category: .others,
                 imageName: "cup.and.saucer.fill",
                 color: "blue",
                 quantity: qtyVal,
                 imageData: selectedImageData,
-                barcode: info.barcode
+                barcode: info.barcode,
+                isFinishedGood: false // External products are typically normal goods
              )
+             
+             // After creation (which adds to viewModel.products), we can add to current order
+             if let addedProduct = viewModel.products.last {
+                 viewModel.addProduct(addedProduct)
+             }
         }
-        
-        // 2. Add to current order
-        viewModel.addProduct(newProduct)
         
         dismiss()
     }

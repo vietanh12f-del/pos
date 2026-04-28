@@ -1239,6 +1239,8 @@ struct RestockItemDTO: Codable {
     let category: String?
     let source: String?
     let document_image_url: String?
+    let weight_per_unit_grams: Int?
+    let is_finished_good: Bool?
     
     init(from domain: RestockItem, billId: UUID) {
         self.id = domain.id
@@ -1251,6 +1253,8 @@ struct RestockItemDTO: Codable {
         self.category = domain.category
         self.source = domain.source
         self.document_image_url = domain.documentImageURL
+        self.weight_per_unit_grams = domain.weightPerUnitGrams
+        self.is_finished_good = domain.isFinishedGood
     }
     
     func toDomain() -> RestockItem {
@@ -1264,7 +1268,9 @@ struct RestockItemDTO: Codable {
             isConfirmed: true,
             category: category,
             source: source,
-            documentImageURL: document_image_url
+            documentImageURL: document_image_url,
+            weightPerUnitGrams: weight_per_unit_grams,
+            isFinishedGood: is_finished_good ?? false
         )
     }
 }
