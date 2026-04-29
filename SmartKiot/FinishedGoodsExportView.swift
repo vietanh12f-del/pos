@@ -46,7 +46,8 @@ class BuyerHistoryStore {
 struct FinishedGoodsExportView: View {
     @ObservedObject var viewModel: OrderViewModel
     let items: [RestockItem]
-    let isImport: Bool          // true = nhập nguyên liệu, false = xuất thành phẩm
+    let isImport: Bool          // true = nhập nguyên liệu/hàng hoá, false = xuất thành phẩm/nguyên liệu
+    var isRegularRestock: Bool = false // true = nhập hàng hoá thông thường (không phải nguyên liệu)
     let onConfirm: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -54,12 +55,21 @@ struct FinishedGoodsExportView: View {
     // Derived labels
     private var partyLabel: String { isImport ? "Thông tin bên nhập" : "Thông tin bên mua" }
     private var partyNameLabel: String { isImport ? "Tên cơ sở cung cấp" : "Tên người mua / Công ty" }
-    private var itemsSectionLabel: String { isImport ? "Nguyên liệu nhập" : "Thành phẩm xuất" }
+    private var itemsSectionLabel: String { 
+        if isRegularRestock { return "Hàng hoá nhập" }
+        return isImport ? "Nguyên liệu nhập" : "Thành phẩm xuất" 
+    }
     private var debtLabel: String { isImport ? "Thiếu nợ còn lại" : "Công nợ còn lại" }
     private var printButtonLabel: String { isImport ? "In bill nhập" : "In bill xuất" }
     private var navTitle: String { isImport ? "Thông tin nhập" : "Thông tin xuất" }
-    private var billTitle: String { isImport ? "PHIẾU NHẬP NGUYÊN LIỆU" : "PHIẾU XUẤT THÀNH PHẨM" }
-    private var billNavTitle: String { isImport ? "Bill nhập nguyên liệu" : "Bill xuất thành phẩm" }
+    private var billTitle: String { 
+        if isRegularRestock { return "PHIẾU NHẬP HÀNG HOÁ" }
+        return isImport ? "PHIẾU NHẬP NGUYÊN LIỆU" : "PHIẾU XUẤT THÀNH PHẨM" 
+    }
+    private var billNavTitle: String { 
+        if isRegularRestock { return "Bill nhập hàng hoá" }
+        return isImport ? "Bill nhập nguyên liệu" : "Bill xuất thành phẩm" 
+    }
     private var billPartyHeader: String { isImport ? "THÔNG TIN CƠ SỞ CUNG CẤP" : "THÔNG TIN BÊN MUA" }
     private var partyType: String { isImport ? "supplier" : "buyer" }
     private var validationNameLabel: String { isImport ? "Tên cơ sở cung cấp" : "Tên người mua" }

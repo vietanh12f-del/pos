@@ -590,17 +590,13 @@ struct RestockEntryView: View {
                         .padding(.horizontal)
                         .padding(.bottom, 8)
                     } else {
+                        // "Nhập hàng hoá" → show import info sheet instead of complete directly
                         Button {
-                            if let cb = onComplete {
-                                cb(viewModel.restockItems)
-                            } else {
-                                viewModel.completeRestockSession()
-                            }
-                            dismiss()
+                            showImportInfoSheet = true
                         } label: {
                             HStack {
-                                Text("Hoàn tất")
-                                Image(systemName: "checkmark")
+                                Text("Thông tin nhập hàng")
+                                Image(systemName: "doc.text.fill")
                             }
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity)
@@ -664,12 +660,17 @@ struct RestockEntryView: View {
             FinishedGoodsExportView(
                 viewModel: viewModel,
                 items: viewModel.restockItems,
-                isImport: true
+                isImport: true,
+                isRegularRestock: !isImportMaterialsContext() && !isFinishedGoodsExportContext() && !isFinishedGoodsContext()
             ) {
                 if let cb = onComplete {
                     cb(viewModel.restockItems)
                 } else {
-                    viewModel.completeProductionTransaction(mode: titleText)
+                    if !isImportMaterialsContext() && !isFinishedGoodsExportContext() && !isFinishedGoodsContext() {
+                        viewModel.completeRestockSession()
+                    } else {
+                        viewModel.completeProductionTransaction(mode: titleText)
+                    }
                 }
                 dismiss()
             }

@@ -1461,6 +1461,14 @@ class OrderViewModel: ObservableObject {
         bill.creatorId = original?.creatorId ?? AuthManager.shared.currentUserProfile?.id
         bill.creatorName = original?.creatorName ?? AuthManager.shared.currentUserProfile?.fullName
         
+        // Save pending export/import info if any (e.g. trading party debt updates from FinishedGoodsExportView)
+        // Since RestockBill doesn't have these fields explicitly, we just process the TradingParty updates which 
+        // are already handled in FinishedGoodsExportView via upsertTradingParty.
+        // We only need to clear the pending state here.
+        pendingExportNote = nil
+        pendingExportPaymentReceiptURL = nil
+        pendingExportInfo = nil
+        
         Task { @MainActor in
             do {
                 if let original {
