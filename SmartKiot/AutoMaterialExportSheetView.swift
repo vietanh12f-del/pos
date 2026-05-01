@@ -220,7 +220,8 @@ struct AutoMaterialExportSheetView: View {
                     headerSection
                     freshSection
                     afterBoilSection
-                    panWeightSection
+                    panWeightStandardSection
+                    panWeightActualSection
                     panCountSection
                     autoMaterialsSection
                     summarySection
@@ -655,12 +656,11 @@ struct AutoMaterialExportSheetView: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
     
-    private var panWeightSection: some View {
+    private var panWeightStandardSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Khối lượng / chảo", text: $panWeightTitle)
-                .font(.headline)
-            HStack {
-                Text("Chuẩn")
+            HStack(spacing: 10) {
+                Text("Khối lượng chuẩn / chảo")
+                    .font(.headline)
                 Spacer()
                 Button {
                     openWeightWheel(target: .standardPanWeight, currentText: standardPanWeightKgText)
@@ -676,11 +676,19 @@ struct AutoMaterialExportSheetView: View {
                     .font(.caption)
                     .foregroundStyle(.gray)
             }
-            HStack {
-                Text("Thực tế")
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+    }
+    
+    private var panWeightActualSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("Khối lượng thực tế / chảo")
+                    .font(.headline)
                 Spacer()
                 Text(FormatUtils.formatKgDecimal(fromGrams: Int(actualPanWeightGrams.rounded())))
-                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themeTextDark)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
