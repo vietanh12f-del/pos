@@ -211,9 +211,53 @@ struct AutoMaterialExportTemplateData: Codable, Equatable {
     var afterBoilGrams: Int
     var panCount: Int
     var standardPanWeightGrams: Int
+    var surplusThresholdKg: Int
     
     var autoSelectedMaterialIds: [UUID]
     var autoStandardPerPanGramsByMaterialId: [String: Int]
+    
+    // Backward compat: surplusThresholdKg defaults to 0 if missing
+    enum CodingKeys: String, CodingKey {
+        case headerName, freshTitle, afterBoilTitle, panCountTitle, panWeightTitle, autoMaterialsTitle
+        case freshSelectedMaterialIds, freshExportGramsByMaterialId
+        case afterBoilGrams, panCount, standardPanWeightGrams, surplusThresholdKg
+        case autoSelectedMaterialIds, autoStandardPerPanGramsByMaterialId
+    }
+    
+    init(headerName: String, freshTitle: String, afterBoilTitle: String, panCountTitle: String, panWeightTitle: String, autoMaterialsTitle: String, freshSelectedMaterialIds: [UUID], freshExportGramsByMaterialId: [String: Int], afterBoilGrams: Int, panCount: Int, standardPanWeightGrams: Int, surplusThresholdKg: Int = 0, autoSelectedMaterialIds: [UUID], autoStandardPerPanGramsByMaterialId: [String: Int]) {
+        self.headerName = headerName
+        self.freshTitle = freshTitle
+        self.afterBoilTitle = afterBoilTitle
+        self.panCountTitle = panCountTitle
+        self.panWeightTitle = panWeightTitle
+        self.autoMaterialsTitle = autoMaterialsTitle
+        self.freshSelectedMaterialIds = freshSelectedMaterialIds
+        self.freshExportGramsByMaterialId = freshExportGramsByMaterialId
+        self.afterBoilGrams = afterBoilGrams
+        self.panCount = panCount
+        self.standardPanWeightGrams = standardPanWeightGrams
+        self.surplusThresholdKg = surplusThresholdKg
+        self.autoSelectedMaterialIds = autoSelectedMaterialIds
+        self.autoStandardPerPanGramsByMaterialId = autoStandardPerPanGramsByMaterialId
+    }
+    
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        headerName = try c.decode(String.self, forKey: .headerName)
+        freshTitle = try c.decode(String.self, forKey: .freshTitle)
+        afterBoilTitle = try c.decode(String.self, forKey: .afterBoilTitle)
+        panCountTitle = try c.decode(String.self, forKey: .panCountTitle)
+        panWeightTitle = try c.decode(String.self, forKey: .panWeightTitle)
+        autoMaterialsTitle = try c.decode(String.self, forKey: .autoMaterialsTitle)
+        freshSelectedMaterialIds = try c.decode([UUID].self, forKey: .freshSelectedMaterialIds)
+        freshExportGramsByMaterialId = try c.decode([String: Int].self, forKey: .freshExportGramsByMaterialId)
+        afterBoilGrams = try c.decode(Int.self, forKey: .afterBoilGrams)
+        panCount = try c.decode(Int.self, forKey: .panCount)
+        standardPanWeightGrams = try c.decode(Int.self, forKey: .standardPanWeightGrams)
+        surplusThresholdKg = (try? c.decodeIfPresent(Int.self, forKey: .surplusThresholdKg)) ?? 0
+        autoSelectedMaterialIds = try c.decode([UUID].self, forKey: .autoSelectedMaterialIds)
+        autoStandardPerPanGramsByMaterialId = try c.decode([String: Int].self, forKey: .autoStandardPerPanGramsByMaterialId)
+    }
 }
 
 struct AutoMaterialExportLog: Identifiable, Codable, Equatable {

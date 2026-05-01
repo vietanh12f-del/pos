@@ -394,7 +394,7 @@ struct AutoMaterialExportSheetView: View {
                 Text("Khối lượng dư trên").font(.headline)
                 Picker("", selection: $surplusThresholdKg) {
                     ForEach(Array(0...surplusWheelMax), id: \.self) { v in
-                        Text("\(v) kg").tag(v)
+                        Text(v == 0 ? "Không giới hạn" : "\(v) kg").tag(v)
                     }
                 }
                 .pickerStyle(.wheel)
@@ -620,36 +620,17 @@ struct AutoMaterialExportSheetView: View {
                 Text("cái")
                     .font(.caption)
                     .foregroundStyle(.gray)
-            }
-            
-            Divider()
-            
-            // Khối lượng dư trên
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 10) {
-                    Text("Khối lượng dư trên")
-                        .font(.subheadline)
-                    Spacer()
-                    HStack(spacing: 6) {
-                        Button {
-                            showSurplusWheel = true
-                        } label: {
-                            Text("\(surplusThresholdKg)")
-                                .foregroundStyle(Color.themeTextDark)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
-                        }
-                        .buttonStyle(.plain)
-                        Text("kg")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                    }
+                // Button setting khối lượng dư trên
+                Button {
+                    showSurplusWheel = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 16))
+                        .foregroundStyle(surplusThresholdKg > 0 ? Color.orange : Color.gray.opacity(0.5))
+                        .padding(8)
+                        .background(Circle().fill(surplusThresholdKg > 0 ? Color.orange.opacity(0.12) : Color.gray.opacity(0.08)))
                 }
-                Text("nếu trên thì xào thêm 1 chảo")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                    .italic()
+                .buttonStyle(.plain)
             }
         }
         .padding(12)
@@ -869,6 +850,7 @@ struct AutoMaterialExportSheetView: View {
         afterBoilKgText = "0"
         panCountText = "1"
         standardPanWeightKgText = "0"
+        surplusThresholdKg = 0
         autoSelected = []
         autoStandardPerPanKgTextById = [:]
         syncSavedSnapshot()
@@ -895,6 +877,7 @@ struct AutoMaterialExportSheetView: View {
         afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: t.data.afterBoilGrams)
         panCountText = String(t.data.panCount)
         standardPanWeightKgText = FormatUtils.formatKgDecimal(fromGrams: t.data.standardPanWeightGrams)
+        surplusThresholdKg = t.data.surplusThresholdKg
         
         autoSelected = Set(t.data.autoSelectedMaterialIds)
         var autoMap: [UUID: String] = [:]
@@ -926,6 +909,7 @@ struct AutoMaterialExportSheetView: View {
             afterBoilGrams: afterBoilGrams,
             panCount: panCount,
             standardPanWeightGrams: standardPanWeightGrams,
+            surplusThresholdKg: surplusThresholdKg,
             autoSelectedMaterialIds: Array(autoSelected),
             autoStandardPerPanGramsByMaterialId: autoSelected.reduce(into: [:]) { dict, id in
                 dict[id.uuidString] = max(0, FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0)
