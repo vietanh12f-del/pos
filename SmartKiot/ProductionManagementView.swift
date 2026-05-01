@@ -339,14 +339,34 @@ struct ProductionManagementView: View {
                     isConfirmed: false,
                     category: product.category
                 )
-                ManualRestockItemView(
-                    viewModel: viewModel,
-                    itemToEdit: item,
-                    prefilledProduct: product,
-                    isFinishedGoods: true,
-                    addTitle: isExportMode ? "Thêm thành phẩm xuất" : "Thêm thành phẩm nhập",
-                    editTitle: "Sửa thành phẩm"
-                )
+                NavigationStack {
+                    VStack(spacing: 0) {
+                        ManualRestockItemView(
+                            viewModel: viewModel,
+                            itemToEdit: item,
+                            prefilledProduct: product,
+                            isFinishedGoods: true,
+                            addTitle: isExportMode ? "Thêm thành phẩm xuất" : "Thêm thành phẩm nhập",
+                            editTitle: "Sửa thành phẩm"
+                        )
+                        // Nút xóa thành phẩm — chỉ hiện cho owner
+                        if StoreManager.shared.currentMember?.role == .owner {
+                            Button(role: .destructive) {
+                                viewModel.deleteProduct(product)
+                                editingFinishedProduct = nil
+                            } label: {
+                                Text("Xóa thành phẩm")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.red.opacity(0.1))
+                                    .foregroundStyle(.red)
+                                    .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 16)
+                        }
+                    }
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 if let mode = selectedMode {

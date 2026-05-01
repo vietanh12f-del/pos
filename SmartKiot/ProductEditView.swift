@@ -740,7 +740,9 @@ struct ProductEditView: View {
             .alert("Tên đã tồn tại", isPresented: $showDuplicateNameAlert) {
                 Button("Đồng ý", role: .cancel) { }
             } message: {
-                Text("Tên '\(name)' đã tồn tại trong danh mục hàng hoá hoặc thành phẩm. Vui lòng đặt tên khác.")
+                let existing = viewModel.products.first { $0.name.lowercased() == name.lowercased() }
+                let typeLabel = existing?.isFinishedGood == true ? "thành phẩm" : "hàng hoá"
+                Text("Tên '\(name)' đã tồn tại trong danh mục \(typeLabel). Vui lòng đặt tên khác.")
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -775,7 +777,6 @@ struct ProductEditView: View {
             showDuplicateNameAlert = true
             return
         }
-
         guard let priceValue = Double(price) else { return }
         let quantityValue = Int(quantity) ?? 0
         let importPriceValue = Double(importPrice) ?? 0
