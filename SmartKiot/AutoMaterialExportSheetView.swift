@@ -101,6 +101,18 @@ struct AutoMaterialExportSheetView: View {
         return actualPanWeightGrams / Double(standardPanWeightGrams)
     }
     
+    // Số dư sau khi chia đều: afterBoilGrams - standardPanWeightGrams * panCount
+    private var surplusGrams: Int {
+        guard standardPanWeightGrams > 0, panCount > 0 else { return 0 }
+        return max(0, afterBoilGrams - standardPanWeightGrams * panCount)
+    }
+    
+    // Có cần tách chảo thêm không: surplusThresholdKg > 0 và số dư > ngưỡng
+    private var needsExtraPan: Bool {
+        guard surplusThresholdKg > 0 else { return false }
+        return surplusGrams > surplusThresholdKg * 1000
+    }
+    
     private func autoCalcPanCount() {
         let stdGrams = standardPanWeightGrams
         let boilGrams = afterBoilGrams
@@ -676,6 +688,40 @@ struct AutoMaterialExportSheetView: View {
                 Text("kg")
                     .font(.caption)
                     .foregroundStyle(.gray)
+            }
+            
+            if needsExtraPan {
+                Divider()
+                
+                HStack(spacing: 10) {
+                    Text("Số lượng chảo xào thêm")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.orange)
+                    Spacer()
+                    Text("1")
+                        .foregroundStyle(Color.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
+                    Text("cái")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                
+                HStack(spacing: 10) {
+                    Text("Khối lượng chảo xào thêm")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.orange)
+                    Spacer()
+                    Text(FormatUtils.formatKgDecimal(fromGrams: surplusGrams))
+                        .foregroundStyle(Color.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
+                    Text("kg")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
             }
         }
         .padding(12)
