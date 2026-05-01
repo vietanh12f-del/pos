@@ -122,15 +122,40 @@ struct InventoryView: View {
     
     var filteredProducts: [Product] {
         let base = viewModel.products.filter { !$0.isFinishedGood }
+        
+        // Xây dựng thứ tự ưu tiên: sản phẩm vừa nhập (từ restockHistory mới nhất) lên đầu
+        var recentOrder: [String: Int] = [:]
+        let sortedBills = viewModel.restockHistory
+            .filter { !$0.isDeleted }
+            .sorted { $0.createdAt > $1.createdAt }
+        var rank = 0
+        for bill in sortedBills {
+            for item in bill.items {
+                let key = item.name.lowercased()
+                if recentOrder[key] == nil {
+                    recentOrder[key] = rank
+                    rank += 1
+                }
+            }
+        }
+        
+        let filtered: [Product]
         if searchText.isEmpty {
-            return base
+            filtered = base
         } else {
             let q = searchText.lowercased()
-            return base.filter {
+            filtered = base.filter {
                 $0.name.lowercased().contains(q) ||
                 $0.category.lowercased().contains(q) ||
                 ($0.barcode?.contains(searchText) ?? false)
             }
+        }
+        
+        return filtered.sorted { a, b in
+            let ra = recentOrder[a.name.lowercased()] ?? Int.max
+            let rb = recentOrder[b.name.lowercased()] ?? Int.max
+            if ra != rb { return ra < rb }
+            return a.name < b.name
         }
     }
     
