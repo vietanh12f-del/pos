@@ -940,7 +940,8 @@ struct AutoMaterialExportSheetView: View {
                 standardPanWeightGrams: standardPanWeightGrams,
                 actualPanWeightGrams: actualPanWeightGrams,
                 autoMaterialsTitle: autoMaterialsTitle,
-                autoRows: autoRows
+                autoRows: autoRows,
+                extraPanRows: autoRowsForExtraPan
             )
         }
     }
@@ -1636,6 +1637,14 @@ private struct ExportSlipShareSheet: View {
         }
     }
 
+    private var totalExportSummary: [(name: String, grams: Int)] {
+        var map: [String: Int] = [:]
+        for r in freshRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
+        for r in autoRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
+        for r in extraPanRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
+        return map.keys.sorted().map { ($0, map[$0] ?? 0) }
+    }
+
     // The printable slip content
     private var slipContent: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1767,6 +1776,29 @@ private struct ExportSlipShareSheet: View {
                 }
                 .padding(12)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.06)))
+            }
+
+            // Tổng khối lượng cần xuất
+            if !totalExportSummary.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tổng khối lượng cần xuất")
+                        .font(.headline)
+                    Divider()
+                    ForEach(totalExportSummary, id: \.name) { row in
+                        HStack {
+                            Text(row.name)
+                                .font(.subheadline)
+                            Spacer()
+                            Text(FormatUtils.formatWeight(row.grams))
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.themePrimary.opacity(0.06)))
             }
 
             // Footer info
