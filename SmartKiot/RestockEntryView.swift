@@ -456,32 +456,24 @@ struct RestockEntryView: View {
                                 ForEach(Array(viewModel.restockItems.enumerated()), id: \.element.id) { idx, item in
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
-                                            let explicit = item.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                                            let displayed = explicit.isEmpty ? (viewModel.latestSource(for: item.name) ?? "") : explicit
+                                            let displayed = item.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                                             HStack(spacing: 8) {
                                                 Text(item.name)
                                                     .font(.subheadline)
                                                     .foregroundStyle(Color.themeTextDark)
                                                     .onTapGesture { editingItem = item }
                                                 Spacer(minLength: 8)
-                                                if !displayed.isEmpty {
+                                                if !displayed.isEmpty && item.importFromFinishedGood {
+                                                    let isFromFG = true
                                                     Text(displayed)
                                                         .font(.caption)
-                                                        .foregroundStyle(Color.themePrimary)
+                                                        .foregroundStyle(Color.purple)
                                                         .lineLimit(1)
                                                         .truncationMode(.tail)
                                                         .padding(.horizontal, 10)
                                                         .padding(.vertical, 5)
-                                                        .background(Capsule().fill(Color.themePrimary.opacity(0.12)))
+                                                        .background(Capsule().fill(Color.purple.opacity(0.12)))
                                                         .contentShape(Rectangle())
-                                                        .onTapGesture {
-                                                            let options = viewModel.sourceHistory(for: item.name)
-                                                            if !options.isEmpty {
-                                                                sourcePickerIndex = idx
-                                                                sourcePickerOptions = options
-                                                                showSourcePicker = true
-                                                            }
-                                                        }
                                                 }
                                             }
                                             HStack(spacing: 10) {
@@ -1050,10 +1042,27 @@ struct RestockItemCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.name)
-                    .font(.headline)
-                    .foregroundStyle(Color.themeTextDark)
-                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(item.name)
+                        .font(.headline)
+                        .foregroundStyle(Color.themeTextDark)
+                        .lineLimit(1)
+                    
+                    if item.importFromFinishedGood, let source = item.source {
+                        Button {
+                            // Hiển thị thông báo hoặc thực hiện hành động nếu cần
+                        } label: {
+                            Text(source)
+                                .font(.system(size: 10, weight: .bold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.purple.opacity(0.1))
+                                .foregroundStyle(Color.purple)
+                                .cornerRadius(4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 
                 HStack(spacing: 8) {
                     Label("\(item.quantity)", systemImage: "number")
