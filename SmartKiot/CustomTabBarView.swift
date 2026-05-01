@@ -30,8 +30,8 @@ struct CustomTabBarView: View {
     
     private var mainButtonColor: Color {
         switch selectedTab {
-        case 3: // Inventory -> Blue/Orange distinctive
-            return Color.orange
+        case 3: // Inventory -> Yellow/Gold for Restock
+            return Color(red: 255/255, green: 200/255, blue: 0/255) // Rich Yellow/Gold
         case 5: // Chat -> Blue
             return Color.blue
         case 4: // Costs -> Red/Pink
@@ -165,8 +165,8 @@ struct CurvedText: View {
                 .stroke(
                     LinearGradient(
                         colors: [
-                            background.opacity(pulse ? 1.0 : 0.45),
-                            background.opacity(pulse ? 0.85 : 0.45)
+                            background.opacity(pulse ? 1.0 : 0.7),
+                            background.opacity(pulse ? 0.9 : 0.7)
                         ],
                         startPoint: .leading,
                         endPoint: .trailing
