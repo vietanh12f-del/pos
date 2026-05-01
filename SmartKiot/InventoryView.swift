@@ -524,6 +524,17 @@ struct InventoryView: View {
                                     .padding(.leading, 20)
                                     
                                     HStack {
+                                        // Label bên trái
+                                        if bill.items.contains(where: { $0.isFinishedGood }) {
+                                            Text("nhập từ thành phẩm")
+                                                .font(.caption2)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.purple.opacity(0.85))
+                                                .clipShape(Capsule())
+                                        }
                                         Spacer()
                                         if viewModel.editedRestockBillIds.contains(bill.id) {
                                             Button {

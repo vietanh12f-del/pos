@@ -32,7 +32,7 @@ struct RestockEntryView: View {
     @State private var summaryPriceRangeBase = 0
     @State private var showSummaryPriceRangePicker = false
     @State private var summaryIsMaterials = false
-    @State private var inventorySubTab: Int = 0
+    @State private var inventorySubTab: Int = 1
     @State private var lastAddedItemId: UUID? = nil
     @State private var selectedCategoryFilter: String = "Tất cả"
     @State private var showSourcePicker = false
@@ -40,6 +40,11 @@ struct RestockEntryView: View {
     @State private var sourcePickerOptions: [String] = []
     @State private var showExportInfoSheet = false
     @State private var showImportInfoSheet = false
+    
+    private var showTabs: Bool {
+        let t = titleText.lowercased()
+        return !t.contains("nhập hàng") && !t.contains("xuất hàng") && !t.contains("kho hàng")
+    }
     
     private var isUnitFinishedGoodsImport: Bool {
         !useMaterialsList && inventorySubTab == 0 && titleText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "nhập hàng"
@@ -80,7 +85,17 @@ struct RestockEntryView: View {
                                     if useMaterialsList {
                                         return Array(Set(viewModel.materials.map { $0.category })).sorted()
                                     } else {
-                                        let source = inventorySubTab == 0 ? viewModel.products.filter { $0.isFinishedGood } : viewModel.products.filter { !$0.isFinishedGood && $0.stockQuantity > 0 }
+                                        let isExport = titleText.lowercased().contains("xuất")
+                                        let source: [Product]
+                                        if inventorySubTab == 0 {
+                                            source = viewModel.products.filter { $0.isFinishedGood }
+                                        } else {
+                                            if isExport {
+                                                source = viewModel.products.filter { !$0.isFinishedGood && $0.stockQuantity > 0 }
+                                            } else {
+                                                source = viewModel.products.filter { !$0.isFinishedGood }
+                                            }
+                                        }
                                         return Array(Set(source.map { $0.category })).sorted()
                                     }
                                 }()
@@ -105,7 +120,7 @@ struct RestockEntryView: View {
                             .background(Color.white)
                         }
                         
-                        if !useMaterialsList {
+                        if !useMaterialsList && showTabs {
                             HStack {
                                 Button(action: { inventorySubTab = 0 }) {
                                     Text("Thành phẩm")
@@ -218,7 +233,20 @@ struct RestockEntryView: View {
                                         .padding(.horizontal, 4)
                                     }
                                 } else {
-                                    ForEach((inventorySubTab == 0 ? viewModel.products.filter { $0.isFinishedGood } : viewModel.products.filter { !$0.isFinishedGood && $0.stockQuantity > 0 }).filter { p in
+                                    let productsSource: [Product] = {
+                                        if inventorySubTab == 0 {
+                                            return viewModel.products.filter { $0.isFinishedGood }
+                                        } else {
+                                            let isExport = titleText.lowercased().contains("xuất")
+                                            if isExport {
+                                                return viewModel.products.filter { !$0.isFinishedGood && $0.stockQuantity > 0 }
+                                            } else {
+                                                return viewModel.products.filter { !$0.isFinishedGood }
+                                            }
+                                        }
+                                    }()
+                                    
+                                    ForEach(productsSource.filter { p in
                                         let catOK = (selectedCategoryFilter == "Tất cả") || (p.category.lowercased() == selectedCategoryFilter.lowercased())
                                         let s = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
                                         if s.isEmpty {
@@ -281,12 +309,13 @@ struct RestockEntryView: View {
                                                             viewModel.restockItems[idx].quantity += unitQty
                                                             viewModel.restockItems[idx].unitPrice = unit
                                                             viewModel.restockItems[idx].category = p.category
+                                                            viewModel.restockItems[idx].isFinishedGood = true
                                                             if viewModel.restockItems[idx].weightPerUnitGrams == nil {
                                                                 viewModel.restockItems[idx].weightPerUnitGrams = 0
                                                             }
                                                             lastAddedItemId = viewModel.restockItems[idx].id
                                                         } else {
-                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: unitQty, additionalCost: 0, suggestedPrice: nil, category: p.category)
+                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: unitQty, additionalCost: 0, suggestedPrice: nil, category: p.category, isFinishedGood: true)
                                                             if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == key }) {
                                                                 viewModel.restockItems[newIdx].weightPerUnitGrams = 0
                                                                 lastAddedItemId = viewModel.restockItems[newIdx].id
@@ -299,9 +328,10 @@ struct RestockEntryView: View {
                                                             viewModel.restockItems[idx].quantity += qty
                                                             viewModel.restockItems[idx].unitPrice = unit
                                                             viewModel.restockItems[idx].category = p.category
+                                                            viewModel.restockItems[idx].isFinishedGood = true
                                                             lastAddedItemId = viewModel.restockItems[idx].id
                                                         } else {
-                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: nil, category: p.category)
+                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: nil, category: p.category, isFinishedGood: true)
                                                             if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == key }) {
                                                                 lastAddedItemId = viewModel.restockItems[newIdx].id
                                                             }
@@ -661,16 +691,17 @@ struct RestockEntryView: View {
                 viewModel: viewModel,
                 items: viewModel.restockItems,
                 isImport: true,
-                isRegularRestock: !isImportMaterialsContext() && !isFinishedGoodsExportContext() && !isFinishedGoodsContext()
+                isRegularRestock: isUnitFinishedGoodsImport || (!isImportMaterialsContext() && !isFinishedGoodsExportContext() && !isFinishedGoodsContext())
             ) {
                 if let cb = onComplete {
                     cb(viewModel.restockItems)
+                } else if isUnitFinishedGoodsImport {
+                    // Nhập hàng hoá từ tab Thành phẩm → lưu RestockBill + tạo lịch sử xuất thành phẩm
+                    viewModel.completeRestockSession()
+                } else if isImportMaterialsContext() || isFinishedGoodsExportContext() || isFinishedGoodsContext() {
+                    viewModel.completeProductionTransaction(mode: titleText)
                 } else {
-                    if !isImportMaterialsContext() && !isFinishedGoodsExportContext() && !isFinishedGoodsContext() {
-                        viewModel.completeRestockSession()
-                    } else {
-                        viewModel.completeProductionTransaction(mode: titleText)
-                    }
+                    viewModel.completeRestockSession()
                 }
                 dismiss()
             }
@@ -916,6 +947,14 @@ struct RestockEntryView: View {
                     }
                 }
             }
+            .onAppear {
+                let t = titleText.lowercased()
+                if t.contains("thành phẩm") {
+                    inventorySubTab = 0
+                } else {
+                    inventorySubTab = 1
+                }
+            }
         }
     }
 }
@@ -1120,6 +1159,7 @@ struct ManualRestockItemView: View {
     @State private var showDocumentPreview: Bool = false
     
     @State private var importFromFinishedGood = false
+    @State private var sourceFinishedGoodId: UUID? = nil
     @State private var showFinishedGoodPicker = false
     @State private var showValidationAlert = false
     @State private var validationAlertMessage = ""
@@ -2036,6 +2076,8 @@ struct ManualRestockItemView: View {
             item.category = selectedCategoryName
             item.weightPerUnitGrams = perUnitGrams
             item.isFinishedGood = isFinishedGoods
+            item.importFromFinishedGood = importFromFinishedGood
+            item.sourceFinishedGoodId = sourceFinishedGoodId
             let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
             item.source = src.isEmpty ? nil : src
             item.documentImageURL = documentImageURL
@@ -2053,7 +2095,9 @@ struct ManualRestockItemView: View {
                 source: src.isEmpty ? nil : src,
                 documentImageURL: documentImageURL,
                 weightPerUnitGrams: perUnitGrams,
-                isFinishedGood: isFinishedGoods
+                isFinishedGood: isFinishedGoods,
+                importFromFinishedGood: importFromFinishedGood,
+                sourceFinishedGoodId: sourceFinishedGoodId
             )
         }
         dismiss()
@@ -2134,16 +2178,15 @@ struct ManualRestockItemView: View {
             if let cat = item.category, !cat.isEmpty {
                 selectedCategoryName = cat
             }
+            
+            importFromFinishedGood = item.importFromFinishedGood
+            sourceFinishedGoodId = item.sourceFinishedGoodId
+            
             if !isFinishedGoods {
                 if let sp = item.suggestedPrice {
                     suggestedPriceWheelSelection = Int(sp)
                 } else {
                     suggestedPriceWheelSelection = max(Int(item.unitPrice * 1.3), Int(item.unitPrice))
-                }
-                
-                // Detect if source is a finished good
-                if let src = item.source, viewModel.products.contains(where: { $0.isFinishedGood && $0.name.lowercased() == src.lowercased() }) {
-                    importFromFinishedGood = true
                 }
             }
             // no selling price wheel
@@ -2274,6 +2317,7 @@ struct ManualRestockItemView: View {
                     ForEach(viewModel.products.filter { $0.isFinishedGood }, id: \.id) { p in
                         Button {
                             sourceText = p.name
+                            sourceFinishedGoodId = p.id
                             showFinishedGoodPicker = false
                         } label: {
                             HStack {

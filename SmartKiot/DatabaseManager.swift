@@ -1241,6 +1241,36 @@ struct RestockItemDTO: Codable {
     let document_image_url: String?
     let weight_per_unit_grams: Int?
     let is_finished_good: Bool?
+    // import_from_finished_good và source_finished_good_id không có trong DB schema — chỉ decode, không encode
+    let import_from_finished_good: Bool?
+    let source_finished_good_id: UUID?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, bill_id, product_name, quantity, unit_price
+        case additional_cost, suggested_price, category, source
+        case document_image_url, weight_per_unit_grams, is_finished_good
+        // Không include import_from_finished_good và source_finished_good_id khi encode
+    }
+    
+    // Custom decode để đọc các cột optional không có trong DB
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        bill_id = try c.decode(UUID.self, forKey: .bill_id)
+        product_name = try c.decode(String.self, forKey: .product_name)
+        quantity = try c.decode(Int.self, forKey: .quantity)
+        unit_price = try c.decode(Double.self, forKey: .unit_price)
+        additional_cost = try c.decodeIfPresent(Double.self, forKey: .additional_cost)
+        suggested_price = try c.decodeIfPresent(Double.self, forKey: .suggested_price)
+        category = try c.decodeIfPresent(String.self, forKey: .category)
+        source = try c.decodeIfPresent(String.self, forKey: .source)
+        document_image_url = try c.decodeIfPresent(String.self, forKey: .document_image_url)
+        weight_per_unit_grams = try c.decodeIfPresent(Int.self, forKey: .weight_per_unit_grams)
+        is_finished_good = try c.decodeIfPresent(Bool.self, forKey: .is_finished_good)
+        // Các cột không có trong DB — set nil
+        import_from_finished_good = nil
+        source_finished_good_id = nil
+    }
     
     init(from domain: RestockItem, billId: UUID) {
         self.id = domain.id
@@ -1255,6 +1285,8 @@ struct RestockItemDTO: Codable {
         self.document_image_url = domain.documentImageURL
         self.weight_per_unit_grams = domain.weightPerUnitGrams
         self.is_finished_good = domain.isFinishedGood
+        self.import_from_finished_good = nil  // không lưu vào DB
+        self.source_finished_good_id = nil    // không lưu vào DB
     }
     
     func toDomain() -> RestockItem {
@@ -1270,7 +1302,9 @@ struct RestockItemDTO: Codable {
             source: source,
             documentImageURL: document_image_url,
             weightPerUnitGrams: weight_per_unit_grams,
-            isFinishedGood: is_finished_good ?? false
+            isFinishedGood: is_finished_good ?? false,
+            importFromFinishedGood: import_from_finished_good ?? false,
+            sourceFinishedGoodId: source_finished_good_id
         )
     }
 }

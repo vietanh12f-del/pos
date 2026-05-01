@@ -32,6 +32,8 @@ struct RestockItem: Identifiable, Hashable, Codable {
     var documentImageURL: String? = nil
     var weightPerUnitGrams: Int? = nil
     var isFinishedGood: Bool = false // Contextual flag for target product type
+    var importFromFinishedGood: Bool = false
+    var sourceFinishedGoodId: UUID? = nil
     
     var totalCost: Double {
         if let grams = weightPerUnitGrams, grams > 0 {

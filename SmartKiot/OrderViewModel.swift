@@ -1378,7 +1378,7 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Restock Actions
     
-    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil, source: String? = nil, documentImageURL: String? = nil, weightPerUnitGrams: Int? = nil, isFinishedGood: Bool = false) {
+    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil, source: String? = nil, documentImageURL: String? = nil, weightPerUnitGrams: Int? = nil, isFinishedGood: Bool = false, importFromFinishedGood: Bool = false, sourceFinishedGoodId: UUID? = nil) {
         restockItems.append(
             RestockItem(
                 name: name,
@@ -1391,7 +1391,9 @@ class OrderViewModel: ObservableObject {
                 source: source,
                 documentImageURL: documentImageURL,
                 weightPerUnitGrams: weightPerUnitGrams,
-                isFinishedGood: isFinishedGood
+                isFinishedGood: isFinishedGood,
+                importFromFinishedGood: importFromFinishedGood,
+                sourceFinishedGoodId: sourceFinishedGoodId
             )
         )
     }
@@ -1461,10 +1463,10 @@ class OrderViewModel: ObservableObject {
         bill.creatorId = original?.creatorId ?? AuthManager.shared.currentUserProfile?.id
         bill.creatorName = original?.creatorName ?? AuthManager.shared.currentUserProfile?.fullName
         
-        // Save pending export/import info if any (e.g. trading party debt updates from FinishedGoodsExportView)
-        // Since RestockBill doesn't have these fields explicitly, we just process the TradingParty updates which 
-        // are already handled in FinishedGoodsExportView via upsertTradingParty.
-        // We only need to clear the pending state here.
+        // Snapshot trước khi clear
+        let itemsSnapshot = restockItems
+        let exportInfoSnapshot = pendingExportInfo
+        
         pendingExportNote = nil
         pendingExportPaymentReceiptURL = nil
         pendingExportInfo = nil
@@ -1491,6 +1493,83 @@ class OrderViewModel: ObservableObject {
                     }
                 } else {
                     try await database.saveRestockBill(bill)
+                    
+                    // Tạo ProductionTransaction "Xuất Thành Phẩm" cho các item là thành phẩm hoặc nhập từ thành phẩm
+                    var exportTxItems: [RestockItem] = []
+                    
+                    // Trường hợp 1: Nhập hàng hoá TỪ thành phẩm nguồn (importFromFinishedGood == true)
+                    let importFromFGItems = itemsSnapshot.filter { $0.importFromFinishedGood && $0.source != nil }
+                    for it in importFromFGItems {
+                        if let sourceName = it.source, let gramsPerUnit = it.weightPerUnitGrams, gramsPerUnit > 0 {
+                            let totalGrams = it.quantity * gramsPerUnit
+                            let sourceProduct = products.first(where: { $0.name.lowercased() == sourceName.lowercased() && $0.isFinishedGood })
+                            
+                            var exportItem = RestockItem(
+                                name: sourceName,
+                                quantity: totalGrams,
+                                unitPrice: sourceProduct?.costPrice ?? 0,
+                                category: Category.materials.rawValue, // Để xử lý tính toán gram/kg
+                                source: "Xuất để nhập hàng: \(it.name)",
+                                isFinishedGood: true
+                            )
+                            exportItem.isConfirmed = true
+                            exportTxItems.append(exportItem)
+                        }
+                    }
+                    
+                    // Trường hợp 2: Item bản thân là thành phẩm (giữ logic cũ)
+                    let directFGItems = itemsSnapshot.filter { item in
+                        if item.importFromFinishedGood { return false } // Đã xử lý ở trên
+                        if item.isFinishedGood { return true }
+                        return products.first(where: { $0.name.lowercased() == item.name.lowercased() })?.isFinishedGood == true
+                    }
+                    for it in directFGItems {
+                        var exportItem = it
+                        exportItem.isFinishedGood = true
+                        exportItem.isConfirmed = true
+                        exportTxItems.append(exportItem)
+                    }
+
+                    if !exportTxItems.isEmpty {
+                        var fgTotal = 0.0
+                        for it in exportTxItems {
+                            let stockDelta = it.weightPerUnitGrams != nil ? Double(it.weightPerUnitGrams! * it.quantity) : Double(it.quantity)
+                            fgTotal += stockDelta / 1000.0 * it.unitPrice
+                        }
+                        
+                        var exportTx = ProductionTransaction(
+                            id: UUID(),
+                            createdAt: Date(),
+                            mode: "Xuất Thành Phẩm",
+                            items: exportTxItems,
+                            totalCost: fgTotal
+                        )
+                        exportTx.creatorId = AuthManager.shared.currentUserProfile?.id
+                        exportTx.creatorName = AuthManager.shared.currentUserProfile?.fullName
+                        exportTx.note = "Xuất sang kho hàng hoá từ phiếu nhập #\(bill.id.uuidString.prefix(6))"
+                        
+                        if let info = exportInfoSnapshot {
+                            exportTx.buyerName = info.buyerName
+                            exportTx.buyerPhone = info.buyerPhone
+                            exportTx.buyerAddress = info.buyerAddress
+                            exportTx.grandTotal = info.grandTotal
+                            exportTx.paidAmount = info.paidAmount
+                            exportTx.debtAmount = info.debtAmount
+                            exportTx.vatRate = info.vatRate
+                            exportTx.vatAmount = info.vatAmount
+                            exportTx.isPaid = info.isPaid
+                            exportTx.expectedPayDate = info.expectedPayDate
+                            exportTx.paymentReceiptURL = info.paymentReceiptURL
+                        }
+                        
+                        do {
+                            try await database.saveProductionTransaction(exportTx)
+                            await loadProductionHistory(mode: "Xuất Thành Phẩm")
+                            print("✅ Saved finished goods export tx for \(exportTxItems.count) items")
+                        } catch {
+                            print("❌ Error saving FG export tx: \(error)")
+                        }
+                    }
                 }
                 
                 // Success - clean up

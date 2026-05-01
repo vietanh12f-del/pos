@@ -554,12 +554,17 @@ private struct ProductionTransactionHistoryCard: View {
     }
     
     private var showEditedBadge: Bool {
-        editedIds.contains(tx.id) || (tx.note?.isEmpty == false)
+        editedIds.contains(tx.id)
     }
     
     private var showAutoExportButton: Bool {
         let note = tx.note?.lowercased() ?? ""
         return note.contains("xuất tự động")
+    }
+    
+    private var isExportToInventory: Bool {
+        let note = tx.note?.lowercased() ?? ""
+        return note.contains("xuất sang kho hàng hoá") || note.contains("tự động xuất kho từ phiếu nhập")
     }
     
     var body: some View {
@@ -611,6 +616,16 @@ private struct ProductionTransactionHistoryCard: View {
             }
             
             HStack {
+                // Label bên trái button Sửa
+                if isExportToInventory {
+                    Text("xuất sang kho hàng hoá")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.purple.opacity(0.85)))
+                }
                 Spacer()
                 Button(action: onEdit) {
                     Text("Sửa")
