@@ -449,7 +449,7 @@ struct ProductEditView: View {
                     .padding(.vertical, 8)
                 }
                 
-                if case .edit(let product) = mode {
+                if case .edit(let product) = mode, StoreManager.shared.currentMember?.role == .owner {
                     Section {
                         Button(role: .destructive) {
                             showDeleteConfirmation = true

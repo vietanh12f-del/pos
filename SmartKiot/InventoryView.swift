@@ -362,11 +362,13 @@ struct InventoryView: View {
                                 }
                                 .listRowBackground(Color.white)
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button(role: .destructive) {
-                                        productToDelete = product
-                                        showDeleteConfirmation = true
-                                    } label: {
-                                        Label("Xóa", systemImage: "trash")
+                                    if StoreManager.shared.currentMember?.role == .owner {
+                                        Button(role: .destructive) {
+                                            productToDelete = product
+                                            showDeleteConfirmation = true
+                                        } label: {
+                                            Label("Xóa", systemImage: "trash")
+                                        }
                                     }
                                     
                                     Button {
