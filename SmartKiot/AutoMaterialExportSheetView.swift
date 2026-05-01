@@ -220,8 +220,8 @@ struct AutoMaterialExportSheetView: View {
                     headerSection
                     freshSection
                     afterBoilSection
-                    panCountSection
                     panWeightSection
+                    panCountSection
                     autoMaterialsSection
                     summarySection
                     confirmSection
