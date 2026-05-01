@@ -241,13 +241,13 @@ struct FinishedGoodsExportView: View {
         } message: {
             Text(validationMessage)
         }
-        .alert(isImport ? "Xác nhận nhập nguyên liệu?" : "Xác nhận xuất thành phẩm?", isPresented: $showConfirmAlert) {
+        .alert(isRegularRestock ? "Xác nhận nhập hàng hoá?" : (isImport ? "Xác nhận nhập nguyên liệu?" : "Xác nhận xuất thành phẩm?"), isPresented: $showConfirmAlert) {
             Button("Huỷ", role: .cancel) { }
             Button("Xác nhận") {
                 Task { await confirmExport() }
             }
         } message: {
-            Text(isImport ? "Hệ thống sẽ cộng kho và lưu lịch sử nhập." : "Hệ thống sẽ trừ kho và lưu lịch sử xuất.")
+            Text(isRegularRestock ? "Hệ thống sẽ cộng kho và lưu lịch sử nhập hàng hoá." : (isImport ? "Hệ thống sẽ cộng kho và lưu lịch sử nhập." : "Hệ thống sẽ trừ kho và lưu lịch sử xuất."))
         }
     }
 
