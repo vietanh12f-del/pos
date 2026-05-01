@@ -161,6 +161,27 @@ struct AutoMaterialExportSheetView: View {
         .sorted { $0.name < $1.name }
     }
     
+    // Nguyên liệu xuất cho chảo xào thêm: tỉ lệ = surplusGrams / standardPanWeightGrams
+    private var autoRowsForExtraPan: [AutoMaterialExportLogRow] {
+        guard needsExtraPan, standardPanWeightGrams > 0 else { return [] }
+        let ratio = Double(surplusGrams) / Double(standardPanWeightGrams)
+        return autoSelected.compactMap { id in
+            guard let m = materialsById[id] else { return nil }
+            let standard = max(0, Double(FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            let total = standard * ratio
+            return AutoMaterialExportLogRow(
+                id: UUID(),
+                materialId: m.id,
+                name: m.name,
+                stockGrams: m.stockQuantity,
+                standardPerPanGrams: standard,
+                actualPerPanGrams: total,
+                totalExportGrams: total
+            )
+        }
+        .sorted { $0.name < $1.name }
+    }
+    
     private var totalExportByMaterialName: [(name: String, grams: Int, stock: Int, isOver: Bool)] {
         var map: [String: (g: Int, stock: Int)] = [:]
         for r in freshRows {
@@ -771,6 +792,48 @@ struct AutoMaterialExportSheetView: View {
                                 openWeightWheel(target: .autoStandard(id), currentText: autoStandardPerPanKgTextById[id] ?? "0")
                             }
                         )
+                    }
+                }
+                
+                // Phần xào thêm — chỉ hiện khi needsExtraPan
+                if needsExtraPan && !autoRowsForExtraPan.isEmpty {
+                    Divider()
+                        .padding(.vertical, 4)
+                    
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill")
+                            .foregroundStyle(Color.orange)
+                            .font(.subheadline)
+                        Text("Nguyên liệu xuất tự động cho phần xào thêm")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.orange)
+                    }
+                    
+                    VStack(spacing: 10) {
+                        ForEach(autoRowsForExtraPan) { row in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.name)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.orange)
+                                    Text("Kho: \(FormatUtils.formatWeight(row.stockGrams))")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                Spacer()
+                                Text(FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())))
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Color.orange)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                                Text("kg")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
                     }
                 }
             }
