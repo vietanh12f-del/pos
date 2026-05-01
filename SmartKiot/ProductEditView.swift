@@ -52,6 +52,7 @@ struct ProductEditView: View {
     @State private var stockWheelMax = 1000
     @State private var stockWheelRangeBase = 0
     @State private var showStockWheelRangePicker = false
+    @State private var showDuplicateNameAlert = false
     
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
     let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
@@ -736,6 +737,11 @@ struct ProductEditView: View {
                     }
                 }
             }
+            .alert("Tên đã tồn tại", isPresented: $showDuplicateNameAlert) {
+                Button("Đồng ý", role: .cancel) { }
+            } message: {
+                Text("Tên '\(name)' đã tồn tại trong danh mục hàng hoá hoặc thành phẩm. Vui lòng đặt tên khác.")
+            }
         }
         .toolbar(.hidden, for: .navigationBar)
     }
@@ -748,6 +754,28 @@ struct ProductEditView: View {
     }
     
     func save() {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("🔍 [ProductEditView] Checking duplicate for: \(trimmedName)")
+        
+        // Kiểm tra trùng tên (case-insensitive)
+        let isDuplicate: Bool = {
+            let matches = viewModel.products.filter { $0.name.lowercased() == trimmedName.lowercased() }
+            print("🔍 [ProductEditView] Found matches: \(matches.count)")
+            
+            switch mode {
+            case .add:
+                return !matches.isEmpty
+            case .edit(let currentProduct):
+                return matches.contains { $0.id != currentProduct.id }
+            }
+        }()
+        
+        if isDuplicate {
+            print("⚠️ [ProductEditView] Duplicate detected, showing alert")
+            showDuplicateNameAlert = true
+            return
+        }
+
         guard let priceValue = Double(price) else { return }
         let quantityValue = Int(quantity) ?? 0
         let importPriceValue = Double(importPrice) ?? 0

@@ -2064,6 +2064,24 @@ struct ManualRestockItemView: View {
             }
         }
         
+        // Kiểm tra trùng tên (case-insensitive) - Chặn hoàn toàn việc trùng tên với bất kỳ sản phẩm nào khác loại
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        print("🔍 [ManualRestockItemView] Checking duplicate for: \(trimmedName)")
+        
+        if let existingProduct = viewModel.products.first(where: { $0.name.lowercased() == trimmedName.lowercased() }) {
+            print("🔍 [ManualRestockItemView] Found existing product: \(existingProduct.name), isFinishedGood: \(existingProduct.isFinishedGood)")
+            
+            // Nếu sản phẩm tồn tại nhưng khác loại (ví dụ đang nhập Hàng hoá nhưng tên này là Thành phẩm)
+            if existingProduct.isFinishedGood != isFinishedGoods {
+                print("⚠️ [ManualRestockItemView] Duplicate detected (different type), showing alert")
+                let existingType = existingProduct.isFinishedGood ? "Thành phẩm" : "Hàng hoá"
+                let currentType = isFinishedGoods ? "thành phẩm" : "hàng hoá"
+                validationAlertMessage = "Tên '\(name)' đã tồn tại trong danh mục \(existingType). Bạn không thể tạo \(currentType) trùng tên này. Vui lòng chọn tên khác."
+                showValidationAlert = true
+                return
+            }
+        }
+        
         let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
         let useKgGram = addTitle.lowercased().contains("nguyên liệu") || (addTitle.lowercased().contains("thành phẩm") && !treatFinishedGoodsAsUnits)
         let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : (Int(quantity) ?? quantityWheelSelection)
