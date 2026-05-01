@@ -98,7 +98,7 @@ struct MaterialEditView: View {
                     }
                 }
                 
-                if case .edit(_) = mode {
+                if case .edit(_) = mode, StoreManager.shared.currentMember?.role == .owner {
                     Section {
                         Button(role: .destructive) {
                             deleteMaterial()
