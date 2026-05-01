@@ -194,6 +194,12 @@ struct AutoMaterialExportSheetView: View {
             map[r.name, default: (0, r.stockGrams)].g += g
             map[r.name, default: (0, r.stockGrams)].stock = r.stockGrams
         }
+        // Cộng thêm phần xào thêm nếu có
+        for r in autoRowsForExtraPan {
+            let g = Int(max(0, r.totalExportGrams.rounded()))
+            map[r.name, default: (0, r.stockGrams)].g += g
+            map[r.name, default: (0, r.stockGrams)].stock = r.stockGrams
+        }
         return map.keys.sorted().map { k in
             let v = map[k] ?? (0, 0)
             return (k, v.g, v.stock, v.g > v.stock)
@@ -1094,7 +1100,8 @@ struct AutoMaterialExportSheetView: View {
             standardPanWeightGrams: standardPanWeightGrams,
             actualPanWeightGrams: actualPanWeightGrams,
             percentChange: percentChange,
-            autoRows: autoRows
+            autoRows: autoRows,
+            extraPanRows: autoRowsForExtraPan
         )
         if ok {
             await saveTemplate()
@@ -1591,6 +1598,7 @@ private struct ExportSlipShareSheet: View {
     let actualPanWeightGrams: Double
     let autoMaterialsTitle: String
     let autoRows: [AutoMaterialExportLogRow]
+    var extraPanRows: [AutoMaterialExportLogRow] = []
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
@@ -1721,6 +1729,44 @@ private struct ExportSlipShareSheet: View {
                 }
                 .padding(12)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
+            }
+
+            // Extra pan rows (xào thêm)
+            if !extraPanRows.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Nguyên liệu xuất tự động cho phần xào thêm")
+                        .font(.headline)
+                        .foregroundStyle(Color.orange)
+
+                    HStack {
+                        Text("Nguyên liệu")
+                            .font(.caption).foregroundStyle(.gray)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("Tổng xuất")
+                            .font(.caption).foregroundStyle(.gray)
+                            .frame(width: 80, alignment: .trailing)
+                    }
+                    .padding(.bottom, 2)
+
+                    Divider()
+
+                    ForEach(extraPanRows) { row in
+                        HStack {
+                            Text(row.name)
+                                .font(.subheadline)
+                                .foregroundStyle(Color.orange)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(FormatUtils.formatWeight(Int(max(0, row.totalExportGrams.rounded()))))
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.orange)
+                                .frame(width: 80, alignment: .trailing)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.06)))
             }
 
             // Footer info

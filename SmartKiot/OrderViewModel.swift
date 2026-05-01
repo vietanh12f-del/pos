@@ -1992,7 +1992,8 @@ class OrderViewModel: ObservableObject {
         standardPanWeightGrams: Int,
         actualPanWeightGrams: Double,
         percentChange: Double,
-        autoRows: [AutoMaterialExportLogRow]
+        autoRows: [AutoMaterialExportLogRow],
+        extraPanRows: [AutoMaterialExportLogRow] = []
     ) async -> Bool {
         var totalsByName: [String: Int] = [:]
         for r in freshRows {
@@ -2000,6 +2001,11 @@ class OrderViewModel: ObservableObject {
             totalsByName[r.name] = (totalsByName[r.name] ?? 0) + g
         }
         for r in autoRows {
+            let g = Int(max(0, r.totalExportGrams.rounded()))
+            totalsByName[r.name] = (totalsByName[r.name] ?? 0) + g
+        }
+        // Cộng thêm phần xào thêm
+        for r in extraPanRows {
             let g = Int(max(0, r.totalExportGrams.rounded()))
             totalsByName[r.name] = (totalsByName[r.name] ?? 0) + g
         }
