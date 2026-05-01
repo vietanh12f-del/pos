@@ -451,7 +451,7 @@ struct ProductEditView: View {
                         Button(role: .destructive) {
                             showDeleteConfirmation = true
                         } label: {
-                            Text("Xóa hàng hóa")
+                            Text(product.isFinishedGood ? "Xóa thành phẩm" : "Xóa hàng hóa")
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
@@ -748,7 +748,7 @@ struct ProductEditView: View {
     var title: String {
         switch mode {
         case .add: return "Thêm hàng mới"
-        case .edit: return "Sửa hàng hóa"
+        case .edit(let p): return p.isFinishedGood ? "Sửa thành phẩm" : "Sửa hàng hóa"
         }
     }
     

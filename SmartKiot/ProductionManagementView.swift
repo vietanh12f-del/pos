@@ -326,47 +326,7 @@ struct ProductionManagementView: View {
                 }
             }
             .sheet(item: $editingFinishedProduct) { product in
-                let isExportMode = (selectedMode == .xuatThanhPham)
-                let defaultUnitPrice = isExportMode
-                    ? product.price
-                    : (product.costPrice > 0 ? product.costPrice : product.price)
-                let item = RestockItem(
-                    name: product.name,
-                    quantity: 1000,
-                    unitPrice: defaultUnitPrice,
-                    additionalCost: 0,
-                    suggestedPrice: nil,
-                    isConfirmed: false,
-                    category: product.category
-                )
-                NavigationStack {
-                    VStack(spacing: 0) {
-                        ManualRestockItemView(
-                            viewModel: viewModel,
-                            itemToEdit: item,
-                            prefilledProduct: product,
-                            isFinishedGoods: true,
-                            addTitle: isExportMode ? "Thêm thành phẩm xuất" : "Thêm thành phẩm nhập",
-                            editTitle: "Sửa thành phẩm"
-                        )
-                        // Nút xóa thành phẩm — chỉ hiện cho owner
-                        if StoreManager.shared.currentMember?.role == .owner {
-                            Button(role: .destructive) {
-                                viewModel.deleteProduct(product)
-                                editingFinishedProduct = nil
-                            } label: {
-                                Text("Xóa thành phẩm")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.red.opacity(0.1))
-                                    .foregroundStyle(.red)
-                                    .cornerRadius(12)
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 16)
-                        }
-                    }
-                }
+                ProductEditView(viewModel: viewModel, mode: .edit(product))
             }
             .safeAreaInset(edge: .bottom) {
                 if let mode = selectedMode {
