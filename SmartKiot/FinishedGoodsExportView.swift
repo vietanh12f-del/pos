@@ -112,7 +112,13 @@ struct FinishedGoodsExportView: View {
 
     // Computed totals
     private var subtotal: Double {
-        items.reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) + $1.additionalCost }
+        if isRegularRestock {
+            // Hàng hoá nhập: quantity là số nguyên, unitPrice là giá/đơn vị
+            return items.reduce(0) { $0 + (Double($1.quantity) * $1.unitPrice) + $1.additionalCost }
+        } else {
+            // Nguyên liệu / thành phẩm: quantity là gram, unitPrice là giá/kg
+            return items.reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) + $1.additionalCost }
+        }
     }
     private var vatAmount: Double { vatEnabled ? subtotal * (vatRate / 100.0) : 0 }
     private var grandTotal: Double { subtotal + vatAmount }
@@ -226,7 +232,8 @@ struct FinishedGoodsExportView: View {
                 billTitle: billTitle,
                 debtLabel: debtLabel,
                 billNavTitle: billNavTitle,
-                billPartyHeader: billPartyHeader
+                billPartyHeader: billPartyHeader,
+                isRegularRestock: isRegularRestock
             )
         }
         .alert("Thiếu thông tin", isPresented: $showValidationAlert) {
@@ -366,14 +373,28 @@ struct FinishedGoodsExportView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.name)
                             .font(.subheadline)
-                        Text(FormatUtils.formatWeight(item.quantity))
-                            .font(.caption)
-                            .foregroundStyle(.gray)
+                        if isRegularRestock {
+                            // Hàng hoá: hiển thị số lượng nguyên
+                            Text("SL: \(item.quantity)")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        } else {
+                            // Nguyên liệu / thành phẩm: hiển thị kg
+                            Text(FormatUtils.formatWeight(item.quantity))
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
                     }
                     Spacer()
-                    Text(formatCurrency(Double(item.quantity) / 1000.0 * item.unitPrice))
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                    if isRegularRestock {
+                        Text(formatCurrency(Double(item.quantity) * item.unitPrice))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    } else {
+                        Text(formatCurrency(Double(item.quantity) / 1000.0 * item.unitPrice))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                    }
                 }
                 Divider()
             }
@@ -903,6 +924,7 @@ struct ExportBillPrintView: View {
     var debtLabel: String = "Còn lại"
     var billNavTitle: String = "Bill xuất thành phẩm"
     var billPartyHeader: String = "THÔNG TIN BÊN MUA"
+    var isRegularRestock: Bool = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
@@ -999,16 +1021,30 @@ struct ExportBillPrintView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(item.name).font(.subheadline)
-                            Text(formatCurrency(item.unitPrice) + "/kg").font(.caption).foregroundStyle(.gray)
+                            if isRegularRestock {
+                                Text(formatCurrency(item.unitPrice) + "/đv").font(.caption).foregroundStyle(.gray)
+                            } else {
+                                Text(formatCurrency(item.unitPrice) + "/kg").font(.caption).foregroundStyle(.gray)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(FormatUtils.formatWeight(item.quantity))
-                            .font(.subheadline)
-                            .frame(width: 70, alignment: .trailing)
-                        Text(formatCurrency(Double(item.quantity) / 1000.0 * item.unitPrice))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .frame(width: 90, alignment: .trailing)
+                        if isRegularRestock {
+                            Text("\(item.quantity)")
+                                .font(.subheadline)
+                                .frame(width: 70, alignment: .trailing)
+                            Text(formatCurrency(Double(item.quantity) * item.unitPrice))
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .frame(width: 90, alignment: .trailing)
+                        } else {
+                            Text(FormatUtils.formatWeight(item.quantity))
+                                .font(.subheadline)
+                                .frame(width: 70, alignment: .trailing)
+                            Text(formatCurrency(Double(item.quantity) / 1000.0 * item.unitPrice))
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .frame(width: 90, alignment: .trailing)
+                        }
                     }
                 }
             }
