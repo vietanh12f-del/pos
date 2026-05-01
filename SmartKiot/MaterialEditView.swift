@@ -31,6 +31,9 @@ struct MaterialEditView: View {
     @State private var stockKgRangeBase = 0
     @State private var showStockKgRangePicker = false
     @State private var selectedCategoryName: String = Category.materials.rawValue
+    @State private var barcode: String = ""
+    @State private var showBarcodeScanner = false
+    @State private var showPrintBarcode = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -108,7 +111,35 @@ struct MaterialEditView: View {
                         }
                     }
                 }
-            }
+                
+                Section(header: Text("Mã vạch")) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("Nhập hoặc quét mã", text: $barcode)
+                            .overlay(
+                                HStack {
+                                    Spacer()
+                                    Button(action: { showBarcodeScanner = true }) {
+                                        Image(systemName: "barcode.viewfinder")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                            )
+                    }
+                    if barcode.isEmpty {
+                        Button("Tạo mã vạch tự động") {
+                            barcode = BarcodeGenerator.shared.generateRandomBarcode()
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                    } else {
+                        Button {
+                            showPrintBarcode = true
+                        } label: {
+                            Label("In mã vạch", systemImage: "printer")
+                                .font(.caption)
+                        }
+                    }
+                }            }
         }
         .sheet(isPresented: $showCostWheel) {
             VStack(spacing: 12) {
@@ -261,6 +292,26 @@ struct MaterialEditView: View {
                 }
             }
         }
+        .sheet(isPresented: $showBarcodeScanner) {
+            BarcodeScannerView(onScan: { code in
+                barcode = code
+                showBarcodeScanner = false
+            })
+        }
+        .sheet(isPresented: $showPrintBarcode) {
+            let tempProduct = Product(
+                id: { if case .edit(let m) = mode { return m.id } else { return UUID() } }(),
+                name: name,
+                price: Double(importPrice) ?? 0,
+                costPrice: Double(importPrice) ?? 0,
+                category: selectedCategoryName,
+                imageName: "shippingbox.fill",
+                color: "gray",
+                stockQuantity: stockWheelSelection,
+                barcode: barcode
+            )
+            BarcodePrintView(product: tempProduct)
+        }
         .onAppear {
             if case .edit(let material) = mode {
                 name = material.name
@@ -269,6 +320,7 @@ struct MaterialEditView: View {
                 stockWheelSelection = material.stockQuantity
                 costWheelSelection = Int(material.lastUnitPrice)
                 selectedCategoryName = material.category
+                barcode = material.barcode ?? ""
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -285,7 +337,7 @@ struct MaterialEditView: View {
         guard let unit = Double(importPrice), let qty = Int(stock) else { return }
         switch mode {
         case .add:
-            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName)
+            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode)
             Task {
                 try? await viewModel.databaseSaveMaterial(material)
                 viewModel.addMaterialCategory(selectedCategoryName)
@@ -293,7 +345,7 @@ struct MaterialEditView: View {
                 dismiss()
             }
         case .edit(let m):
-            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName)
+            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode)
             Task {
                 try? await viewModel.databaseUpdateMaterial(updated)
                 viewModel.addMaterialCategory(selectedCategoryName)

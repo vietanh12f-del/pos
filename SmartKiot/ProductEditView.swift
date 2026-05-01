@@ -246,9 +246,6 @@ struct ProductEditView: View {
                                 .font(.caption)
                         }
                     }
-
-                    Toggle("Là thành phẩm", isOn: $isFinishedGood)
-                        .font(.subheadline)
                 }
                 
                 Section(header: Text("Danh mục")) {

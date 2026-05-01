@@ -1357,8 +1357,25 @@ struct MaterialDTO: Codable {
     let last_unit_price: Double
     let category: String?
     let store_id: UUID?
+    let barcode: String?
     
-    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?) {
+    enum CodingKeys: String, CodingKey {
+        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode
+    }
+    
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        stock_quantity = try c.decode(Int.self, forKey: .stock_quantity)
+        stock_weight_kg = try c.decodeIfPresent(Double.self, forKey: .stock_weight_kg)
+        last_unit_price = try c.decode(Double.self, forKey: .last_unit_price)
+        category = try c.decodeIfPresent(String.self, forKey: .category)
+        store_id = try c.decodeIfPresent(UUID.self, forKey: .store_id)
+        barcode = try c.decodeIfPresent(String.self, forKey: .barcode)
+    }
+    
+    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil) {
         self.id = id
         self.name = name
         self.stock_quantity = stock_quantity
@@ -1366,6 +1383,7 @@ struct MaterialDTO: Codable {
         self.last_unit_price = last_unit_price
         self.category = category
         self.store_id = store_id
+        self.barcode = barcode
     }
     
     init(from domain: MaterialItem, storeId: UUID?) {
@@ -1376,10 +1394,11 @@ struct MaterialDTO: Codable {
         self.last_unit_price = domain.lastUnitPrice
         self.category = domain.category
         self.store_id = storeId
+        self.barcode = domain.barcode
     }
     
     func toDomain() -> MaterialItem {
-        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue)
+        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue, barcode: barcode)
     }
 }
 

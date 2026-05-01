@@ -131,6 +131,7 @@ struct MaterialItem: Identifiable, Codable, Equatable {
     var stockQuantity: Int
     var lastUnitPrice: Double
     var category: String = Category.materials.rawValue
+    var barcode: String? = nil
 }
 
 struct OperatingExpense: Identifiable, Codable, Equatable {
