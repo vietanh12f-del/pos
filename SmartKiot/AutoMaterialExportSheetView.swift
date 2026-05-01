@@ -22,6 +22,7 @@ struct AutoMaterialExportSheetView: View {
     @State private var afterBoilKgText: String = ""
     @State private var panCountText: String = "1"
     @State private var standardPanWeightKgText: String = ""
+    @State private var surplusThresholdKg: Int = 0  // Khối lượng dư trên (kg)
     
     @State private var autoSelected: Set<UUID> = []
     @State private var autoStandardPerPanKgTextById: [UUID: String] = [:]
@@ -53,6 +54,9 @@ struct AutoMaterialExportSheetView: View {
     @State private var intWheelSelection = 1
     @State private var intWheelMax = 200
     @State private var intWheelRangeBase = 0
+    
+    @State private var showSurplusWheel = false
+    @State private var surplusWheelMax = 100
     
     @State private var showUnsavedCloseAlert = false
     @State private var showUnsavedSwitchAlert = false
@@ -384,6 +388,30 @@ struct AutoMaterialExportSheetView: View {
             )
             .presentationDetents([.height(300)])
         }
+        .sheet(isPresented: $showSurplusWheel) {
+            VStack(spacing: 16) {
+                Text("Khối lượng dư trên").font(.headline)
+                Picker("", selection: $surplusThresholdKg) {
+                    ForEach(Array(0...surplusWheelMax), id: \.self) { v in
+                        Text("\(v) kg").tag(v)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .onChange(of: surplusThresholdKg) { v in
+                    if v >= surplusWheelMax - 5 { surplusWheelMax += 20 }
+                }
+                Text("nếu trên thì xào thêm 1 chảo")
+                    .font(.caption).foregroundStyle(.gray).italic()
+                HStack {
+                    Button("Đóng") { showSurplusWheel = false }
+                    Spacer()
+                    Button("Lưu") { showSurplusWheel = false }
+                }
+                .font(.headline)
+            }
+            .padding()
+            .presentationDetents([.height(300)])
+        }
         .alert("Đổi tên sheet", isPresented: $showRenameSheetPrompt) {
             TextField("Tên sheet", text: $renameSheetText)
             Button("Hủy", role: .cancel) { }
@@ -591,6 +619,36 @@ struct AutoMaterialExportSheetView: View {
                 Text("cái")
                     .font(.caption)
                     .foregroundStyle(.gray)
+            }
+            
+            Divider()
+            
+            // Khối lượng dư trên
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 10) {
+                    Text("Khối lượng dư trên")
+                        .font(.subheadline)
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Button {
+                            showSurplusWheel = true
+                        } label: {
+                            Text("\(surplusThresholdKg)")
+                                .foregroundStyle(Color.themeTextDark)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                        }
+                        .buttonStyle(.plain)
+                        Text("kg")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                }
+                Text("nếu trên thì xào thêm 1 chảo")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .italic()
             }
         }
         .padding(12)
