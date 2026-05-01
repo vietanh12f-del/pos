@@ -92,6 +92,9 @@ struct AutoMaterialExportSheetView: View {
     }
     
     private var actualPanWeightGrams: Double {
+        if needsExtraPan {
+            return Double(standardPanWeightGrams)
+        }
         guard panCount > 0 else { return 0 }
         return Double(afterBoilGrams) / Double(panCount)
     }
