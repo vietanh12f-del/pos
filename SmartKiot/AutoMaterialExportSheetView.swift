@@ -712,7 +712,7 @@ struct AutoMaterialExportSheetView: View {
                 }
                 
                 HStack(spacing: 10) {
-                    Text("Khối lượng chảo xào thêm")
+                    Text("Khối lượng xào thêm")
                         .font(.subheadline)
                         .foregroundStyle(Color.orange)
                     Spacer()
