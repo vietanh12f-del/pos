@@ -52,8 +52,15 @@ struct FinishedGoodsExportView: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    private var isImportFromFG: Bool {
+        items.contains { $0.importFromFinishedGood }
+    }
+
     // Derived labels
-    private var partyLabel: String { isImport ? "Thông tin bên nhập" : "Thông tin bên mua" }
+    private var partyLabel: String { 
+        if isImport && isImportFromFG { return "Nhập từ kho thành phẩm" }
+        return isImport ? "Thông tin bên nhập" : "Thông tin bên mua" 
+    }
     private var partyNameLabel: String { isImport ? "Tên cơ sở cung cấp" : "Tên người mua / Công ty" }
     private var itemsSectionLabel: String { 
         if isRegularRestock { return "Hàng hoá nhập" }
@@ -295,7 +302,7 @@ struct FinishedGoodsExportView: View {
                 Text(partyLabel)
                     .font(.headline)
                 Spacer()
-                if !buyerHistory.isEmpty {
+                if !buyerHistory.isEmpty && !isImportFromFG {
                     Button {
                         showBuyerPicker = true
                     } label: {
@@ -314,39 +321,41 @@ struct FinishedGoodsExportView: View {
                 }
             }
 
-            VStack(spacing: 8) {
-                HStack {
-                    Text(partyNameLabel)
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                        .frame(width: 140, alignment: .leading)
-                    TextField("Nhập tên...", text: $buyerName)
-                        .font(.subheadline)
+            if !isImportFromFG {
+                VStack(spacing: 8) {
+                    HStack {
+                        Text(partyNameLabel)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .frame(width: 140, alignment: .leading)
+                        TextField("Nhập tên...", text: $buyerName)
+                            .font(.subheadline)
+                    }
+                    Divider()
+                    HStack {
+                        Text("Số điện thoại")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .frame(width: 140, alignment: .leading)
+                        TextField("Nhập SĐT...", text: $buyerPhone)
+                            .font(.subheadline)
+                            .keyboardType(.phonePad)
+                    }
+                    Divider()
+                    HStack {
+                        Text("Địa chỉ")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .frame(width: 140, alignment: .leading)
+                        TextField("Nhập địa chỉ...", text: $buyerAddress)
+                            .font(.subheadline)
+                    }
                 }
-                Divider()
-                HStack {
-                    Text("Số điện thoại")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                        .frame(width: 140, alignment: .leading)
-                    TextField("Nhập SĐT...", text: $buyerPhone)
-                        .font(.subheadline)
-                        .keyboardType(.phonePad)
-                }
-                Divider()
-                HStack {
-                    Text("Địa chỉ")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                        .frame(width: 140, alignment: .leading)
-                    TextField("Nhập địa chỉ...", text: $buyerAddress)
-                        .font(.subheadline)
-                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.05)))
             }
-            .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.05)))
 
-            if pastDebt > 0 {
+            if pastDebt > 0 && !isImportFromFG {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
@@ -707,6 +716,7 @@ struct FinishedGoodsExportView: View {
     // MARK: - Helpers
 
     private func validate() -> String? {
+        if isImportFromFG { return nil } // Skip validation for FG imports
         let name = buyerName.trimmingCharacters(in: .whitespacesAndNewlines)
         let phone = buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines)
         let address = buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -780,40 +790,60 @@ struct FinishedGoodsExportView: View {
         isConfirming = true
         defer { isConfirming = false }
 
-        // Save party to DB
-        let party = TradingParty(
-            id: buyerHistory.first(where: {
-                $0.name.lowercased() == buyerName.lowercased() && $0.phone == buyerPhone
-            })?.id ?? UUID(),
-            partyType: partyType,
-            name: buyerName.trimmingCharacters(in: .whitespacesAndNewlines),
-            phone: buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines),
-            address: buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines),
-            totalDebt: debtAmount,
-            updatedAt: Date()
-        )
-        Task {
-            try? await viewModel.databaseService.upsertTradingParty(party)
+        // Save party to DB (only if not FG import)
+        if !isImportFromFG {
+            let party = TradingParty(
+                id: buyerHistory.first(where: {
+                    $0.name.lowercased() == buyerName.lowercased() && $0.phone == buyerPhone
+                })?.id ?? UUID(),
+                partyType: partyType,
+                name: buyerName.trimmingCharacters(in: .whitespacesAndNewlines),
+                phone: buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines),
+                address: buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines),
+                totalDebt: debtAmount,
+                updatedAt: Date()
+            )
+            Task {
+                try? await viewModel.databaseService.upsertTradingParty(party)
+            }
+
+            // Build note
+            let note = "\(isImport ? "Cơ sở cung cấp" : "Bên mua"): \(party.name) | SĐT: \(party.phone) | ĐC: \(party.address) | Thanh toán: \(formatCurrency(paidAmount)) | \(debtLabel): \(formatCurrency(debtAmount))"
+
+            viewModel.pendingExportNote = note
+            viewModel.pendingExportPaymentReceiptURL = paymentReceiptURL
+            viewModel.pendingExportInfo = OrderViewModel.PendingExportInfo(
+                buyerName: party.name,
+                buyerPhone: party.phone,
+                buyerAddress: party.address,
+                grandTotal: grandTotal,
+                paidAmount: paidAmount,
+                debtAmount: debtAmount,
+                vatRate: vatRate,
+                vatAmount: vatAmount,
+                isPaid: isPaid,
+                expectedPayDate: expectedPayDate,
+                paymentReceiptURL: paymentReceiptURL
+            )
+        } else {
+            // FG Import case
+            viewModel.pendingExportNote = "Nhập từ kho thành phẩm | Thanh toán: \(formatCurrency(paidAmount))"
+            viewModel.pendingExportPaymentReceiptURL = paymentReceiptURL
+            viewModel.pendingExportInfo = OrderViewModel.PendingExportInfo(
+                buyerName: "Kho thành phẩm",
+                buyerPhone: "",
+                buyerAddress: "",
+                grandTotal: grandTotal,
+                paidAmount: paidAmount,
+                debtAmount: debtAmount,
+                vatRate: vatRate,
+                vatAmount: vatAmount,
+                isPaid: isPaid,
+                expectedPayDate: expectedPayDate,
+                paymentReceiptURL: paymentReceiptURL
+            )
         }
-
-        // Build note
-        let note = "\(isImport ? "Cơ sở cung cấp" : "Bên mua"): \(party.name) | SĐT: \(party.phone) | ĐC: \(party.address) | Thanh toán: \(formatCurrency(paidAmount)) | \(debtLabel): \(formatCurrency(debtAmount))"
-
-        viewModel.pendingExportNote = note
-        viewModel.pendingExportPaymentReceiptURL = paymentReceiptURL
-        viewModel.pendingExportInfo = OrderViewModel.PendingExportInfo(
-            buyerName: party.name,
-            buyerPhone: party.phone,
-            buyerAddress: party.address,
-            grandTotal: grandTotal,
-            paidAmount: paidAmount,
-            debtAmount: debtAmount,
-            vatRate: vatRate,
-            vatAmount: vatAmount,
-            isPaid: isPaid,
-            expectedPayDate: expectedPayDate,
-            paymentReceiptURL: paymentReceiptURL
-        )
+        
         onConfirm()
         dismiss()
     }
