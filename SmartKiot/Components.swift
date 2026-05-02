@@ -170,10 +170,19 @@ struct OrderRow: View {
     
     var body: some View {
         HStack {
-            Text(formatTime(bill.createdAt))
-                .font(.subheadline)
-                .foregroundStyle(.gray)
-                .frame(width: 50, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(formatTime(bill.createdAt))
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                
+                if let stt = bill.sequenceNumber {
+                    Text(stt)
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                }
+            }
+            .frame(width: 80, alignment: .leading)
             
             VStack(alignment: .leading) {
                 Text(billItemsSummary(bill))

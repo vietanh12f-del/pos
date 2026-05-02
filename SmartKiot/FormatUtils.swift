@@ -37,4 +37,11 @@ struct FormatUtils {
         let grams = Int(round(kg * 1000.0))
         return max(0, grams)
     }
+
+    static func generateSequenceNumber() -> String {
+        let date = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyMMdd-HHmmss"
+        return formatter.string(from: date)
+    }
 }

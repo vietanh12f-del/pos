@@ -54,7 +54,8 @@ struct BillDetailView: View {
                     onCaptureReceipt: { showReceiptCamera = true },
                     receiptImageURL: receiptImageURLString,
                     onPickedReceiptImage: { img in receiptImage = img },
-                    onEditDiscount: nil
+                    onEditDiscount: nil,
+                    sequenceNumber: bill.sequenceNumber
                 )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -239,7 +240,8 @@ struct BillDetailView: View {
                 onCaptureReceipt: nil,
                 receiptImageURL: bill.paymentReceiptURL,
                 onPickedReceiptImage: nil,
-                onEditDiscount: nil
+                onEditDiscount: nil,
+                sequenceNumber: bill.sequenceNumber
             )
             .frame(width: 375)
             .background(Color.white)

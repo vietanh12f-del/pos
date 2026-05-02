@@ -31,6 +31,11 @@ struct RestockDetailView: View {
                         Spacer()
                         Text(formatDate(bill.createdAt))
                             .fontWeight(.medium)
+                        if let stt = bill.sequenceNumber {
+                            Text("• \(stt)")
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
                     }
                     if let name = bill.creatorName, !name.isEmpty {
                         HStack {

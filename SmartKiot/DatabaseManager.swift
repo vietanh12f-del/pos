@@ -1073,8 +1073,9 @@ struct OrderDTO: Codable {
     let creator_name: String?
     let customer_name: String?
     let receipt_image_url: String?
+    let sequence_number: String?
     
-    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?) {
+    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?) {
         self.id = id
         self.total_amount = total_amount
         self.created_at = created_at
@@ -1085,6 +1086,7 @@ struct OrderDTO: Codable {
         self.creator_name = creator_name
         self.customer_name = customer_name
         self.receipt_image_url = receipt_image_url
+        self.sequence_number = sequence_number
     }
     
     init(from domain: Bill) {
@@ -1098,6 +1100,7 @@ struct OrderDTO: Codable {
         self.creator_name = domain.creatorName
         self.customer_name = domain.customerName
         self.receipt_image_url = domain.paymentReceiptURL
+        self.sequence_number = domain.sequenceNumber
     }
     
     func toDomain() -> Bill {
@@ -1110,11 +1113,12 @@ struct OrderDTO: Codable {
         bill.creatorName = creator_name
         bill.customerName = customer_name
         bill.paymentReceiptURL = receipt_image_url
+        bill.sequenceNumber = sequence_number
         return bill
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url)
+        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url, sequence_number: sequence_number)
     }
 }
 
@@ -1185,8 +1189,9 @@ struct RestockBillDTO: Codable {
     let is_deleted: Bool?
     let deleted_at: Date?
     let deleted_by: UUID?
+    let sequence_number: String?
     
-    init(id: UUID, total_cost: Double, created_at: Date, creator_id: UUID?, creator_name: String?, restock_items: [RestockItemDTO]?, store_id: UUID?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
+    init(id: UUID, total_cost: Double, created_at: Date, creator_id: UUID?, creator_name: String?, restock_items: [RestockItemDTO]?, store_id: UUID?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?, sequence_number: String?) {
         self.id = id
         self.total_cost = total_cost
         self.created_at = created_at
@@ -1197,6 +1202,7 @@ struct RestockBillDTO: Codable {
         self.is_deleted = is_deleted
         self.deleted_at = deleted_at
         self.deleted_by = deleted_by
+        self.sequence_number = sequence_number
     }
     
     init(from domain: RestockBill) {
@@ -1210,6 +1216,7 @@ struct RestockBillDTO: Codable {
         self.is_deleted = domain.isDeleted
         self.deleted_at = domain.deletedAt
         self.deleted_by = domain.deletedBy
+        self.sequence_number = domain.sequenceNumber
     }
     
     func toDomain() -> RestockBill {
@@ -1220,11 +1227,12 @@ struct RestockBillDTO: Codable {
         bill.deletedBy = deleted_by
         bill.creatorId = creator_id
         bill.creatorName = creator_name
+        bill.sequenceNumber = sequence_number
         return bill
     }
     
     func withStore(_ storeId: UUID) -> RestockBillDTO {
-        return RestockBillDTO(id: id, total_cost: total_cost, created_at: created_at, creator_id: creator_id, creator_name: creator_name, restock_items: restock_items, store_id: storeId, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
+        return RestockBillDTO(id: id, total_cost: total_cost, created_at: created_at, creator_id: creator_id, creator_name: creator_name, restock_items: restock_items, store_id: storeId, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by, sequence_number: sequence_number)
     }
 }
 
@@ -1424,12 +1432,13 @@ struct ProductionTransactionDTO: Codable {
     let is_paid: Bool?
     let expected_pay_date: Date?
     let payment_receipt_url: String?
+    let sequence_number: String?
 
     init(id: UUID, mode: String, total_cost: Double, created_at: Date, note: String?, creator_id: UUID?, creator_name: String?, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?,
          buyer_name: String? = nil, buyer_phone: String? = nil, buyer_address: String? = nil,
          grand_total: Double? = nil, paid_amount: Double? = nil, debt_amount: Double? = nil,
          vat_rate: Double? = nil, vat_amount: Double? = nil, is_paid: Bool? = nil,
-         expected_pay_date: Date? = nil, payment_receipt_url: String? = nil) {
+         expected_pay_date: Date? = nil, payment_receipt_url: String? = nil, sequence_number: String? = nil) {
         self.id = id
         self.mode = mode
         self.total_cost = total_cost
@@ -1450,6 +1459,7 @@ struct ProductionTransactionDTO: Codable {
         self.is_paid = is_paid
         self.expected_pay_date = expected_pay_date
         self.payment_receipt_url = payment_receipt_url
+        self.sequence_number = sequence_number
     }
 
     init(from domain: ProductionTransaction) {
@@ -1473,6 +1483,7 @@ struct ProductionTransactionDTO: Codable {
         self.is_paid = domain.isPaid
         self.expected_pay_date = domain.expectedPayDate
         self.payment_receipt_url = domain.paymentReceiptURL
+        self.sequence_number = domain.sequenceNumber
     }
 
     func toDomain() -> ProductionTransaction {
@@ -1491,6 +1502,7 @@ struct ProductionTransactionDTO: Codable {
         tx.isPaid = is_paid ?? false
         tx.expectedPayDate = expected_pay_date
         tx.paymentReceiptURL = payment_receipt_url
+        tx.sequenceNumber = sequence_number
         return tx
     }
 
@@ -1502,7 +1514,8 @@ struct ProductionTransactionDTO: Codable {
             buyer_name: buyer_name, buyer_phone: buyer_phone, buyer_address: buyer_address,
             grand_total: grand_total, paid_amount: paid_amount, debt_amount: debt_amount,
             vat_rate: vat_rate, vat_amount: vat_amount, is_paid: is_paid,
-            expected_pay_date: expected_pay_date, payment_receipt_url: payment_receipt_url
+            expected_pay_date: expected_pay_date, payment_receipt_url: payment_receipt_url,
+            sequence_number: sequence_number
         )
     }
 }

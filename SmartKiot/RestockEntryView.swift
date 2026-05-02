@@ -439,6 +439,14 @@ struct RestockEntryView: View {
                 HStack {
                     Text(summaryTitle)
                         .font(.headline)
+                    
+                    if let stt = viewModel.currentSequenceNumber {
+                        Spacer()
+                        Text("STT: \(stt)")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                    }
                     Spacer()
                 }
                 .padding(.horizontal)

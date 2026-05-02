@@ -73,6 +73,7 @@ struct Bill: Identifiable, Codable, Equatable {
     var creatorName: String? = nil // Name of the user who created the order
     var customerName: String? = nil // Walk-in customer name (edited in order)
     var paymentReceiptURL: String? = nil // URL to payment receipt image
+    var sequenceNumber: String? = nil // Unique order number
     
     var profit: Double {
         total - totalCost
@@ -93,6 +94,7 @@ struct RestockBill: Identifiable, Codable, Equatable {
     var deletedBy: UUID? = nil
     var creatorId: UUID? = nil
     var creatorName: String? = nil
+    var sequenceNumber: String? = nil
     
     static func == (lhs: RestockBill, rhs: RestockBill) -> Bool {
         return lhs.id == rhs.id
@@ -120,6 +122,7 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     var isPaid: Bool = false
     var expectedPayDate: Date? = nil
     var paymentReceiptURL: String? = nil
+    var sequenceNumber: String? = nil
     static func == (lhs: ProductionTransaction, rhs: ProductionTransaction) -> Bool {
         return lhs.id == rhs.id
     }

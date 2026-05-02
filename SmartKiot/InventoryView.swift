@@ -449,6 +449,13 @@ struct InventoryView: View {
                                             Text(formatDate(bill.createdAt))
                                                 .font(.caption)
                                                 .foregroundStyle(.gray)
+                                            
+                                            if let stt = bill.sequenceNumber {
+                                                Text("STT: \(stt)")
+                                                    .font(.caption)
+                                                    .fontWeight(.bold)
+                                                    .foregroundStyle(Color.themePrimary)
+                                            }
                                             if let name = bill.creatorName, !name.isEmpty {
                                                 Text(name)
                                                     .font(.caption)

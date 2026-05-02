@@ -12,7 +12,14 @@ class OrderViewModel: ObservableObject {
     @Published var currentInput: String = ""
     @Published var items: [OrderItem] = []
     @Published var lastFocusedItemId: UUID?
-    @Published var showPayment: Bool = false
+    @Published var showPayment: Bool = false {
+        didSet {
+            if showPayment && currentSequenceNumber == nil {
+                currentSequenceNumber = FormatUtils.generateSequenceNumber()
+            }
+        }
+    }
+    @Published var currentSequenceNumber: String? = nil
     @Published var walkInName: String = "Khách lẻ"
     @Published var paymentReceiptImageURL: String? = nil
     
@@ -103,7 +110,13 @@ class OrderViewModel: ObservableObject {
     }
     
     // Restock
-    @Published var isRestockMode: Bool = false
+    @Published var isRestockMode: Bool = false {
+        didSet {
+            if isRestockMode && currentSequenceNumber == nil {
+                currentSequenceNumber = FormatUtils.generateSequenceNumber()
+            }
+        }
+    }
     @Published var currentRestockSessionTag: String = ""
     @Published var restockItems: [RestockItem] = []
     @Published var restockHistory: [RestockBill] = []
@@ -344,6 +357,7 @@ class OrderViewModel: ObservableObject {
         guard let original = editingBill else { return }
         let newTotal = totalAmount
         var updatedBill = Bill(id: original.id, createdAt: original.createdAt, items: items, total: newTotal)
+        updatedBill.sequenceNumber = original.sequenceNumber
         updatedBill.customerName = walkInName
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? original.paymentReceiptURL
         if let index = pastOrders.firstIndex(where: { $0.id == original.id }) {
@@ -1460,6 +1474,11 @@ class OrderViewModel: ObservableObject {
         let billId = original?.id ?? UUID()
         let createdAt = original?.createdAt ?? Date()
         var bill = RestockBill(id: billId, createdAt: createdAt, items: restockItems, totalCost: total)
+        bill.sequenceNumber = currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
+        
+        // Reset STT ngay lập tức để đơn tiếp theo có STT mới
+        currentSequenceNumber = nil
+        
         bill.creatorId = original?.creatorId ?? AuthManager.shared.currentUserProfile?.id
         bill.creatorName = original?.creatorName ?? AuthManager.shared.currentUserProfile?.fullName
         
@@ -1544,6 +1563,7 @@ class OrderViewModel: ObservableObject {
                             items: exportTxItems,
                             totalCost: fgTotal
                         )
+                        exportTx.sequenceNumber = FormatUtils.generateSequenceNumber()
                         exportTx.creatorId = AuthManager.shared.currentUserProfile?.id
                         exportTx.creatorName = AuthManager.shared.currentUserProfile?.fullName
                         exportTx.note = "Xuất sang kho hàng hoá từ phiếu nhập #\(bill.id.uuidString.prefix(6))"
@@ -2034,6 +2054,7 @@ class OrderViewModel: ObservableObject {
         let totalCost = items.reduce(0) { $0 + $1.totalCost }
         let note = "Xuất tự động: \(templateName)"
         var tx = ProductionTransaction(id: txId, createdAt: now, mode: mode, items: items, totalCost: totalCost, note: note)
+        tx.sequenceNumber = FormatUtils.generateSequenceNumber()
         tx.creatorId = AuthManager.shared.currentUserProfile?.id
         tx.creatorName = AuthManager.shared.currentUserProfile?.fullName
         
@@ -2100,6 +2121,11 @@ class OrderViewModel: ObservableObject {
         guard !restockItems.isEmpty else { return }
         let total = restockItems.reduce(0) { $0 + $1.totalCost }
         var tx = ProductionTransaction(id: UUID(), createdAt: Date(), mode: mode, items: restockItems, totalCost: total)
+        tx.sequenceNumber = currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
+        
+        // Reset STT ngay lập tức
+        currentSequenceNumber = nil
+        
         tx.creatorId = AuthManager.shared.currentUserProfile?.id
         tx.creatorName = AuthManager.shared.currentUserProfile?.fullName
         if let note = pendingExportNote {
@@ -2733,6 +2759,7 @@ class OrderViewModel: ObservableObject {
         items.removeAll()
         currentInput = ""
         showPayment = false
+        currentSequenceNumber = nil
         editingBill = nil
         walkInName = "Khách lẻ"
         paymentReceiptImageURL = nil
@@ -2830,6 +2857,7 @@ class OrderViewModel: ObservableObject {
         bill.isPaid = isPaid
         bill.customerName = walkInName
         bill.paymentReceiptURL = paymentReceiptImageURL
+        bill.sequenceNumber = currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
         
         // Populate creator info
         if let profile = AuthManager.shared.currentUserProfile {

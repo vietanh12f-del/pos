@@ -55,9 +55,18 @@ struct OrderHistoryView: View {
                                         Button(action: { selectedBill = bill }) {
                                             HStack {
                                                 VStack(alignment: .leading, spacing: 4) {
-                                                    Text(formatTime(bill.createdAt))
-                                                        .font(.caption)
-                                                        .foregroundStyle(Color.gray)
+                                                    HStack {
+                                                        Text(formatTime(bill.createdAt))
+                                                            .font(.caption)
+                                                            .foregroundStyle(Color.gray)
+                                                        
+                                                        if let stt = bill.sequenceNumber {
+                                                            Text("• \(stt)")
+                                                                .font(.caption)
+                                                                .fontWeight(.bold)
+                                                                .foregroundStyle(Color.themePrimary)
+                                                        }
+                                                    }
                                                     
                                                     Text(billItemsSummary(bill))
                                                         .font(.subheadline)

@@ -1941,7 +1941,8 @@ struct ContentView: View {
                             onPickedReceiptImage: { img in
                                 receiptImage = img
                             },
-                            onEditDiscount: { showDiscountSheet = true }
+                            onEditDiscount: { showDiscountSheet = true },
+                            sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -2080,7 +2081,8 @@ struct ContentView: View {
                     onCaptureReceipt: nil,
                     receiptImageURL: nil,
                     onPickedReceiptImage: nil,
-                    onEditDiscount: nil
+                    onEditDiscount: nil,
+                    sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -2278,11 +2280,31 @@ struct ContentView: View {
         let receiptImageURL: String?
         let onPickedReceiptImage: ((UIImage) -> Void)?
         let onEditDiscount: (() -> Void)?
+        let sequenceNumber: String? // Added sequenceNumber
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
         @State private var previewURL: URL?
         @StateObject private var previewLoader = CachedImageLoader()
         @StateObject private var originalLoader = CachedImageLoader()
+        
+        // Add an initializer to support optional sequenceNumber
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil) {
+            self.items = items
+            self.totalAmount = totalAmount
+            self.dateString = dateString
+            self.qrURL = qrURL
+            self.qrImage = qrImage
+            self.billPayload = billPayload
+            self.showButtons = showButtons
+            self.onComplete = onComplete
+            self.customerName = customerName
+            self.onOpenBankSettings = onOpenBankSettings
+            self.onCaptureReceipt = onCaptureReceipt
+            self.receiptImageURL = receiptImageURL
+            self.onPickedReceiptImage = onPickedReceiptImage
+            self.onEditDiscount = onEditDiscount
+            self.sequenceNumber = sequenceNumber
+        }
         
         var body: some View {
             VStack(spacing: 0) {
@@ -2307,11 +2329,22 @@ struct ContentView: View {
                         .foregroundStyle(Color.themeTextDark)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(dateString)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.gray)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
+                    
+                    HStack {
+                        Text(dateString)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.gray)
+                        
+                        if let stt = sequenceNumber {
+                            Spacer()
+                            Text("STT: \(stt)")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                    }
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()

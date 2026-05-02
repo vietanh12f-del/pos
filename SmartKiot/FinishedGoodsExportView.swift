@@ -240,7 +240,8 @@ struct FinishedGoodsExportView: View {
                 debtLabel: debtLabel,
                 billNavTitle: billNavTitle,
                 billPartyHeader: billPartyHeader,
-                isRegularRestock: isRegularRestock
+                isRegularRestock: isRegularRestock,
+                sequenceNumber: viewModel.currentSequenceNumber
             )
         }
         .alert("Thiếu thông tin", isPresented: $showValidationAlert) {
@@ -283,14 +284,30 @@ struct FinishedGoodsExportView: View {
     }
 
     private var creatorSection: some View {
-        HStack(spacing: 12) {
-            Label(AuthManager.shared.currentUserProfile?.fullName ?? "Nhân viên", systemImage: "person.fill")
-                .font(.subheadline)
-                .foregroundStyle(.gray)
-            Spacer()
-            Label(formatDateTime(Date()), systemImage: "clock")
-                .font(.subheadline)
-                .foregroundStyle(.gray)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Label(AuthManager.shared.currentUserProfile?.fullName ?? "Nhân viên", systemImage: "person.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                Spacer()
+                Label(formatDateTime(Date()), systemImage: "clock")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+            }
+            
+            if let stt = viewModel.currentSequenceNumber {
+                Divider()
+                HStack {
+                    Text("Số thứ tự (STT)")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text(stt)
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                }
+            }
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
@@ -955,6 +972,7 @@ struct ExportBillPrintView: View {
     var billNavTitle: String = "Bill xuất thành phẩm"
     var billPartyHeader: String = "THÔNG TIN BÊN MUA"
     var isRegularRestock: Bool = false
+    var sequenceNumber: String? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
@@ -1002,6 +1020,14 @@ struct ExportBillPrintView: View {
                     .font(.headline)
                     .fontWeight(.bold)
                     .padding(.top, 4)
+                
+                if let stt = sequenceNumber {
+                    Text("STT: \(stt)")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                }
+
                 Text(formatDateTime(date))
                     .font(.caption)
                     .foregroundStyle(.gray)
