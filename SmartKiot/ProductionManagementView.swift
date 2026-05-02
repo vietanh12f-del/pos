@@ -31,20 +31,36 @@ struct ProductionManagementView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                // Tiles
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            VStack(spacing: 12) {
+                // Compact Two-Row Mode Selector
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                     ForEach(Mode.allCases, id: \.self) { m in
-                        ProductionModeTile(
-                            icon: icon(for: m),
-                            title: m.rawValue,
-                            color: color(for: m),
-                            selected: selectedMode == m,
-                            action: { selectedMode = m }
-                        )
+                        Button(action: { selectedMode = m }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: icon(for: m))
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                Text(m.rawValue)
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(selectedMode == m ? color(for: m) : Color.white)
+                            .foregroundStyle(selectedMode == m ? .white : color(for: m))
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 1)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(color(for: m).opacity(0.2), lineWidth: selectedMode == m ? 0 : 1)
+                            )
+                        }
                     }
                 }
                 .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color.white)
                 
                 if let mode = selectedMode {
                     VStack(spacing: 12) {
@@ -116,7 +132,6 @@ struct ProductionManagementView: View {
                                                     Divider().padding(.leading, 0)
                                                 }
                                             }
-                                            .padding(.bottom, 120)
                                         }
                                     }
                                     .background(Color.white)
@@ -183,7 +198,6 @@ struct ProductionManagementView: View {
                                                     Divider().padding(.leading, 0)
                                                 }
                                             }
-                                            .padding(.bottom, 120)
                                         }
                                     }
                                     .background(Color.white)
@@ -234,7 +248,6 @@ struct ProductionManagementView: View {
                                         }
                                     }
                                     .padding(.top, 8)
-                                    .padding(.bottom, 120)
                                 }
                             }
                         }
@@ -273,6 +286,10 @@ struct ProductionManagementView: View {
                 )
             }
             .onAppear {
+                // Ensure a mode is selected by default if none is
+                if selectedMode == nil {
+                    selectedMode = .nhapNguyenLieu
+                }
                 Task { 
                     await viewModel.loadMaterials()
                     await viewModel.loadProducts()
