@@ -43,7 +43,7 @@ struct RestockEntryView: View {
     
     private var showTabs: Bool {
         let t = titleText.lowercased()
-        return !t.contains("nhập hàng") && !t.contains("xuất hàng") && !t.contains("kho hàng")
+        return !t.contains("nhập hàng") && !t.contains("xuất hàng") && !t.contains("kho hàng") && !t.contains("thành phẩm")
     }
     
     private var isUnitFinishedGoodsImport: Bool {
