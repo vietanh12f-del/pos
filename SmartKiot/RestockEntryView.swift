@@ -1688,7 +1688,7 @@ struct ManualRestockItemView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: quantityKgSelection) { _, newValue in
+                            .onChange(of: quantityKgSelection) { newValue in
                                 if newValue >= max(0, quantityWheelMax - 10) {
                                     quantityWheelMax += 200
                                 }
@@ -1713,6 +1713,11 @@ struct ManualRestockItemView: View {
                         }
                     }
                     .pickerStyle(.wheel)
+                    .onChange(of: quantityWheelSelection) { newValue in
+                        if newValue >= quantityWheelMax - 10 {
+                            quantityWheelMax += 200
+                        }
+                    }
                 }
                 HStack {
                     Button("Đóng") { showQuantityWheel = false }
@@ -1725,19 +1730,30 @@ struct ManualRestockItemView: View {
             }
             .padding()
             .presentationDetents([.height(340)])
-            .onAppear {
-                if useKgGram {
-                    quantityKgRangeBase = (quantityKgSelection / 100) * 100
-                }
-            }
-            .confirmationDialog("Chọn vùng giá trị", isPresented: $showQuantityKgRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: quantityWheelMax, by: 100)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : ">\(v)") {
-                        quantityKgRangeBase = v
-                        if quantityKgSelection < v { quantityKgSelection = v }
-                        showQuantityKgRangePicker = false
+            .sheet(isPresented: $showQuantityKgRangePicker) {
+                VStack(spacing: 12) {
+                    Text("Chọn vùng giá trị").font(.headline)
+                    Picker("", selection: $quantityKgRangeBase) {
+                        ForEach(Array(stride(from: 0, through: quantityWheelMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                        }
                     }
+                    .pickerStyle(.wheel)
+                    .onChange(of: quantityKgRangeBase) { newValue in
+                        if newValue >= quantityWheelMax - 100 {
+                            quantityWheelMax += 500
+                        }
+                        if quantityKgSelection < newValue { quantityKgSelection = newValue }
+                    }
+                    HStack {
+                        Button("Đóng") { showQuantityKgRangePicker = false }
+                        Spacer()
+                        Button("Xong") { showQuantityKgRangePicker = false }
+                    }
+                    .font(.headline)
                 }
+                .padding()
+                .presentationDetents([.height(300)])
             }
         }
         .sheet(isPresented: $showUnitPriceWheel) {
