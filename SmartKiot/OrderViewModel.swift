@@ -562,11 +562,7 @@ class OrderViewModel: ObservableObject {
         }
         
         // Sync inventory dictionary from products
-        self.inventory = [:]
-        for product in self.products {
-            let key = self.getInventoryKey(name: product.name, isFinishedGood: product.isFinishedGood)
-            self.inventory[key] = product.stockQuantity
-        }
+        self.syncInventoryFromProducts()
         
         recalculateStats()
         
@@ -1219,8 +1215,7 @@ class OrderViewModel: ObservableObject {
     func checkStockWarnings() -> [String] {
         var warnings: [String] = []
         for item in items {
-            let key = item.name.lowercased()
-            let currentStock = inventory[key] ?? 0
+            let currentStock = stockLevel(for: item.name)
             if item.quantity > currentStock {
                 warnings.append("⚠️ \(item.name): Đặt \(item.quantity), Kho còn \(currentStock)")
             }
@@ -1245,20 +1240,27 @@ class OrderViewModel: ObservableObject {
             
             // Deduct from Inventory
             for item in bill.items {
-                let key = item.name.lowercased()
-                if let current = inventory[key] {
+                let lowerName = item.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                // Find product to determine if it's a finished good
+                let product = products.first(where: { $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == lowerName })
+                let isFG = product?.isFinishedGood ?? false
+                let invKey = getInventoryKey(name: lowerName, isFinishedGood: isFG)
+                
+                if let current = inventory[invKey] {
                     let newQuantity = max(0, current - item.quantity)
-                    inventory[key] = newQuantity
+                    inventory[invKey] = newQuantity
                     
                     // Update Product in DB
-                    if let index = products.firstIndex(where: { $0.name.lowercased() == key }) {
-                        var product = products[index]
-                        product.stockQuantity = newQuantity
-                        products[index] = product
+                    if var p = product {
+                        p.stockQuantity = newQuantity
+                        // Update in local array
+                        if let index = products.firstIndex(where: { $0.id == p.id }) {
+                            products[index] = p
+                        }
                         
                         Task {
                             do {
-                                try await database.updateProduct(product)
+                                try await database.updateProduct(p)
                             } catch {
                                 print("❌ Error updating product stock: \(error)")
                             }
@@ -1697,40 +1699,42 @@ class OrderViewModel: ObservableObject {
     @MainActor
     private func revertInventoryForRestockBill(_ bill: RestockBill) async {
         for item in bill.items {
-            let key = item.name.lowercased()
+            let lowerName = item.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
             
             // 1. Revert deduction from source finished good if applicable
             if let gramsPerUnit = item.weightPerUnitGrams, gramsPerUnit > 0,
-               let sourceName = item.source?.lowercased(),
-               let sourceIndex = products.firstIndex(where: { $0.name.lowercased() == sourceName && $0.isFinishedGood }) {
+               let sourceName = item.source?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines),
+               let sourceIndex = products.firstIndex(where: { $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == sourceName && $0.isFinishedGood }) {
                 
                 let deltaGrams = item.quantity * gramsPerUnit
                 var sourceProduct = products[sourceIndex]
                 sourceProduct.stockQuantity = max(0, sourceProduct.stockQuantity + deltaGrams)
                 products[sourceIndex] = sourceProduct
-                inventory[sourceName] = sourceProduct.stockQuantity
+                let sourceKey = getInventoryKey(name: sourceName, isFinishedGood: true)
+                inventory[sourceKey] = sourceProduct.stockQuantity
                 do { try await database.updateProduct(sourceProduct) } catch { print("❌ Error reverting source product stock: \(error)") }
             }
             // 2. Handle legacy deduction logic (backward compatibility)
             else if let gramsPerUnit = item.weightPerUnitGrams,
-                    let pIndex = products.firstIndex(where: { $0.name.lowercased() == key }),
-                    products[pIndex].isFinishedGood {
+                    let pIndex = products.firstIndex(where: { $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == lowerName && $0.isFinishedGood }) {
                 if gramsPerUnit > 0 {
                     let deltaGrams = item.quantity * gramsPerUnit
                     var p = products[pIndex]
                     p.stockQuantity = max(0, p.stockQuantity + deltaGrams)
                     products[pIndex] = p
-                    inventory[key] = p.stockQuantity
+                    let invKey = getInventoryKey(name: lowerName, isFinishedGood: true)
+                    inventory[invKey] = p.stockQuantity
                     do { try await database.updateProduct(p) } catch { print("❌ Error reverting product stock: \(error)") }
                 }
                 continue
             }
             
-            let current = inventory[key] ?? 0
+            let invKey = getInventoryKey(name: lowerName, isFinishedGood: item.isFinishedGood)
+            let current = inventory[invKey] ?? 0
             let newQuantity = max(0, current - item.quantity)
-            inventory[key] = newQuantity
+            inventory[invKey] = newQuantity
             
-            if let pIndex = products.firstIndex(where: { $0.name.lowercased() == key && $0.isFinishedGood == item.isFinishedGood }) {
+            if let pIndex = products.firstIndex(where: { $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == lowerName && $0.isFinishedGood == item.isFinishedGood }) {
                 var p = products[pIndex]
                 p.stockQuantity = newQuantity
                 products[pIndex] = p
@@ -2298,6 +2302,7 @@ class OrderViewModel: ObservableObject {
             let cats = Set(rows.map { $0.category })
             await MainActor.run {
                 self.products = rows
+                self.syncInventoryFromProducts()
                 // Merge instead of reset so DB categories not tied to products persist
                 let base = Set(Category.allCases.filter { $0 != .all }.map { $0.rawValue })
                 self.productCategories = self.productCategories.union(cats).union(base)
@@ -2305,6 +2310,15 @@ class OrderViewModel: ObservableObject {
         } catch {
             print("⚠️ loadProducts error: \(error)")
         }
+    }
+    
+    private func syncInventoryFromProducts() {
+        var newInventory: [String: Int] = [:]
+        for product in self.products {
+            let key = self.getInventoryKey(name: product.name, isFinishedGood: product.isFinishedGood)
+            newInventory[key] = product.stockQuantity
+        }
+        self.inventory = newInventory
     }
     
     func updateProductionTransaction(original: ProductionTransaction, updated: ProductionTransaction) async -> Bool {
