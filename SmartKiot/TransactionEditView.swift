@@ -529,14 +529,38 @@ struct TransactionEditView: View {
                 }
             }
             .presentationDetents([.height(340)])
-            .confirmationDialog("Chọn vùng giá trị", isPresented: $showQuantityKgRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: quantityWheelMax, by: 100)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : ">\(v)") {
-                        quantityKgRangeBase = v
-                        if quantityKgSelection < v { quantityKgSelection = v }
-                        showQuantityKgRangePicker = false
+            .sheet(isPresented: $showQuantityKgRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng giá trị").font(.headline)
+                    Picker("", selection: $quantityKgRangeBase) {
+                        ForEach(Array(stride(from: 0, through: quantityWheelMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: quantityKgRangeBase) { _, newValue in
+                        if newValue >= quantityWheelMax - 100 {
+                            quantityWheelMax += 500
+                        }
+                    }
+                    
+                    HStack(spacing: 12) {
+                        Button {
+                            if quantityKgSelection < quantityKgRangeBase { quantityKgSelection = quantityKgRangeBase }
+                            showQuantityKgRangePicker = false
+                        } label: {
+                            Text("Xong")
+                                .font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary)
+                                .cornerRadius(10)
+                        }
                     }
                 }
+                .padding()
+                .presentationDetents([.height(320)])
             }
         }
         .sheet(isPresented: $showUnitPriceWheel) {

@@ -846,19 +846,43 @@ struct RestockEntryView: View {
                     summaryQtyRangeBase = (summaryQtySelection / 100) * 100
                 }
             }
-            .confirmationDialog("Chọn vùng giá trị", isPresented: $showSummaryQtyRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: summaryQtyMax, by: 100)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : ">\(v)") {
-                        summaryQtyRangeBase = v
-                        if summaryIsMaterials {
-                            if summaryQtyKgSelection < v { summaryQtyKgSelection = v }
-                        } else {
-                            let minValue = Swift.max(1, v)
-                            if summaryQtySelection < minValue { summaryQtySelection = minValue }
+            .sheet(isPresented: $showSummaryQtyRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng giá trị").font(.headline)
+                    Picker("", selection: $summaryQtyRangeBase) {
+                        ForEach(Array(stride(from: 0, through: summaryQtyMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
                         }
-                        showSummaryQtyRangePicker = false
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: summaryQtyRangeBase) { _, newValue in
+                        if newValue >= summaryQtyMax - 100 {
+                            summaryQtyMax += 500
+                        }
+                    }
+                    
+                    HStack(spacing: 12) {
+                        Button {
+                            if summaryIsMaterials {
+                                if summaryQtyKgSelection < summaryQtyRangeBase { summaryQtyKgSelection = summaryQtyRangeBase }
+                            } else {
+                                let minValue = Swift.max(1, summaryQtyRangeBase)
+                                if summaryQtySelection < minValue { summaryQtySelection = minValue }
+                            }
+                            showSummaryQtyRangePicker = false
+                        } label: {
+                            Text("Xong")
+                                .font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary)
+                                .cornerRadius(10)
+                        }
                     }
                 }
+                .padding()
+                .presentationDetents([.height(320)])
             }
         }
         // Inline price edit
@@ -936,16 +960,38 @@ struct RestockEntryView: View {
                 let remainder = max(0, current - summaryPriceBaseSelection)
                 summaryPriceHundredsSelection = min(900, (remainder / 100) * 100)
             }
-            .confirmationDialog("Chọn vùng giá trị", isPresented: $showSummaryPriceRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: min(summaryPriceMax, 10_000_000), by: 100_000)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
-                        summaryPriceRangeBase = v
-                        let step = StoreManager.shared.priceStep
-                        let rangeMin = max(0, (v / step) * step)
+            .sheet(isPresented: $showSummaryPriceRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng giá trị").font(.headline)
+                    let step = StoreManager.shared.priceStep
+                    Picker("", selection: $summaryPriceRangeBase) {
+                        ForEach(Array(stride(from: 0, through: min(summaryPriceMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v / 1000)k").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: summaryPriceRangeBase) { _, newValue in
+                        if newValue >= summaryPriceMax - 200_000 {
+                            summaryPriceMax += 1_000_000
+                        }
+                    }
+                    
+                    Button {
+                        let rangeMin = max(0, (summaryPriceRangeBase / step) * step)
                         if summaryPriceBaseSelection < rangeMin { summaryPriceBaseSelection = rangeMin }
                         showSummaryPriceRangePicker = false
+                    } label: {
+                        Text("Xong")
+                            .font(.subheadline).fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.themePrimary)
+                            .cornerRadius(10)
                     }
                 }
+                .padding()
+                .presentationDetents([.height(300)])
             }
             .onAppear {
                 let t = titleText.lowercased()

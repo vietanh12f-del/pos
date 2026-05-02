@@ -282,14 +282,38 @@ struct MaterialEditView: View {
             }
             .padding()
             .presentationDetents([.height(340)])
-            .confirmationDialog("Chọn vùng giá trị", isPresented: $showStockKgRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: stockWheelMax, by: 100)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : ">\(v)") {
-                        stockKgRangeBase = v
-                        if stockKgSelection < v { stockKgSelection = v }
-                        showStockKgRangePicker = false
+            .sheet(isPresented: $showStockKgRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng giá trị").font(.headline)
+                    Picker("", selection: $stockKgRangeBase) {
+                        ForEach(Array(stride(from: 0, through: stockWheelMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: stockKgRangeBase) { _, newValue in
+                        if newValue >= stockWheelMax - 100 {
+                            stockWheelMax += 500
+                        }
+                    }
+                    
+                    HStack(spacing: 12) {
+                        Button {
+                            if stockKgSelection < stockKgRangeBase { stockKgSelection = stockKgRangeBase }
+                            showStockKgRangePicker = false
+                        } label: {
+                            Text("Xong")
+                                .font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary)
+                                .cornerRadius(10)
+                        }
                     }
                 }
+                .padding()
+                .presentationDetents([.height(320)])
             }
         }
         .sheet(isPresented: $showBarcodeScanner) {
