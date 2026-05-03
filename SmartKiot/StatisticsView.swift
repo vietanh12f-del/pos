@@ -17,6 +17,7 @@ struct StatisticsView: View {
     @State private var showWholesaleDetail = false
     @State private var showWholesaleProfitInfo = false
     @State private var showRetailProfitInfo = false
+    @State private var showTotalProfitInfo = false
     
     enum StatType {
         case today, week, month, quarter
@@ -325,6 +326,65 @@ struct StatisticsView: View {
                             }
                         }
                     }
+
+                    // ── TỔNG HỢP ────────────────────────────────────────
+                    let totalCombined = totalNet + (ws.paid - ws.materialCost)
+                    sectionHeader("📊 Tổng hợp")
+
+                    VStack(spacing: 10) {
+                        HStack {
+                            Text("Lợi nhuận bán lẻ")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(totalNet))
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(totalNet >= 0 ? .green : .red)
+                        }
+                        HStack {
+                            Text("Lợi nhuận bán sỉ")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(ws.paid - ws.materialCost))
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle((ws.paid - ws.materialCost) >= 0 ? .green : .red)
+                        }
+                        Divider()
+                        HStack {
+                            HStack(spacing: 6) {
+                                Text("Tổng lợi nhuận ròng")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Button {
+                                    showTotalProfitInfo = true
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray.opacity(0.6))
+                                }
+                                .buttonStyle(.plain)
+                                .alert("Tổng lợi nhuận ròng", isPresented: $showTotalProfitInfo) {
+                                    Button("Đã hiểu", role: .cancel) {}
+                                } message: {
+                                    Text("Tổng lợi nhuận ròng = Lợi nhuận bán lẻ + Lợi nhuận bán sỉ\n\nBán lẻ: Doanh thu − Giá vốn − Chi phí vận hành\nBán sỉ: Đã thu − Chi phí nguyên liệu\n\nLưu ý: Phần còn nợ của bán sỉ chưa được tính vào đây.")
+                                }
+                            }
+                            Spacer()
+                            Text(formatCurrency(totalCombined))
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(totalCombined >= 0 ? .green : .red)
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.white)
+                    .cornerRadius(14)
+                    .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                    .padding(.horizontal)
 
                     // (Đã di chuyển phần \"Sản phẩm đã bán\" sang Lịch sử đơn hàng)
                     }
