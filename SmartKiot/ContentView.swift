@@ -461,7 +461,7 @@ struct ContentView: View {
                                     .animation(.spring(duration: 0.3), value: leadService.newLeadsCount)
                                 }
                                 .sheet(isPresented: $showLeadsSheet) {
-                                    CustomerManagementView()
+                                    CustomerManagementView(initialTab: .all)
                                         .onDisappear {
                                             Task { await WebsiteLeadNotificationService.shared.refreshNewLeadsCount() }
                                         }

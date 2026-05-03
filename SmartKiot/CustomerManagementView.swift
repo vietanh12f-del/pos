@@ -49,9 +49,13 @@ struct CustomerManagementView: View {
     @State private var leads: [WebsiteLead] = []
     @State private var isLoading = false
     @State private var searchText = ""
-    @State private var selectedType: PartyTypeFilter = .buyer
+    @State private var selectedType: PartyTypeFilter
     @State private var selectedParty: TradingParty? = nil
     @State private var selectedLead: WebsiteLead? = nil
+
+    init(initialTab: PartyTypeFilter = .buyer) {
+        _selectedType = State(initialValue: initialTab)
+    }
 
     enum PartyTypeFilter: String, CaseIterable {
         case buyer = "Khách hàng"
