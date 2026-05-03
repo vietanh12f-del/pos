@@ -26,6 +26,7 @@ struct ContentView: View {
     @State private var isKeyboardVisibleGlobal: Bool = false
     @State private var showProductionManagement: Bool = false
     @State private var showProductionReport: Bool = false
+    @State private var showCustomerManagement: Bool = false
     
     init() {
         // Default TabBar
@@ -85,7 +86,7 @@ struct ContentView: View {
                             }
                             .tag(6)
                         
-                        MoreView(selectedTab: $selectedTab, showProductionManagement: $showProductionManagement, showProductionReport: $showProductionReport)
+                        MoreView(selectedTab: $selectedTab, showProductionManagement: $showProductionManagement, showProductionReport: $showProductionReport, showCustomerManagement: $showCustomerManagement)
                             .tabItem {
                                 Label("Thêm", systemImage: "square.grid.2x2.fill")
                             }
@@ -130,6 +131,13 @@ struct ContentView: View {
                 }
                 .sheet(isPresented: $showProductionReport) {
                     ProductionReportView(viewModel: viewModel)
+                }
+                .sheet(isPresented: $showCustomerManagement) {
+                    CustomerManagementView()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToWebsiteLeads"))) { _ in
+                    selectedTab = 8 // Chuyển sang tab More
+                    showCustomerManagement = true // Mở sheet quản lý khách hàng
                 }
                 .onChange(of: viewModel.editingBill) { bill in
                     if bill != nil {

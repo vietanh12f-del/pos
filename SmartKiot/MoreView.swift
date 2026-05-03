@@ -4,8 +4,7 @@ struct MoreView: View {
     @Binding var selectedTab: Int
     @Binding var showProductionManagement: Bool
     @Binding var showProductionReport: Bool
-
-    @State private var showCustomerManagement = false
+    @Binding var showCustomerManagement: Bool
 
     let menuItems: [MenuItem] = [
         MenuItem(id: 5, title: "Chat", icon: "message.fill", color: .blue),
@@ -58,9 +57,6 @@ struct MoreView: View {
             }
             .navigationTitle("Thêm")
             .background(Color.themeBackgroundLight)
-        }
-        .sheet(isPresented: $showCustomerManagement) {
-            CustomerManagementView()
         }
     }
 }

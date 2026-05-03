@@ -12,6 +12,16 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func configure() {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
+        
+        // Define categories for navigation
+        let websiteLeadCategory = UNNotificationCategory(
+            identifier: "WEBSITE_LEAD",
+            actions: [],
+            intentIdentifiers: [],
+            options: .customDismissAction
+        )
+        
+        center.setNotificationCategories([websiteLeadCategory])
         center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
     
@@ -79,5 +89,17 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         if soundEnabled { options.insert(.sound) }
         options.insert(.badge)
         completionHandler(options)
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        let category = response.notification.request.content.categoryIdentifier
+        print("👆 Notification tapped. Category: \(category)")
+        
+        if category == "WEBSITE_LEAD" {
+            // Gửi notification để UI chuyển tab
+            NotificationCenter.default.post(name: NSNotification.Name("NavigateToWebsiteLeads"), object: nil)
+        }
+        
+        completionHandler()
     }
 }
