@@ -17,9 +17,11 @@ struct TransactionEditView: View {
     @State private var quantityWheelMax = 500
     @State private var quantityKgSelection = 0
     @State private var gramsWheelSelection = 0
-    @State private var gramsWheelMax = 950
+    @State private var gramsWheelMax = 990
     @State private var quantityKgRangeBase = 0
+    @State private var gramsWheelRangeBase = 0
     @State private var showQuantityKgRangePicker = false
+    @State private var showGramsRangePicker = false
     @State private var unitPriceWheelSelection = 0
     @State private var unitPriceWheelMax = 5000000
     @State private var unitPriceWheelBaseSelection = 0
@@ -505,6 +507,16 @@ struct TransactionEditView: View {
                             }
                             .buttonStyle(.plain)
                             Spacer()
+                            Button {
+                                showGramsRangePicker = true
+                            } label: {
+                                Text(gramsWheelRangeBase <= 0 ? ">0" : ">\(gramsWheelRangeBase)")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
                         }
                         HStack {
                             VStack {
@@ -524,7 +536,7 @@ struct TransactionEditView: View {
                             VStack {
                                 Text("Gam").font(.caption).foregroundStyle(.gray)
                                 Picker("", selection: $gramsWheelSelection) {
-                                    ForEach(Array(stride(from: 0, through: gramsWheelMax, by: 50)), id: \.self) { g in
+                                    ForEach(Array(stride(from: gramsWheelRangeBase, through: gramsWheelMax, by: 10)), id: \.self) { g in
                                         Text("\(g)").tag(g)
                                     }
                                 }
@@ -535,8 +547,9 @@ struct TransactionEditView: View {
                             let current = quantityWheelSelection
                             quantityKgSelection = max(0, current / 1000)
                             let remainder = max(0, current % 1000)
-                            gramsWheelSelection = (remainder / 50) * 50
+                            gramsWheelSelection = (remainder / 10) * 10
                             quantityKgRangeBase = (quantityKgSelection / 100) * 100
+                            gramsWheelRangeBase = (gramsWheelSelection / 100) * 100
                         }
                     }
                 }
@@ -594,6 +607,28 @@ struct TransactionEditView: View {
                 }
                 .padding()
                 .presentationDetents([.height(320)])
+            }
+            .sheet(isPresented: $showGramsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng giá trị Gam").font(.headline)
+                    Picker("", selection: $gramsWheelRangeBase) {
+                        ForEach(Array(stride(from: 0, through: gramsWheelMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: gramsWheelRangeBase) { _, newValue in
+                        if gramsWheelSelection < newValue { gramsWheelSelection = newValue }
+                    }
+                    HStack {
+                        Button("Đóng") { showGramsRangePicker = false }
+                        Spacer()
+                        Button("Xong") { showGramsRangePicker = false }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(300)])
             }
         }
         .sheet(isPresented: $showUnitPriceWheel) {

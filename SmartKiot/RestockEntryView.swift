@@ -23,9 +23,11 @@ struct RestockEntryView: View {
     @State private var summaryQtyKgSelection = 0
     @State private var summaryQtyGramsSelection = 0
     @State private var summaryUnitSelection = "kg"
-    @State private var summaryQtyGramsMax = 950
+    @State private var summaryQtyGramsMax = 990
     @State private var summaryQtyRangeBase = 0
+    @State private var summaryQtyGramsRangeBase = 0
     @State private var showSummaryQtyRangePicker = false
+    @State private var showSummaryQtyGramsRangePicker = false
     @State private var summaryPriceSelection = 0
     @State private var summaryPriceBaseSelection = 0
     @State private var summaryPriceHundredsSelection = 0
@@ -515,7 +517,7 @@ struct RestockEntryView: View {
                                                             summaryQtySelection = grams
                                                         } else {
                                                             summaryQtyKgSelection = grams / 1000
-                                                            summaryQtyGramsSelection = ((grams % 1000) / 50) * 50
+                                                            summaryQtyGramsSelection = ((grams % 1000) / 10) * 10
                                                         }
                                                         if summaryQtyKgSelection > summaryQtyMax {
                                                             summaryQtyMax = max(summaryQtyMax, summaryQtyKgSelection + 200)
@@ -820,6 +822,20 @@ struct RestockEntryView: View {
                             .background(Capsule().fill(Color.gray.opacity(0.15)))
                     }
                     .buttonStyle(.plain)
+                    
+                    if summaryIsMaterials && summaryUnitSelection.lowercased() != "cái" {
+                        Spacer()
+                        Button {
+                            showSummaryQtyGramsRangePicker = true
+                        } label: {
+                            Text(summaryQtyGramsRangeBase <= 0 ? ">0" : ">\(summaryQtyGramsRangeBase)")
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                    }
                     Spacer()
                 }
                 
@@ -842,7 +858,7 @@ struct RestockEntryView: View {
                         VStack {
                             Text("Gam").font(.caption).foregroundStyle(.gray)
                             Picker("", selection: $summaryQtyGramsSelection) {
-                                ForEach(Array(stride(from: 0, through: summaryQtyGramsMax, by: 50)), id: \.self) { g in
+                                ForEach(Array(stride(from: summaryQtyGramsRangeBase, through: summaryQtyGramsMax, by: 10)), id: \.self) { g in
                                     Text("\(g)").tag(g)
                                 }
                             }
@@ -889,6 +905,7 @@ struct RestockEntryView: View {
             .onAppear {
                 if summaryIsMaterials && summaryUnitSelection.lowercased() != "cái" {
                     summaryQtyRangeBase = (summaryQtyKgSelection / 100) * 100
+                    summaryQtyGramsRangeBase = (summaryQtyGramsSelection / 100) * 100
                 } else {
                     summaryQtyRangeBase = (summaryQtySelection / 100) * 100
                 }
@@ -926,6 +943,32 @@ struct RestockEntryView: View {
                                 .background(Color.themePrimary)
                                 .cornerRadius(10)
                         }
+                    }
+                }
+                .padding()
+                .presentationDetents([.height(320)])
+            }
+            .sheet(isPresented: $showSummaryQtyGramsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng giá trị Gam").font(.headline)
+                    Picker("", selection: $summaryQtyGramsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: summaryQtyGramsMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    
+                    Button {
+                        if summaryQtyGramsSelection < summaryQtyGramsRangeBase { summaryQtyGramsSelection = summaryQtyGramsRangeBase }
+                        showSummaryQtyGramsRangePicker = false
+                    } label: {
+                        Text("Xong")
+                            .font(.subheadline).fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.themePrimary)
+                            .cornerRadius(10)
                     }
                 }
                 .padding()
@@ -1231,9 +1274,11 @@ struct ManualRestockItemView: View {
     @State private var quantityWheelMax = 500
     @State private var quantityKgSelection = 0
     @State private var gramsWheelSelection = 0
-    @State private var gramsWheelMax = 950
+    @State private var gramsWheelMax = 990
     @State private var quantityKgRangeBase = 0
+    @State private var gramsWheelRangeBase = 0
     @State private var showQuantityKgRangePicker = false
+    @State private var showGramsRangePicker = false
     @State private var unitPriceWheelSelection = 0
     @State private var unitPriceWheelMax = 5000000
     @State private var unitPriceBaseSelection = 0
@@ -1570,7 +1615,7 @@ struct ManualRestockItemView: View {
                     VStack {
                         Text("Gam").font(.caption).foregroundStyle(.gray)
                         Picker("", selection: $weightPerUnitGramsSelection) {
-                            ForEach(Array(stride(from: 0, through: 950, by: 50)), id: \.self) { g in
+                            ForEach(Array(stride(from: 0, through: 990, by: 10)), id: \.self) { g in
                                 Text("\(g)").tag(g)
                             }
                         }
@@ -1739,6 +1784,16 @@ struct ManualRestockItemView: View {
                         }
                         .buttonStyle(.plain)
                         Spacer()
+                        Button {
+                            showGramsRangePicker = true
+                        } label: {
+                            Text(gramsWheelRangeBase <= 0 ? ">0" : ">\(gramsWheelRangeBase)")
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
                     }
                     HStack {
                         VStack {
@@ -1762,7 +1817,7 @@ struct ManualRestockItemView: View {
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                             Picker("", selection: $gramsWheelSelection) {
-                                ForEach(Array(stride(from: 0, through: gramsWheelMax, by: 50)), id: \.self) { g in
+                                ForEach(Array(stride(from: gramsWheelRangeBase, through: gramsWheelMax, by: 10)), id: \.self) { g in
                                     Text("\(g)").tag(g)
                                 }
                             }
@@ -1812,6 +1867,28 @@ struct ManualRestockItemView: View {
                         Button("Đóng") { showQuantityKgRangePicker = false }
                         Spacer()
                         Button("Xong") { showQuantityKgRangePicker = false }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(300)])
+            }
+            .sheet(isPresented: $showGramsRangePicker) {
+                VStack(spacing: 12) {
+                    Text("Chọn vùng giá trị Gam").font(.headline)
+                    Picker("", selection: $gramsWheelRangeBase) {
+                        ForEach(Array(stride(from: 0, through: gramsWheelMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: gramsWheelRangeBase) { newValue in
+                        if gramsWheelSelection < newValue { gramsWheelSelection = newValue }
+                    }
+                    HStack {
+                        Button("Đóng") { showGramsRangePicker = false }
+                        Spacer()
+                        Button("Xong") { showGramsRangePicker = false }
                     }
                     .font(.headline)
                 }
@@ -2345,7 +2422,7 @@ struct ManualRestockItemView: View {
             additionalCostWheelSelection = Int(item.additionalCost)
             if let grams = item.weightPerUnitGrams, grams > 0 {
                 weightPerUnitKgSelection = grams / 1000
-                weightPerUnitGramsSelection = ((grams % 1000) / 50) * 50
+                weightPerUnitGramsSelection = ((grams % 1000) / 10) * 10
                 if weightPerUnitKgSelection > weightPerUnitMax {
                     weightPerUnitMax = max(weightPerUnitMax, weightPerUnitKgSelection + 50)
                 }
@@ -2613,10 +2690,9 @@ struct ManualRestockItemView: View {
                     let current = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
                     quantityKgSelection = max(0, current / 1000)
                     let remainder = max(0, current % 1000)
-                    gramsWheelSelection = (remainder / 50) * 50
-                    if quantityKgSelection > quantityWheelMax {
-                        quantityWheelMax = max(quantityWheelMax, quantityKgSelection + 200)
-                    }
+                    gramsWheelSelection = (remainder / 10) * 10
+                    quantityKgRangeBase = (quantityKgSelection / 100) * 100
+                    gramsWheelRangeBase = (gramsWheelSelection / 100) * 100
                 } else {
                     if let q = Int(quantity), q > 0 { quantityWheelSelection = q }
                 }

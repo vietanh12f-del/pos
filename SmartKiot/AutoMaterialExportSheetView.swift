@@ -1433,7 +1433,7 @@ private struct WeightWheelSheet: View {
                         .font(.caption)
                         .foregroundStyle(.gray)
                     Picker("", selection: $gramsSelection) {
-                        ForEach(Array(stride(from: 0, through: 950, by: 50)), id: \.self) { g in
+                        ForEach(Array(stride(from: 0, through: 990, by: 10)), id: \.self) { g in
                             Text("\(g)").tag(g)
                         }
                     }

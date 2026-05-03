@@ -27,7 +27,7 @@ struct MaterialEditView: View {
     @State private var stockWheelMax = 1000
     @State private var stockKgSelection = 0
     @State private var stockGramsSelection = 0
-    @State private var stockGramsMax = 950
+    @State private var stockGramsMax = 990
     @State private var stockKgRangeBase = 0
     @State private var showStockKgRangePicker = false
     @State private var selectedCategoryName: String = Category.materials.rawValue
@@ -254,7 +254,7 @@ struct MaterialEditView: View {
                     VStack {
                         Text("Gam").font(.caption).foregroundStyle(.gray)
                         Picker("", selection: $stockGramsSelection) {
-                            ForEach(Array(stride(from: 0, through: stockGramsMax, by: 50)), id: \.self) { g in
+                            ForEach(Array(stride(from: 0, through: stockGramsMax, by: 10)), id: \.self) { g in
                                 Text("\(g)").tag(g)
                             }
                         }
@@ -265,7 +265,7 @@ struct MaterialEditView: View {
                     let current = stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)
                     stockKgSelection = max(0, current / 1000)
                     let remainder = max(0, current % 1000)
-                    stockGramsSelection = (remainder / 50) * 50
+                    stockGramsSelection = (remainder / 10) * 10
                     stockKgRangeBase = (stockKgSelection / 100) * 100
                 }
                 HStack {

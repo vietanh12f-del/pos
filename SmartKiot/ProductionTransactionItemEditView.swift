@@ -38,7 +38,11 @@ struct ProductionTransactionItemEditView: View {
     @State private var quantityWheelSelection = 1
     @State private var quantityKgSelection = 0
     @State private var gramsWheelSelection = 0
-    @State private var gramsWheelMax = 950
+    @State private var gramsWheelMax = 990
+    @State private var quantityKgRangeBase = 0
+    @State private var gramsWheelRangeBase = 0
+    @State private var showQuantityKgRangePicker = false
+    @State private var showGramsRangePicker = false
     
     @State private var showUnitPriceWheel = false
     @State private var unitPriceWheelSelection = 0
@@ -477,10 +481,33 @@ struct ProductionTransactionItemEditView: View {
 
                 if useKgGram && selectedUnit.lowercased() == "kg" {
                     HStack {
+                        Button {
+                            showQuantityKgRangePicker = true
+                        } label: {
+                            Text(quantityKgRangeBase <= 0 ? ">0" : ">\(quantityKgRangeBase)")
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                        Button {
+                            showGramsRangePicker = true
+                        } label: {
+                            Text(gramsWheelRangeBase <= 0 ? ">0" : ">\(gramsWheelRangeBase)")
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    HStack {
                         VStack {
                             Text("Kg").font(.caption).foregroundStyle(.gray)
                             Picker("", selection: $quantityKgSelection) {
-                                ForEach(Array(0...quantityWheelMax), id: \.self) { kg in
+                                ForEach(Array(quantityKgRangeBase...quantityWheelMax), id: \.self) { kg in
                                     Text("\(kg)").tag(kg)
                                 }
                             }
@@ -494,7 +521,7 @@ struct ProductionTransactionItemEditView: View {
                         VStack {
                             Text("Gam").font(.caption).foregroundStyle(.gray)
                             Picker("", selection: $gramsWheelSelection) {
-                                ForEach(Array(stride(from: 0, through: gramsWheelMax, by: 50)), id: \.self) { g in
+                                ForEach(Array(stride(from: gramsWheelRangeBase, through: gramsWheelMax, by: 10)), id: \.self) { g in
                                     Text("\(g)").tag(g)
                                 }
                             }
@@ -532,6 +559,50 @@ struct ProductionTransactionItemEditView: View {
             }
             .padding()
             .presentationDetents([.height(useKgGram ? 380 : 340)])
+        }
+        .sheet(isPresented: $showQuantityKgRangePicker) {
+            VStack(spacing: 12) {
+                Text("Chọn vùng giá trị Kg").font(.headline)
+                Picker("", selection: $quantityKgRangeBase) {
+                    ForEach(Array(stride(from: 0, through: quantityWheelMax, by: 100)), id: \.self) { v in
+                        Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .onChange(of: quantityKgRangeBase) { _, newValue in
+                    if quantityKgSelection < newValue { quantityKgSelection = newValue }
+                }
+                HStack {
+                    Button("Đóng") { showQuantityKgRangePicker = false }
+                    Spacer()
+                    Button("Xong") { showQuantityKgRangePicker = false }
+                }
+                .font(.headline)
+            }
+            .padding()
+            .presentationDetents([.height(300)])
+        }
+        .sheet(isPresented: $showGramsRangePicker) {
+            VStack(spacing: 12) {
+                Text("Chọn vùng giá trị Gam").font(.headline)
+                Picker("", selection: $gramsWheelRangeBase) {
+                    ForEach(Array(stride(from: 0, through: gramsWheelMax, by: 100)), id: \.self) { v in
+                        Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .onChange(of: gramsWheelRangeBase) { _, newValue in
+                    if gramsWheelSelection < newValue { gramsWheelSelection = newValue }
+                }
+                HStack {
+                    Button("Đóng") { showGramsRangePicker = false }
+                    Spacer()
+                    Button("Xong") { showGramsRangePicker = false }
+                }
+                .font(.headline)
+            }
+            .padding()
+            .presentationDetents([.height(300)])
         }
         .sheet(isPresented: $showUnitPriceWheel) {
             VStack(spacing: 12) {
@@ -644,6 +715,13 @@ struct ProductionTransactionItemEditView: View {
         .onAppear {
             let currentQ = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantityText) ?? 0) : (Int(quantityText) ?? 0)
             quantityWheelSelection = max(1, currentQ)
+            if useKgGram {
+                quantityKgSelection = max(0, currentQ / 1000)
+                let remainder = max(0, currentQ % 1000)
+                gramsWheelSelection = (remainder / 10) * 10
+                quantityKgRangeBase = (quantityKgSelection / 100) * 100
+                gramsWheelRangeBase = (gramsWheelSelection / 100) * 100
+            }
             unitPriceWheelSelection = parseInt(priceText) ?? 0
             additionalCostWheelSelection = parseInt(costText) ?? 0
             if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -653,7 +731,14 @@ struct ProductionTransactionItemEditView: View {
             }
         }
     }
-    
+
+    private func formatCurrency(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "vi_VN")
+        return formatter.string(from: NSNumber(value: value)) ?? "0 đ"
+    }
+
     private func uploadSelectedDocumentImage() {
         guard let img = documentImage else { return }
         guard let data = img.jpegData(compressionQuality: 0.85) else { return }
