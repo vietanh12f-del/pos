@@ -609,6 +609,25 @@ struct RestockEntryView: View {
                         .disabled(viewModel.restockItems.isEmpty)
                         .padding(.horizontal)
                         .padding(.bottom, 8)
+                    } else if isExportMaterialsContext() {
+                        // "Xuất nguyên liệu" → show export info sheet
+                        Button {
+                            showImportInfoSheet = true
+                        } label: {
+                            HStack {
+                                Text("Thông tin xuất")
+                                Image(systemName: "doc.text.fill")
+                            }
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(viewModel.restockItems.isEmpty ? Color.gray : Color.orange)
+                            .foregroundStyle(.white)
+                            .cornerRadius(16)
+                        }
+                        .disabled(viewModel.restockItems.isEmpty)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                     } else if isImportMaterialsContext() {
                         // "Nhập nguyên liệu" → show import info sheet
                         Button {
@@ -699,15 +718,14 @@ struct RestockEntryView: View {
             FinishedGoodsExportView(
                 viewModel: viewModel,
                 items: viewModel.restockItems,
-                isImport: true,
-                isRegularRestock: isUnitFinishedGoodsImport || (!isImportMaterialsContext() && !isFinishedGoodsExportContext() && !isFinishedGoodsContext())
+                isImport: !isExportMaterialsContext(),
+                isRegularRestock: isUnitFinishedGoodsImport || (!isImportMaterialsContext() && !isFinishedGoodsExportContext() && !isFinishedGoodsContext() && !isExportMaterialsContext())
             ) {
                 if let cb = onComplete {
                     cb(viewModel.restockItems)
                 } else if isUnitFinishedGoodsImport {
-                    // Nhập hàng hoá từ tab Thành phẩm → lưu RestockBill + tạo lịch sử xuất thành phẩm
                     viewModel.completeRestockSession()
-                } else if isImportMaterialsContext() || isFinishedGoodsExportContext() || isFinishedGoodsContext() {
+                } else if isImportMaterialsContext() || isExportMaterialsContext() || isFinishedGoodsExportContext() || isFinishedGoodsContext() {
                     viewModel.completeProductionTransaction(mode: titleText)
                 } else {
                     viewModel.completeRestockSession()
@@ -1074,6 +1092,11 @@ private extension RestockEntryView {
     func isImportMaterialsContext() -> Bool {
         let t = titleText.lowercased()
         return t.contains("nhập nguyên liệu")
+    }
+    
+    func isExportMaterialsContext() -> Bool {
+        let t = titleText.lowercased()
+        return t.contains("xuất nguyên liệu")
     }
 }
 // Helper View for Item Card
