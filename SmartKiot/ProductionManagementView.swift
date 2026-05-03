@@ -105,7 +105,7 @@ struct ProductionManagementView: View {
                                             Text("Giá bán").font(.caption).foregroundStyle(.gray)
                                                 .frame(width: 120, alignment: .trailing)
                                             Text("Kho").font(.caption).foregroundStyle(.gray)
-                                                .frame(width: 60, alignment: .trailing)
+                                                .frame(width: 80, alignment: .trailing)
                                         }
                                         .padding(.horizontal)
                                         .padding(.vertical, 6)
@@ -186,10 +186,10 @@ struct ProductionManagementView: View {
                                                                 .font(.subheadline)
                                                                 .foregroundStyle(Color.themePrimary)
                                                                 .frame(width: 120, alignment: .trailing)
-                                                            Text(FormatUtils.formatWeight(item.stockQuantity))
+                                                            Text(FormatUtils.formatWeight(item.stockQuantity, unit: item.unit))
                                                                 .font(.subheadline)
                                                                 .foregroundStyle(.gray)
-                                                                .frame(width: 60, alignment: .trailing)
+                                                                .frame(width: 80, alignment: .trailing)
                                                         }
                                                         .padding(.horizontal)
                                                         .padding(.vertical, 10)
@@ -662,7 +662,7 @@ private struct ProductionTransactionItemRow: View {
     let isExportMode: Bool
     
     var body: some View {
-        let qtyText = FormatUtils.formatWeight(item.quantity)
+        let qtyText = FormatUtils.formatWeight(item.quantity, unit: item.unit)
         let priceTitle = isExportMode ? "Giá xuất" : "Giá nhập"
         let priceText = formatCurrency(item.unitPrice)
         let costText = formatCurrency(item.additionalCost)

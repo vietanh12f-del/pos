@@ -1394,7 +1394,7 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Restock Actions
     
-    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil, source: String? = nil, documentImageURL: String? = nil, weightPerUnitGrams: Int? = nil, isFinishedGood: Bool = false, importFromFinishedGood: Bool = false, sourceFinishedGoodId: UUID? = nil) {
+    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil, source: String? = nil, documentImageURL: String? = nil, weightPerUnitGrams: Int? = nil, isFinishedGood: Bool = false, importFromFinishedGood: Bool = false, sourceFinishedGoodId: UUID? = nil, unit: String? = nil) {
         restockItems.append(
             RestockItem(
                 name: name,
@@ -1409,7 +1409,8 @@ class OrderViewModel: ObservableObject {
                 weightPerUnitGrams: weightPerUnitGrams,
                 isFinishedGood: isFinishedGood,
                 importFromFinishedGood: importFromFinishedGood,
-                sourceFinishedGoodId: sourceFinishedGoodId
+                sourceFinishedGoodId: sourceFinishedGoodId,
+                unit: unit
             )
         )
     }
@@ -2050,7 +2051,8 @@ class OrderViewModel: ObservableObject {
                 isConfirmed: true,
                 category: matched?.category ?? Category.materials.rawValue,
                 source: templateName,
-                documentImageURL: nil
+                documentImageURL: nil,
+                unit: matched?.unit
             )
         }
         guard !items.isEmpty else { return false }
@@ -2175,25 +2177,26 @@ class OrderViewModel: ObservableObject {
         do {
             let inputs = try await database.fetchProductionTransactions(mode: "Nhập nguyên liệu")
             let outputs = try await database.fetchProductionTransactions(mode: "Xuất nguyên liệu")
-            var dict: [String: (qty: Int, last: Double)] = [:]
+            var dict: [String: (qty: Int, last: Double, unit: String?)] = [:]
             for tx in inputs {
                 for it in tx.items {
                     let key = it.name.lowercased()
                     let cur = dict[key]?.qty ?? 0
-                    let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
-                    let unitInclusive = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
-                    dict[key] = (cur + it.quantity, unitInclusive)
+                    let isPiece = (it.unit?.lowercased() == "cái")
+                    let total = isPiece ? (it.unitPrice * Double(it.quantity) + it.additionalCost) : (it.unitPrice * (Double(it.quantity) / 1000.0) + it.additionalCost)
+                    let unitInclusive = isPiece ? (it.quantity > 0 ? total / Double(it.quantity) : it.unitPrice) : (it.quantity > 0 ? total / (Double(it.quantity) / 1000.0) : it.unitPrice)
+                    dict[key] = (cur + it.quantity, unitInclusive, it.unit ?? dict[key]?.unit)
                 }
             }
             for tx in outputs {
                 for it in tx.items {
                     let key = it.name.lowercased()
                     let cur = dict[key]?.qty ?? 0
-                    dict[key] = (cur - it.quantity, it.unitPrice)
+                    dict[key] = (cur - it.quantity, it.unitPrice, it.unit ?? dict[key]?.unit)
                 }
             }
             let items = dict.map { k, v in
-                MaterialItem(id: UUID(), name: k, stockQuantity: max(0, v.qty), lastUnitPrice: v.last)
+                MaterialItem(id: UUID(), name: k, stockQuantity: max(0, v.qty), lastUnitPrice: v.last, unit: v.unit)
             }.sorted { $0.name < $1.name }
             await MainActor.run { self.materialsInventory = items }
         } catch {
@@ -2235,10 +2238,14 @@ class OrderViewModel: ObservableObject {
         for it in tx.items {
             if let idx = current.firstIndex(where: { $0.name.lowercased() == it.name.lowercased() }) {
                 var m = current[idx]
+                if let u = it.unit, !u.isEmpty {
+                    m.unit = u
+                }
                 if isImport {
                     m.stockQuantity = max(0, m.stockQuantity + it.quantity)
-                    let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
-                    let unitInclusive = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
+                    let isPiece = (it.unit?.lowercased() == "cái")
+                    let total = isPiece ? (it.unitPrice * Double(it.quantity) + it.additionalCost) : (it.unitPrice * (Double(it.quantity) / 1000.0) + it.additionalCost)
+                    let unitInclusive = isPiece ? (it.quantity > 0 ? total / Double(it.quantity) : it.unitPrice) : (it.quantity > 0 ? total / (Double(it.quantity) / 1000.0) : it.unitPrice)
                     m.lastUnitPrice = unitInclusive
                     if let newCat = it.category, !newCat.isEmpty, m.category != newCat {
                         m.category = newCat
@@ -2261,18 +2268,19 @@ class OrderViewModel: ObservableObject {
                     let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
                     let unitInclusive = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
                     let cat = it.category ?? Category.materials.rawValue
-                    let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: unitInclusive, category: cat)
+                    let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: unitInclusive, category: cat, unit: it.unit)
                     do { try await database.saveMaterial(m) }
                     catch { print("❌ saveMaterial error: \(error)") }
                     current.append(m)
-                } else {
-                    // For export without existing material, skip creation
                 }
             }
         }
-        // Optimistic UI update
+        // Final UI update
         await MainActor.run { self.materials = current }
+        // Refresh from DB to be sure
+        try? await Task.sleep(nanoseconds: 800 * 1_000_000) // Slightly longer delay for DB consistency
         await loadMaterials()
+        await loadMaterialsInventory() // Also refresh the inventory calculation
     }
     
     func addMaterialCategory(_ name: String) {
@@ -2377,15 +2385,15 @@ class OrderViewModel: ObservableObject {
         let modeLower = updated.mode.lowercased()
         let isImport = modeLower.contains("nhập")
         let isExport = modeLower.contains("xuất")
-        var map: [String: (origQty: Int, newQty: Int, newPriceIncl: Double?)] = [:]
+        var map: [String: (origQty: Int, newQty: Int, newPriceIncl: Double?, unit: String?)] = [:]
         for it in original.items {
             let k = it.name.lowercased()
-            map[k] = (it.quantity, map[k]?.newQty ?? 0, map[k]?.newPriceIncl)
+            map[k] = (it.quantity, map[k]?.newQty ?? 0, map[k]?.newPriceIncl, it.unit)
         }
         for it in updated.items {
             let k = it.name.lowercased()
             let o = map[k]?.origQty ?? 0
-            map[k] = (o, it.quantity, it.finalUnitCost)
+            map[k] = (o, it.quantity, it.finalUnitCost, it.unit)
         }
         await loadMaterials()
         var current = self.materials
@@ -2393,6 +2401,7 @@ class OrderViewModel: ObservableObject {
             let delta = info.newQty - info.origQty
             if let idx = current.firstIndex(where: { $0.name.lowercased() == name }) {
                 var m = current[idx]
+                if let u = info.unit { m.unit = u }
                 if isImport {
                     m.stockQuantity = max(0, m.stockQuantity + delta)
                     if let p = info.newPriceIncl { m.lastUnitPrice = p }
@@ -2405,7 +2414,7 @@ class OrderViewModel: ObservableObject {
                 if isImport {
                     let q = max(0, delta)
                     let p = info.newPriceIncl ?? 0
-                    let m = MaterialItem(id: UUID(), name: name, stockQuantity: q, lastUnitPrice: p, category: Category.materials.rawValue)
+                    let m = MaterialItem(id: UUID(), name: name, stockQuantity: q, lastUnitPrice: p, category: Category.materials.rawValue, unit: info.unit)
                     try? await database.saveMaterial(m)
                     current.append(m)
                 }

@@ -628,7 +628,18 @@ class SupabaseDatabaseService: DatabaseService {
         let header = ProductionTransactionDTO(from: tx).withStore(storeId)
         try await client.database.from("production_transactions").insert(header).execute()
         let itemsDTOs = tx.items.map { ProductionTransactionItemDTO(from: $0, transactionId: tx.id) }
-        try await client.database.from("production_transaction_items").insert(itemsDTOs).execute()
+        do {
+            try await client.database.from("production_transaction_items").insert(itemsDTOs).execute()
+        } catch {
+            let msg = String(describing: error).lowercased()
+            if msg.contains("unit") {
+                // Fallback for missing unit column
+                let fallbackItems = tx.items.map { ProductionTransactionItemNoUnitDTO(from: $0, transactionId: tx.id) }
+                try await client.database.from("production_transaction_items").insert(fallbackItems).execute()
+            } else {
+                throw error
+            }
+        }
     }
     
     func updateProductionTransaction(_ tx: ProductionTransaction) async throws {
@@ -649,10 +660,20 @@ class SupabaseDatabaseService: DatabaseService {
         
         let itemsDTOs = tx.items.map { ProductionTransactionItemDTO(from: $0, transactionId: tx.id) }
         if !itemsDTOs.isEmpty {
-            try await client.database
-                .from("production_transaction_items")
-                .insert(itemsDTOs)
-                .execute()
+            do {
+                try await client.database
+                    .from("production_transaction_items")
+                    .insert(itemsDTOs)
+                    .execute()
+            } catch {
+                let msg = String(describing: error).lowercased()
+                if msg.contains("unit") {
+                    let fallbackItems = tx.items.map { ProductionTransactionItemNoUnitDTO(from: $0, transactionId: tx.id) }
+                    try await client.database.from("production_transaction_items").insert(fallbackItems).execute()
+                } else {
+                    throw error
+                }
+            }
         }
     }
     
@@ -765,8 +786,8 @@ class SupabaseDatabaseService: DatabaseService {
         } catch {
             let msg = String(describing: error)
             print("⚠️ [materials.insert] error: \(msg)")
-            if msg.lowercased().contains("category") {
-                let fallback = MaterialDTO(id: dto.id, name: dto.name, stock_quantity: dto.stock_quantity, stock_weight_kg: dto.stock_weight_kg, last_unit_price: dto.last_unit_price, category: nil, store_id: dto.store_id)
+            if msg.lowercased().contains("category") || msg.lowercased().contains("unit") {
+                let fallback = MaterialNoUnitDTO(from: material, storeId: storeId)
                 try await client.from("materials").insert(fallback).execute()
             } else {
                 throw error
@@ -782,8 +803,8 @@ class SupabaseDatabaseService: DatabaseService {
         } catch {
             let msg = String(describing: error)
             print("⚠️ [materials.update] error: \(msg)")
-            if msg.lowercased().contains("category") {
-                let fallback = MaterialDTO(id: dto.id, name: dto.name, stock_quantity: dto.stock_quantity, stock_weight_kg: dto.stock_weight_kg, last_unit_price: dto.last_unit_price, category: nil, store_id: dto.store_id)
+            if msg.lowercased().contains("category") || msg.lowercased().contains("unit") {
+                let fallback = MaterialNoUnitDTO(from: material, storeId: storeId)
                 try await client.from("materials").update(fallback).eq("id", value: material.id).execute()
             } else {
                 throw error
@@ -1249,6 +1270,7 @@ struct RestockItemDTO: Codable {
     let document_image_url: String?
     let weight_per_unit_grams: Int?
     let is_finished_good: Bool?
+    let unit: String?
     // import_from_finished_good và source_finished_good_id không có trong DB schema — chỉ decode, không encode
     let import_from_finished_good: Bool?
     let source_finished_good_id: UUID?
@@ -1256,7 +1278,7 @@ struct RestockItemDTO: Codable {
     enum CodingKeys: String, CodingKey {
         case id, bill_id, product_name, quantity, unit_price
         case additional_cost, suggested_price, category, source
-        case document_image_url, weight_per_unit_grams, is_finished_good
+        case document_image_url, weight_per_unit_grams, is_finished_good, unit
         // Không include import_from_finished_good và source_finished_good_id khi encode
     }
     
@@ -1275,6 +1297,7 @@ struct RestockItemDTO: Codable {
         document_image_url = try c.decodeIfPresent(String.self, forKey: .document_image_url)
         weight_per_unit_grams = try c.decodeIfPresent(Int.self, forKey: .weight_per_unit_grams)
         is_finished_good = try c.decodeIfPresent(Bool.self, forKey: .is_finished_good)
+        unit = try c.decodeIfPresent(String.self, forKey: .unit)
         // Các cột không có trong DB — set nil
         import_from_finished_good = nil
         source_finished_good_id = nil
@@ -1293,6 +1316,7 @@ struct RestockItemDTO: Codable {
         self.document_image_url = domain.documentImageURL
         self.weight_per_unit_grams = domain.weightPerUnitGrams
         self.is_finished_good = domain.isFinishedGood
+        self.unit = domain.unit
         self.import_from_finished_good = nil  // không lưu vào DB
         self.source_finished_good_id = nil    // không lưu vào DB
     }
@@ -1312,7 +1336,8 @@ struct RestockItemDTO: Codable {
             weightPerUnitGrams: weight_per_unit_grams,
             isFinishedGood: is_finished_good ?? false,
             importFromFinishedGood: import_from_finished_good ?? false,
-            sourceFinishedGoodId: source_finished_good_id
+            sourceFinishedGoodId: source_finished_good_id,
+            unit: unit
         )
     }
 }
@@ -1366,9 +1391,10 @@ struct MaterialDTO: Codable {
     let category: String?
     let store_id: UUID?
     let barcode: String?
+    let unit: String?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode
+        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode, unit
     }
     
     init(from decoder: Decoder) throws {
@@ -1381,9 +1407,10 @@ struct MaterialDTO: Codable {
         category = try c.decodeIfPresent(String.self, forKey: .category)
         store_id = try c.decodeIfPresent(UUID.self, forKey: .store_id)
         barcode = try c.decodeIfPresent(String.self, forKey: .barcode)
+        unit = try c.decodeIfPresent(String.self, forKey: .unit)
     }
     
-    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil) {
+    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil, unit: String? = nil) {
         self.id = id
         self.name = name
         self.stock_quantity = stock_quantity
@@ -1392,6 +1419,7 @@ struct MaterialDTO: Codable {
         self.category = category
         self.store_id = store_id
         self.barcode = barcode
+        self.unit = unit
     }
     
     init(from domain: MaterialItem, storeId: UUID?) {
@@ -1403,10 +1431,11 @@ struct MaterialDTO: Codable {
         self.category = domain.category
         self.store_id = storeId
         self.barcode = domain.barcode
+        self.unit = domain.unit
     }
     
     func toDomain() -> MaterialItem {
-        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue, barcode: barcode)
+        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue, barcode: barcode, unit: unit)
     }
 }
 
@@ -1529,6 +1558,43 @@ struct ProductionTransactionItemDTO: Codable {
     let additional_cost: Double?
     let source: String?
     let document_image_url: String?
+    let unit: String?
+    
+    init(from domain: RestockItem, transactionId: UUID) {
+        self.id = domain.id
+        self.transaction_id = transactionId
+        self.item_name = domain.name
+        self.quantity = domain.quantity
+        self.unit_price = domain.unitPrice
+        self.additional_cost = domain.additionalCost
+        self.source = domain.source
+        self.document_image_url = domain.documentImageURL
+        self.unit = domain.unit
+    }
+    
+    func toDomain() -> RestockItem {
+        return RestockItem(
+            id: id,
+            name: item_name,
+            quantity: quantity,
+            unitPrice: unit_price,
+            additionalCost: additional_cost ?? 0,
+            source: source,
+            documentImageURL: document_image_url,
+            unit: unit
+        )
+    }
+}
+
+struct ProductionTransactionItemNoUnitDTO: Codable {
+    let id: UUID
+    let transaction_id: UUID
+    let item_name: String
+    let quantity: Int
+    let unit_price: Double
+    let additional_cost: Double?
+    let source: String?
+    let document_image_url: String?
     
     init(from domain: RestockItem, transactionId: UUID) {
         self.id = domain.id
@@ -1540,17 +1606,27 @@ struct ProductionTransactionItemDTO: Codable {
         self.source = domain.source
         self.document_image_url = domain.documentImageURL
     }
+}
+
+struct MaterialNoUnitDTO: Codable {
+    let id: UUID
+    let name: String
+    let stock_quantity: Int
+    let stock_weight_kg: Double?
+    let last_unit_price: Double
+    let category: String?
+    let store_id: UUID?
+    let barcode: String?
     
-    func toDomain() -> RestockItem {
-        return RestockItem(
-            id: id,
-            name: item_name,
-            quantity: quantity,
-            unitPrice: unit_price,
-            additionalCost: additional_cost ?? 0,
-            source: source,
-            documentImageURL: document_image_url
-        )
+    init(from domain: MaterialItem, storeId: UUID?) {
+        self.id = domain.id
+        self.name = domain.name
+        self.stock_quantity = domain.stockQuantity
+        self.stock_weight_kg = Double(domain.stockQuantity) / 1000.0
+        self.last_unit_price = domain.lastUnitPrice
+        self.category = domain.category
+        self.store_id = storeId
+        self.barcode = domain.barcode
     }
 }
 

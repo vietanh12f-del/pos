@@ -12,6 +12,7 @@ struct TransactionEditView: View {
     @State private var showQuantityWheel = false
     @State private var showUnitPriceWheel = false
     @State private var showAdditionalCostWheel = false
+    @State private var editingUnit: String = "kg"
     @State private var quantityWheelSelection = 1
     @State private var quantityWheelMax = 500
     @State private var quantityKgSelection = 0
@@ -74,7 +75,7 @@ struct TransactionEditView: View {
     private var vatRate: Double { StoreManager.shared.currentStoreVATRate() }
 
     private var subtotal: Double {
-        items.reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) + $1.additionalCost }
+        items.reduce(0) { $0 + $1.totalCost }
     }
     private var vatAmount: Double { vatEnabled ? subtotal * (vatRate / 100.0) : 0 }
     private var grandTotal: Double { subtotal + vatAmount }
@@ -129,13 +130,14 @@ struct TransactionEditView: View {
                             HStack {
                                 Text("SL")
                                 Spacer()
-                                Text(FormatUtils.formatWeight(it.quantity))
+                                Text(FormatUtils.formatWeight(it.quantity, unit: it.unit))
                                     .fontWeight(.semibold)
                                     .foregroundStyle(Color.themePrimary)
                                     .contentShape(Rectangle())
                                     .onTapGesture {
                                         editingIndex = idx
                                         quantityWheelSelection = it.quantity
+                                        editingUnit = it.unit ?? "kg"
                                         showQuantityWheel = true
                                     }
                             }
@@ -467,8 +469,30 @@ struct TransactionEditView: View {
         }
         .sheet(isPresented: $showQuantityWheel) {
             NavigationStack {
-                Form {
-                    Section {
+                VStack(spacing: 12) {
+                    let isMaterials = original.mode.lowercased().contains("nguyên liệu")
+                    if isMaterials {
+                        Picker("Đơn vị", selection: $editingUnit) {
+                            Text("Kg").tag("kg")
+                            Text("Cái").tag("cái")
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal)
+                    }
+
+                    if isMaterials && editingUnit.lowercased() == "cái" {
+                        Picker("", selection: $quantityWheelSelection) {
+                            ForEach(Array(1...quantityWheelMax), id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: quantityWheelSelection) { _, newValue in
+                            if newValue >= quantityWheelMax - 10 {
+                                quantityWheelMax += 200
+                            }
+                        }
+                    } else {
                         HStack {
                             Button {
                                 showQuantityKgRangePicker = true
@@ -484,18 +508,21 @@ struct TransactionEditView: View {
                         }
                         HStack {
                             VStack {
-                                Text("Kg")
-                                    .font(.caption).foregroundStyle(.gray)
+                                Text("Kg").font(.caption).foregroundStyle(.gray)
                                 Picker("", selection: $quantityKgSelection) {
                                     ForEach(Array(quantityKgRangeBase...quantityWheelMax), id: \.self) { kg in
                                         Text("\(kg)").tag(kg)
                                     }
                                 }
                                 .pickerStyle(.wheel)
+                                .onChange(of: quantityKgSelection) { _, newValue in
+                                    if newValue >= max(0, quantityWheelMax - 10) {
+                                        quantityWheelMax += 200
+                                    }
+                                }
                             }
                             VStack {
-                                Text("Gam")
-                                    .font(.caption).foregroundStyle(.gray)
+                                Text("Gam").font(.caption).foregroundStyle(.gray)
                                 Picker("", selection: $gramsWheelSelection) {
                                     ForEach(Array(stride(from: 0, through: gramsWheelMax, by: 50)), id: \.self) { g in
                                         Text("\(g)").tag(g)
@@ -519,16 +546,22 @@ struct TransactionEditView: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Lưu") {
                             if let i = editingIndex {
-                                let total = quantityKgSelection * 1000 + gramsWheelSelection
-                                items[i].quantity = total
-                                quantityWheelSelection = total
+                                if original.mode.lowercased().contains("nguyên liệu") && editingUnit.lowercased() == "cái" {
+                                    items[i].quantity = quantityWheelSelection
+                                    items[i].unit = "cái"
+                                } else {
+                                    let total = quantityKgSelection * 1000 + gramsWheelSelection
+                                    items[i].quantity = total
+                                    items[i].unit = "kg"
+                                    quantityWheelSelection = total
+                                }
                             }
                             showQuantityWheel = false
                         }
                     }
                 }
             }
-            .presentationDetents([.height(340)])
+            .presentationDetents([.height(original.mode.lowercased().contains("nguyên liệu") ? 380 : 340)])
             .sheet(isPresented: $showQuantityKgRangePicker) {
                 VStack(spacing: 16) {
                     Text("Chọn vùng giá trị").font(.headline)

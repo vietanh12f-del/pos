@@ -34,8 +34,12 @@ struct RestockItem: Identifiable, Hashable, Codable {
     var isFinishedGood: Bool = false // Contextual flag for target product type
     var importFromFinishedGood: Bool = false
     var sourceFinishedGoodId: UUID? = nil
+    var unit: String? = nil
     
     var totalCost: Double {
+        if let u = unit, u.lowercased() == "cái" {
+            return (Double(quantity) * unitPrice) + additionalCost
+        }
         if let grams = weightPerUnitGrams, grams > 0 {
             let totalGrams = Double(quantity) * Double(grams)
             return (unitPrice * (totalGrams / 1000.0)) + additionalCost
@@ -49,6 +53,9 @@ struct RestockItem: Identifiable, Hashable, Codable {
     }
     
     var finalUnitCost: Double {
+        if let u = unit, u.lowercased() == "cái" {
+            return quantity > 0 ? totalCost / Double(quantity) : 0
+        }
         if let grams = weightPerUnitGrams, grams > 0 {
             return quantity > 0 ? totalCost / Double(quantity) : 0
         }
@@ -135,6 +142,7 @@ struct MaterialItem: Identifiable, Codable, Equatable {
     var lastUnitPrice: Double
     var category: String = Category.materials.rawValue
     var barcode: String? = nil
+    var unit: String? = nil
 }
 
 struct OperatingExpense: Identifiable, Codable, Equatable {

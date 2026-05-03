@@ -12,6 +12,7 @@ struct ProductionTransactionItemEditView: View {
     
     @State private var name: String
     @State private var quantityText: String
+    @State private var selectedUnit: String
     @State private var priceText: String
     @State private var costText: String
     @State private var selectedCategoryName: String
@@ -60,7 +61,13 @@ struct ProductionTransactionItemEditView: View {
         
         _name = State(initialValue: initialItem.name)
         let useKgGram = modeTitle.lowercased().contains("nguyên liệu") || modeTitle.lowercased().contains("thành phẩm")
-        _quantityText = State(initialValue: useKgGram ? FormatUtils.formatKgDecimal(fromGrams: initialItem.quantity) : String(initialItem.quantity))
+        let initialUnit = initialItem.unit ?? (useKgGram ? "kg" : "cái")
+        _selectedUnit = State(initialValue: initialUnit)
+        if useKgGram && initialUnit.lowercased() == "kg" {
+            _quantityText = State(initialValue: FormatUtils.formatKgDecimal(fromGrams: initialItem.quantity))
+        } else {
+            _quantityText = State(initialValue: String(initialItem.quantity))
+        }
         _priceText = State(initialValue: String(Int(initialItem.unitPrice)))
         _costText = State(initialValue: String(Int(initialItem.additionalCost)))
         _selectedCategoryName = State(initialValue: (initialItem.category?.isEmpty == false ? initialItem.category! : (modeTitle.lowercased().contains("nguyên liệu") ? Category.materials.rawValue : Category.others.rawValue)))
@@ -147,7 +154,7 @@ struct ProductionTransactionItemEditView: View {
                         } label: {
                             let gramsVal = FormatUtils.parseKgDecimalToGrams(quantityText) ?? quantityWheelSelection
                             if useKgGram {
-                                Text(FormatUtils.formatKgDecimal(fromGrams: gramsVal))
+                                Text(FormatUtils.formatWeight(gramsVal, unit: selectedUnit))
                                     .fontWeight(.semibold)
                             } else {
                                 Text(quantityText.isEmpty ? String(quantityWheelSelection) : quantityText)
@@ -324,10 +331,17 @@ struct ProductionTransactionItemEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
-                        let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantityText) ?? quantityWheelSelection) : (Int(quantityText) ?? quantityWheelSelection)
+                        let q: Int
+                        if useKgGram && selectedUnit.lowercased() == "kg" {
+                            q = FormatUtils.parseKgDecimalToGrams(quantityText) ?? quantityWheelSelection
+                        } else {
+                            q = Int(quantityText) ?? quantityWheelSelection
+                        }
+
                         let p = Double(parseInt(priceText) ?? unitPriceWheelSelection)
                         let extra = Double(parseInt(costText) ?? additionalCostWheelSelection)
                         let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+
                         var item = initialItem
                         item.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         item.quantity = q
@@ -336,7 +350,9 @@ struct ProductionTransactionItemEditView: View {
                         item.category = selectedCategoryName
                         item.source = src.isEmpty ? nil : src
                         item.documentImageURL = documentImageURL
+                        item.unit = useKgGram ? selectedUnit : nil
                         item.isConfirmed = true
+
                         onSave(item)
                         dismiss()
                     }
@@ -449,7 +465,17 @@ struct ProductionTransactionItemEditView: View {
         .sheet(isPresented: $showQuantityWheel) {
             VStack(spacing: 12) {
                 Text("Sửa số lượng").font(.headline)
+                
                 if useKgGram {
+                    Picker("Đơn vị", selection: $selectedUnit) {
+                        Text("Kg").tag("kg")
+                        Text("Cái").tag("cái")
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                }
+
+                if useKgGram && selectedUnit.lowercased() == "kg" {
                     HStack {
                         VStack {
                             Text("Kg").font(.caption).foregroundStyle(.gray)
@@ -482,12 +508,17 @@ struct ProductionTransactionItemEditView: View {
                         }
                     }
                     .pickerStyle(.wheel)
+                    .onChange(of: quantityWheelSelection) { _, newValue in
+                        if newValue >= quantityWheelMax - 10 {
+                            quantityWheelMax += 200
+                        }
+                    }
                 }
                 HStack {
                     Button("Đóng") { showQuantityWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        if useKgGram {
+                        if useKgGram && selectedUnit.lowercased() == "kg" {
                             let total = quantityKgSelection * 1000 + gramsWheelSelection
                             quantityWheelSelection = total
                             quantityText = FormatUtils.formatKgDecimal(fromGrams: total)
@@ -500,7 +531,7 @@ struct ProductionTransactionItemEditView: View {
                 .font(.headline)
             }
             .padding()
-            .presentationDetents([.height(340)])
+            .presentationDetents([.height(useKgGram ? 380 : 340)])
         }
         .sheet(isPresented: $showUnitPriceWheel) {
             VStack(spacing: 12) {

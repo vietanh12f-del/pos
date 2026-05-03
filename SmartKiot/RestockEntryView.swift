@@ -22,6 +22,7 @@ struct RestockEntryView: View {
     @State private var summaryQtyMax = 1000
     @State private var summaryQtyKgSelection = 0
     @State private var summaryQtyGramsSelection = 0
+    @State private var summaryUnitSelection = "kg"
     @State private var summaryQtyGramsMax = 950
     @State private var summaryQtyRangeBase = 0
     @State private var showSummaryQtyRangePicker = false
@@ -192,7 +193,7 @@ struct RestockEntryView: View {
                                                         .lineLimit(2)
                                                         .frame(maxWidth: .infinity, alignment: .leading)
                                                     HStack {
-                                                        Text("Kho: \(FormatUtils.formatWeight(m.stockQuantity))")
+                                                        Text("Kho: \(FormatUtils.formatWeight(m.stockQuantity, unit: m.unit))")
                                                             .font(.caption)
                                                             .foregroundStyle(.gray)
                                                         Spacer()
@@ -202,26 +203,29 @@ struct RestockEntryView: View {
                                             }
                                         .onTapGesture {
                                             let isExport = titleText.lowercased().contains("xuất")
+                                            let quickAddQty = (m.unit?.lowercased() == "cái") ? 1 : 1000
                                             if isExport {
                                                 if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
-                                                    viewModel.restockItems[idx].quantity += 1000
+                                                    viewModel.restockItems[idx].quantity += quickAddQty
                                                     viewModel.restockItems[idx].unitPrice = m.lastUnitPrice
                                                     viewModel.restockItems[idx].category = m.category
+                                                    viewModel.restockItems[idx].unit = m.unit
                                                     lastAddedItemId = viewModel.restockItems[idx].id
                                                 } else {
-                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: 1000, additionalCost: 0, suggestedPrice: nil, category: m.category)
+                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: quickAddQty, additionalCost: 0, suggestedPrice: nil, category: m.category, unit: m.unit)
                                                     if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
                                                         lastAddedItemId = viewModel.restockItems[newIdx].id
                                                     }
                                                 }
                                             } else {
                                                 if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
-                                                    viewModel.restockItems[idx].quantity += 1000
+                                                    viewModel.restockItems[idx].quantity += quickAddQty
                                                     viewModel.restockItems[idx].unitPrice = m.lastUnitPrice
                                                     viewModel.restockItems[idx].category = m.category
+                                                    viewModel.restockItems[idx].unit = m.unit
                                                     lastAddedItemId = viewModel.restockItems[idx].id
                                                 } else {
-                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: 1000, additionalCost: 0, suggestedPrice: nil, category: m.category)
+                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: quickAddQty, additionalCost: 0, suggestedPrice: nil, category: m.category, unit: m.unit)
                                                     if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
                                                         lastAddedItemId = viewModel.restockItems[newIdx].id
                                                     }
@@ -490,7 +494,7 @@ struct RestockEntryView: View {
                                                     Text("SL:")
                                                         .font(.caption)
                                                         .foregroundStyle(.gray)
-                                                    Text(isWeight ? FormatUtils.formatWeight(item.quantity) : String(item.quantity))
+                                                    Text(isWeight ? FormatUtils.formatWeight(item.quantity, unit: item.unit) : String(item.quantity))
                                                         .font(.headline)
                                                         .fontWeight(.heavy)
                                                         .monospacedDigit()
@@ -506,8 +510,13 @@ struct RestockEntryView: View {
                                                     summaryIsMaterials = useMaterialsList || (titleText.lowercased().contains("thành phẩm") && (item.weightPerUnitGrams == nil))
                                                     if summaryIsMaterials {
                                                         let grams = max(0, item.quantity)
-                                                        summaryQtyKgSelection = grams / 1000
-                                                        summaryQtyGramsSelection = ((grams % 1000) / 50) * 50
+                                                        summaryUnitSelection = item.unit ?? "kg"
+                                                        if summaryUnitSelection.lowercased() == "cái" {
+                                                            summaryQtySelection = grams
+                                                        } else {
+                                                            summaryQtyKgSelection = grams / 1000
+                                                            summaryQtyGramsSelection = ((grams % 1000) / 50) * 50
+                                                        }
                                                         if summaryQtyKgSelection > summaryQtyMax {
                                                             summaryQtyMax = max(summaryQtyMax, summaryQtyKgSelection + 200)
                                                         }
@@ -772,6 +781,16 @@ struct RestockEntryView: View {
         .sheet(isPresented: $showSummaryQtyWheel) {
             VStack(spacing: 12) {
                 Text("Sửa số lượng").font(.headline)
+                
+                if summaryIsMaterials {
+                    Picker("Đơn vị", selection: $summaryUnitSelection) {
+                        Text("Kg").tag("kg")
+                        Text("Cái").tag("cái")
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                }
+
                 HStack {
                     Button {
                         showSummaryQtyRangePicker = true
@@ -785,7 +804,8 @@ struct RestockEntryView: View {
                     .buttonStyle(.plain)
                     Spacer()
                 }
-                if summaryIsMaterials {
+                
+                if summaryIsMaterials && summaryUnitSelection.lowercased() != "cái" {
                     HStack {
                         VStack {
                             Text("Kg").font(.caption).foregroundStyle(.gray)
@@ -819,17 +839,26 @@ struct RestockEntryView: View {
                         }
                     }
                     .pickerStyle(.wheel)
+                    .onChange(of: summaryQtySelection) { _, newValue in
+                        if newValue >= summaryQtyMax - 10 {
+                            summaryQtyMax += 200
+                        }
+                    }
                 }
                 HStack {
                     Button("Đóng") { showSummaryQtyWheel = false }
                     Spacer()
                     Button("Lưu") {
                         if let i = summaryEditingIndex, i < viewModel.restockItems.count {
-                            if summaryIsMaterials {
+                            if summaryIsMaterials && summaryUnitSelection.lowercased() != "cái" {
                                 let grams = summaryQtyKgSelection * 1000 + summaryQtyGramsSelection
                                 viewModel.restockItems[i].quantity = grams
+                                viewModel.restockItems[i].unit = "kg"
                             } else {
                                 viewModel.restockItems[i].quantity = summaryQtySelection
+                                if summaryIsMaterials {
+                                    viewModel.restockItems[i].unit = "cái"
+                                }
                             }
                         }
                         showSummaryQtyWheel = false
@@ -838,9 +867,9 @@ struct RestockEntryView: View {
                 .font(.headline)
             }
             .padding()
-            .presentationDetents([.height(340)])
+            .presentationDetents([.height(summaryIsMaterials ? 380 : 340)])
             .onAppear {
-                if summaryIsMaterials {
+                if summaryIsMaterials && summaryUnitSelection.lowercased() != "cái" {
                     summaryQtyRangeBase = (summaryQtyKgSelection / 100) * 100
                 } else {
                     summaryQtyRangeBase = (summaryQtySelection / 100) * 100
@@ -1169,6 +1198,7 @@ struct ManualRestockItemView: View {
     @State private var name = ""
     @State private var quantity = ""
     @State private var price = ""
+    @State private var selectedUnit = "kg"
     @State private var incurredCost = ""
     @State private var showQuantityWheel = false
     @State private var showUnitPriceWheel = false
@@ -1663,7 +1693,17 @@ struct ManualRestockItemView: View {
             VStack(spacing: 12) {
                 Text("Sửa số lượng")
                     .font(.headline)
+                
                 if useKgGram {
+                    Picker("Đơn vị", selection: $selectedUnit) {
+                        Text("Kg").tag("kg")
+                        Text("Cái").tag("cái")
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                }
+
+                if useKgGram && selectedUnit.lowercased() == "kg" {
                     HStack {
                         Button {
                             showQuantityKgRangePicker = true
@@ -1729,7 +1769,7 @@ struct ManualRestockItemView: View {
                 .font(.headline)
             }
             .padding()
-            .presentationDetents([.height(340)])
+            .presentationDetents([.height(useKgGram ? 380 : 340)])
             .sheet(isPresented: $showQuantityKgRangePicker) {
                 VStack(spacing: 12) {
                     Text("Chọn vùng giá trị").font(.headline)
@@ -2045,7 +2085,10 @@ struct ManualRestockItemView: View {
     private func getQuantityDisplay(useKgGram: Bool) -> String {
         let gramsVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
         if useKgGram {
-            return FormatUtils.formatKgDecimal(fromGrams: gramsVal)
+            if selectedUnit.lowercased() == "cái" {
+                return "\(quantity.isEmpty ? String(quantityWheelSelection) : quantity) cái"
+            }
+            return "\(FormatUtils.formatKgDecimal(fromGrams: gramsVal)) kg"
         } else {
             return quantity.isEmpty ? String(quantityWheelSelection) : quantity
         }
@@ -2154,7 +2197,12 @@ struct ManualRestockItemView: View {
         
         let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
         let useKgGram = addTitle.lowercased().contains("nguyên liệu") || (addTitle.lowercased().contains("thành phẩm") && !treatFinishedGoodsAsUnits)
-        let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : (Int(quantity) ?? quantityWheelSelection)
+        let q: Int
+        if useKgGram && selectedUnit.lowercased() == "kg" {
+            q = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+        } else {
+            q = Int(quantity) ?? quantityWheelSelection
+        }
         guard !name.isEmpty, q > 0 else { return }
         let extra = parseDouble(incurredCost) ?? 0
         let suggested: Double? = (!isFinishedGoods ? Double(suggestedPriceWheelSelection) : nil)
@@ -2175,6 +2223,7 @@ struct ManualRestockItemView: View {
             item.isFinishedGood = isFinishedGoods
             item.importFromFinishedGood = importFromFinishedGood
             item.sourceFinishedGoodId = sourceFinishedGoodId
+            item.unit = useKgGram ? selectedUnit : nil
             let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
             item.source = src.isEmpty ? nil : src
             item.documentImageURL = documentImageURL
@@ -2194,7 +2243,8 @@ struct ManualRestockItemView: View {
                 weightPerUnitGrams: perUnitGrams,
                 isFinishedGood: isFinishedGoods,
                 importFromFinishedGood: importFromFinishedGood,
-                sourceFinishedGoodId: sourceFinishedGoodId
+                sourceFinishedGoodId: sourceFinishedGoodId,
+                unit: useKgGram ? selectedUnit : nil
             )
         }
         dismiss()
@@ -2224,7 +2274,7 @@ struct ManualRestockItemView: View {
      }
 
     private func handleSaveQuantity(useKgGram: Bool) {
-         if useKgGram {
+         if useKgGram && selectedUnit.lowercased() == "kg" {
              let total = quantityKgSelection * 1000 + gramsWheelSelection
              quantityWheelSelection = total
              quantity = FormatUtils.formatKgDecimal(fromGrams: total)
@@ -2256,7 +2306,12 @@ struct ManualRestockItemView: View {
             documentImageURL = item.documentImageURL
             let useKgGram = addTitle.lowercased().contains("nguyên liệu") || (addTitle.lowercased().contains("thành phẩm") && !treatFinishedGoodsAsUnits)
             if useKgGram {
-                quantity = FormatUtils.formatKgDecimal(fromGrams: item.quantity)
+                selectedUnit = item.unit ?? "kg"
+                if selectedUnit.lowercased() == "kg" {
+                    quantity = FormatUtils.formatKgDecimal(fromGrams: item.quantity)
+                } else {
+                    quantity = String(item.quantity)
+                }
             } else {
                 quantity = String(item.quantity)
             }

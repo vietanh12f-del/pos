@@ -1164,9 +1164,9 @@ struct GenericProductionReportView: View {
                     HStack {
                         Text(item.name).font(.subheadline)
                         Spacer()
-                        Text(isMaterial ? FormatUtils.formatWeight(item.quantity) : "\(item.quantity) kg")
+                        Text(isMaterial ? FormatUtils.formatWeight(item.quantity, unit: item.unit) : "\(item.quantity) kg")
                             .font(.subheadline).fontWeight(.semibold).foregroundStyle(accentColor)
-                        Text(formatCurrency(item.unitPrice) + (isMaterial ? "/kg" : ""))
+                        Text(formatCurrency(item.unitPrice) + (isMaterial ? (item.unit?.lowercased() == "cái" ? "/cái" : "/kg") : ""))
                             .font(.caption).foregroundStyle(.gray)
                     }
                 }

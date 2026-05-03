@@ -405,14 +405,14 @@ struct FinishedGoodsExportView: View {
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                         } else {
-                            // Nguyên liệu / thành phẩm: hiển thị kg
-                            Text(FormatUtils.formatWeight(item.quantity))
+                            // Nguyên liệu / thành phẩm: hiển thị kg hoặc cái
+                            Text(FormatUtils.formatWeight(item.quantity, unit: item.unit))
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                         }
                     }
                     Spacer()
-                    if isRegularRestock {
+                    if isRegularRestock || item.unit?.lowercased() == "cái" {
                         Text(formatCurrency(Double(item.quantity) * item.unitPrice))
                             .font(.subheadline)
                             .fontWeight(.semibold)

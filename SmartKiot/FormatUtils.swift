@@ -1,7 +1,10 @@
 import Foundation
 
 struct FormatUtils {
-    static func formatWeight(_ grams: Int) -> String {
+    static func formatWeight(_ grams: Int, unit: String? = nil) -> String {
+        if let u = unit, u.lowercased() == "cái" {
+            return "\(grams) cái"
+        }
         let value = Double(max(0, grams)) / 1000.0
         let remainder = max(0, grams % 1000)
         let f = NumberFormatter()
