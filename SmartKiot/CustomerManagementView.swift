@@ -57,6 +57,37 @@ struct CustomerManagementView: View {
         _selectedType = State(initialValue: initialTab)
     }
 
+    // Trạng thái lọc leads từ website
+    enum LeadStatusFilter: String, CaseIterable {
+        case all       = "Tất cả"
+        case new       = "Mới"
+        case contacted = "Đã liên hệ"
+        case done      = "Hoàn tất"
+        case cancelled = "Đã huỷ"
+
+        var statusValue: String? {
+            switch self {
+            case .all:       return nil
+            case .new:       return "new"
+            case .contacted: return "contacted"
+            case .done:      return "done"
+            case .cancelled: return "cancelled"
+            }
+        }
+
+        var color: Color {
+            switch self {
+            case .all:       return .gray
+            case .new:       return .teal
+            case .contacted: return .blue
+            case .done:      return .green
+            case .cancelled: return .red
+            }
+        }
+    }
+
+    @State private var statusFilter: LeadStatusFilter = .all
+
     enum PartyTypeFilter: String, CaseIterable {
         case buyer = "Khách hàng"
         case supplier = "Cơ sở cung cấp"
@@ -88,6 +119,11 @@ struct CustomerManagementView: View {
 
     private var filteredLeads: [WebsiteLead] {
         var list = leads
+        // Lọc theo trạng thái
+        if let sv = statusFilter.statusValue {
+            list = list.filter { $0.status == sv }
+        }
+        // Lọc theo search
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if !q.isEmpty {
             list = list.filter {
@@ -198,17 +234,51 @@ struct CustomerManagementView: View {
                     Spacer()
                 }.padding(.top, 60)
             } else {
-                // Summary bar
-                HStack(spacing: 16) {
-                    Label("\(filteredLeads.count) liên hệ", systemImage: "person.crop.circle")
-                        .font(.caption).foregroundStyle(.gray)
-                    if newLeadsCount > 0 {
-                        Label("\(newLeadsCount) mới", systemImage: "bell.fill")
-                            .font(.caption).fontWeight(.semibold).foregroundStyle(.teal)
+                // Summary bar + status filter
+                VStack(spacing: 0) {
+                    HStack(spacing: 12) {
+                        Label("\(leads.count) liên hệ", systemImage: "person.crop.circle")
+                            .font(.caption).foregroundStyle(.gray)
+                        let newCount = leads.filter { $0.status == "new" }.count
+                        if newCount > 0 {
+                            Label("\(newCount) mới", systemImage: "bell.fill")
+                                .font(.caption).fontWeight(.semibold).foregroundStyle(.teal)
+                        }
+                        Spacer()
                     }
-                    Spacer()
+                    .padding(.horizontal).padding(.top, 8).padding(.bottom, 6)
+
+                    // Status filter chips
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(LeadStatusFilter.allCases, id: \.self) { f in
+                                Button {
+                                    statusFilter = f
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        if f != .all {
+                                            Circle()
+                                                .fill(f.color)
+                                                .frame(width: 6, height: 6)
+                                        }
+                                        Text(f.rawValue)
+                                            .font(.caption)
+                                            .fontWeight(statusFilter == f ? .semibold : .regular)
+                                    }
+                                    .foregroundStyle(statusFilter == f ? .white : f.color)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        Capsule().fill(statusFilter == f ? f.color : f.color.opacity(0.1))
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding(.bottom, 6)
                 }
-                .padding(.horizontal).padding(.vertical, 8)
                 .background(Color.teal.opacity(0.05))
 
                 List {
