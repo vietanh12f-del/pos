@@ -1,5 +1,10 @@
 import SwiftUI
 
+struct StatisticsExportItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
 struct StatisticsView: View {
     @ObservedObject var viewModel: OrderViewModel
     @State private var selectedType: StatType = .month
@@ -12,6 +17,7 @@ struct StatisticsView: View {
     @FocusState private var searchFocused: Bool
     @State private var showExportSheet: Bool = false
     @State private var exportURL: URL?
+    @State private var exportItem: StatisticsExportItem?
     @State private var allProductionTx: [ProductionTransaction] = []
     @State private var showRetailDetail = false
     @State private var showWholesaleDetail = false
@@ -42,16 +48,10 @@ struct StatisticsView: View {
                     Spacer()
                     Button {
                         let range = currentRange()
-                        if let url = viewModel.exportFinancialReport(range: range) {
+                        let url = viewModel.exportFinancialReport(range: range, allProductionTx: allProductionTx)
+                        if let url = url {
                             exportURL = url
-                            let exists = FileManager.default.fileExists(atPath: url.path)
-                            if exists {
-                                showExportSheet = true
-                            } else {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    showExportSheet = true
-                                }
-                            }
+                            exportItem = StatisticsExportItem(url: url)
                         }
                     } label: {
                         Text("Xuất báo cáo")
@@ -400,13 +400,6 @@ struct StatisticsView: View {
             .background(Color.themeBackgroundLight)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showExportSheet) {
-                if let url = exportURL {
-                    ShareSheet(items: [url])
-                } else {
-                    Text("Vui lòng tải lại")
-                        .padding()
-                }
             }
             .onChange(of: searchFocused) { focused in
                 if focused {
@@ -421,8 +414,10 @@ struct StatisticsView: View {
                 keyboardHeight = 0
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
+            .sheet(item: $exportItem) { item in
+                ShareSheet(items: [item.url])
             }
-            }
+        }
         .onAppear {
             regenerate()
             Task { await loadProductionTx() }
