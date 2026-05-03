@@ -29,6 +29,60 @@ struct ProductionManagementView: View {
         case xuatThanhPham = "Xuất Thành Phẩm"
     }
     
+    // Nguyên liệu: ưu tiên theo lịch sử nhập/xuất gần nhất
+    private var sortedMaterials: [MaterialItem] {
+        var recentOrder: [String: Int] = [:]
+        let sorted = viewModel.productionHistory.sorted { $0.createdAt > $1.createdAt }
+        var rank = 0
+        for tx in sorted {
+            for item in tx.items {
+                let key = item.name.lowercased()
+                if recentOrder[key] == nil {
+                    recentOrder[key] = rank
+                    rank += 1
+                }
+            }
+        }
+        let base = viewModel.materials.filter { m in
+            if searchText.isEmpty { return true }
+            let q = searchText.lowercased()
+            return m.name.lowercased().contains(q)
+        }
+        return base.sorted { a, b in
+            let ra = recentOrder[a.name.lowercased()] ?? Int.max
+            let rb = recentOrder[b.name.lowercased()] ?? Int.max
+            if ra != rb { return ra < rb }
+            return a.name < b.name
+        }
+    }
+    
+    // Thành phẩm: ưu tiên theo lịch sử nhập/xuất thành phẩm gần nhất
+    private var sortedFinishedGoods: [Product] {
+        var recentOrder: [String: Int] = [:]
+        let sorted = viewModel.productionHistory.sorted { $0.createdAt > $1.createdAt }
+        var rank = 0
+        for tx in sorted {
+            for item in tx.items {
+                let key = item.name.lowercased()
+                if recentOrder[key] == nil {
+                    recentOrder[key] = rank
+                    rank += 1
+                }
+            }
+        }
+        let base = viewModel.finishedGoods.filter { p in
+            if searchText.isEmpty { return true }
+            let q = searchText.lowercased()
+            return p.name.lowercased().contains(q) || p.category.lowercased().contains(q)
+        }
+        return base.sorted { a, b in
+            let ra = recentOrder[a.name.lowercased()] ?? Int.max
+            let rb = recentOrder[b.name.lowercased()] ?? Int.max
+            if ra != rb { return ra < rb }
+            return a.name < b.name
+        }
+    }
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
@@ -90,11 +144,7 @@ struct ProductionManagementView: View {
                             .padding(.horizontal)
                             
                             if mode == .nhapThanhPham || mode == .xuatThanhPham {
-                                let filtered = viewModel.finishedGoods.filter { p in
-                                    if searchText.isEmpty { return true }
-                                    let q = searchText.lowercased()
-                                    return p.name.lowercased().contains(q) || p.category.lowercased().contains(q)
-                                }
+                                let filtered = sortedFinishedGoods
                                 if filtered.isEmpty {
                                     Spacer(minLength: 0).frame(height: 0)
                                 } else {
@@ -167,11 +217,7 @@ struct ProductionManagementView: View {
                                         
                                         ScrollView {
                                             LazyVStack(spacing: 0) {
-                            ForEach(viewModel.materials.filter { item in
-                                                    if searchText.isEmpty { return true }
-                                                    let q = searchText.lowercased()
-                                                    return item.name.lowercased().contains(q)
-                                                }) { item in
+                            ForEach(sortedMaterials) { item in
                                                     Button {
                                                         editingMaterial = item
                                                         showMaterialEdit = true
