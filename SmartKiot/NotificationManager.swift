@@ -41,6 +41,37 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
     }
+
+    // MARK: - Website Lead Notification
+
+    static let websiteLeadNotificationsKey = "website_lead_notifications_enabled"
+
+    var websiteLeadNotificationsEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: Self.websiteLeadNotificationsKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: Self.websiteLeadNotificationsKey) }
+    }
+
+    /// Gửi thông báo khi có khách hàng mới từ website
+    func notifyNewWebsiteLead(title: String, body: String) {
+        print("📣 [NotificationManager] notifyNewWebsiteLead called: \(title) - \(body)")
+        guard websiteLeadNotificationsEnabled else { 
+            print("⚠️ [NotificationManager] websiteLeadNotificationsEnabled is FALSE, skipping")
+            return 
+        }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.categoryIdentifier = "WEBSITE_LEAD"
+        if soundEnabled {
+            content.sound = UNNotificationSound.default
+        }
+        let request = UNNotificationRequest(
+            identifier: "website-lead-\(UUID().uuidString)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         var options: UNNotificationPresentationOptions = []

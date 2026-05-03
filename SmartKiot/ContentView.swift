@@ -165,9 +165,14 @@ struct ContentView: View {
                             await storeManager.restoreLastStoreIfPossible()
                         }
                     }
+                    // Khởi động lắng nghe website leads nếu store đã có sẵn
+                    if storeManager.currentStore != nil {
+                        WebsiteLeadNotificationService.shared.start()
+                    }
                 }
                 .onChange(of: authManager.currentUserProfile?.id) { _ in
                     // When switching accounts, clear current store to avoid showing previous store
+                    WebsiteLeadNotificationService.shared.stop()
                     storeManager.currentStore = nil
                     Task {
                         await storeManager.fetchStores()
@@ -178,6 +183,13 @@ struct ContentView: View {
                     if storeManager.currentStore != nil {
                         viewModel.clearData()
                         await viewModel.loadData(force: true)
+                    }
+                }
+                .onChange(of: storeManager.currentStore?.id) { _, newId in
+                    // Khởi động / khởi động lại lắng nghe khách hàng mới từ website
+                    WebsiteLeadNotificationService.shared.stop()
+                    if newId != nil {
+                        WebsiteLeadNotificationService.shared.start()
                     }
                 }
                 .alert("Lỗi", isPresented: $viewModel.showErrorAlert) {
