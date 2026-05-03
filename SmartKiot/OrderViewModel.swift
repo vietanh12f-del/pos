@@ -2872,7 +2872,60 @@ class OrderViewModel: ObservableObject {
         return pastOrders
             .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
     }
-    
+
+    // MARK: - Range Stats (dùng cho trang tổng quan)
+
+    private func dateInterval(for range: ReportDateRange) -> (start: Date, end: Date) {
+        let cal = Calendar.current
+        let now = Date()
+        switch range {
+        case .today:
+            return (cal.startOfDay(for: now),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now)
+        case .thisWeek:
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+            let start = cal.date(from: comps) ?? now
+            let end = cal.date(byAdding: .day, value: 7, to: start)?.addingTimeInterval(-1) ?? now
+            return (start, end)
+        case .thisMonth:
+            let comps = cal.dateComponents([.year, .month], from: now)
+            let start = cal.date(from: comps) ?? now
+            let end = cal.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? now
+            return (start, end)
+        case .custom(let s, let e):
+            return (cal.startOfDay(for: s),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: e) ?? e)
+        }
+    }
+
+    func revenue(for range: ReportDateRange) -> Double {
+        let (start, end) = dateInterval(for: range)
+        return pastOrders
+            .filter { $0.isPaid && $0.createdAt >= start && $0.createdAt <= end }
+            .reduce(0) { $0 + $1.total }
+    }
+
+    func cogs(for range: ReportDateRange) -> Double {
+        let (start, end) = dateInterval(for: range)
+        return pastOrders
+            .filter { $0.isPaid && $0.createdAt >= start && $0.createdAt <= end }
+            .reduce(0) { $0 + $1.totalCost }
+    }
+
+    func grossProfit(for range: ReportDateRange) -> Double {
+        let (start, end) = dateInterval(for: range)
+        return pastOrders
+            .filter { $0.isPaid && $0.createdAt >= start && $0.createdAt <= end }
+            .reduce(0) { $0 + $1.profit }
+    }
+
+    func orders(for range: ReportDateRange) -> [Bill] {
+        let (start, end) = dateInterval(for: range)
+        return pastOrders
+            .filter { $0.createdAt >= start && $0.createdAt <= end }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
     func makeBill(isPaid: Bool = false) -> Bill? {
         guard !items.isEmpty else { return nil }
         let cost = items.reduce(0) { $0 + $1.totalCost }

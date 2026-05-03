@@ -223,8 +223,64 @@ struct ContentView: View {
         @Binding var showNewOrder: Bool
         @Binding var selectedTab: Int
         @Binding var showProductionManagement: Bool
-        @State private var selectedDate = Date()
         @State private var isKeyboardVisible = false
+
+        // MARK: - Date range selection
+        enum QuickRange: String, CaseIterable {
+            case today     = "Hôm nay"
+            case thisWeek  = "Tuần này"
+            case thisMonth = "Tháng này"
+            case custom    = "Tuỳ chọn"
+
+            var reportRange: ReportDateRange? {
+                switch self {
+                case .today:     return .today
+                case .thisWeek:  return .thisWeek
+                case .thisMonth: return .thisMonth
+                case .custom:    return nil
+                }
+            }
+        }
+
+        @State private var quickRange: QuickRange = .today
+        @State private var customStart: Date = Calendar.current.startOfDay(for: Date())
+        @State private var customEnd: Date = Date()
+        @State private var showCustomPicker = false
+
+        private var activeRange: ReportDateRange {
+            switch quickRange {
+            case .today:     return .today
+            case .thisWeek:  return .thisWeek
+            case .thisMonth: return .thisMonth
+            case .custom:    return .custom(start: customStart, end: customEnd)
+            }
+        }
+
+        private var rangeLabel: String {
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "vi_VN")
+            df.dateFormat = "dd/MM"
+            switch quickRange {
+            case .today:
+                let f2 = DateFormatter()
+                f2.locale = Locale(identifier: "vi_VN")
+                f2.dateFormat = "dd/MM/yyyy"
+                return f2.string(from: Date())
+            case .thisWeek:
+                let cal = Calendar.current
+                let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+                let start = cal.date(from: comps) ?? Date()
+                let end = cal.date(byAdding: .day, value: 6, to: start) ?? Date()
+                return "\(df.string(from: start)) – \(df.string(from: end))"
+            case .thisMonth:
+                let f2 = DateFormatter()
+                f2.locale = Locale(identifier: "vi_VN")
+                f2.dateFormat = "MM/yyyy"
+                return "Tháng \(f2.string(from: Date()))"
+            case .custom:
+                return "\(df.string(from: customStart)) – \(df.string(from: customEnd))"
+            }
+        }
         
         var searchContentView2: some View {
             Group {
@@ -377,25 +433,65 @@ struct ContentView: View {
                             .padding(.horizontal)
                             .padding(.top)
                             
-                            // Calendar Section
-                            VStack(spacing: 16) {
-                                DatePicker("Chọn ngày", selection: $selectedDate, displayedComponents: [.date])
-                                    .datePickerStyle(.graphical)
-                                    .padding()
-                                    .background(Color.white)
-                                    .cornerRadius(16)
-                                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
-                                
+                            // Revenue Date Range Section
+                            VStack(spacing: 12) {
+                                // Quick range buttons
+                                HStack(spacing: 8) {
+                                    ForEach(QuickRange.allCases, id: \.self) { r in
+                                        Button {
+                                            quickRange = r
+                                            if r == .custom { showCustomPicker = true }
+                                        } label: {
+                                            Text(r.rawValue)
+                                                .font(.caption)
+                                                .fontWeight(quickRange == r ? .bold : .regular)
+                                                .foregroundStyle(quickRange == r ? .white : Color.themeTextDark)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 7)
+                                                .background(
+                                                    Capsule()
+                                                        .fill(quickRange == r ? Color.themePrimary : Color.white)
+                                                )
+                                                .overlay(
+                                                    Capsule()
+                                                        .stroke(quickRange == r ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 4)
+
+                                // Range label
+                                HStack {
+                                    Image(systemName: "calendar")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.themePrimary)
+                                    Text(rangeLabel)
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                    if quickRange == .custom {
+                                        Button {
+                                            showCustomPicker = true
+                                        } label: {
+                                            Text("Đổi ngày")
+                                                .font(.caption)
+                                                .foregroundStyle(Color.themePrimary)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 4)
+
                                 // Financial Summary
                                 if StoreManager.shared.hasPermission(.viewReports) {
                                     VStack(spacing: 12) {
                                         HStack(spacing: 12) {
-                                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: selectedDate)), icon: "arrow.down.left", trend: "", isPositive: true)
-                                            StatCard(title: "Giá vốn", value: formatCurrency(viewModel.cogs(for: selectedDate)), icon: "arrow.up.right", trend: "", isPositive: true)
+                                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: activeRange)), icon: "arrow.down.left", trend: "", isPositive: true)
+                                            StatCard(title: "Giá vốn", value: formatCurrency(viewModel.cogs(for: activeRange)), icon: "arrow.up.right", trend: "", isPositive: true)
                                         }
-                                        
-                                        // Net Profit Highlight
-                                        let profit = viewModel.grossProfit(for: selectedDate)
+
+                                        let profit = viewModel.grossProfit(for: activeRange)
                                         HStack {
                                             VStack(alignment: .leading) {
                                                 Text("LỢI NHUẬN GỘP")
@@ -418,7 +514,6 @@ struct ContentView: View {
                                         .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
                                     }
                                 } else {
-                                    // Restricted View Placeholder
                                     VStack(alignment: .center, spacing: 12) {
                                         Image(systemName: "lock.fill")
                                             .font(.largeTitle)
@@ -434,19 +529,65 @@ struct ContentView: View {
                                 }
                             }
                             .padding(.horizontal)
-                            
-                            // Daily Orders List
+                            .sheet(isPresented: $showCustomPicker) {
+                                NavigationStack {
+                                    Form {
+                                        Section(header: Text("Chọn khoảng thời gian")) {
+                                            DatePicker("Từ ngày", selection: $customStart, displayedComponents: .date)
+                                            DatePicker("Đến ngày", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                                        }
+                                    }
+                                    .navigationTitle("Tuỳ chọn ngày")
+                                    .navigationBarTitleDisplayMode(.inline)
+                                    .toolbar {
+                                        ToolbarItem(placement: .confirmationAction) {
+                                            Button("Xong") { showCustomPicker = false }
+                                                .fontWeight(.bold)
+                                        }
+                                        ToolbarItem(placement: .cancellationAction) {
+                                            Button("Huỷ") {
+                                                quickRange = .today
+                                                showCustomPicker = false
+                                            }
+                                        }
+                                    }
+                                }
+                                .presentationDetents([.medium])
+                            }
+
+                            // Orders List for selected range
                             if StoreManager.shared.hasPermission(.viewOrders) {
-                                if !viewModel.orders(for: selectedDate).isEmpty {
+                                let rangeOrders = viewModel.orders(for: activeRange)
+                                if !rangeOrders.isEmpty {
                                     VStack(alignment: .leading, spacing: 12) {
-                                        Text("Đơn hàng ngày \(formatDate(selectedDate))")
-                                            .font(.headline)
-                                            .foregroundStyle(Color.themeTextDark)
-                                            .padding(.horizontal)
-                                        
-                                        ForEach(viewModel.orders(for: selectedDate)) { bill in
+                                        HStack {
+                                            Text("Đơn hàng")
+                                                .font(.headline)
+                                                .foregroundStyle(Color.themeTextDark)
+                                            Spacer()
+                                            Text("\(rangeOrders.count) đơn")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        .padding(.horizontal)
+
+                                        ForEach(rangeOrders.prefix(10)) { bill in
                                             OrderRow(bill: bill)
                                                 .padding(.horizontal)
+                                        }
+                                        if rangeOrders.count > 10 {
+                                            Button {
+                                                selectedTab = 1
+                                            } label: {
+                                                Text("Xem tất cả \(rangeOrders.count) đơn →")
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(Color.themePrimary)
+                                                    .frame(maxWidth: .infinity)
+                                                    .padding(.vertical, 10)
+                                                    .background(Color.themePrimary.opacity(0.07))
+                                                    .cornerRadius(10)
+                                            }
+                                            .padding(.horizontal)
                                         }
                                     }
                                 }
