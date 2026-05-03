@@ -227,15 +227,16 @@ struct CustomerManagementView: View {
         Group {
             if isLoading {
                 VStack { ProgressView(); Spacer() }.padding()
-            } else if filteredLeads.isEmpty {
+            } else if leads.isEmpty {
+                // Chưa có leads nào trong DB
                 VStack(spacing: 12) {
                     Image(systemName: "globe").font(.system(size: 50)).foregroundStyle(.gray.opacity(0.4))
                     Text("Chưa có khách từ website").foregroundStyle(.gray)
                     Spacer()
                 }.padding(.top, 60)
             } else {
-                // Summary bar + status filter
                 VStack(spacing: 0) {
+                    // Summary bar
                     HStack(spacing: 12) {
                         Label("\(leads.count) liên hệ", systemImage: "person.crop.circle")
                             .font(.caption).foregroundStyle(.gray)
@@ -248,22 +249,29 @@ struct CustomerManagementView: View {
                     }
                     .padding(.horizontal).padding(.top, 8).padding(.bottom, 6)
 
-                    // Status filter chips
+                    // Status filter chips — luôn hiển thị kèm số lượng mỗi trạng thái
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(LeadStatusFilter.allCases, id: \.self) { f in
+                                let count = f.statusValue == nil
+                                    ? leads.count
+                                    : leads.filter { $0.status == f.statusValue }.count
                                 Button {
                                     statusFilter = f
                                 } label: {
                                     HStack(spacing: 4) {
                                         if f != .all {
                                             Circle()
-                                                .fill(f.color)
+                                                .fill(statusFilter == f ? .white : f.color)
                                                 .frame(width: 6, height: 6)
                                         }
                                         Text(f.rawValue)
                                             .font(.caption)
                                             .fontWeight(statusFilter == f ? .semibold : .regular)
+                                        Text("(\(count))")
+                                            .font(.caption2)
+                                            .fontWeight(statusFilter == f ? .semibold : .regular)
+                                            .opacity(0.8)
                                     }
                                     .foregroundStyle(statusFilter == f ? .white : f.color)
                                     .padding(.horizontal, 10)
@@ -278,16 +286,34 @@ struct CustomerManagementView: View {
                         .padding(.horizontal)
                     }
                     .padding(.bottom, 6)
-                }
-                .background(Color.teal.opacity(0.05))
 
-                List {
-                    ForEach(filteredLeads) { lead in
-                        Button { selectedLead = lead } label: { LeadRowView(lead: lead, onStatusChanged: { Task { await loadAll() } }) }
-                            .listRowBackground(Color.white)
+                    // Danh sách hoặc empty state cho filter hiện tại
+                    if filteredLeads.isEmpty {
+                        VStack(spacing: 10) {
+                            Image(systemName: "tray")
+                                .font(.system(size: 36))
+                                .foregroundStyle(.gray.opacity(0.35))
+                            Text("Không có liên hệ nào ở trạng thái \"\(statusFilter.rawValue)\"")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 48)
+                        Spacer()
+                    } else {
+                        List {
+                            ForEach(filteredLeads) { lead in
+                                Button { selectedLead = lead } label: {
+                                    LeadRowView(lead: lead, onStatusChanged: { Task { await loadAll() } })
+                                }
+                                .listRowBackground(Color.white)
+                            }
+                        }
+                        .listStyle(.plain)
                     }
                 }
-                .listStyle(.plain)
+                .background(Color.themeBackgroundLight)
             }
         }
     }
