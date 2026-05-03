@@ -13,6 +13,8 @@ struct StatisticsView: View {
     @State private var showExportSheet: Bool = false
     @State private var exportURL: URL?
     @State private var allProductionTx: [ProductionTransaction] = []
+    @State private var showRetailDetail = false
+    @State private var showWholesaleDetail = false
     
     enum StatType {
         case today, week, month, quarter
@@ -156,10 +158,46 @@ struct StatisticsView: View {
                                 .foregroundStyle(totalNet >= 0 ? .green : .red)
                         }
                         .padding(.horizontal)
-                        
-                        ForEach(stats) { s in
-                            StatisticsRow(stat: s)
-                                .padding(.horizontal)
+
+                        if !stats.isEmpty {
+                            Button {
+                                showRetailDetail = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "list.bullet.rectangle")
+                                    Text("Chi tiết theo ngày (\(stats.count) ngày)")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(Color.themePrimary)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary.opacity(0.07))
+                                .cornerRadius(10)
+                            }
+                            .padding(.horizontal)
+                            .sheet(isPresented: $showRetailDetail) {
+                                NavigationStack {
+                                    List {
+                                        ForEach(stats) { s in
+                                            StatisticsRow(stat: s)
+                                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                                .listRowBackground(Color.themeBackgroundLight)
+                                                .listRowSeparator(.hidden)
+                                        }
+                                    }
+                                    .listStyle(.plain)
+                                    .background(Color.themeBackgroundLight)
+                                    .navigationTitle("Chi tiết bán lẻ")
+                                    .navigationBarTitleDisplayMode(.inline)
+                                    .toolbar {
+                                        ToolbarItem(placement: .confirmationAction) {
+                                            Button("Đóng") { showRetailDetail = false }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -192,10 +230,42 @@ struct StatisticsView: View {
                             .padding(.vertical, 12)
                             .padding(.horizontal)
                     } else {
-                        VStack(spacing: 8) {
-                            ForEach(ws.transactions) { tx in
-                                WholesaleRow(tx: tx)
-                                    .padding(.horizontal)
+                        Button {
+                            showWholesaleDetail = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "shippingbox")
+                                Text("Chi tiết giao dịch sỉ (\(ws.transactions.count))")
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Color.themePrimary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.themePrimary.opacity(0.07))
+                            .cornerRadius(10)
+                        }
+                        .padding(.horizontal)
+                        .sheet(isPresented: $showWholesaleDetail) {
+                            NavigationStack {
+                                List {
+                                    ForEach(ws.transactions) { tx in
+                                        WholesaleRow(tx: tx)
+                                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                            .listRowBackground(Color.themeBackgroundLight)
+                                            .listRowSeparator(.hidden)
+                                    }
+                                }
+                                .listStyle(.plain)
+                                .background(Color.themeBackgroundLight)
+                                .navigationTitle("Chi tiết bán sỉ")
+                                .navigationBarTitleDisplayMode(.inline)
+                                .toolbar {
+                                    ToolbarItem(placement: .confirmationAction) {
+                                        Button("Đóng") { showWholesaleDetail = false }
+                                    }
+                                }
                             }
                         }
                     }
