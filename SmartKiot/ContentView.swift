@@ -524,8 +524,10 @@ struct ContentView: View {
                                 if StoreManager.shared.hasPermission(.viewReports) {
                                     VStack(spacing: 12) {
                                         HStack(spacing: 12) {
-                                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: activeRange)), icon: "arrow.down.left", trend: "", isPositive: true)
-                                            StatCard(title: "Giá vốn", value: formatCurrency(viewModel.cogs(for: activeRange)), icon: "arrow.up.right", trend: "", isPositive: true)
+                                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: activeRange)), icon: "arrow.down.left", trend: "", isPositive: true,
+                                                info: "Tổng tiền thu từ các đơn bán lẻ đã thanh toán trong khoảng thời gian đang xem.")
+                                            StatCard(title: "Giá vốn", value: formatCurrency(viewModel.cogs(for: activeRange)), icon: "arrow.up.right", trend: "", isPositive: true,
+                                                info: "Chi phí vốn hàng bán (COGS) — tính theo giá nhập bình quân (AVCO) của từng sản phẩm tại thời điểm bán.")
                                         }
 
                                         let profit = viewModel.grossProfit(for: activeRange)

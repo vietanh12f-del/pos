@@ -12,6 +12,7 @@ struct StatisticsView: View {
     @FocusState private var searchFocused: Bool
     @State private var showExportSheet: Bool = false
     @State private var exportURL: URL?
+    @State private var allProductionTx: [ProductionTransaction] = []
     
     enum StatType {
         case today, week, month, quarter
@@ -125,15 +126,21 @@ struct StatisticsView: View {
                     let totalNet = stats.reduce(0) { $0 + $1.netProfit }
                     
                     Color.clear.frame(height: 0).id("page-top")
-                    
+
+                    // ── BÁN LẺ ──────────────────────────────────────────
+                    sectionHeader("🛒 Bán lẻ (POS)")
+
                     HStack(spacing: 12) {
-                        StatCard(title: "Doanh thu", value: formatCurrency(totalRevenue), icon: "arrow.down.left", trend: "", isPositive: true)
-                        StatCard(title: "Giá vốn", value: formatCurrency(totalCOGS), icon: "arrow.up.right", trend: "", isPositive: false)
+                        StatCard(title: "Doanh thu", value: formatCurrency(totalRevenue), icon: "arrow.down.left", trend: "", isPositive: true,
+                            info: "Tổng tiền thu được từ các đơn bán lẻ đã thanh toán (isPaid = true) trong kỳ.")
+                        StatCard(title: "Giá vốn", value: formatCurrency(totalCOGS), icon: "arrow.up.right", trend: "", isPositive: false,
+                            info: "Chi phí vốn hàng bán (COGS) — tính theo giá nhập bình quân (AVCO) của từng sản phẩm tại thời điểm bán.")
                     }
                     .padding(.horizontal)
                     
                     HStack(spacing: 12) {
-                        StatCard(title: "Chi phí vận hành", value: formatCurrency(totalOpEx), icon: "arrow.up.right", trend: "", isPositive: false)
+                        StatCard(title: "Chi phí vận hành", value: formatCurrency(totalOpEx), icon: "arrow.up.right", trend: "", isPositive: false,
+                            info: "Tổng chi phí vận hành (OPEX) đã nhập thủ công: tiền thuê mặt bằng, lương, điện nước, v.v.")
                     }
                     .padding(.horizontal)
                     
@@ -155,7 +162,44 @@ struct StatisticsView: View {
                                 .padding(.horizontal)
                         }
                     }
-                    
+
+                    // ── BÁN SỈ / SẢN XUẤT ───────────────────────────────
+                    let ws = viewModel.wholesaleStats(for: currentRange(), allTransactions: allProductionTx)
+
+                    sectionHeader("🏭 Bán sỉ / Sản xuất")
+
+                    HStack(spacing: 12) {
+                        StatCard(title: "Doanh thu sỉ", value: formatCurrency(ws.revenue), icon: "shippingbox.fill", trend: "", isPositive: true,
+                            info: "Tổng grandTotal của các phiếu Xuất Thành Phẩm có ghi nhận giá bán (grandTotal > 0). Không bao gồm hàng xuất vào kho bán lẻ.")
+                        StatCard(title: "Chi phí NL", value: formatCurrency(ws.materialCost), icon: "arrow.up.right", trend: "", isPositive: false,
+                            info: "Tổng chi phí nguyên liệu đã nhập (Nhập Nguyên Liệu) trong kỳ. Phản ánh chi phí đầu vào cho sản xuất.")
+                    }
+                    .padding(.horizontal)
+
+                    HStack(spacing: 12) {
+                        StatCard(title: "Đã thu", value: formatCurrency(ws.paid), icon: "checkmark.circle.fill", trend: "", isPositive: true,
+                            info: "Tổng tiền đã thu thực tế từ khách sỉ (paidAmount) trong kỳ.")
+                        StatCard(title: "Còn nợ", value: formatCurrency(ws.debt), icon: "clock.fill", trend: "", isPositive: false,
+                            info: "Tổng công nợ chưa thu (debtAmount) từ các đơn bán sỉ trong kỳ. Cần theo dõi và thu hồi.")
+                    }
+                    .padding(.horizontal)
+
+                    if ws.transactions.isEmpty {
+                        Text("Không có giao dịch bán sỉ trong kỳ này")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .padding(.horizontal)
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(ws.transactions) { tx in
+                                WholesaleRow(tx: tx)
+                                    .padding(.horizontal)
+                            }
+                        }
+                    }
+
                     // (Đã di chuyển phần \"Sản phẩm đã bán\" sang Lịch sử đơn hàng)
                     }
                     .padding(.bottom, keyboardHeight + 20)
@@ -195,6 +239,7 @@ struct StatisticsView: View {
             }
         .onAppear {
             regenerate()
+            Task { await loadProductionTx() }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { output in
             if let value = output.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
@@ -263,6 +308,25 @@ struct StatisticsView: View {
         )
     }
     
+    private func loadProductionTx() async {
+        let exports = await viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
+        let imports = await viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu")
+        await MainActor.run { allProductionTx = exports + imports }
+    }
+
+    @ViewBuilder
+    private func sectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .foregroundStyle(Color.themeTextDark)
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.top, 4)
+    }
+
     private func moveMonth(_ value: Int) {
         if let newDate = Calendar.current.date(byAdding: .month, value: value, to: selectedMonth) {
             selectedMonth = newDate
@@ -334,5 +398,59 @@ struct StatisticsRow: View {
                 .foregroundStyle(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct WholesaleRow: View {
+    let tx: ProductionTransaction
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tx.buyerName ?? "Khách sỉ")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                    if let phone = tx.buyerPhone, !phone.isEmpty {
+                        Text(phone).font(.caption).foregroundStyle(.gray)
+                    }
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(formatCurrency(tx.grandTotal ?? 0))
+                        .font(.subheadline).fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                    Text(formatDateShort(tx.createdAt))
+                        .font(.caption2).foregroundStyle(.gray)
+                }
+            }
+
+            HStack(spacing: 16) {
+                if let paid = tx.paidAmount, paid > 0 {
+                    Label(formatCurrency(paid), systemImage: "checkmark.circle.fill")
+                        .font(.caption).foregroundStyle(.green)
+                }
+                if let debt = tx.debtAmount, debt > 0 {
+                    Label(formatCurrency(debt), systemImage: "clock.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+                // Items summary
+                let names = tx.items.prefix(2).map { $0.name }.joined(separator: ", ")
+                Text(names + (tx.items.count > 2 ? "..." : ""))
+                    .font(.caption).foregroundStyle(.gray)
+                    .lineLimit(1)
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.03), radius: 4, x: 0, y: 2)
+    }
+
+    private func formatDateShort(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
     }
 }

@@ -104,14 +104,35 @@ struct StatCard: View {
     let icon: String
     let trend: String
     let isPositive: Bool
-    
+    var info: String? = nil
+
+    @State private var showInfo = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.caption)
-                .fontWeight(.bold)
-                .foregroundStyle(.gray)
-                .textCase(.uppercase)
+            HStack(alignment: .top) {
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.gray)
+                    .textCase(.uppercase)
+                Spacer()
+                if let info {
+                    Button {
+                        showInfo = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.gray.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .alert(title, isPresented: $showInfo) {
+                        Button("Đã hiểu", role: .cancel) {}
+                    } message: {
+                        Text(info)
+                    }
+                }
+            }
             
             Text(value)
                 .font(.title2)

@@ -2926,6 +2926,46 @@ class OrderViewModel: ObservableObject {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
+    // MARK: - Wholesale / Production Stats
+
+    struct WholesaleStats {
+        var revenue: Double       // ∑ grandTotal của Xuất Thành Phẩm có grandTotal > 0
+        var paid: Double          // ∑ paidAmount
+        var debt: Double          // ∑ debtAmount
+        var materialCost: Double  // ∑ totalCost của Nhập Nguyên Liệu
+        var transactions: [ProductionTransaction]
+    }
+
+    func wholesaleStats(for range: ReportDateRange, allTransactions: [ProductionTransaction]) -> WholesaleStats {
+        let (start, end) = dateInterval(for: range)
+        let inRange = allTransactions.filter { $0.createdAt >= start && $0.createdAt <= end }
+
+        // Doanh thu sỉ: Xuất Thành Phẩm có grandTotal > 0 (bán trực tiếp, không qua POS)
+        let exports = inRange.filter {
+            $0.mode.lowercased().contains("xuất") &&
+            $0.mode.lowercased().contains("thành phẩm") &&
+            ($0.grandTotal ?? 0) > 0
+        }
+        let revenue      = exports.reduce(0) { $0 + ($1.grandTotal ?? 0) }
+        let paid         = exports.reduce(0) { $0 + ($1.paidAmount ?? 0) }
+        let debt         = exports.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+
+        // Chi phí nguyên liệu: Nhập Nguyên Liệu trong kỳ
+        let materialImports = inRange.filter {
+            $0.mode.lowercased().contains("nhập") &&
+            $0.mode.lowercased().contains("nguyên liệu")
+        }
+        let materialCost = materialImports.reduce(0) { $0 + $1.totalCost }
+
+        return WholesaleStats(
+            revenue: revenue,
+            paid: paid,
+            debt: debt,
+            materialCost: materialCost,
+            transactions: exports.sorted { $0.createdAt > $1.createdAt }
+        )
+    }
+
     func makeBill(isPaid: Bool = false) -> Bill? {
         guard !items.isEmpty else { return nil }
         let cost = items.reduce(0) { $0 + $1.totalCost }
