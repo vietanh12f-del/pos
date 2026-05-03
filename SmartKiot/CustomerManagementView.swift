@@ -236,19 +236,6 @@ struct CustomerManagementView: View {
                 }.padding(.top, 60)
             } else {
                 VStack(spacing: 0) {
-                    // Summary bar
-                    HStack(spacing: 12) {
-                        Label("\(leads.count) liên hệ", systemImage: "person.crop.circle")
-                            .font(.caption).foregroundStyle(.gray)
-                        let newCount = leads.filter { $0.status == "new" }.count
-                        if newCount > 0 {
-                            Label("\(newCount) mới", systemImage: "bell.fill")
-                                .font(.caption).fontWeight(.semibold).foregroundStyle(.teal)
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal).padding(.top, 8).padding(.bottom, 6)
-
                     // Status filter chips — luôn hiển thị kèm số lượng mỗi trạng thái
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -285,7 +272,7 @@ struct CustomerManagementView: View {
                         }
                         .padding(.horizontal)
                     }
-                    .padding(.bottom, 6)
+                    .padding(.vertical, 8)
 
                     // Danh sách hoặc empty state cho filter hiện tại
                     if filteredLeads.isEmpty {
