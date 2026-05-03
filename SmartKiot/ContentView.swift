@@ -224,6 +224,8 @@ struct ContentView: View {
         @Binding var selectedTab: Int
         @Binding var showProductionManagement: Bool
         @State private var isKeyboardVisible = false
+        @ObservedObject private var leadService = WebsiteLeadNotificationService.shared
+        @State private var showLeadsSheet = false
 
         // MARK: - Date range selection
         enum QuickRange: String, CaseIterable {
@@ -422,12 +424,47 @@ struct ContentView: View {
                                 
                                 Spacer()
                                 
-                                Button(action: {}) {
-                                    Circle()
-                                        .fill(Color.white)
-                                        .frame(width: 40, height: 40)
-                                        .shadow(color: .black.opacity(0.05), radius: 2)
-                                        .overlay(Image(systemName: "bell").foregroundStyle(Color.themeTextDark))
+                                Button(action: {
+                                    showLeadsSheet = true
+                                }) {
+                                    HStack(spacing: 6) {
+                                        // Text ngắn bên trái chuông khi có leads mới
+                                        if leadService.newLeadsCount > 0 {
+                                            Text("\(leadService.newLeadsCount) khách mới")
+                                                .font(.caption2)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Capsule().fill(Color.teal))
+                                                .transition(.scale.combined(with: .opacity))
+                                        }
+
+                                        ZStack(alignment: .topTrailing) {
+                                            Circle()
+                                                .fill(Color.white)
+                                                .frame(width: 40, height: 40)
+                                                .shadow(color: .black.opacity(0.05), radius: 2)
+                                                .overlay(
+                                                    Image(systemName: leadService.newLeadsCount > 0 ? "bell.badge.fill" : "bell")
+                                                        .foregroundStyle(leadService.newLeadsCount > 0 ? Color.teal : Color.themeTextDark)
+                                                )
+
+                                            if leadService.newLeadsCount > 0 {
+                                                Circle()
+                                                    .fill(Color.red)
+                                                    .frame(width: 10, height: 10)
+                                                    .offset(x: 2, y: -2)
+                                            }
+                                        }
+                                    }
+                                    .animation(.spring(duration: 0.3), value: leadService.newLeadsCount)
+                                }
+                                .sheet(isPresented: $showLeadsSheet) {
+                                    CustomerManagementView()
+                                        .onDisappear {
+                                            Task { await WebsiteLeadNotificationService.shared.refreshNewLeadsCount() }
+                                        }
                                 }
                             }
                             .padding(.horizontal)

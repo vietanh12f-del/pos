@@ -1,12 +1,16 @@
 import Foundation
+import Combine
 import Supabase
 
 // MARK: - WebsiteLeadNotificationService
 // Lắng nghe Realtime INSERT trên bảng website_leads.
-// Khi có khách hàng mới từ website, gửi local notification cho chủ cửa hàng.
+// Khi có khách hàng mới từ website, gửi local notification và cập nhật badge.
 
-class WebsiteLeadNotificationService {
+class WebsiteLeadNotificationService: ObservableObject {
     static let shared = WebsiteLeadNotificationService()
+
+    /// Số leads có status "new" — dùng để hiển thị badge trên icon chuông
+    @Published var newLeadsCount: Int = 0
 
     private var channel: RealtimeChannelV2?
     private var streamTask: Task<Void, Never>?
@@ -23,7 +27,7 @@ class WebsiteLeadNotificationService {
     // MARK: - Start / Stop
 
     func start() {
-        stop() // Đảm bảo dọn dẹp kết nối cũ
+        stop()
 
         let client = SupabaseConfig.client
         let ch = client.channel("website_leads_realtime")
@@ -31,7 +35,6 @@ class WebsiteLeadNotificationService {
 
         print("📡 [WebsiteLeadNotification] Starting Realtime Stream...")
 
-        // Lắng nghe INSERT (Khách mới)
         let insertionStream = ch.postgresChange(
             InsertAction.self,
             schema: "public",
@@ -39,7 +42,6 @@ class WebsiteLeadNotificationService {
         )
 
         streamTask = Task {
-            print("🚀 [WebsiteLeadNotification] Insert Stream Task started")
             for await change in insertionStream {
                 print("⚡️ [WebsiteLeadNotification] NEW INSERT EVENT DETECTED!")
                 await handleNewInsert(change)
@@ -48,13 +50,10 @@ class WebsiteLeadNotificationService {
 
         Task {
             await ch.subscribe()
-            
-            let userId = SupabaseConfig.client.auth.currentUser?.id.uuidString ?? "nil"
-            print("📡 [WebsiteLeadNotification] Channel Subscribed - User: \(userId)")
-            
-            // Health check
-            try? await self.performHealthCheck()
-            
+            print("✅ [WebsiteLeadNotification] Channel Subscribed")
+            // Load số leads mới ngay khi kết nối
+            await refreshNewLeadsCount()
+
             #if DEBUG
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                 NotificationManager.shared.notifyNewWebsiteLead(
@@ -66,29 +65,24 @@ class WebsiteLeadNotificationService {
         }
     }
 
-    private func performHealthCheck() async throws {
-        let client = SupabaseConfig.client
-        let recentLeads: [LeadPayload] = try await client.database
-            .from("website_leads")
-            .select("*")
-            .limit(1)
-            .order("created_at", ascending: false)
-            .execute()
-            .value
-        
-        if let latest = recentLeads.first {
-            print("✅ [WebsiteLeadNotification] Health Check: Latest lead in DB is '\(latest.full_name)'")
-        }
-    }
-
     func stop() {
         streamTask?.cancel()
         streamTask = nil
-        
         if let ch = channel {
             Task { await ch.unsubscribe() }
             channel = nil
-            print("🔌 [WebsiteLeadNotification] Unsubscribed")
+        }
+        DispatchQueue.main.async { self.newLeadsCount = 0 }
+    }
+
+    /// Gọi sau khi user xem/xử lý leads để reset badge
+    func refreshNewLeadsCount() async {
+        do {
+            let leads = try await SupabaseDatabaseService().fetchWebsiteLeads()
+            let count = leads.filter { $0.status == "new" }.count
+            await MainActor.run { self.newLeadsCount = count }
+        } catch {
+            print("❌ [WebsiteLeadNotification] refreshNewLeadsCount error: \(error)")
         }
     }
 
@@ -101,15 +95,12 @@ class WebsiteLeadNotificationService {
             let payload = try change.decodeRecord(as: LeadPayload.self, decoder: decoder)
             print("📥 [WebsiteLeadNotification] Decoded Lead: \(payload.full_name) - \(payload.phone)")
 
-            // Kiểm tra store_id khớp (Nếu website không gửi store_id thì mặc định là gửi cho tất cả)
             if let storeIdStr = payload.store_id,
-               let leadStoreId = UUID(uuidString: storeIdStr) {
-                
-                let currentStoreId = StoreManager.shared.currentStore?.id
-                if let currentStoreId = currentStoreId, leadStoreId != currentStoreId {
-                    print("⏭️ [WebsiteLeadNotification] Lead belongs to another store (\(leadStoreId)). Skipping.")
-                    return
-                }
+               let leadStoreId = UUID(uuidString: storeIdStr),
+               let currentStoreId = StoreManager.shared.currentStore?.id,
+               leadStoreId != currentStoreId {
+                print("⏭️ [WebsiteLeadNotification] Lead belongs to another store. Skipping.")
+                return
             }
 
             let typeLabel: String
@@ -125,9 +116,11 @@ class WebsiteLeadNotificationService {
             NotificationManager.shared.notifyNewWebsiteLead(title: title, body: body)
             print("🔔 [WebsiteLeadNotification] Notification triggered: \(body)")
 
+            // Tăng badge ngay lập tức
+            newLeadsCount += 1
+
         } catch {
             print("❌ [WebsiteLeadNotification] Decode error: \(error)")
-            print("⚠️ [WebsiteLeadNotification] Raw Insert Data: \(change.record)")
         }
     }
 }
