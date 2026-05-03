@@ -15,6 +15,8 @@ struct StatisticsView: View {
     @State private var allProductionTx: [ProductionTransaction] = []
     @State private var showRetailDetail = false
     @State private var showWholesaleDetail = false
+    @State private var showWholesaleProfitInfo = false
+    @State private var showRetailProfitInfo = false
     
     enum StatType {
         case today, week, month, quarter
@@ -148,9 +150,24 @@ struct StatisticsView: View {
                     
                     VStack(spacing: 12) {
                         HStack {
-                            Text("Lợi nhuận ròng")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
+                            HStack(spacing: 6) {
+                                Text("Lợi nhuận ròng")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Button {
+                                    showRetailProfitInfo = true
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray.opacity(0.6))
+                                }
+                                .buttonStyle(.plain)
+                                .alert("Lợi nhuận ròng (Bán lẻ)", isPresented: $showRetailProfitInfo) {
+                                    Button("Đã hiểu", role: .cancel) {}
+                                } message: {
+                                    Text("Lợi nhuận ròng = Doanh thu − Giá vốn − Chi phí vận hành\n\nDoanh thu: tổng đơn đã thanh toán.\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.\nChi phí vận hành (OPEX): các khoản chi phí nhập thủ công (thuê mặt bằng, lương, điện nước...).")
+                                }
+                            }
                             Spacer()
                             Text(formatCurrency(totalNet))
                                 .font(.title3)
@@ -220,6 +237,45 @@ struct StatisticsView: View {
                         StatCard(title: "Còn nợ", value: formatCurrency(ws.debt), icon: "clock.fill", trend: "", isPositive: false,
                             info: "Tổng công nợ chưa thu (debtAmount) từ các đơn bán sỉ trong kỳ. Cần theo dõi và thu hồi.")
                     }
+                    .padding(.horizontal)
+
+                    // Lợi nhuận ròng bán sỉ
+                    let wsNetProfit = ws.paid - ws.materialCost
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text("Lợi nhuận ròng")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Button {
+                                    showWholesaleProfitInfo = true
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray.opacity(0.6))
+                                }
+                                .buttonStyle(.plain)
+                                .alert("Lợi nhuận ròng (Bán sỉ)", isPresented: $showWholesaleProfitInfo) {
+                                    Button("Đã hiểu", role: .cancel) {}
+                                } message: {
+                                    Text("Lợi nhuận ròng = Đã thu − Chi phí nguyên liệu\n\nLưu ý: Chỉ tính trên tiền đã thu thực tế (không tính phần còn nợ). Chi phí nguyên liệu là tổng Nhập Nguyên Liệu trong cùng kỳ.")
+                                }
+                            }
+                            Text("= Đã thu − Chi phí nguyên liệu")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        Spacer()
+                        Text(formatCurrency(wsNetProfit))
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundStyle(wsNetProfit >= 0 ? .green : .red)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
                     .padding(.horizontal)
 
                     if ws.transactions.isEmpty {
