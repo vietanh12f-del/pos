@@ -82,6 +82,7 @@ protocol DatabaseService {
     // Trading Parties (buyers & suppliers)
     func fetchTradingParties(type: String) async throws -> [TradingParty]
     func upsertTradingParty(_ party: TradingParty) async throws
+    func fetchTradingPartyByName(_ name: String, type: String) async throws -> TradingParty?
 
     // Website leads
     func fetchWebsiteLeads() async throws -> [WebsiteLead]
@@ -158,6 +159,20 @@ class SupabaseDatabaseService: DatabaseService {
             .from("trading_parties")
             .upsert(dto)
             .execute()
+    }
+
+    func fetchTradingPartyByName(_ name: String, type: String) async throws -> TradingParty? {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return nil }
+        let rows: [TradingPartyDTO] = try await client.database
+            .from("trading_parties")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .eq("party_type", value: type)
+            .ilike("name", value: name)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.toDomain()
     }
 
     func fetchWebsiteLeads() async throws -> [WebsiteLead] {
@@ -924,6 +939,7 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchCategories(kind: String) async throws -> [String] { return [] }
     func fetchTradingParties(type: String) async throws -> [TradingParty] { return [] }
     func upsertTradingParty(_ party: TradingParty) async throws { print("⚠️ upsertTradingParty: Mocked success") }
+    func fetchTradingPartyByName(_ name: String, type: String) async throws -> TradingParty? { return nil }
     func fetchWebsiteLeads() async throws -> [WebsiteLead] { return [] }
     func updateWebsiteLeadStatus(id: UUID, status: String, note: String?) async throws { print("⚠️ updateWebsiteLeadStatus: Mocked success") }
 }

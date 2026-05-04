@@ -1237,6 +1237,25 @@ class OrderViewModel: ObservableObject {
                     print("❌ Error saving order: \(error)")
                 }
             }
+
+            // Lưu khách hàng vào trading_parties nếu có tên thực
+            let trimmedName = walkInName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedName.isEmpty && trimmedName.lowercased() != "khách lẻ" {
+                Task {
+                    // Reuse existing party id nếu đã có, tránh tạo bản ghi trùng
+                    let existing = try? await database.fetchTradingPartyByName(trimmedName, type: "buyer")
+                    let party = TradingParty(
+                        id: existing?.id ?? UUID(),
+                        partyType: "buyer",
+                        name: trimmedName,
+                        phone: existing?.phone ?? "",
+                        address: existing?.address ?? "",
+                        totalDebt: existing?.totalDebt ?? 0,
+                        updatedAt: Date()
+                    )
+                    try? await database.upsertTradingParty(party)
+                }
+            }
             
             // Deduct from Inventory
             for item in bill.items {
