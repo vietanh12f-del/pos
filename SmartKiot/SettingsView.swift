@@ -407,6 +407,9 @@ struct CustomizationSettingsView: View {
                 NavigationLink(destination: VATSettingsView()) {
                     Text("Cài đặt VAT")
                 }
+                NavigationLink(destination: ProductionSettingsView()) {
+                    Text("Tính năng sản xuất")
+                }
             }
         }
         .navigationTitle("Tuỳ chỉnh")
@@ -615,6 +618,27 @@ struct VATSettingsView: View {
     private func save() {
         guard let storeId = storeManager.currentStore?.id else { return }
         storeManager.setVATSettings(storeId: storeId, enabled: enabled, rate: rateValue)
+    }
+}
+
+// MARK: - Production Settings
+
+struct ProductionSettingsView: View {
+    @AppStorage("production_enabled_global") private var enabled: Bool = true
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Bật tính năng sản xuất", isOn: $enabled)
+                Text("Khi tắt, các mục Quản Lý Sản Xuất, Báo Cáo Sản Xuất và ô tác vụ nhanh liên quan sẽ bị ẩn.")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            } header: {
+                Text("Sản xuất")
+            }
+        }
+        .navigationTitle("Tính năng sản xuất")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 struct EditProfileView: View {

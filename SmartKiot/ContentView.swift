@@ -228,6 +228,7 @@ struct ContentView: View {
         @State private var isKeyboardVisible = false
         @ObservedObject private var leadService = WebsiteLeadNotificationService.shared
         @State private var showLeadsSheet = false
+        @AppStorage("production_enabled_global") private var productionEnabledGlobal: Bool = true
 
         // MARK: - Date range selection
         enum QuickRange: String, CaseIterable {
@@ -678,8 +679,10 @@ struct ContentView: View {
                                         }
                                     }
                                     
-                                    QuickActionButton(icon: "gearshape.2.fill", title: "Quản Lý Sản Xuất", isPrimary: false) {
-                                        showProductionManagement = true
+                                    if productionEnabledGlobal {
+                                        QuickActionButton(icon: "gearshape.2.fill", title: "Quản Lý Sản Xuất", isPrimary: false) {
+                                            showProductionManagement = true
+                                        }
                                     }
                                     
                                     if StoreManager.shared.hasPermission(.viewExpenses) {
@@ -688,8 +691,10 @@ struct ContentView: View {
                                         }
                                     }
                                     
-                                    QuickActionButton(icon: "doc.text.magnifyingglass", title: "Báo Cáo SX", isPrimary: false) {
-                                        showProductionReport = true
+                                    if productionEnabledGlobal {
+                                        QuickActionButton(icon: "doc.text.magnifyingglass", title: "Báo Cáo SX", isPrimary: false) {
+                                            showProductionReport = true
+                                        }
                                     }
                                     
                                     QuickActionButton(icon: "person.2.fill", title: "Khách Hàng", isPrimary: false) {

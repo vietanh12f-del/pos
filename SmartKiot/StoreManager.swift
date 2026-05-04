@@ -82,6 +82,18 @@ class StoreManager: ObservableObject {
         guard let storeId = currentStore?.id else { return 0 }
         return vatRate(for: storeId)
     }
+
+    // MARK: - Production Feature Toggle
+
+    func currentStoreProductionEnabled() -> Bool {
+        let key = "production_enabled_global"
+        if UserDefaults.standard.object(forKey: key) == nil { return true }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+
+    func setProductionEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: "production_enabled_global")
+    }
     
     func fetchStores() async {
         guard let userId = SupabaseConfig.client.auth.currentUser?.id else { return }

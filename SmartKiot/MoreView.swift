@@ -5,16 +5,24 @@ struct MoreView: View {
     @Binding var showProductionManagement: Bool
     @Binding var showProductionReport: Bool
     @Binding var showCustomerManagement: Bool
+    @AppStorage("production_enabled_global") private var productionEnabled: Bool = true
 
-    let menuItems: [MenuItem] = [
-        MenuItem(id: 5, title: "Chat", icon: "message.fill", color: .blue),
-        MenuItem(id: 4, title: "Chi Phí", icon: "banknote.fill", color: .green),
-        MenuItem(id: 7, title: "Thống Kê", icon: "chart.bar.xaxis", color: .orange),
-        MenuItem(id: 6, title: "Cài Đặt", icon: "gearshape.fill", color: .gray),
-        MenuItem(id: 99, title: "Quản Lý Sản Xuất", icon: "gearshape.2.fill", color: .purple),
-        MenuItem(id: 100, title: "Báo Cáo Sản Xuất", icon: "doc.text.magnifyingglass", color: .purple),
-        MenuItem(id: 101, title: "Quản Lý Khách Hàng", icon: "person.2.fill", color: .teal)
-    ]
+    private var menuItems: [MenuItem] {
+        var items: [MenuItem] = [
+            MenuItem(id: 5,   title: "Chat",                  icon: "message.fill",             color: .blue),
+            MenuItem(id: 4,   title: "Chi Phí",               icon: "banknote.fill",             color: .green),
+            MenuItem(id: 7,   title: "Thống Kê",              icon: "chart.bar.xaxis",           color: .orange),
+            MenuItem(id: 6,   title: "Cài Đặt",               icon: "gearshape.fill",            color: .gray),
+            MenuItem(id: 101, title: "Quản Lý Khách Hàng",    icon: "person.2.fill",             color: .teal),
+        ]
+        if productionEnabled {
+            items += [
+                MenuItem(id: 99,  title: "Quản Lý Sản Xuất",     icon: "gearshape.2.fill",          color: .purple),
+                MenuItem(id: 100, title: "Báo Cáo Sản Xuất",     icon: "doc.text.magnifyingglass",  color: .purple),
+            ]
+        }
+        return items
+    }
 
     var body: some View {
         NavigationStack {

@@ -7,6 +7,7 @@ struct StatisticsExportItem: Identifiable {
 
 struct StatisticsView: View {
     @ObservedObject var viewModel: OrderViewModel
+    @ObservedObject private var storeManager = StoreManager.shared
     @State private var selectedType: StatType = .month
     @State private var selectedMonth = Date()
     @State private var selectedQuarter: Int
@@ -222,6 +223,8 @@ struct StatisticsView: View {
                     // ── BÁN SỈ / SẢN XUẤT ───────────────────────────────
                     let ws = viewModel.wholesaleStats(for: currentRange(), allTransactions: allProductionTx)
 
+                    if storeManager.currentStoreProductionEnabled() {
+
                     sectionHeader("🏭 Bán sỉ / Sản xuất")
 
                     HStack(spacing: 12) {
@@ -385,6 +388,8 @@ struct StatisticsView: View {
                     .cornerRadius(14)
                     .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
                     .padding(.horizontal)
+
+                    } // end if productionEnabled
 
                     // (Đã di chuyển phần \"Sản phẩm đã bán\" sang Lịch sử đơn hàng)
                     }
