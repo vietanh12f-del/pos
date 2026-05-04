@@ -9,36 +9,177 @@ struct ProductionReportView: View {
     @State private var showFinishedImportReport = false
     @State private var showFinishedExportReport = false
 
-    private struct ReportButton {
+    // MARK: - Date range
+    enum QuickRange: String, CaseIterable {
+        case today    = "Hôm nay"
+        case thisWeek = "Tuần này"
+        case thisMonth = "Tháng này"
+        case custom   = "Tuỳ chọn"
+    }
+
+    @State private var quickRange: QuickRange = .thisMonth
+    @State private var customStart: Date = Calendar.current.startOfDay(for: Date())
+    @State private var customEnd: Date = Date()
+    @State private var showCustomPicker = false
+
+    var activeRange: ReportDateRange {
+        switch quickRange {
+        case .today:     return .today
+        case .thisWeek:  return .thisWeek
+        case .thisMonth: return .thisMonth
+        case .custom:    return .custom(start: customStart, end: customEnd)
+        }
+    }
+
+    private var rangeLabel: String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd/MM"
+        switch quickRange {
+        case .today:
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "vi_VN")
+            f.dateFormat = "dd/MM/yyyy"
+            return f.string(from: Date())
+        case .thisWeek:
+            let cal = Calendar.current
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+            let start = cal.date(from: comps) ?? Date()
+            let end = cal.date(byAdding: .day, value: 6, to: start) ?? Date()
+            return "\(df.string(from: start)) – \(df.string(from: end))"
+        case .thisMonth:
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "vi_VN")
+            f.dateFormat = "MM/yyyy"
+            return "Tháng \(f.string(from: Date()))"
+        case .custom:
+            return "\(df.string(from: customStart)) – \(df.string(from: customEnd))"
+        }
+    }
+
+    // Cấu hình 4 card
+    private struct CardConfig {
         let title: String
+        let subtitle: String
         let icon: String
         let color: Color
+        let col2: String
+        let col3: String
     }
+
+    private let configs: [CardConfig] = [
+        CardConfig(
+            title: "Xuất nguyên liệu",
+            subtitle: "Nguyên liệu đã dùng cho sản xuất",
+            icon: "arrow.up.doc.fill",
+            color: .purple,
+            col2: "Số phiếu xuất", col3: "Tổng khối lượng"
+        ),
+        CardConfig(
+            title: "Nhập nguyên liệu",
+            subtitle: "Nguyên liệu đầu vào đã nhập kho",
+            icon: "arrow.down.doc.fill",
+            color: .green,
+            col2: "Số phiếu nhập", col3: "Tổng chi phí"
+        ),
+        CardConfig(
+            title: "Nhập thành phẩm",
+            subtitle: "Thành phẩm nhập vào kho hàng hoá",
+            icon: "tray.and.arrow.down.fill",
+            color: .blue,
+            col2: "Số phiếu nhập", col3: "Tổng sản phẩm"
+        ),
+        CardConfig(
+            title: "Xuất thành phẩm",
+            subtitle: "Xuất thành phẩm / bán sỉ",
+            icon: "tray.and.arrow.up.fill",
+            color: .orange,
+            col2: "Số phiếu xuất", col3: "Doanh thu sỉ"
+        ),
+    ]
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                reportButton(title: "Báo cáo xuất nguyên liệu",
-                             icon: "arrow.up.doc.fill", color: .purple) {
-                    showMaterialExportReport = true
+                // ── Chọn thời gian ───────────────────────────────────
+                VStack(spacing: 8) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(QuickRange.allCases, id: \.self) { r in
+                                Button {
+                                    quickRange = r
+                                    if r == .custom { showCustomPicker = true }
+                                } label: {
+                                    Text(r.rawValue)
+                                        .font(.caption)
+                                        .fontWeight(quickRange == r ? .semibold : .regular)
+                                        .foregroundStyle(quickRange == r ? .white : Color.themeTextDark)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 7)
+                                        .background(
+                                            Capsule().fill(quickRange == r ? Color.themePrimary : Color.white)
+                                        )
+                                        .overlay(
+                                            Capsule().stroke(
+                                                quickRange == r ? Color.clear : Color.gray.opacity(0.2),
+                                                lineWidth: 1
+                                            )
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.caption2)
+                            .foregroundStyle(Color.themePrimary)
+                        Text(rangeLabel)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        if quickRange == .custom {
+                            Button {
+                                showCustomPicker = true
+                            } label: {
+                                Text("Đổi ngày")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.themePrimary)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                 }
+                .padding(.vertical, 10)
+                .background(Color.white)
+
                 Divider()
-                reportButton(title: "Báo cáo nhập nguyên liệu",
-                             icon: "arrow.down.doc.fill", color: .green) {
-                    showMaterialImportReport = true
+
+                // ── 4 Card ───────────────────────────────────────────
+                ScrollView {
+                    VStack(spacing: 14) {
+                        ForEach(configs.indices, id: \.self) { i in
+                            let cfg = configs[i]
+                            Button {
+                                switch i {
+                                case 0: showMaterialExportReport = true
+                                case 1: showMaterialImportReport = true
+                                case 2: showFinishedImportReport = true
+                                case 3: showFinishedExportReport = true
+                                default: break
+                                }
+                            } label: {
+                                reportCard(cfg)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 16)
                 }
-                Divider()
-                reportButton(title: "Báo cáo nhập thành phẩm",
-                             icon: "tray.and.arrow.down.fill", color: .blue) {
-                    showFinishedImportReport = true
-                }
-                Divider()
-                reportButton(title: "Báo cáo xuất thành phẩm",
-                             icon: "tray.and.arrow.up.fill", color: .orange) {
-                    showFinishedExportReport = true
-                }
-                Divider()
-                Spacer()
+                .background(Color.themeBackgroundLight)
             }
             .navigationTitle("Báo cáo sản xuất")
             .navigationBarTitleDisplayMode(.inline)
@@ -47,6 +188,31 @@ struct ProductionReportView: View {
                     Button("Đóng") { dismiss() }
                 }
             }
+            .sheet(isPresented: $showCustomPicker) {
+                NavigationStack {
+                    Form {
+                        Section(header: Text("Chọn khoảng thời gian")) {
+                            DatePicker("Từ ngày", selection: $customStart, displayedComponents: .date)
+                            DatePicker("Đến ngày", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                        }
+                    }
+                    .navigationTitle("Tuỳ chọn ngày")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Xong") { showCustomPicker = false }
+                                .fontWeight(.bold)
+                        }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Huỷ") {
+                                quickRange = .thisMonth
+                                showCustomPicker = false
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+            }
         }
         .sheet(isPresented: $showMaterialExportReport) {
             MaterialExportReportView(viewModel: viewModel)
@@ -54,7 +220,7 @@ struct ProductionReportView: View {
         .sheet(isPresented: $showMaterialImportReport) {
             GenericProductionReportView(
                 viewModel: viewModel,
-                mode: "Xuất Nguyên liệu",  // fetch mode
+                mode: "Xuất Nguyên liệu",
                 title: "Nhập nguyên liệu",
                 accentColor: .green,
                 reportKind: .materialImport
@@ -80,28 +246,78 @@ struct ProductionReportView: View {
         }
     }
 
+    // MARK: - Card builder
+
     @ViewBuilder
-    private func reportButton(title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.subheadline)
-                    .foregroundStyle(color)
-                    .frame(width: 24)
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.themeTextDark)
+    private func reportCard(_ cfg: CardConfig) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(cfg.color.opacity(0.12))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: cfg.icon)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(cfg.color)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cfg.title)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                    Text(cfg.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.gray.opacity(0.4))
             }
-            .padding(.horizontal)
-            .padding(.vertical, 14)
-            .background(color.opacity(0.04))
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+
+            Divider().padding(.horizontal, 16)
+
+            // Tóm tắt 3 cột — col1 hiển thị range đang chọn
+            HStack(spacing: 0) {
+                summaryCol(label: "Thời gian", value: rangeLabel)
+                Divider().frame(height: 32)
+                summaryCol(label: cfg.col2, value: "—")
+                Divider().frame(height: 32)
+                summaryCol(label: cfg.col3, value: "—")
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 12)
         }
-        .buttonStyle(.plain)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(cfg.color.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func summaryCol(label: String, value: String) -> some View {
+        VStack(spacing: 4) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.gray)
+                .multilineTextAlignment(.center)
+            Text(value)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(value == "—" ? Color.gray.opacity(0.35) : Color.themeTextDark)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
