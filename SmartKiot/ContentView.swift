@@ -229,6 +229,7 @@ struct ContentView: View {
         @ObservedObject private var leadService = WebsiteLeadNotificationService.shared
         @State private var showLeadsSheet = false
         @AppStorage("production_enabled_global") private var productionEnabledGlobal: Bool = true
+        @State private var allProductionTx: [ProductionTransaction] = []
 
         // MARK: - Date range selection
         enum QuickRange: String, CaseIterable {
@@ -559,6 +560,37 @@ struct ContentView: View {
                                         .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
                                         }
                                         .buttonStyle(.plain)
+
+                                        // Ô lợi nhuận bán sỉ — chỉ hiện khi production enabled
+                                        if productionEnabledGlobal {
+                                            let ws = viewModel.wholesaleStats(for: activeRange, allTransactions: allProductionTx)
+                                            let wsProfit = ws.paid - ws.materialCost
+                                            Button {
+                                                selectedTab = 7
+                                            } label: {
+                                                HStack {
+                                                    VStack(alignment: .leading) {
+                                                        Text("LỢI NHUẬN BÁN SỈ")
+                                                            .font(.caption)
+                                                            .fontWeight(.bold)
+                                                            .foregroundStyle(.white.opacity(0.8))
+                                                        Text(formatCurrency(wsProfit))
+                                                            .font(.title)
+                                                            .fontWeight(.bold)
+                                                            .foregroundStyle(.white)
+                                                    }
+                                                    Spacer()
+                                                    Image(systemName: wsProfit >= 0 ? "shippingbox.fill" : "exclamationmark.triangle.fill")
+                                                        .font(.title)
+                                                        .foregroundStyle(.white)
+                                                }
+                                                .padding()
+                                                .background(wsProfit >= 0 ? Color.purple : Color.red)
+                                                .cornerRadius(16)
+                                                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
                                     }
                                 } else {
                                     VStack(alignment: .center, spacing: 12) {
@@ -713,6 +745,20 @@ struct ContentView: View {
                         }
                         .navigationTitle("Trang chủ")
                         .navigationBarHidden(true)
+                        .task {
+                            if productionEnabledGlobal && allProductionTx.isEmpty {
+                                allProductionTx = await viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
+                                    + (await viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu"))
+                            }
+                        }
+                        .onChange(of: activeRange) { _, _ in
+                            if productionEnabledGlobal {
+                                Task {
+                                    allProductionTx = await viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
+                                        + (await viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu"))
+                                }
+                            }
+                        }
                     }
                     .refreshable {
                         await viewModel.loadData()
