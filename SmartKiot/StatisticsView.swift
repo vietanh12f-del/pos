@@ -7,6 +7,7 @@ struct StatisticsExportItem: Identifiable {
 
 struct StatisticsView: View {
     @ObservedObject var viewModel: OrderViewModel
+    @Binding var selectedTab: Int
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var selectedType: StatType = .month
     @State private var selectedMonth = Date()
@@ -30,8 +31,9 @@ struct StatisticsView: View {
         case today, week, month, quarter
     }
     
-    init(viewModel: OrderViewModel) {
+    init(viewModel: OrderViewModel, selectedTab: Binding<Int>) {
         self.viewModel = viewModel
+        self._selectedTab = selectedTab
         let calendar = Calendar.current
         let date = Date()
         _selectedQuarter = State(initialValue: (calendar.component(.month, from: date) - 1) / 3 + 1)
@@ -145,8 +147,13 @@ struct StatisticsView: View {
                     .padding(.horizontal)
                     
                     HStack(spacing: 12) {
-                        StatCard(title: "Chi phí vận hành", value: formatCurrency(totalOpEx), icon: "arrow.up.right", trend: "", isPositive: false,
-                            info: "Tổng chi phí vận hành (OPEX) đã nhập thủ công: tiền thuê mặt bằng, lương, điện nước, v.v.")
+                        Button {
+                            selectedTab = 4
+                        } label: {
+                            StatCard(title: "Chi phí vận hành", value: formatCurrency(totalOpEx), icon: "arrow.up.right", trend: "", isPositive: false,
+                                info: "Tổng chi phí vận hành (OPEX) đã nhập thủ công: tiền thuê mặt bằng, lương, điện nước, v.v.")
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal)
                     

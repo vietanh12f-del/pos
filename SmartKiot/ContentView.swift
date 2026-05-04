@@ -74,7 +74,7 @@ struct ContentView: View {
                             }
                             .tag(5)
                         
-                        StatisticsView(viewModel: viewModel)
+                        StatisticsView(viewModel: viewModel, selectedTab: $selectedTab)
                             .tabItem {
                                 Label("Thống Kê", systemImage: "chart.bar.xaxis")
                             }
