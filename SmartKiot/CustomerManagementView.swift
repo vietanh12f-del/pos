@@ -189,7 +189,9 @@ struct CustomerManagementView: View {
             }
             .task { await loadAll() }
             .sheet(item: $selectedParty) { party in
-                PartyDetailView(party: party)
+                PartyDetailView(party: party, onDeleted: {
+                    Task { await loadAll() }
+                })
             }
             .sheet(item: $selectedLead) { lead in
                 WebsiteLeadDetailView(lead: lead) {
@@ -413,6 +415,7 @@ private struct PartyRowView: View {
 
 struct PartyDetailView: View {
     let party: TradingParty
+    var onDeleted: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var transactions: [ProductionTransaction] = []
     @State private var retailOrders: [Bill] = []
@@ -420,8 +423,9 @@ struct PartyDetailView: View {
     @State private var showEdit = false
     @State private var currentParty: TradingParty
 
-    init(party: TradingParty) {
+    init(party: TradingParty, onDeleted: (() -> Void)? = nil) {
         self.party = party
+        self.onDeleted = onDeleted
         _currentParty = State(initialValue: party)
     }
 
@@ -509,6 +513,7 @@ struct PartyDetailView: View {
                 PartyEditSheet(party: currentParty, onSaved: { updated in
                     currentParty = updated
                 }, onDeleted: {
+                    onDeleted?()
                     dismiss()
                 })
             }
