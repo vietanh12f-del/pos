@@ -1,50 +1,6 @@
 import SwiftUI
 import Combine
 
-// MARK: - Attendance Models (placeholder, logic sẽ làm sau)
-
-struct AttendanceRecord: Identifiable {
-    let id: UUID
-    let userId: UUID
-    let userName: String
-    let date: Date
-    let checkInTime: Date?
-    let checkOutTime: Date?
-    let note: String?
-    let status: AttendanceStatus
-
-    enum AttendanceStatus {
-        case checkedIn, checkedOut, absent, late
-
-        var label: String {
-            switch self {
-            case .checkedIn:  return "Đang làm"
-            case .checkedOut: return "Đã về"
-            case .absent:     return "Vắng"
-            case .late:       return "Đi trễ"
-            }
-        }
-
-        var color: Color {
-            switch self {
-            case .checkedIn:  return .green
-            case .checkedOut: return .blue
-            case .absent:     return .red
-            case .late:       return .orange
-            }
-        }
-
-        var icon: String {
-            switch self {
-            case .checkedIn:  return "checkmark.circle.fill"
-            case .checkedOut: return "arrow.right.circle.fill"
-            case .absent:     return "xmark.circle.fill"
-            case .late:       return "clock.badge.exclamationmark.fill"
-            }
-        }
-    }
-}
-
 // MARK: - Attendance View
 
 struct AttendanceView: View {
@@ -59,7 +15,6 @@ struct AttendanceView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Tab selector
                 Picker("", selection: $selectedTab) {
                     ForEach(AttendanceTab.allCases, id: \.self) { tab in
                         Text(tab.rawValue).tag(tab)
@@ -112,6 +67,7 @@ private struct CheckInView: View {
     @State private var checkInSelfieURL: String? = nil
     @State private var checkOutSelfieURL: String? = nil
     @State private var isUploadingSelfie = false
+    @State private var todayRecordId: UUID? = nil
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -153,6 +109,19 @@ private struct CheckInView: View {
             .padding(.vertical, 16)
         }
         .onReceive(timer) { _ in currentTime = Date() }
+        // Load record hôm nay nếu đã điểm danh trước đó
+        .task {
+            if let record = try? await SupabaseDatabaseService().fetchTodayAttendance(userId: userId) {
+                todayRecordId = record.id
+                checkInTime = record.checkInTime
+                checkOutTime = record.checkOutTime
+                checkInSelfieURL = record.checkInSelfieURL
+                checkOutSelfieURL = record.checkOutSelfieURL
+                noteText = record.note ?? ""
+                hasCheckedIn = record.checkInTime != nil
+                hasCheckedOut = record.checkOutTime != nil
+            }
+        }
         // Camera cho check-in (front camera)
         .fullScreenCover(isPresented: $showCheckInCamera) {
             SelfieCameraView { image in
@@ -501,14 +470,17 @@ private struct CheckInView: View {
             checkInSelfieURL = url
         }
 
+        let now = Date()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
             isAnimating = true
             hasCheckedIn = true
-            checkInTime = Date()
+            checkInTime = now
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            isAnimating = false
-        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { isAnimating = false }
+
+        // Lưu vào DB
+        await saveRecord(checkInTime: now, checkOutTime: nil,
+                         checkInURL: checkInSelfieURL, checkOutURL: nil)
     }
 
     private func uploadAndCheckOut(image: UIImage) async {
@@ -523,14 +495,50 @@ private struct CheckInView: View {
             checkOutSelfieURL = url
         }
 
+        let now = Date()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
             isAnimating = true
             hasCheckedOut = true
-            checkOutTime = Date()
+            checkOutTime = now
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            isAnimating = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { isAnimating = false }
+
+        // Lưu vào DB (upsert — cập nhật record hôm nay)
+        await saveRecord(checkInTime: checkInTime, checkOutTime: now,
+                         checkInURL: checkInSelfieURL, checkOutURL: checkOutSelfieURL)
+    }
+
+    private func saveRecord(checkInTime: Date?, checkOutTime: Date?,
+                            checkInURL: String?, checkOutURL: String?) async {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
+        let today = df.string(from: Date())
+
+        // Tính status
+        let lateHour = 8; let lateMinute = 15
+        var status = "checked_in"
+        if let inTime = checkInTime {
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: inTime)
+            let h = comps.hour ?? 0; let m = comps.minute ?? 0
+            if h > lateHour || (h == lateHour && m > lateMinute) { status = "late" }
         }
+        if checkOutTime != nil { status = "checked_out" }
+
+        let record = AttendanceRecordDB(
+            id: todayRecordId ?? UUID(),
+            storeId: storeId,
+            userId: userId,
+            userName: userName,
+            date: today,
+            checkInTime: checkInTime,
+            checkOutTime: checkOutTime,
+            checkInSelfieURL: checkInURL,
+            checkOutSelfieURL: checkOutURL,
+            note: noteText.isEmpty ? nil : noteText,
+            status: status
+        )
+        try? await SupabaseDatabaseService().upsertAttendanceRecord(record)
+        if todayRecordId == nil { todayRecordId = record.id }
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -554,36 +562,12 @@ private struct CheckInView: View {
 
 private struct AttendanceHistoryView: View {
     @State private var selectedMonth = Date()
-    @State private var showMonthPicker = false
+    @State private var records: [AttendanceRecordDB] = []
+    @State private var isLoading = false
+    @State private var selectedRecord: AttendanceRecordDB? = nil
 
-    // Placeholder data — sẽ thay bằng data thật sau
-    private var sampleRecords: [AttendanceRecord] {
-        let cal = Calendar.current
-        let today = Date()
-        return (0..<14).compactMap { offset -> AttendanceRecord? in
-            guard let date = cal.date(byAdding: .day, value: -offset, to: today) else { return nil }
-            let weekday = cal.component(.weekday, from: date)
-            if weekday == 1 { // Chủ nhật
-                return AttendanceRecord(
-                    id: UUID(), userId: UUID(),
-                    userName: AuthManager.shared.currentUserProfile?.fullName ?? "Nhân viên",
-                    date: date, checkInTime: nil, checkOutTime: nil, note: nil,
-                    status: .absent
-                )
-            }
-            var comps = cal.dateComponents([.year, .month, .day], from: date)
-            comps.hour = 8; comps.minute = Int.random(in: 0...30)
-            let inTime = cal.date(from: comps) ?? date
-            comps.hour = 17; comps.minute = Int.random(in: 0...30)
-            let outTime = cal.date(from: comps) ?? date
-            let isLate = comps.minute ?? 0 > 15
-            return AttendanceRecord(
-                id: UUID(), userId: UUID(),
-                userName: AuthManager.shared.currentUserProfile?.fullName ?? "Nhân viên",
-                date: date, checkInTime: inTime, checkOutTime: outTime, note: nil,
-                status: isLate ? .late : .checkedOut
-            )
-        }
+    private var userId: UUID {
+        AuthManager.shared.currentUserProfile?.id ?? UUID()
     }
 
     private var monthLabel: String {
@@ -593,11 +577,15 @@ private struct AttendanceHistoryView: View {
         return f.string(from: selectedMonth).capitalized
     }
 
-    // Summary stats
-    private var totalDays: Int { sampleRecords.count }
-    private var presentDays: Int { sampleRecords.filter { $0.status != .absent }.count }
-    private var lateDays: Int { sampleRecords.filter { $0.status == .late }.count }
-    private var absentDays: Int { sampleRecords.filter { $0.status == .absent }.count }
+    // Chỉ hiện ngày đã điểm danh (không hiện ngày vắng)
+    private var sortedRecords: [AttendanceRecordDB] {
+        records.sorted { $0.date > $1.date }
+    }
+
+    // Summary
+    private var presentCount: Int { records.filter { $0.status != "absent" }.count }
+    private var lateCount: Int    { records.filter { $0.status == "late" }.count }
+    private var checkedOutCount: Int { records.filter { $0.status == "checked_out" }.count }
 
     var body: some View {
         ScrollView {
@@ -605,24 +593,46 @@ private struct AttendanceHistoryView: View {
                 // Month selector
                 monthSelector
 
-                // Summary bar
-                summaryBar
+                if isLoading {
+                    ProgressView().padding(40)
+                } else if sortedRecords.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "calendar.badge.exclamationmark")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.gray.opacity(0.4))
+                        Text("Chưa có dữ liệu điểm danh")
+                            .foregroundStyle(.gray)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(40)
+                } else {
+                    // Summary bar
+                    summaryBar
 
-                // Records list
-                VStack(spacing: 0) {
-                    ForEach(sampleRecords) { record in
-                        AttendanceRecordRow(record: record)
-                        if record.id != sampleRecords.last?.id {
-                            Divider().padding(.leading, 60)
+                    // Records list
+                    VStack(spacing: 0) {
+                        ForEach(sortedRecords) { record in
+                            Button { selectedRecord = record } label: {
+                                AttendanceRecordRow(record: record)
+                            }
+                            .buttonStyle(.plain)
+                            if record.id != sortedRecords.last?.id {
+                                Divider().padding(.leading, 60)
+                            }
                         }
                     }
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
                 }
-                .background(Color.white)
-                .cornerRadius(16)
-                .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
             }
             .padding(.horizontal)
             .padding(.vertical, 16)
+        }
+        .task { await loadRecords() }
+        .onChange(of: selectedMonth) { _, _ in Task { await loadRecords() } }
+        .sheet(item: $selectedRecord) { record in
+            AttendanceDetailSheet(record: record)
         }
     }
 
@@ -634,37 +644,22 @@ private struct AttendanceHistoryView: View {
                 selectedMonth = Calendar.current.date(byAdding: .month, value: -1, to: selectedMonth) ?? selectedMonth
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.themePrimary)
-                    .padding(10)
-                    .background(Circle().fill(Color.themePrimary.opacity(0.1)))
-            }
-            .buttonStyle(.plain)
+                    .font(.subheadline).foregroundStyle(Color.themePrimary)
+                    .padding(10).background(Circle().fill(Color.themePrimary.opacity(0.1)))
+            }.buttonStyle(.plain)
 
             Spacer()
-
-            Button {
-                showMonthPicker = true
-            } label: {
-                Text(monthLabel)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.themeTextDark)
-            }
-            .buttonStyle(.plain)
-
+            Text(monthLabel)
+                .font(.headline).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
             Spacer()
 
             Button {
                 selectedMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedMonth) ?? selectedMonth
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.themePrimary)
-                    .padding(10)
-                    .background(Circle().fill(Color.themePrimary.opacity(0.1)))
-            }
-            .buttonStyle(.plain)
+                    .font(.subheadline).foregroundStyle(Color.themePrimary)
+                    .padding(10).background(Circle().fill(Color.themePrimary.opacity(0.1)))
+            }.buttonStyle(.plain)
         }
         .padding(.horizontal, 4)
     }
@@ -673,13 +668,13 @@ private struct AttendanceHistoryView: View {
 
     private var summaryBar: some View {
         HStack(spacing: 0) {
-            statCell(value: "\(presentDays)", label: "Có mặt", color: .green)
+            statCell(value: "\(presentCount)", label: "Có mặt", color: .green)
             Divider().frame(height: 40)
-            statCell(value: "\(lateDays)", label: "Đi trễ", color: .orange)
+            statCell(value: "\(lateCount)", label: "Đi trễ", color: .orange)
             Divider().frame(height: 40)
-            statCell(value: "\(absentDays)", label: "Vắng", color: .red)
+            statCell(value: "\(checkedOutCount)", label: "Đã về", color: .blue)
             Divider().frame(height: 40)
-            statCell(value: "\(totalDays)", label: "Tổng ngày", color: Color.themePrimary)
+            statCell(value: "\(records.count)", label: "Tổng ngày", color: Color.themePrimary)
         }
         .padding(.vertical, 12)
         .background(Color.white)
@@ -689,37 +684,52 @@ private struct AttendanceHistoryView: View {
 
     private func statCell(value: String, label: String, color: Color) -> some View {
         VStack(spacing: 4) {
-            Text(value)
-                .font(.title3)
-                .fontWeight(.bold)
-                .foregroundStyle(color)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.gray)
+            Text(value).font(.title3).fontWeight(.bold).foregroundStyle(color)
+            Text(label).font(.caption2).foregroundStyle(.gray)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func loadRecords() async {
+        isLoading = true
+        defer { isLoading = false }
+        let cal = Calendar.current
+        guard let start = cal.date(from: cal.dateComponents([.year, .month], from: selectedMonth)),
+              let end = cal.date(byAdding: DateComponents(month: 1, day: -1), to: start)
+        else { return }
+        records = (try? await SupabaseDatabaseService().fetchAttendanceRecords(
+            userId: userId, from: start, to: end
+        )) ?? []
     }
 }
 
 // MARK: - Attendance Record Row
 
 private struct AttendanceRecordRow: View {
-    let record: AttendanceRecord
+    let record: AttendanceRecordDB
 
-    private func formatTime(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "vi_VN")
-        f.timeZone = .current
-        f.dateFormat = "HH:mm"
-        return f.string(from: date)
+    private var statusColor: Color {
+        switch record.status {
+        case "late":        return .orange
+        case "checked_out": return .blue
+        default:            return .green
+        }
     }
 
-    private func formatDate(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "vi_VN")
-        f.timeZone = .current
-        f.dateFormat = "EEE, dd/MM"
-        return f.string(from: date)
+    private var statusIcon: String {
+        switch record.status {
+        case "late":        return "clock.badge.exclamationmark.fill"
+        case "checked_out": return "arrow.right.circle.fill"
+        default:            return "checkmark.circle.fill"
+        }
+    }
+
+    private var statusLabel: String {
+        switch record.status {
+        case "late":        return "Đi trễ"
+        case "checked_out": return "Đã về"
+        default:            return "Đang làm"
+        }
     }
 
     private var workedHours: String? {
@@ -732,59 +742,243 @@ private struct AttendanceRecordRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            // Status icon
             ZStack {
                 Circle()
-                    .fill(record.status.color.opacity(0.12))
+                    .fill(statusColor.opacity(0.12))
                     .frame(width: 40, height: 40)
-                Image(systemName: record.status.icon)
+                Image(systemName: statusIcon)
                     .font(.subheadline)
-                    .foregroundStyle(record.status.color)
+                    .foregroundStyle(statusColor)
             }
 
-            // Date + status
             VStack(alignment: .leading, spacing: 3) {
-                Text(formatDate(record.date))
+                Text(formatDisplayDate(record.date))
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.themeTextDark)
-                Text(record.status.label)
+                Text(statusLabel)
                     .font(.caption)
-                    .foregroundStyle(record.status.color)
+                    .foregroundStyle(statusColor)
             }
 
             Spacer()
 
-            // Times
-            if record.status != .absent {
-                VStack(alignment: .trailing, spacing: 3) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down.circle").font(.caption2).foregroundStyle(.green)
-                        Text(record.checkInTime.map { formatTime($0) } ?? "—")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.circle").font(.caption2).foregroundStyle(.blue)
-                        Text(record.checkOutTime.map { formatTime($0) } ?? "—")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                    }
-                    if let hours = workedHours {
-                        Text(hours)
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.themePrimary)
-                    }
+            VStack(alignment: .trailing, spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.down.circle").font(.caption2).foregroundStyle(.green)
+                    Text(record.checkInTime.map { formatTime($0) } ?? "—")
+                        .font(.caption).foregroundStyle(.gray)
                 }
-            } else {
-                Text("—")
-                    .font(.subheadline)
-                    .foregroundStyle(.gray)
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.circle").font(.caption2).foregroundStyle(.blue)
+                    Text(record.checkOutTime.map { formatTime($0) } ?? "—")
+                        .font(.caption).foregroundStyle(.gray)
+                }
+                if let h = workedHours {
+                    Text(h)
+                        .font(.caption2).fontWeight(.semibold)
+                        .foregroundStyle(Color.themePrimary)
+                }
             }
+
+            Image(systemName: "chevron.right")
+                .font(.caption2).foregroundStyle(.gray.opacity(0.5))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "HH:mm"
+        return f.string(from: date)
+    }
+
+    private func formatDisplayDate(_ dateStr: String) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        guard let date = f.date(from: dateStr) else { return dateStr }
+        let f2 = DateFormatter()
+        f2.locale = Locale(identifier: "vi_VN"); f2.timeZone = .current; f2.dateFormat = "EEE, dd/MM"
+        return f2.string(from: date)
+    }
+}
+
+// MARK: - Attendance Detail Sheet
+
+private struct AttendanceDetailSheet: View {
+    let record: AttendanceRecordDB
+    @Environment(\.dismiss) private var dismiss
+
+    private var statusColor: Color {
+        switch record.status {
+        case "late":        return .orange
+        case "checked_out": return .blue
+        default:            return .green
+        }
+    }
+
+    private var statusLabel: String {
+        switch record.status {
+        case "late":        return "Đi trễ"
+        case "checked_out": return "Đã về"
+        default:            return "Đang làm"
+        }
+    }
+
+    private var workedDuration: String {
+        guard let inTime = record.checkInTime, let outTime = record.checkOutTime else { return "—" }
+        let diff = outTime.timeIntervalSince(inTime)
+        let h = Int(diff) / 3600
+        let m = (Int(diff) % 3600) / 60
+        return String(format: "%d giờ %02d phút", h, m)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Text(formatDisplayDate(record.date))
+                            .font(.title3).fontWeight(.bold)
+                            .foregroundStyle(Color.themeTextDark)
+                        Text(statusLabel)
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14).padding(.vertical, 6)
+                            .background(Capsule().fill(statusColor))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(16)
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+
+                    // Times card
+                    VStack(spacing: 0) {
+                        timeRow(label: "Giờ vào", time: record.checkInTime, color: .green,
+                                icon: "arrow.down.circle.fill")
+                        Divider().padding(.leading, 50)
+                        timeRow(label: "Giờ ra", time: record.checkOutTime, color: .blue,
+                                icon: "arrow.up.circle.fill")
+                        Divider().padding(.leading, 50)
+                        HStack(spacing: 14) {
+                            ZStack {
+                                Circle().fill(Color.orange.opacity(0.12)).frame(width: 36, height: 36)
+                                Image(systemName: "clock.fill").foregroundStyle(.orange)
+                            }
+                            Text("Số giờ làm").font(.subheadline).foregroundStyle(.gray)
+                            Spacer()
+                            Text(workedDuration)
+                                .font(.subheadline).fontWeight(.semibold)
+                                .foregroundStyle(Color.themeTextDark)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                    }
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+
+                    // Selfie photos
+                    if record.checkInSelfieURL != nil || record.checkOutSelfieURL != nil {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Ảnh điểm danh")
+                                .font(.headline).foregroundStyle(Color.themeTextDark)
+                            HStack(spacing: 12) {
+                                if let url = record.checkInSelfieURL {
+                                    selfieCard(url: url, label: "Vào", color: .green)
+                                }
+                                if let url = record.checkOutSelfieURL {
+                                    selfieCard(url: url, label: "Ra", color: .blue)
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+                    }
+
+                    // Note
+                    if let note = record.note, !note.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Ghi chú", systemImage: "note.text")
+                                .font(.headline).foregroundStyle(Color.themeTextDark)
+                            Text(note)
+                                .font(.subheadline).foregroundStyle(.gray)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .background(Color.white)
+                        .cornerRadius(16)
+                        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 16)
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Chi tiết điểm danh")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func timeRow(label: String, time: Date?, color: Color, icon: String) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle().fill(color.opacity(0.12)).frame(width: 36, height: 36)
+                Image(systemName: icon).foregroundStyle(color)
+            }
+            Text(label).font(.subheadline).foregroundStyle(.gray)
+            Spacer()
+            Text(time.map { formatTime($0) } ?? "—")
+                .font(.subheadline).fontWeight(.semibold)
+                .foregroundStyle(time != nil ? Color.themeTextDark : .gray)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+    }
+
+    private func selfieCard(url: String, label: String, color: Color) -> some View {
+        VStack(spacing: 6) {
+            AsyncImage(url: URL(string: url)) { phase in
+                if case .success(let img) = phase {
+                    img.resizable().scaledToFill()
+                } else {
+                    Color.gray.opacity(0.12)
+                        .overlay(ProgressView().scaleEffect(0.7))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 160)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(color.opacity(0.3), lineWidth: 1.5))
+
+            Text(label)
+                .font(.caption).fontWeight(.semibold).foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "HH:mm:ss"
+        return f.string(from: date)
+    }
+
+    private func formatDisplayDate(_ dateStr: String) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        guard let date = f.date(from: dateStr) else { return dateStr }
+        let f2 = DateFormatter()
+        f2.locale = Locale(identifier: "vi_VN"); f2.timeZone = .current
+        f2.dateFormat = "EEEE, dd/MM/yyyy"
+        return f2.string(from: date).capitalized
     }
 }
 

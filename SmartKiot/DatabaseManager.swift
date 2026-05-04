@@ -89,6 +89,11 @@ protocol DatabaseService {
     // Website leads
     func fetchWebsiteLeads() async throws -> [WebsiteLead]
     func updateWebsiteLeadStatus(id: UUID, status: String, note: String?) async throws
+
+    // Attendance
+    func upsertAttendanceRecord(_ record: AttendanceRecordDB) async throws
+    func fetchAttendanceRecords(userId: UUID, from: Date, to: Date) async throws -> [AttendanceRecordDB]
+    func fetchTodayAttendance(userId: UUID) async throws -> AttendanceRecordDB?
 }
 
 // MARK: - Supabase Implementation
@@ -209,6 +214,50 @@ class SupabaseDatabaseService: DatabaseService {
             .update(UpdatePayload(status: status, note: note))
             .eq("id", value: id)
             .execute()
+    }
+
+    // MARK: - Attendance
+
+    func upsertAttendanceRecord(_ record: AttendanceRecordDB) async throws {
+        let dto = AttendanceRecordDTO(from: record)
+        try await client.database
+            .from("attendance_records")
+            .upsert(dto, onConflict: "store_id,user_id,date")
+            .execute()
+    }
+
+    func fetchAttendanceRecords(userId: UUID, from: Date, to: Date) async throws -> [AttendanceRecordDB] {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
+        let fromStr = df.string(from: from)
+        let toStr   = df.string(from: to)
+        let rows: [AttendanceRecordDTO] = try await client.database
+            .from("attendance_records")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .eq("user_id", value: userId)
+            .gte("date", value: fromStr)
+            .lte("date", value: toStr)
+            .order("date", ascending: false)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+
+    func fetchTodayAttendance(userId: UUID) async throws -> AttendanceRecordDB? {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return nil }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
+        let today = df.string(from: Date())
+        let rows: [AttendanceRecordDTO] = try await client.database
+            .from("attendance_records")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .eq("user_id", value: userId)
+            .eq("date", value: today)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.toDomain()
     }
     
     // MARK: - Products
@@ -968,6 +1017,9 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchTradingPartyByName(_ name: String, type: String) async throws -> TradingParty? { return nil }
     func fetchWebsiteLeads() async throws -> [WebsiteLead] { return [] }
     func updateWebsiteLeadStatus(id: UUID, status: String, note: String?) async throws { print("⚠️ updateWebsiteLeadStatus: Mocked success") }
+    func upsertAttendanceRecord(_ record: AttendanceRecordDB) async throws { print("⚠️ upsertAttendanceRecord: Mocked success") }
+    func fetchAttendanceRecords(userId: UUID, from: Date, to: Date) async throws -> [AttendanceRecordDB] { return [] }
+    func fetchTodayAttendance(userId: UUID) async throws -> AttendanceRecordDB? { return nil }
 }
 #endif
 
@@ -1885,6 +1937,74 @@ struct TradingPartyDTO: Codable {
             totalDebt: total_debt ?? 0,
             updatedAt: updated_at ?? Date(),
             imageURLs: image_urls ?? []
+        )
+    }
+}
+
+// MARK: - Attendance Record Model & DTO
+
+struct AttendanceRecordDB: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var storeId: UUID
+    var userId: UUID
+    var userName: String
+    var date: String          // "yyyy-MM-dd"
+    var checkInTime: Date?
+    var checkOutTime: Date?
+    var checkInSelfieURL: String?
+    var checkOutSelfieURL: String?
+    var note: String?
+    var status: String        // "checked_in" | "checked_out" | "late"
+    var createdAt: Date = Date()
+    var updatedAt: Date = Date()
+}
+
+struct AttendanceRecordDTO: Codable {
+    let id: UUID
+    let store_id: UUID
+    let user_id: UUID
+    let user_name: String
+    let date: String
+    let check_in_time: Date?
+    let check_out_time: Date?
+    let check_in_selfie_url: String?
+    let check_out_selfie_url: String?
+    let note: String?
+    let status: String
+    let created_at: Date?
+    let updated_at: Date?
+
+    init(from domain: AttendanceRecordDB) {
+        self.id = domain.id
+        self.store_id = domain.storeId
+        self.user_id = domain.userId
+        self.user_name = domain.userName
+        self.date = domain.date
+        self.check_in_time = domain.checkInTime
+        self.check_out_time = domain.checkOutTime
+        self.check_in_selfie_url = domain.checkInSelfieURL
+        self.check_out_selfie_url = domain.checkOutSelfieURL
+        self.note = domain.note
+        self.status = domain.status
+        self.created_at = domain.createdAt
+        self.updated_at = domain.updatedAt
+    }
+
+    func toDomain() -> AttendanceRecordDB {
+        AttendanceRecordDB(
+            id: id,
+            storeId: store_id,
+            userId: user_id,
+            userName: user_name,
+            date: date,
+            checkInTime: check_in_time,
+            checkOutTime: check_out_time,
+            checkInSelfieURL: check_in_selfie_url,
+            checkOutSelfieURL: check_out_selfie_url,
+            note: note,
+            status: status,
+            createdAt: created_at ?? Date(),
+            updatedAt: updated_at ?? Date()
         )
     }
 }
