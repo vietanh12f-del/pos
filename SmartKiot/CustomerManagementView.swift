@@ -378,8 +378,15 @@ struct PartyDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var transactions: [ProductionTransaction] = []
     @State private var isLoading = false
+    @State private var showEdit = false
+    @State private var currentParty: TradingParty
 
-    private var isSupplier: Bool { party.partyType == "supplier" }
+    init(party: TradingParty) {
+        self.party = party
+        _currentParty = State(initialValue: party)
+    }
+
+    private var isSupplier: Bool { currentParty.partyType == "supplier" }
 
     // Group transactions by day
     private var groupedByDay: [(date: Date, txs: [ProductionTransaction])] {
@@ -401,7 +408,7 @@ struct PartyDetailView: View {
                     infoCard
 
                     // Debt summary
-                    if party.totalDebt > 0 {
+                    if currentParty.totalDebt > 0 {
                         debtCard
                     }
 
@@ -428,14 +435,26 @@ struct PartyDetailView: View {
                 .padding(.vertical, 12)
             }
             .background(Color.themeBackgroundLight)
-            .navigationTitle(party.name)
+            .navigationTitle(currentParty.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showEdit = true
+                    } label: {
+                        Image(systemName: "pencil")
+                    }
+                }
             }
             .task { await loadTransactions() }
+            .sheet(isPresented: $showEdit) {
+                PartyEditSheet(party: currentParty) { updated in
+                    currentParty = updated
+                }
+            }
         }
     }
 
@@ -453,7 +472,7 @@ struct PartyDetailView: View {
                         .foregroundStyle(isSupplier ? .green : .teal)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(party.name)
+                    Text(currentParty.name)
                         .font(.headline)
                         .fontWeight(.bold)
                     Text(isSupplier ? "Cơ sở cung cấp" : "Khách hàng")
@@ -463,13 +482,13 @@ struct PartyDetailView: View {
                 Spacer()
             }
             Divider()
-            if !party.phone.isEmpty {
-                Label(party.phone, systemImage: "phone.fill")
+            if !currentParty.phone.isEmpty {
+                Label(currentParty.phone, systemImage: "phone.fill")
                     .font(.subheadline)
                     .foregroundStyle(.gray)
             }
-            if !party.address.isEmpty {
-                Label(party.address, systemImage: "mappin.circle.fill")
+            if !currentParty.address.isEmpty {
+                Label(currentParty.address, systemImage: "mappin.circle.fill")
                     .font(.subheadline)
                     .foregroundStyle(.gray)
             }
@@ -492,7 +511,7 @@ struct PartyDetailView: View {
                 Text("Công nợ hiện tại")
                     .font(.caption)
                     .foregroundStyle(.gray)
-                Text(formatCurrency(party.totalDebt))
+                Text(formatCurrency(currentParty.totalDebt))
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(.red)
@@ -665,8 +684,8 @@ struct PartyDetailView: View {
         }
 
         // Filter by party name + phone + date
-        let name = party.name.lowercased()
-        let phone = party.phone
+        let name = currentParty.name.lowercased()
+        let phone = currentParty.phone
         transactions = all.filter { tx in
             guard tx.createdAt >= since else { return false }
             let matchName = tx.buyerName?.lowercased() == name
@@ -689,6 +708,109 @@ struct PartyDetailView: View {
         f.timeZone = .current
         f.dateFormat = "dd/MM/yyyy"
         return f.string(from: date)
+    }
+}
+
+// MARK: - Party Edit Sheet
+
+struct PartyEditSheet: View {
+    let party: TradingParty
+    let onSaved: (TradingParty) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var name: String
+    @State private var phone: String
+    @State private var address: String
+    @State private var isSaving = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+
+    init(party: TradingParty, onSaved: @escaping (TradingParty) -> Void) {
+        self.party = party
+        self.onSaved = onSaved
+        _name    = State(initialValue: party.name)
+        _phone   = State(initialValue: party.phone)
+        _address = State(initialValue: party.address)
+    }
+
+    private var isSupplier: Bool { party.partyType == "supplier" }
+    private var hasChanges: Bool {
+        name.trimmingCharacters(in: .whitespacesAndNewlines) != party.name ||
+        phone.trimmingCharacters(in: .whitespacesAndNewlines) != party.phone ||
+        address.trimmingCharacters(in: .whitespacesAndNewlines) != party.address
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text(isSupplier ? "Thông tin cơ sở" : "Thông tin khách hàng")) {
+                    HStack {
+                        Image(systemName: "person.fill")
+                            .foregroundStyle(isSupplier ? .green : .teal)
+                            .frame(width: 22)
+                        TextField("Tên", text: $name)
+                            .textInputAutocapitalization(.words)
+                    }
+                    HStack {
+                        Image(systemName: "phone.fill")
+                            .foregroundStyle(.gray)
+                            .frame(width: 22)
+                        TextField("Số điện thoại", text: $phone)
+                            .keyboardType(.phonePad)
+                    }
+                    HStack {
+                        Image(systemName: "mappin.circle.fill")
+                            .foregroundStyle(.gray)
+                            .frame(width: 22)
+                        TextField("Địa chỉ", text: $address)
+                    }
+                }
+            }
+            .navigationTitle("Chỉnh sửa")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Huỷ") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if isSaving {
+                            ProgressView()
+                        } else {
+                            Text("Lưu").fontWeight(.bold)
+                        }
+                    }
+                    .disabled(isSaving || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !hasChanges)
+                }
+            }
+            .alert("Lỗi", isPresented: $showError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        var updated = party
+        updated.name    = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.phone   = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.address = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.updatedAt = Date()
+        do {
+            try await SupabaseDatabaseService().upsertTradingParty(updated)
+            onSaved(updated)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
+        }
     }
 }
 
