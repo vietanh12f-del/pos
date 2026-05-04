@@ -6,6 +6,7 @@ struct MoreView: View {
     @Binding var showProductionReport: Bool
     @Binding var showCustomerManagement: Bool
     @AppStorage("production_enabled_global") private var productionEnabled: Bool = true
+    @State private var showAttendance = false
 
     private var menuItems: [MenuItem] {
         var items: [MenuItem] = [
@@ -14,6 +15,7 @@ struct MoreView: View {
             MenuItem(id: 7,   title: "Thống Kê",              icon: "chart.bar.xaxis",           color: .orange),
             MenuItem(id: 6,   title: "Cài Đặt",               icon: "gearshape.fill",            color: .gray),
             MenuItem(id: 101, title: "Quản Lý Khách Hàng",    icon: "person.2.fill",             color: .teal),
+            MenuItem(id: 102, title: "Điểm danh",             icon: "calendar.badge.checkmark",  color: .indigo),
         ]
         if productionEnabled {
             items += [
@@ -36,6 +38,8 @@ struct MoreView: View {
                                 showProductionReport = true
                             } else if item.id == 101 {
                                 showCustomerManagement = true
+                            } else if item.id == 102 {
+                                showAttendance = true
                             } else {
                                 selectedTab = item.id
                             }
@@ -65,6 +69,9 @@ struct MoreView: View {
             }
             .navigationTitle("Thêm")
             .background(Color.themeBackgroundLight)
+            .sheet(isPresented: $showAttendance) {
+                AttendanceView()
+            }
         }
     }
 }
