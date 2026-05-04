@@ -230,6 +230,9 @@ struct ContentView: View {
         @State private var showLeadsSheet = false
         @AppStorage("production_enabled_global") private var productionEnabledGlobal: Bool = true
         @State private var allProductionTx: [ProductionTransaction] = []
+        @State private var showNotificationCenter = false
+        @ObservedObject private var notifService = AppNotificationService.shared
+        @State private var showLeaveApprovalFromNotif = false
 
         // MARK: - Date range selection
         enum QuickRange: String, CaseIterable {
@@ -473,7 +476,13 @@ struct ContentView: View {
                             }
                             .padding(.horizontal)
                             .padding(.top)
-                            
+
+                            // Notification tile
+                            NotificationTile(service: notifService) {
+                                showNotificationCenter = true
+                            }
+                            .padding(.horizontal)
+
                             // Revenue Date Range Section
                             VStack(spacing: 12) {
                                 // Quick range buttons
@@ -750,6 +759,7 @@ struct ContentView: View {
                                 allProductionTx = await viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
                                     + (await viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu"))
                             }
+                            await notifService.refresh(viewModel: viewModel)
                         }
                         .onChange(of: activeRange) { _, _ in
                             if productionEnabledGlobal {
@@ -758,6 +768,18 @@ struct ContentView: View {
                                         + (await viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu"))
                                 }
                             }
+                        }
+                        .sheet(isPresented: $showNotificationCenter) {
+                            NotificationCenterSheet(
+                                service: notifService,
+                                onSelectTab: { tab in selectedTab = tab },
+                                onOpenCustomerManagement: { showCustomerManagement = true },
+                                onOpenProductionManagement: { showProductionManagement = true },
+                                onOpenLeaveApproval: { showLeaveApprovalFromNotif = true }
+                            )
+                        }
+                        .sheet(isPresented: $showLeaveApprovalFromNotif) {
+                            LeaveApprovalView()
                         }
                     }
                     .refreshable {
