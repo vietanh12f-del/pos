@@ -11,6 +11,7 @@ protocol DatabaseService {
     func deleteProduct(_ id: UUID) async throws
     
     func fetchOrders() async throws -> [Bill]
+    func fetchOrdersByCustomerName(_ name: String) async throws -> [Bill]
     func fetchOrder(id: UUID) async throws -> Bill?
     func saveOrder(_ bill: Bill) async throws
     func updateOrder(_ bill: Bill) async throws
@@ -288,6 +289,20 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
             .value
             
+        return orders.map { $0.toDomain() }
+    }
+
+    func fetchOrdersByCustomerName(_ name: String) async throws -> [Bill] {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        let orders: [OrderDTO] = try await client.database
+            .from("orders")
+            .select("*, order_items(*)")
+            .eq("store_id", value: storeId)
+            .ilike("customer_name", value: name)
+            .order("created_at", ascending: false)
+            .limit(100)
+            .execute()
+            .value
         return orders.map { $0.toDomain() }
     }
     
@@ -886,6 +901,7 @@ class SupabaseDatabaseService: DatabaseService {
     func deleteProduct(_ id: UUID) async throws { print("⚠️ deleteProduct: Mocked success") }
     
     func fetchOrders() async throws -> [Bill] { return [] }
+    func fetchOrdersByCustomerName(_ name: String) async throws -> [Bill] { return [] }
     func fetchOrder(id: UUID) async throws -> Bill? { return nil }
     func saveOrder(_ bill: Bill) async throws { print("⚠️ saveOrder: Mocked success") }
     func updateOrder(_ bill: Bill) async throws { print("⚠️ updateOrder: Mocked success") }

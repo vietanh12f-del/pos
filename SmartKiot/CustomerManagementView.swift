@@ -377,6 +377,7 @@ struct PartyDetailView: View {
     let party: TradingParty
     @Environment(\.dismiss) private var dismiss
     @State private var transactions: [ProductionTransaction] = []
+    @State private var retailOrders: [Bill] = []
     @State private var isLoading = false
     @State private var showEdit = false
     @State private var currentParty: TradingParty
@@ -415,19 +416,35 @@ struct PartyDetailView: View {
                     // Transactions
                     if isLoading {
                         ProgressView().padding()
-                    } else if groupedByDay.isEmpty {
-                        Text("Không có giao dịch trong 30 ngày gần nhất")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
-                            .padding()
                     } else {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Giao dịch 30 ngày gần nhất")
-                                .font(.headline)
-                                .padding(.horizontal)
+                        // Đơn bán lẻ
+                        if !retailOrders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Đơn bán lẻ")
+                                    .font(.headline)
+                                    .padding(.horizontal)
 
-                            ForEach(groupedByDay, id: \.date) { group in
-                                daySection(group.date, txs: group.txs)
+                                ForEach(retailOrders.prefix(30)) { bill in
+                                    retailBillCard(bill)
+                                }
+                            }
+                        }
+
+                        // Giao dịch sản xuất
+                        if groupedByDay.isEmpty && retailOrders.isEmpty {
+                            Text("Không có giao dịch trong 30 ngày gần nhất")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .padding()
+                        } else if !groupedByDay.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Giao dịch sản xuất")
+                                    .font(.headline)
+                                    .padding(.horizontal)
+
+                                ForEach(groupedByDay, id: \.date) { group in
+                                    daySection(group.date, txs: group.txs)
+                                }
                             }
                         }
                     }
@@ -628,7 +645,72 @@ struct PartyDetailView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Debt highlight logic
+    // MARK: - Retail bill card
+
+    private func retailBillCard(_ bill: Bill) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "cart.fill")
+                    .foregroundStyle(Color.themePrimary)
+                Text("Đơn bán lẻ")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                if let stt = bill.sequenceNumber {
+                    Text("• \(stt)")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                Spacer()
+                Text(formatTime(bill.createdAt))
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+
+            Text(formatDateOnly(bill.createdAt))
+                .font(.caption)
+                .foregroundStyle(.gray)
+
+            ForEach(bill.items.prefix(3)) { item in
+                HStack {
+                    Text(item.name)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text("×\(item.quantity)")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+            }
+            if bill.items.count > 3 {
+                Text("+ \(bill.items.count - 3) mặt hàng khác")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+
+            Divider()
+
+            HStack {
+                Text("Tổng cộng")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+                Text(formatCurrency(bill.total))
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themePrimary)
+                if bill.isPaid {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
+        .padding(.horizontal)
+    }
 
     enum DebtStatus {
         case normal, warning, overdue
@@ -675,7 +757,10 @@ struct PartyDetailView: View {
         let since = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
         let db = SupabaseDatabaseService()
 
-        // Fetch all production transaction modes
+        // Fetch đơn bán lẻ theo tên khách
+        async let retailTask = db.fetchOrdersByCustomerName(currentParty.name)
+
+        // Fetch production transactions
         let modes = ["Nhập Nguyên liệu", "Xuất Nguyên liệu", "Nhập Thành Phẩm", "Xuất Thành Phẩm"]
         var all: [ProductionTransaction] = []
         for mode in modes {
@@ -683,7 +768,7 @@ struct PartyDetailView: View {
             all += txs
         }
 
-        // Filter by party name + phone + date
+        // Filter production by party name + phone + date
         let name = currentParty.name.lowercased()
         let phone = currentParty.phone
         transactions = all.filter { tx in
@@ -692,6 +777,10 @@ struct PartyDetailView: View {
             let matchPhone = phone.isEmpty ? false : tx.buyerPhone == phone
             return matchName || matchPhone
         }
+
+        // Retail orders — filter by date
+        let fetched = (try? await retailTask) ?? []
+        retailOrders = fetched.filter { $0.createdAt >= since }
     }
 
     private func formatTime(_ date: Date) -> String {
