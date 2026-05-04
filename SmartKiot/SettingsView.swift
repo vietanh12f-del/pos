@@ -570,54 +570,119 @@ struct VATSettingsView: View {
     @ObservedObject private var storeManager = StoreManager.shared
     @Environment(\.dismiss) var dismiss
     @State private var enabled: Bool = false
-    @State private var rateText: String = "10"
-    
-    init() {
-        if let storeId = StoreManager.shared.currentStore?.id {
-            let e = StoreManager.shared.vatEnabled(for: storeId)
-            let r = StoreManager.shared.vatRate(for: storeId)
-            _enabled = State(initialValue: e)
-            _rateText = State(initialValue: String(format: "%.0f", r))
+    @State private var intSelection: Int = 10
+    @State private var decSelection: Int = 0
+    @State private var isSaved = false
+
+    private var selectedRate: Double {
+        Double(intSelection) + (decSelection == 1 ? 0.5 : 0.0)
+    }
+
+    private func formatRate(_ v: Double) -> String {
+        v.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", v)
+            : String(format: "%.1f", v)
+    }
+
+    private func loadCurrent() {
+        // Đọc từ storeId nếu có, fallback về global key
+        let storeId = storeManager.currentStore?.id
+        let e: Bool
+        let r: Double
+        if let sid = storeId {
+            e = storeManager.vatEnabled(for: sid)
+            r = storeManager.vatRate(for: sid)
+        } else {
+            e = UserDefaults.standard.bool(forKey: "vat_enabled_global")
+            let key = "vat_rate_global"
+            let v = UserDefaults.standard.double(forKey: key)
+            r = UserDefaults.standard.object(forKey: key) == nil ? 10 : v
         }
+        enabled = e
+        let clamped = max(0, min(50, r))
+        intSelection = Int(clamped)
+        decSelection = clamped.truncatingRemainder(dividingBy: 1) >= 0.25 ? 1 : 0
     }
-    
-    var rateValue: Double {
-        Double(rateText) ?? 0
-    }
-    
+
     var body: some View {
         Form {
-            Section(header: Text("VAT trong hoá đơn")) {
+            Section(header: Text("Trạng thái")) {
                 Toggle("Bật VAT", isOn: $enabled)
-                HStack {
-                    Text("VAT (%)")
-                    Spacer()
-                    TextField("0–50", text: $rateText)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 100)
-                }
                 Text("Nếu tắt, hoá đơn chỉ hiển thị Tổng cộng.")
                     .font(.caption)
                     .foregroundStyle(.gray)
             }
+
+            Section(header: Text("Mức VAT")) {
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Áp dụng")
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        Text("\(formatRate(selectedRate))%")
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                    }
+
+                    HStack(spacing: 0) {
+                        Picker("", selection: $intSelection) {
+                            ForEach(0...50, id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(maxWidth: .infinity)
+
+                        Text(".")
+                            .font(.title2).fontWeight(.bold).foregroundStyle(.gray)
+
+                        Picker("", selection: $decSelection) {
+                            Text("0").tag(0)
+                            Text("5").tag(1)
+                        }
+                        .pickerStyle(.wheel)
+                        .frame(width: 70)
+
+                        Text("%")
+                            .font(.title2).fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                            .padding(.leading, 4).padding(.trailing, 8)
+                    }
+                    .frame(height: 150)
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            }
         }
         .navigationTitle("Cài đặt VAT")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { loadCurrent() }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("Lưu") {
+                Button {
                     save()
-                    dismiss()
+                    isSaved = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { dismiss() }
+                } label: {
+                    if isSaved {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    } else {
+                        Text("Lưu").fontWeight(.bold)
+                    }
                 }
-                .disabled(storeManager.currentStore == nil)
             }
         }
     }
-    
+
     private func save() {
-        guard let storeId = storeManager.currentStore?.id else { return }
-        storeManager.setVATSettings(storeId: storeId, enabled: enabled, rate: rateValue)
+        // Lưu vào storeId nếu có, đồng thời lưu global key để fallback
+        let rate = selectedRate
+        if let storeId = storeManager.currentStore?.id {
+            storeManager.setVATSettings(storeId: storeId, enabled: enabled, rate: rate)
+        }
+        // Luôn lưu global key để đảm bảo không mất khi currentStore nil
+        UserDefaults.standard.set(enabled, forKey: "vat_enabled_global")
+        UserDefaults.standard.set(rate, forKey: "vat_rate_global")
     }
 }
 

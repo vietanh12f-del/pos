@@ -63,8 +63,10 @@ class StoreManager: ObservableObject {
 
     func vatRate(for storeId: UUID) -> Double {
         let defaults = UserDefaults.standard
-        let v = defaults.double(forKey: "vat_rate_\(storeId.uuidString)")
-        return v > 0 ? v : 10
+        let key = "vat_rate_\(storeId.uuidString)"
+        // Chỉ dùng default 10 khi chưa từng set, không phải khi giá trị là 0
+        if defaults.object(forKey: key) == nil { return 10 }
+        return defaults.double(forKey: key)
     }
 
     func setVATSettings(storeId: UUID, enabled: Bool, rate: Double) {
@@ -74,12 +76,18 @@ class StoreManager: ObservableObject {
     }
 
     func currentStoreVATEnabled() -> Bool {
-        guard let storeId = currentStore?.id else { return false }
+        guard let storeId = currentStore?.id else {
+            return UserDefaults.standard.bool(forKey: "vat_enabled_global")
+        }
         return vatEnabled(for: storeId)
     }
 
     func currentStoreVATRate() -> Double {
-        guard let storeId = currentStore?.id else { return 0 }
+        guard let storeId = currentStore?.id else {
+            let key = "vat_rate_global"
+            if UserDefaults.standard.object(forKey: key) == nil { return 10 }
+            return UserDefaults.standard.double(forKey: key)
+        }
         return vatRate(for: storeId)
     }
 
