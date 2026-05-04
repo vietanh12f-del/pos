@@ -13,6 +13,10 @@ struct ProductionReportView: View {
     @State private var materialImportTx: [ProductionTransaction] = []
     @State private var isLoadingStats = false
 
+    // MARK: - Material export stats
+    @State private var materialExportTx: [ProductionTransaction] = []
+    @State private var materialAutoExportLogs: [AutoMaterialExportLog] = []
+
     /// Tổng giá trị tồn kho nguyên liệu hiện tại (gram × giá/kg)
     private var totalMaterialStockValue: Double {
         viewModel.materials.reduce(0) { sum, m in
@@ -34,6 +38,28 @@ struct ProductionReportView: View {
 
     private var importTxCount: Int { filteredImportTx.count }
     private var importTxTotal: Double { filteredImportTx.reduce(0) { $0 + $1.totalCost } }
+
+    // MARK: - Export NL computed
+    private var filteredExportTx: [ProductionTransaction] {
+        let (start, end) = dateInterval(for: activeRange)
+        return materialExportTx.filter { $0.createdAt >= start && $0.createdAt <= end }
+    }
+
+    private var autoExportIds: Set<UUID> {
+        Set(materialAutoExportLogs.map { $0.productionTransactionId })
+    }
+
+    private var autoExportCount: Int {
+        filteredExportTx.filter { autoExportIds.contains($0.id) }.count
+    }
+
+    private var manualExportCount: Int {
+        filteredExportTx.filter { !autoExportIds.contains($0.id) }.count
+    }
+
+    private var totalExportValue: Double {
+        filteredExportTx.reduce(0) { $0 + $1.totalCost }
+    }
 
     private func dateInterval(for range: ReportDateRange) -> (Date, Date) {
         let cal = Calendar.current
@@ -220,6 +246,8 @@ struct ProductionReportView: View {
                             } label: {
                                 if i == 0 {
                                     materialImportCard(cfg)
+                                } else if i == 1 {
+                                    materialExportCard(cfg)
                                 } else {
                                     reportCard(cfg)
                                 }
@@ -242,10 +270,14 @@ struct ProductionReportView: View {
             .task {
                 isLoadingStats = true
                 async let txTask = viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu")
+                async let exportTask = viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
+                async let logsTask = viewModel.fetchAutoMaterialExportLogs(limit: 2000)
                 if viewModel.materials.isEmpty {
                     await viewModel.loadMaterials()
                 }
                 materialImportTx = await txTask
+                materialExportTx = await exportTask
+                materialAutoExportLogs = await logsTask
                 isLoadingStats = false
             }
             .sheet(isPresented: $showCustomPicker) {
@@ -378,6 +410,92 @@ struct ProductionReportView: View {
                 .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Material Export Card (số liệu thực)
+
+    @ViewBuilder
+    private func materialExportCard(_ cfg: CardConfig) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(cfg.color.opacity(0.12))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: cfg.icon)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(cfg.color)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cfg.title)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                    Text(cfg.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                Spacer()
+                if isLoadingStats {
+                    ProgressView().scaleEffect(0.7)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.gray.opacity(0.4))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+
+            Divider().padding(.horizontal, 16)
+
+            // Hàng: 3 cột số liệu
+            HStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text("Xuất tự động")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : "\(autoExportCount) phiếu")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(autoExportCount > 0 ? cfg.color : Color.gray.opacity(0.35))
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Xuất tay")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : "\(manualExportCount) phiếu")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(manualExportCount > 0 ? cfg.color : Color.gray.opacity(0.35))
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Tổng giá trị")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : formatCurrency(totalExportValue))
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(totalExportValue > 0 ? cfg.color : Color.gray.opacity(0.35))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 12)
+        }
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(cfg.color.opacity(0.15), lineWidth: 1)
+        )
     }
 
     // MARK: - Material Import Card (số liệu thực)
