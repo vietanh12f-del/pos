@@ -639,7 +639,20 @@ private struct CheckInView: View {
 // MARK: - Attendance History View
 
 private struct AttendanceHistoryView: View {
-    @State private var selectedMonth = Date()
+    // MARK: - Date range
+    enum RangeMode: String, CaseIterable {
+        case today  = "Hôm nay"
+        case week   = "Tuần này"
+        case month  = "Tháng này"
+        case custom = "Tuỳ chọn"
+    }
+
+    @State private var rangeMode: RangeMode = .today
+    @State private var customStart: Date = Calendar.current.startOfDay(for: Date())
+    @State private var customEnd: Date = Date()
+    @State private var showRangePicker = false
+    @State private var showCustomDatePicker = false
+
     @State private var records: [AttendanceRecordDB] = []
     @State private var isLoading = false
     @State private var selectedRecord: AttendanceRecordDB? = nil
@@ -648,28 +661,79 @@ private struct AttendanceHistoryView: View {
         AuthManager.shared.currentUserProfile?.id ?? UUID()
     }
 
-    private var monthLabel: String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "vi_VN")
-        f.dateFormat = "MMMM yyyy"
-        return f.string(from: selectedMonth).capitalized
+    // MARK: - Date interval
+
+    private var dateInterval: (start: Date, end: Date) {
+        let cal = Calendar.current
+        let now = Date()
+        switch rangeMode {
+        case .today:
+            return (cal.startOfDay(for: now),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now)
+        case .week:
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: .day, value: 6, to: start).flatMap {
+                cal.date(bySettingHour: 23, minute: 59, second: 59, of: $0)
+            } ?? now)
+        case .month:
+            let comps = cal.dateComponents([.year, .month], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? now)
+        case .custom:
+            return (cal.startOfDay(for: customStart),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: customEnd) ?? customEnd)
+        }
     }
 
-    // Chỉ hiện ngày đã điểm danh (không hiện ngày vắng)
+    private var rangeLabel: String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd/MM"
+        switch rangeMode {
+        case .today:
+            let f = DateFormatter(); f.locale = Locale(identifier: "vi_VN"); f.dateFormat = "dd/MM/yyyy"
+            return f.string(from: Date())
+        case .week:
+            let (s, e) = dateInterval
+            return "\(df.string(from: s)) – \(df.string(from: e))"
+        case .month:
+            let f = DateFormatter(); f.locale = Locale(identifier: "vi_VN"); f.dateFormat = "MM/yyyy"
+            return "Tháng \(f.string(from: Date()))"
+        case .custom:
+            return "\(df.string(from: customStart)) – \(df.string(from: customEnd))"
+        }
+    }
+
+    // MARK: - Summary
+
+    private var uniqueDates: Set<String> { Set(records.map { $0.date }) }
+    private var presentCount: Int { Set(records.filter { $0.status != "absent" }.map { $0.date }).count }
+    private var lateCount: Int    { Set(records.filter { $0.status == "late" }.map { $0.date }).count }
+
+    private var totalWorkedSeconds: TimeInterval {
+        records.reduce(0) { sum, r in
+            guard let inTime = r.checkInTime, let outTime = r.checkOutTime else { return sum }
+            return sum + outTime.timeIntervalSince(inTime)
+        }
+    }
+
+    private var totalWorkedLabel: String {
+        let total = Int(totalWorkedSeconds)
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        return String(format: "%d:%02d", h, m)
+    }
+
     private var sortedRecords: [AttendanceRecordDB] {
-        records.sorted { $0.date > $1.date }
+        records.sorted { $0.date > $1.date || ($0.date == $1.date && $0.shift < $1.shift) }
     }
-
-    // Summary
-    private var presentCount: Int { records.filter { $0.status != "absent" }.count }
-    private var lateCount: Int    { records.filter { $0.status == "late" }.count }
-    private var checkedOutCount: Int { records.filter { $0.status == "checked_out" }.count }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Month selector
-                monthSelector
+                // Range selector
+                rangeSelector
 
                 if isLoading {
                     ProgressView().padding(40)
@@ -684,10 +748,8 @@ private struct AttendanceHistoryView: View {
                     .frame(maxWidth: .infinity)
                     .padding(40)
                 } else {
-                    // Summary bar
                     summaryBar
 
-                    // Records list
                     VStack(spacing: 0) {
                         ForEach(sortedRecords) { record in
                             Button { selectedRecord = record } label: {
@@ -701,47 +763,90 @@ private struct AttendanceHistoryView: View {
                     }
                     .background(Color.white)
                     .cornerRadius(16)
-                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)                }
+                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 16)
         }
         .task { await loadRecords() }
-        .onChange(of: selectedMonth) { _, _ in Task { await loadRecords() } }
+        .onChange(of: rangeMode) { _, _ in
+            if rangeMode == .custom { showCustomDatePicker = true }
+            else { Task { await loadRecords() } }
+        }
         .sheet(item: $selectedRecord) { record in
             AttendanceDetailSheet(record: record)
         }
-    }
-
-    // MARK: Month selector
-
-    private var monthSelector: some View {
-        HStack {
-            Button {
-                selectedMonth = Calendar.current.date(byAdding: .month, value: -1, to: selectedMonth) ?? selectedMonth
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.subheadline).foregroundStyle(Color.themePrimary)
-                    .padding(10).background(Circle().fill(Color.themePrimary.opacity(0.1)))
-            }.buttonStyle(.plain)
-
-            Spacer()
-            Text(monthLabel)
-                .font(.headline).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
-            Spacer()
-
-            Button {
-                selectedMonth = Calendar.current.date(byAdding: .month, value: 1, to: selectedMonth) ?? selectedMonth
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.subheadline).foregroundStyle(Color.themePrimary)
-                    .padding(10).background(Circle().fill(Color.themePrimary.opacity(0.1)))
-            }.buttonStyle(.plain)
+        .confirmationDialog("Chọn khoảng thời gian", isPresented: $showRangePicker, titleVisibility: .visible) {
+            ForEach(RangeMode.allCases, id: \.self) { mode in
+                Button(mode.rawValue) { rangeMode = mode }
+            }
+            Button("Huỷ", role: .cancel) { }
         }
-        .padding(.horizontal, 4)
+        .sheet(isPresented: $showCustomDatePicker) {
+            NavigationStack {
+                Form {
+                    Section(header: Text("Chọn khoảng ngày")) {
+                        DatePicker("Từ ngày", selection: $customStart, displayedComponents: .date)
+                        DatePicker("Đến ngày", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                    }
+                }
+                .navigationTitle("Tuỳ chọn ngày")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Xong") {
+                            showCustomDatePicker = false
+                            Task { await loadRecords() }
+                        }
+                        .fontWeight(.bold)
+                    }
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Huỷ") {
+                            rangeMode = .today
+                            showCustomDatePicker = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
     }
 
-    // MARK: Summary bar
+    // MARK: - Range selector
+
+    private var rangeSelector: some View {
+        Button {
+            showRangePicker = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "calendar")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.themePrimary)
+                Text(rangeMode.rawValue)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themeTextDark)
+                Text("·")
+                    .foregroundStyle(.gray)
+                Text(rangeLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Summary bar
 
     private var summaryBar: some View {
         HStack(spacing: 0) {
@@ -749,9 +854,9 @@ private struct AttendanceHistoryView: View {
             Divider().frame(height: 40)
             statCell(value: "\(lateCount)", label: "Đi trễ", color: .orange)
             Divider().frame(height: 40)
-            statCell(value: "\(checkedOutCount)", label: "Đã về", color: .blue)
+            statCell(value: totalWorkedLabel, label: "Tổng giờ", color: .blue)
             Divider().frame(height: 40)
-            statCell(value: "\(records.count)", label: "Tổng ngày", color: Color.themePrimary)
+            statCell(value: "\(uniqueDates.count)", label: "Tổng ngày", color: Color.themePrimary)
         }
         .padding(.vertical, 12)
         .background(Color.white)
@@ -762,6 +867,7 @@ private struct AttendanceHistoryView: View {
     private func statCell(value: String, label: String, color: Color) -> some View {
         VStack(spacing: 4) {
             Text(value).font(.title3).fontWeight(.bold).foregroundStyle(color)
+                .minimumScaleFactor(0.7).lineLimit(1)
             Text(label).font(.caption2).foregroundStyle(.gray)
         }
         .frame(maxWidth: .infinity)
@@ -770,10 +876,7 @@ private struct AttendanceHistoryView: View {
     private func loadRecords() async {
         isLoading = true
         defer { isLoading = false }
-        let cal = Calendar.current
-        guard let start = cal.date(from: cal.dateComponents([.year, .month], from: selectedMonth)),
-              let end = cal.date(byAdding: DateComponents(month: 1, day: -1), to: start)
-        else { return }
+        let (start, end) = dateInterval
         records = (try? await SupabaseDatabaseService().fetchAttendanceRecords(
             userId: userId, from: start, to: end
         )) ?? []
