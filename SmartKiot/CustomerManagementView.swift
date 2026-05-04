@@ -881,7 +881,6 @@ struct PartyEditSheet: View {
     @State private var showDeleteConfirm = false
     @State private var showImagePicker = false
     @State private var showCamera = false
-    @State private var pickerItems: [PhotosPickerItem] = []
     @State private var previewImage: String? = nil
     @State private var showPreview = false
 
@@ -1007,20 +1006,11 @@ struct PartyEditSheet: View {
 
                     // Nút thêm ảnh
                     HStack(spacing: 12) {
-                        PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
+                        Button {
+                            showImagePicker = true
+                        } label: {
                             Label("Chọn từ thư viện", systemImage: "photo.on.rectangle")
                                 .font(.subheadline)
-                        }
-                        .onChange(of: pickerItems) { _, items in
-                            Task {
-                                for item in items {
-                                    if let data = try? await item.loadTransferable(type: Data.self),
-                                       let img = UIImage(data: data) {
-                                        pendingImages.append(img)
-                                    }
-                                }
-                                pickerItems = []
-                            }
                         }
 
                         Divider().frame(height: 20)
@@ -1096,6 +1086,12 @@ struct PartyEditSheet: View {
                 }
             } message: {
                 Text("Thao tác này không thể hoàn tác. Toàn bộ thông tin của \"\(party.name)\" sẽ bị xóa vĩnh viễn.")
+            }
+            .fullScreenCover(isPresented: $showImagePicker) {
+                MultiImagePicker { images in
+                    pendingImages.append(contentsOf: images)
+                }
+                .ignoresSafeArea()
             }
             .fullScreenCover(isPresented: $showCamera) {
                 ImagePicker(image: Binding(
@@ -1323,6 +1319,45 @@ private struct LeadRowView: View {
         case "done":      return "Hoàn tất"
         case "cancelled": return "Đã huỷ"
         default:          return s
+        }
+    }
+}
+
+// MARK: - Multi Image Picker (PHPickerViewController)
+
+struct MultiImagePicker: UIViewControllerRepresentable {
+    let onPicked: ([UIImage]) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPicked: onPicked) }
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 10
+        config.filter = .images
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let onPicked: ([UIImage]) -> Void
+        init(onPicked: @escaping ([UIImage]) -> Void) { self.onPicked = onPicked }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            guard !results.isEmpty else { return }
+            var images: [UIImage] = []
+            let group = DispatchGroup()
+            for result in results {
+                group.enter()
+                result.itemProvider.loadObject(ofClass: UIImage.self) { obj, _ in
+                    if let img = obj as? UIImage { images.append(img) }
+                    group.leave()
+                }
+            }
+            group.notify(queue: .main) { self.onPicked(images) }
         }
     }
 }
