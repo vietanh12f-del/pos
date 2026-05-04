@@ -368,10 +368,29 @@ private struct CheckInView: View {
 
     private var noteCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Ghi chú")
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.themeTextDark)
+            HStack {
+                Text("Ghi chú")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themeTextDark)
+                Spacer()
+                Button {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    Task { await saveRecord(checkInTime: checkInTime, checkOutTime: checkOutTime,
+                                           checkInURL: checkInSelfieURL, checkOutURL: checkOutSelfieURL) }
+                    withAnimation { showNoteInput = false }
+                } label: {
+                    Text("Lưu")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.themePrimary))
+                }
+                .buttonStyle(.plain)
+                .disabled(noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
             ZStack(alignment: .topLeading) {
                 if noteText.isEmpty {
                     Text("Nhập ghi chú (tuỳ chọn)...")
