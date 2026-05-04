@@ -912,7 +912,7 @@ private struct AttendanceHistoryView: View {
 
 // MARK: - Attendance Record Row
 
-private struct AttendanceRecordRow: View {
+struct AttendanceRecordRow: View {
     let record: AttendanceRecordDB
 
     private var statusColor: Color {
@@ -1023,7 +1023,7 @@ private struct AttendanceRecordRow: View {
 
 // MARK: - Attendance Detail Sheet
 
-private struct AttendanceDetailSheet: View {
+struct AttendanceDetailSheet: View {
     let record: AttendanceRecordDB
     @Environment(\.dismiss) private var dismiss
 

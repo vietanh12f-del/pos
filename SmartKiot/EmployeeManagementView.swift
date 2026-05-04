@@ -196,8 +196,15 @@ struct EmployeeDetailView: View {
     @StateObject private var speech = SpeechRecognizer()
     @State private var isSavingPosition = false
     @State private var employeeType: String = "fulltime" // "fulltime" | "parttime"
+    @State private var showSalarySheet = false
+    @State private var showAttendanceReport = false
+    @State private var latestAttendance: AttendanceRecordDB? = nil
 
     private var employeeTypeKey: String { "employee_type_\(member.id.uuidString)" }
+    private var salaryKey: String { "employee_salary_\(member.id.uuidString)" }
+    private var currentSalary: Double {
+        UserDefaults.standard.double(forKey: salaryKey)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -313,6 +320,78 @@ struct EmployeeDetailView: View {
                             .background(statusColor(member.status).opacity(0.06))
                             .cornerRadius(12)
                         }
+
+                        // Hàng 2: Lương + Thời gian làm
+                        HStack(spacing: 10) {
+                            // Ô lương
+                            Button { showSalarySheet = true } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "banknote.fill")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.green)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Lương")
+                                            .font(.caption2)
+                                            .foregroundStyle(.gray)
+                                        Text(currentSalary > 0
+                                             ? formatCurrency(currentSalary)
+                                             : "Chưa cài")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(currentSalary > 0 ? Color.themeTextDark : .gray)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.8)
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray.opacity(0.5))
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.green.opacity(0.07))
+                                .cornerRadius(12)
+                            }
+                            .buttonStyle(.plain)
+
+                            // Ô thời gian làm
+                            Button { showAttendanceReport = true } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "clock.fill")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.indigo)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Thời gian làm")
+                                            .font(.caption2)
+                                            .foregroundStyle(.gray)
+                                        if let att = latestAttendance {
+                                            VStack(alignment: .leading, spacing: 1) {
+                                                Text("Vào: \(att.checkInTime.map { formatShortTime($0) } ?? "—")")
+                                                    .font(.caption)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundStyle(Color.themeTextDark)
+                                                Text("Ra: \(att.checkOutTime.map { formatShortTime($0) } ?? "—")")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                            }
+                                        } else {
+                                            Text("Chưa có")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray.opacity(0.5))
+                                }
+                                .padding(10)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.indigo.opacity(0.07))
+                                .cornerRadius(12)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
                 
@@ -347,6 +426,16 @@ struct EmployeeDetailView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Đã cập nhật quyền hạn thành công.")
+        }
+        .task {
+            // Load attendance mới nhất của nhân viên
+            latestAttendance = try? await SupabaseDatabaseService().fetchTodayAttendance(userId: member.userId)
+        }
+        .sheet(isPresented: $showSalarySheet) {
+            EmployeeSalarySheet(memberId: member.id, memberName: name)
+        }
+        .sheet(isPresented: $showAttendanceReport) {
+            EmployeeAttendanceReport(memberId: member.userId, memberName: name)
         }
         .sheet(isPresented: $showEditPosition) {
             NavigationStack {
@@ -482,5 +571,448 @@ private func statusIcon(_ status: MemberStatus?) -> String {
     case .invited: return "envelope.open.fill"
     case .declined: return "xmark.seal.fill"
     default: return "questionmark.circle.fill"
+    }
+}
+
+// MARK: - Helper
+
+private func formatShortTime(_ date: Date) -> String {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "vi_VN")
+    f.timeZone = .current
+    f.dateFormat = "HH:mm"
+    return f.string(from: date)
+}
+
+// MARK: - Employee Salary Sheet
+
+struct EmployeeSalarySheet: View {
+    let memberId: UUID
+    let memberName: String
+    @Environment(\.dismiss) private var dismiss
+
+    private var salaryKey: String { "employee_salary_\(memberId.uuidString)" }
+    private var salaryHistoryKey: String { "employee_salary_history_\(memberId.uuidString)" }
+
+    @State private var salaryText: String = ""
+    @State private var salaryType: String = "monthly"  // "monthly" | "daily" | "hourly"
+    @State private var isSaving = false
+    @State private var payHistory: [SalaryPayment] = []
+    @State private var showAddPayment = false
+    @State private var payAmountText: String = ""
+    @State private var payNote: String = ""
+    @State private var selectedTab: SalaryTab = .info
+
+    enum SalaryTab: String, CaseIterable {
+        case info    = "Mức lương"
+        case history = "Lịch sử trả"
+    }
+
+    private let salaryTypes: [(value: String, label: String)] = [
+        ("monthly", "Tháng"),
+        ("daily",   "Ngày"),
+        ("hourly",  "Giờ"),
+    ]
+
+    private var currentSalary: Double {
+        UserDefaults.standard.double(forKey: salaryKey)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("", selection: $selectedTab) {
+                    ForEach(SalaryTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal).padding(.vertical, 10)
+                .background(Color.white)
+                Divider()
+
+                if selectedTab == .info {
+                    salaryInfoView
+                } else {
+                    salaryHistoryView
+                }
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Lương – \(memberName)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+            .onAppear {
+                salaryText = currentSalary > 0 ? String(format: "%.0f", currentSalary) : ""
+                salaryType = UserDefaults.standard.string(forKey: salaryKey + "_type") ?? "monthly"
+                loadPayHistory()
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    // MARK: Salary info
+
+    private var salaryInfoView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Current salary card
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("Mức lương hiện tại", systemImage: "banknote.fill")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+
+                    HStack(spacing: 0) {
+                        ForEach(salaryTypes, id: \.value) { type in
+                            Button {
+                                salaryType = type.value
+                                UserDefaults.standard.set(type.value, forKey: salaryKey + "_type")
+                            } label: {
+                                Text(type.label)
+                                    .font(.caption).fontWeight(salaryType == type.value ? .bold : .regular)
+                                    .foregroundStyle(salaryType == type.value ? .white : Color.themeTextDark)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .background(salaryType == type.value ? Color.themePrimary : Color.clear)
+                                    .cornerRadius(8)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(4)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(10)
+
+                    HStack(spacing: 8) {
+                        TextField("Nhập mức lương", text: $salaryText)
+                            .keyboardType(.numberPad)
+                            .font(.title3).fontWeight(.bold)
+                        Text("đ/\(salaryTypes.first { $0.value == salaryType }?.label ?? "")")
+                            .font(.subheadline).foregroundStyle(.gray)
+                    }
+                    .padding(12)
+                    .background(Color.gray.opacity(0.06))
+                    .cornerRadius(10)
+
+                    Button {
+                        isSaving = true
+                        let val = Double(salaryText.replacingOccurrences(of: ",", with: "")) ?? 0
+                        UserDefaults.standard.set(val, forKey: salaryKey)
+                        UserDefaults.standard.set(salaryType, forKey: salaryKey + "_type")
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { isSaving = false }
+                    } label: {
+                        HStack {
+                            if isSaving { ProgressView().tint(.white) }
+                            else { Image(systemName: "checkmark.circle.fill") }
+                            Text("Lưu mức lương")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.themePrimary)
+                        .foregroundStyle(.white)
+                        .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSaving)
+                }
+                .padding(16)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+
+                // Add payment button
+                Button { showAddPayment = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus.circle.fill").font(.title3)
+                        Text("Ghi nhận trả lương").fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity).padding(.vertical, 14)
+                    .background(Color.green.opacity(0.1))
+                    .foregroundStyle(.green)
+                    .cornerRadius(14)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.green.opacity(0.25), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal).padding(.vertical, 16)
+        }
+        .sheet(isPresented: $showAddPayment) {
+            addPaymentSheet
+        }
+    }
+
+    // MARK: Add payment sheet
+
+    private var addPaymentSheet: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Số tiền")) {
+                    HStack {
+                        TextField("Nhập số tiền", text: $payAmountText).keyboardType(.numberPad)
+                        Text("đ").foregroundStyle(.gray)
+                    }
+                }
+                Section(header: Text("Ghi chú")) {
+                    TextField("Tháng 5/2025...", text: $payNote)
+                }
+            }
+            .navigationTitle("Ghi nhận trả lương")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Huỷ") { showAddPayment = false } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Lưu") {
+                        let amount = Double(payAmountText.replacingOccurrences(of: ",", with: "")) ?? 0
+                        guard amount > 0 else { return }
+                        let payment = SalaryPayment(amount: amount, note: payNote, date: Date())
+                        payHistory.insert(payment, at: 0)
+                        savePayHistory()
+                        payAmountText = ""; payNote = ""
+                        showAddPayment = false
+                        selectedTab = .history
+                    }
+                    .fontWeight(.bold)
+                    .disabled(payAmountText.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    // MARK: Salary history
+
+    private var salaryHistoryView: some View {
+        Group {
+            if payHistory.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "tray").font(.system(size: 40)).foregroundStyle(.gray.opacity(0.4))
+                    Text("Chưa có lịch sử trả lương").foregroundStyle(.gray)
+                }
+                .frame(maxWidth: .infinity).padding(40)
+            } else {
+                List {
+                    ForEach(payHistory) { p in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(formatCurrency(p.amount))
+                                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.green)
+                                if !p.note.isEmpty {
+                                    Text(p.note).font(.caption).foregroundStyle(.gray)
+                                }
+                            }
+                            Spacer()
+                            Text(formatDate(p.date))
+                                .font(.caption).foregroundStyle(.gray)
+                        }
+                        .listRowBackground(Color.white)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: Helpers
+
+    private func loadPayHistory() {
+        guard let data = UserDefaults.standard.data(forKey: salaryHistoryKey),
+              let decoded = try? JSONDecoder().decode([SalaryPayment].self, from: data)
+        else { return }
+        payHistory = decoded
+    }
+
+    private func savePayHistory() {
+        if let data = try? JSONEncoder().encode(payHistory) {
+            UserDefaults.standard.set(data, forKey: salaryHistoryKey)
+        }
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
+    }
+}
+
+struct SalaryPayment: Identifiable, Codable {
+    var id: UUID = UUID()
+    var amount: Double
+    var note: String
+    var date: Date
+}
+
+// MARK: - Employee Attendance Report
+
+struct EmployeeAttendanceReport: View {
+    let memberId: UUID
+    let memberName: String
+    @Environment(\.dismiss) private var dismiss
+
+    enum RangeMode: String, CaseIterable {
+        case today = "Hôm nay"; case week = "Tuần này"; case month = "Tháng này"; case custom = "Tuỳ chọn"
+    }
+
+    @State private var rangeMode: RangeMode = .today
+    @State private var customStart = Calendar.current.startOfDay(for: Date())
+    @State private var customEnd = Date()
+    @State private var showCustomPicker = false
+    @State private var showRangePicker = false
+    @State private var records: [AttendanceRecordDB] = []
+    @State private var isLoading = false
+    @State private var selectedRecord: AttendanceRecordDB? = nil
+
+    private var dateInterval: (start: Date, end: Date) {
+        let cal = Calendar.current; let now = Date()
+        switch rangeMode {
+        case .today:
+            return (cal.startOfDay(for: now), cal.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now)
+        case .week:
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: .day, value: 6, to: start).flatMap {
+                cal.date(bySettingHour: 23, minute: 59, second: 59, of: $0)
+            } ?? now)
+        case .month:
+            let comps = cal.dateComponents([.year, .month], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? now)
+        case .custom:
+            return (cal.startOfDay(for: customStart),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: customEnd) ?? customEnd)
+        }
+    }
+
+    private var totalWorkedSeconds: TimeInterval {
+        records.reduce(0) { sum, r in
+            guard let i = r.checkInTime, let o = r.checkOutTime else { return sum }
+            return sum + o.timeIntervalSince(i)
+        }
+    }
+
+    private var totalWorkedLabel: String {
+        let t = Int(totalWorkedSeconds); let h = t / 3600; let m = (t % 3600) / 60
+        return String(format: "%d:%02d", h, m)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Range selector
+                Button { showRangePicker = true } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "calendar").foregroundStyle(Color.themePrimary)
+                        Text(rangeMode.rawValue).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundStyle(.gray)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .background(Color.white)
+                }
+                .buttonStyle(.plain)
+                Divider()
+
+                if isLoading {
+                    VStack { ProgressView(); Spacer() }.padding()
+                } else {
+                    ScrollView {
+                        VStack(spacing: 14) {
+                            // Summary
+                            if !records.isEmpty {
+                                HStack(spacing: 0) {
+                                    summaryCell("\(Set(records.map{$0.date}).count)", "Ngày", .green)
+                                    Divider().frame(height: 36)
+                                    summaryCell("\(records.count)", "Ca", Color.themePrimary)
+                                    Divider().frame(height: 36)
+                                    summaryCell(totalWorkedLabel, "Tổng giờ", .blue)
+                                }
+                                .padding(.vertical, 10)
+                                .background(Color.white)
+                                .cornerRadius(14)
+                                .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                            }
+
+                            if records.isEmpty {
+                                VStack(spacing: 10) {
+                                    Image(systemName: "calendar.badge.exclamationmark")
+                                        .font(.system(size: 40)).foregroundStyle(.gray.opacity(0.4))
+                                    Text("Chưa có dữ liệu").foregroundStyle(.gray)
+                                }
+                                .frame(maxWidth: .infinity).padding(40)
+                            } else {
+                                VStack(spacing: 0) {
+                                    ForEach(records.sorted { $0.date > $1.date }) { record in
+                                        Button { selectedRecord = record } label: {
+                                            AttendanceRecordRow(record: record)
+                                        }
+                                        .buttonStyle(.plain)
+                                        Divider().padding(.leading, 60)
+                                    }
+                                }
+                                .background(Color.white)
+                                .cornerRadius(14)
+                                .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                            }
+                        }
+                        .padding(.horizontal).padding(.vertical, 14)
+                    }
+                    .background(Color.themeBackgroundLight)
+                }
+            }
+            .navigationTitle("Điểm danh – \(memberName)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } }
+            }
+            .task { await loadRecords() }
+            .onChange(of: rangeMode) { _, m in
+                if m == .custom { showCustomPicker = true }
+                else { Task { await loadRecords() } }
+            }
+            .sheet(item: $selectedRecord) { AttendanceDetailSheet(record: $0) }
+            .confirmationDialog("Chọn khoảng thời gian", isPresented: $showRangePicker, titleVisibility: .visible) {
+                ForEach(RangeMode.allCases, id: \.self) { m in Button(m.rawValue) { rangeMode = m } }
+                Button("Huỷ", role: .cancel) { }
+            }
+            .sheet(isPresented: $showCustomPicker) {
+                NavigationStack {
+                    Form {
+                        Section {
+                            DatePicker("Từ ngày", selection: $customStart, displayedComponents: .date)
+                            DatePicker("Đến ngày", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                        }
+                    }
+                    .navigationTitle("Tuỳ chọn ngày").navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Xong") { showCustomPicker = false; Task { await loadRecords() } }.fontWeight(.bold)
+                        }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Huỷ") { rangeMode = .today; showCustomPicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func summaryCell(_ value: String, _ label: String, _ color: Color) -> some View {
+        VStack(spacing: 4) {
+            Text(value).font(.title3).fontWeight(.bold).foregroundStyle(color)
+            Text(label).font(.caption2).foregroundStyle(.gray)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func loadRecords() async {
+        isLoading = true; defer { isLoading = false }
+        let (start, end) = dateInterval
+        records = (try? await SupabaseDatabaseService().fetchAttendanceRecords(
+            userId: memberId, from: start, to: end
+        )) ?? []
     }
 }
