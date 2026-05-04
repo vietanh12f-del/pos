@@ -644,6 +644,8 @@ private struct CheckInView: View {
         )
         try? await SupabaseDatabaseService().upsertAttendanceRecord(record)
         if todayRecordId == nil { todayRecordId = record.id }
+        // Trigger refresh thông báo
+        NotificationCenter.default.post(name: .appNotificationShouldRefresh, object: nil)
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -1423,6 +1425,7 @@ struct LeaveRequestSheet: View {
             status: "pending"
         )
         try? await SupabaseDatabaseService().saveLeaveRequest(request)
+        NotificationCenter.default.post(name: .appNotificationShouldRefresh, object: nil)
         withAnimation { showSuccess = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             showSuccess = false

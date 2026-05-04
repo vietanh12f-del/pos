@@ -54,28 +54,73 @@ class AppNotificationService: ObservableObject {
     @Published var items: [AppNotificationItem] = []
     @Published var isLoading = false
 
+    private var cancellables = Set<AnyCancellable>()
+    private weak var currentViewModel: OrderViewModel?
+
     // Key lưu UserDefaults theo ngày
     private var storageKey: String {
         let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
         return "app_notifications_\(df.string(from: Date()))"
     }
 
-    // Số thông báo chưa đọc
     var unreadCount: Int { items.filter { !$0.isRead }.count }
     var hasUnread: Bool { unreadCount > 0 }
     var totalCount: Int { items.count }
+
+    // MARK: - Setup realtime hooks
+
+    /// Gọi 1 lần sau khi store được chọn
+    func setup(viewModel: OrderViewModel) {
+        currentViewModel = viewModel
+        load()
+
+        // Hook vào WebsiteLeadNotificationService — khi newLeadsCount thay đổi → refresh
+        WebsiteLeadNotificationService.shared.$newLeadsCount
+            .dropFirst()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, let vm = self.currentViewModel else { return }
+                Task { await self.refresh(viewModel: vm) }
+            }
+            .store(in: &cancellables)
+
+        // Hook vào OrderViewModel.pastOrders — khi có đơn mới → refresh
+        viewModel.$pastOrders
+            .dropFirst()
+            .debounce(for: .seconds(1), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, let vm = self.currentViewModel else { return }
+                Task { await self.refresh(viewModel: vm) }
+            }
+            .store(in: &cancellables)
+
+        // Hook vào NotificationCenter cho các sự kiện nội bộ
+        // (check-in, leave request mới, đơn sỉ mới)
+        NotificationCenter.default.publisher(for: .appNotificationShouldRefresh)
+            .receive(on: RunLoop.main)
+            .debounce(for: .seconds(1), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, let vm = self.currentViewModel else { return }
+                Task { await self.refresh(viewModel: vm) }
+            }
+            .store(in: &cancellables)
+    }
+
+    func teardown() {
+        cancellables.removeAll()
+        currentViewModel = nil
+    }
 
     // MARK: - Persistence
 
     private func save() {
         guard let data = try? JSONEncoder().encode(items) else { return }
         UserDefaults.standard.set(data, forKey: storageKey)
-        // Xóa key của ngày hôm qua và trước đó (giữ tối đa 2 ngày để tránh rác)
+        // Xóa key của 7 ngày trước
         let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
         for offset in 1...7 {
             if let old = Calendar.current.date(byAdding: .day, value: -offset, to: Date()) {
-                let oldKey = "app_notifications_\(df.string(from: old))"
-                UserDefaults.standard.removeObject(forKey: oldKey)
+                UserDefaults.standard.removeObject(forKey: "app_notifications_\(df.string(from: old))")
             }
         }
     }
@@ -94,11 +139,10 @@ class AppNotificationService: ObservableObject {
         save()
     }
 
-    // MARK: - Refresh (fetch + merge với items đã lưu)
+    // MARK: - Refresh
 
     func refresh(viewModel: OrderViewModel) async {
-        // Load items đã lưu trước (để giữ trạng thái isRead)
-        load()
+        load() // giữ trạng thái isRead
 
         isLoading = true
         defer { isLoading = false }
@@ -223,8 +267,7 @@ class AppNotificationService: ObservableObject {
         )
         items = fresh.sorted { $0.createdAt > $1.createdAt }.map { item in
             var m = item
-            let key = "\(item.type.rawValue)|\(item.title)"
-            m.isRead = oldReadMap[key] ?? false
+            m.isRead = oldReadMap["\(item.type.rawValue)|\(item.title)"] ?? false
             return m
         }
         save()
@@ -452,4 +495,12 @@ struct NotificationRow: View {
         }
         .padding(.vertical, 4)
     }
+}
+
+// MARK: - Notification.Name extension
+
+extension Notification.Name {
+    /// Post khi có sự kiện nội bộ cần refresh thông báo
+    /// (check-in, leave request mới, đơn sỉ mới...)
+    static let appNotificationShouldRefresh = Notification.Name("appNotificationShouldRefresh")
 }

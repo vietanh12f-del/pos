@@ -196,6 +196,7 @@ struct ContentView: View {
                 .onChange(of: storeManager.currentStore?.id) { _, newId in
                     // Khởi động / khởi động lại lắng nghe khách hàng mới từ website
                     WebsiteLeadNotificationService.shared.stop()
+                    AppNotificationService.shared.teardown()
                     if newId != nil {
                         WebsiteLeadNotificationService.shared.start()
                     }
@@ -759,6 +760,8 @@ struct ContentView: View {
                                 allProductionTx = await viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
                                     + (await viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu"))
                             }
+                            // Setup realtime hooks + initial refresh
+                            notifService.setup(viewModel: viewModel)
                             await notifService.refresh(viewModel: viewModel)
                         }
                         .onChange(of: activeRange) { _, _ in
