@@ -534,6 +534,9 @@ struct ContentView: View {
                                         }
 
                                         let profit = viewModel.grossProfit(for: activeRange)
+                                        Button {
+                                            selectedTab = 7
+                                        } label: {
                                         HStack {
                                             VStack(alignment: .leading) {
                                                 Text("LỢI NHUẬN GỘP")
@@ -554,6 +557,8 @@ struct ContentView: View {
                                         .background(profit >= 0 ? Color.themePrimary : Color.red)
                                         .cornerRadius(16)
                                         .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 } else {
                                     VStack(alignment: .center, spacing: 12) {
