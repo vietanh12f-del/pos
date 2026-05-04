@@ -20,6 +20,9 @@ struct ProductionReportView: View {
     // MARK: - Finished import stats
     @State private var finishedImportTx: [ProductionTransaction] = []
 
+    // MARK: - Finished export stats
+    @State private var finishedExportTx: [ProductionTransaction] = []
+
     /// Tổng giá trị tồn kho nguyên liệu hiện tại (gram × giá/kg)
     private var totalMaterialStockValue: Double {
         viewModel.materials.reduce(0) { sum, m in
@@ -87,6 +90,29 @@ struct ProductionReportView: View {
     /// Số loại thành phẩm hiện có trong kho
     private var finishedGoodsCount: Int {
         viewModel.products.filter { $0.isFinishedGood }.count
+    }
+
+    // MARK: - Finished export computed
+    private var filteredFinishedExportTx: [ProductionTransaction] {
+        let (start, end) = dateInterval(for: activeRange)
+        return finishedExportTx.filter { $0.createdAt >= start && $0.createdAt <= end }
+    }
+
+    private var finishedExportCount: Int { filteredFinishedExportTx.count }
+
+    /// Doanh thu sỉ: tổng grandTotal của các phiếu xuất có grandTotal > 0
+    private var finishedExportRevenue: Double {
+        filteredFinishedExportTx.reduce(0) { $0 + ($1.grandTotal ?? 0) }
+    }
+
+    /// Tổng số thành phẩm hiện tại (tất cả loại)
+    private var totalFinishedGoodStockCount: Int {
+        viewModel.products.filter { $0.isFinishedGood }.reduce(0) { $0 + $1.stockQuantity }
+    }
+
+    /// Tổng giá trị tồn kho thành phẩm (stockQuantity × costPrice)
+    private var totalFinishedGoodStockValue: Double {
+        viewModel.products.filter { $0.isFinishedGood }.reduce(0) { $0 + Double($1.stockQuantity) * $1.costPrice }
     }
 
     private func dateInterval(for range: ReportDateRange) -> (Date, Date) {
@@ -279,7 +305,7 @@ struct ProductionReportView: View {
                                 } else if i == 2 {
                                     finishedImportCard(cfg)
                                 } else {
-                                    reportCard(cfg)
+                                    finishedExportCard(cfg)
                                 }
                             }
                             .buttonStyle(.plain)
@@ -303,13 +329,18 @@ struct ProductionReportView: View {
                 async let exportTask = viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
                 async let logsTask = viewModel.fetchAutoMaterialExportLogs(limit: 2000)
                 async let finishedImportTask = viewModel.fetchProductionTransactions(mode: "Nhập Thành Phẩm")
+                async let finishedExportTask = viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
                 if viewModel.materials.isEmpty {
                     await viewModel.loadMaterials()
                 }
-                materialImportTx = await txTask
-                materialExportTx = await exportTask
+                if viewModel.products.isEmpty {
+                    await viewModel.loadProducts()
+                }
+                materialImportTx    = await txTask
+                materialExportTx    = await exportTask
                 materialAutoExportLogs = await logsTask
-                finishedImportTx = await finishedImportTask
+                finishedImportTx    = await finishedImportTask
+                finishedExportTx    = await finishedExportTask
                 isLoadingStats = false
             }
             .sheet(isPresented: $showCustomPicker) {
@@ -730,6 +761,95 @@ struct ProductionReportView: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(cfg.color.opacity(0.15), lineWidth: 1)
         )
+    }
+
+    // MARK: - Finished Export Card (số liệu thực)
+
+    @ViewBuilder
+    private func finishedExportCard(_ cfg: CardConfig) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(cfg.color.opacity(0.12))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: cfg.icon)
+                        .font(.title2).fontWeight(.semibold).foregroundStyle(cfg.color)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cfg.title)
+                        .font(.headline).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
+                    Text(cfg.subtitle)
+                        .font(.caption).foregroundStyle(.gray)
+                }
+                Spacer()
+                if isLoadingStats {
+                    ProgressView().scaleEffect(0.7)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline).foregroundStyle(Color.gray.opacity(0.4))
+                }
+            }
+            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 10)
+
+            Divider().padding(.horizontal, 16)
+
+            // Hàng 1: Tồn kho thành phẩm hiện tại (không phụ thuộc range)
+            HStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text("Số loại thành phẩm")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text("\(finishedGoodsCount) loại")
+                        .font(.caption).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Giá trị tồn kho")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(formatCurrency(totalFinishedGoodStockValue))
+                        .font(.caption).fontWeight(.semibold).foregroundStyle(cfg.color)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 8).padding(.top, 10).padding(.bottom, 6)
+
+            HStack { Spacer().frame(width: 16); Divider(); Spacer().frame(width: 16) }.frame(height: 1)
+
+            // Hàng 2: Xuất trong kỳ
+            HStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text("Số phiếu xuất")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : "\(finishedExportCount) phiếu")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(finishedExportCount > 0 ? cfg.color : Color.gray.opacity(0.35))
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Doanh thu sỉ")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : formatCurrency(finishedExportRevenue))
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(finishedExportRevenue > 0 ? cfg.color : Color.gray.opacity(0.35))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 12)
+        }
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(cfg.color.opacity(0.15), lineWidth: 1))
     }
 }
 
@@ -1891,7 +2011,8 @@ struct GenericProductionReportView: View {
                                         Text("\(item.txs.count) giao dịch")
                                             .font(.caption).foregroundStyle(accentColor)
                                         let s = stats(for: item.txs)
-                                        Text("• \(formatCurrency(s.totalCost))")
+                                        let displayValue = reportKind == .finishedExport ? s.totalRevenue : s.totalCost
+                                        Text("• \(formatCurrency(displayValue))")
                                             .font(.caption).foregroundStyle(.gray)
                                     }
                                 }
@@ -1924,18 +2045,21 @@ struct GenericProductionReportView: View {
 
     private func summaryCard(txs: [ProductionTransaction]) -> some View {
         let s = stats(for: txs)
+        let currentStockValue = viewModel.products.filter { $0.isFinishedGood }.reduce(0.0) { $0 + Double($1.stockQuantity) * $1.costPrice }
         return VStack(alignment: .leading, spacing: 10) {
             Text("Tổng kết")
                 .font(.headline).fontWeight(.bold)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                statTile(label: "Số đơn nhập", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
-                statTile(label: isMaterial ? "Tổng tiền nhập hàng" : "Tổng giá trị", value: formatCurrency(isMaterial ? s.totalCost : s.totalRevenue), icon: "banknote.fill", color: .green)
-                if !isMaterial {
-                    statTile(label: "Đã thanh toán", value: formatCurrency(s.totalRevenue - s.totalDebt), icon: "checkmark.circle.fill", color: .green)
-                }
+                statTile(label: "Số phiếu xuất", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
+                statTile(label: "Doanh thu sỉ", value: formatCurrency(s.totalRevenue), icon: "banknote.fill", color: .green)
                 if reportKind == .finishedExport {
+                    statTile(label: "Giá trị tồn kho", value: formatCurrency(currentStockValue), icon: "shippingbox.fill", color: accentColor)
                     statTile(label: "Còn nợ", value: formatCurrency(s.totalDebt), icon: "exclamationmark.circle.fill", color: s.totalDebt > 0 ? .red : .gray)
+                } else if !isMaterial {
+                    statTile(label: "Đã thanh toán", value: formatCurrency(s.totalRevenue - s.totalDebt), icon: "checkmark.circle.fill", color: .green)
+                } else {
+                    statTile(label: "Tổng tiền nhập hàng", value: formatCurrency(s.totalCost), icon: "banknote.fill", color: .green)
                 }
             }
         }
@@ -2094,6 +2218,9 @@ struct GenericProductionReportView: View {
         isLoading = true
         defer { isLoading = false }
         materials = await viewModel.fetchMaterials()
+        if reportKind == .finishedExport && viewModel.products.isEmpty {
+            await viewModel.loadProducts()
+        }
         await reloadRange()
     }
 
