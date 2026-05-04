@@ -136,4 +136,24 @@ class StorageManager {
         let path = "party-images/" + url[range.upperBound...]
         try? await client.storage.from(receiptBucket).remove(paths: [path])
     }
+
+    // Upload attendance selfie
+    func uploadAttendanceSelfie(data: Data, userId: UUID, fileName: String) async throws -> String {
+        let path = "attendance/\(userId.uuidString)/\(fileName).jpg"
+        try await client.storage
+            .from(receiptBucket)
+            .upload(
+                path,
+                data: data,
+                options: FileOptions(
+                    cacheControl: "3600",
+                    contentType: "image/jpeg",
+                    upsert: true
+                )
+            )
+        let publicURL = try client.storage
+            .from(receiptBucket)
+            .getPublicURL(path: path)
+        return publicURL.absoluteString
+    }
 }

@@ -104,6 +104,15 @@ private struct CheckInView: View {
     @State private var showNoteInput = false
     @State private var isAnimating = false
 
+    // Camera & selfie
+    @State private var showCheckInCamera = false
+    @State private var showCheckOutCamera = false
+    @State private var checkInSelfie: UIImage? = nil
+    @State private var checkOutSelfie: UIImage? = nil
+    @State private var checkInSelfieURL: String? = nil
+    @State private var checkOutSelfieURL: String? = nil
+    @State private var isUploadingSelfie = false
+
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var greeting: String {
@@ -115,6 +124,10 @@ private struct CheckInView: View {
 
     private var userName: String {
         AuthManager.shared.currentUserProfile?.fullName ?? "Nhân viên"
+    }
+
+    private var userId: UUID {
+        AuthManager.shared.currentUserProfile?.id ?? UUID()
     }
 
     var body: some View {
@@ -140,24 +153,59 @@ private struct CheckInView: View {
             .padding(.vertical, 16)
         }
         .onReceive(timer) { _ in currentTime = Date() }
+        // Camera cho check-in (front camera)
+        .fullScreenCover(isPresented: $showCheckInCamera) {
+            SelfieCameraView { image in
+                showCheckInCamera = false
+                guard let image else { return }
+                checkInSelfie = image
+                Task { await uploadAndCheckIn(image: image) }
+            }
+            .ignoresSafeArea()
+        }
+        // Camera cho check-out (front camera)
+        .fullScreenCover(isPresented: $showCheckOutCamera) {
+            SelfieCameraView { image in
+                showCheckOutCamera = false
+                guard let image else { return }
+                checkOutSelfie = image
+                Task { await uploadAndCheckOut(image: image) }
+            }
+            .ignoresSafeArea()
+        }
     }
 
     // MARK: Header card
 
     private var headerCard: some View {
         VStack(spacing: 12) {
-            // Avatar
+            // Avatar hoặc ảnh selfie check-in
             ZStack {
-                Circle()
-                    .fill(LinearGradient(
-                        colors: [Color.themePrimary, Color.themePrimary.opacity(0.7)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
-                    .frame(width: 72, height: 72)
-                Text(userName.prefix(1).uppercased())
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white)
+                if let selfie = checkInSelfie {
+                    Image(uiImage: selfie)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 72, height: 72)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.green, lineWidth: 2))
+                } else {
+                    Circle()
+                        .fill(LinearGradient(
+                            colors: [Color.themePrimary, Color.themePrimary.opacity(0.7)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 72, height: 72)
+                    Text(userName.prefix(1).uppercased())
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                }
+                if isUploadingSelfie {
+                    Circle()
+                        .fill(Color.black.opacity(0.4))
+                        .frame(width: 72, height: 72)
+                    ProgressView().tint(.white)
+                }
             }
 
             VStack(spacing: 4) {
@@ -192,21 +240,18 @@ private struct CheckInView: View {
     private var actionCard: some View {
         VStack(spacing: 16) {
             if !hasCheckedIn {
-                // Check-in button
+                // Check-in button → mở camera trước
                 Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                        isAnimating = true
-                        hasCheckedIn = true
-                        checkInTime = Date()
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        isAnimating = false
-                    }
+                    showCheckInCamera = true
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.title2)
-                        Text("Điểm danh vào")
+                        if isUploadingSelfie {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "camera.fill")
+                                .font(.title2)
+                        }
+                        Text(isUploadingSelfie ? "Đang lưu ảnh..." : "Điểm danh vào")
                             .font(.headline)
                             .fontWeight(.bold)
                     }
@@ -224,12 +269,20 @@ private struct CheckInView: View {
                     .shadow(color: Color.green.opacity(0.4), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
+                .disabled(isUploadingSelfie)
 
             } else if !hasCheckedOut {
                 // Checked-in status
                 HStack(spacing: 10) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                    if let selfie = checkInSelfie {
+                        Image(uiImage: selfie)
+                            .resizable().scaledToFill()
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Đã điểm danh vào")
                             .font(.subheadline)
@@ -242,26 +295,28 @@ private struct CheckInView: View {
                         }
                     }
                     Spacer()
+                    if checkInSelfieURL != nil {
+                        Image(systemName: "checkmark.icloud.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green.opacity(0.7))
+                    }
                 }
                 .padding(14)
                 .background(Color.green.opacity(0.08))
                 .cornerRadius(12)
 
-                // Check-out button
+                // Check-out button → mở camera trước
                 Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                        isAnimating = true
-                        hasCheckedOut = true
-                        checkOutTime = Date()
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        isAnimating = false
-                    }
+                    showCheckOutCamera = true
                 } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: "arrow.right.circle.fill")
-                            .font(.title2)
-                        Text("Điểm danh ra")
+                        if isUploadingSelfie {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "camera.fill")
+                                .font(.title2)
+                        }
+                        Text(isUploadingSelfie ? "Đang lưu ảnh..." : "Điểm danh ra")
                             .font(.headline)
                             .fontWeight(.bold)
                     }
@@ -279,24 +334,33 @@ private struct CheckInView: View {
                     .shadow(color: Color.blue.opacity(0.4), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
+                .disabled(isUploadingSelfie)
 
             } else {
                 // Fully checked out
                 VStack(spacing: 10) {
                     HStack(spacing: 10) {
-                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Vào: \(checkInTime.map { formatTime($0) } ?? "—")")
-                                .font(.subheadline).foregroundStyle(.green)
+                        if let selfie = checkInSelfie {
+                            Image(uiImage: selfie)
+                                .resizable().scaledToFill()
+                                .frame(width: 32, height: 32).clipShape(Circle())
+                        } else {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                         }
+                        Text("Vào: \(checkInTime.map { formatTime($0) } ?? "—")")
+                            .font(.subheadline).foregroundStyle(.green)
                         Spacer()
                     }
                     HStack(spacing: 10) {
-                        Image(systemName: "arrow.right.circle.fill").foregroundStyle(.blue)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Ra: \(checkOutTime.map { formatTime($0) } ?? "—")")
-                                .font(.subheadline).foregroundStyle(.blue)
+                        if let selfie = checkOutSelfie {
+                            Image(uiImage: selfie)
+                                .resizable().scaledToFill()
+                                .frame(width: 32, height: 32).clipShape(Circle())
+                        } else {
+                            Image(systemName: "arrow.right.circle.fill").foregroundStyle(.blue)
                         }
+                        Text("Ra: \(checkOutTime.map { formatTime($0) } ?? "—")")
+                            .font(.subheadline).foregroundStyle(.blue)
                         Spacer()
                     }
                 }
@@ -421,6 +485,52 @@ private struct CheckInView: View {
         let h = Int(diff) / 3600
         let m = (Int(diff) % 3600) / 60
         return String(format: "%d:%02d", h, m)
+    }
+
+    // MARK: Upload & confirm check-in
+
+    private func uploadAndCheckIn(image: UIImage) async {
+        isUploadingSelfie = true
+        defer { isUploadingSelfie = false }
+
+        let fileName = "checkin_\(UUID().uuidString)"
+        if let data = image.jpegData(compressionQuality: 0.82),
+           let url = try? await StorageManager.shared.uploadAttendanceSelfie(
+               data: data, userId: userId, fileName: fileName
+           ) {
+            checkInSelfieURL = url
+        }
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+            isAnimating = true
+            hasCheckedIn = true
+            checkInTime = Date()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            isAnimating = false
+        }
+    }
+
+    private func uploadAndCheckOut(image: UIImage) async {
+        isUploadingSelfie = true
+        defer { isUploadingSelfie = false }
+
+        let fileName = "checkout_\(UUID().uuidString)"
+        if let data = image.jpegData(compressionQuality: 0.82),
+           let url = try? await StorageManager.shared.uploadAttendanceSelfie(
+               data: data, userId: userId, fileName: fileName
+           ) {
+            checkOutSelfieURL = url
+        }
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+            isAnimating = true
+            hasCheckedOut = true
+            checkOutTime = Date()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            isAnimating = false
+        }
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -675,5 +785,41 @@ private struct AttendanceRecordRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Selfie Camera View (front camera)
+
+struct SelfieCameraView: UIViewControllerRepresentable {
+    /// Callback: image = ảnh chụp, nil = người dùng huỷ
+    let onCapture: (UIImage?) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onCapture: onCapture) }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraDevice = UIImagePickerController.isCameraDeviceAvailable(.front) ? .front : .rear
+        picker.cameraCaptureMode = .photo
+        picker.allowsEditing = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onCapture: (UIImage?) -> Void
+        init(onCapture: @escaping (UIImage?) -> Void) { self.onCapture = onCapture }
+
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            let image = info[.originalImage] as? UIImage
+            onCapture(image)
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            onCapture(nil)
+        }
     }
 }
