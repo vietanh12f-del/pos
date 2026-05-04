@@ -12,9 +12,68 @@ struct EmployeeManagementView: View {
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var employees: [EmployeeViewModel] = []
     @State private var showAddEmployee = false
-    
+    @State private var pendingLeaveCount = 0
+    @State private var showLeaveApproval = false
+    @State private var showWorkHoursSettings = false
+
+    // Tổng lương: tổng tất cả mức lương nhân viên từ UserDefaults
+    private var totalSalary: Double {
+        employees.reduce(0) { sum, emp in
+            sum + UserDefaults.standard.double(forKey: "employee_salary_\(emp.member.id.uuidString)")
+        }
+    }
+
     var body: some View {
         List {
+            // ── Tổng quan ──────────────────────────────────────
+            Section {
+                // Hàng 1: Tổng nhân viên + Tổng lương
+                HStack(spacing: 10) {
+                    overviewTile(
+                        icon: "person.2.fill",
+                        label: "Nhân viên",
+                        value: "\(employees.count)",
+                        color: Color.themePrimary
+                    )
+                    overviewTile(
+                        icon: "banknote.fill",
+                        label: "Tổng lương/tháng",
+                        value: totalSalary > 0 ? formatCurrency(totalSalary) : "—",
+                        color: .green
+                    )
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+                .listRowBackground(Color.clear)
+
+                // Hàng 2: Duyệt nghỉ + Cài đặt giờ làm
+                HStack(spacing: 10) {
+                    Button { showLeaveApproval = true } label: {
+                        overviewActionTile(
+                            icon: "calendar.badge.checkmark",
+                            label: "Duyệt nghỉ",
+                            badge: pendingLeaveCount > 0 ? "\(pendingLeaveCount)" : nil,
+                            color: .orange
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { showWorkHoursSettings = true } label: {
+                        overviewActionTile(
+                            icon: "clock.badge.gear",
+                            label: "Giờ làm việc",
+                            badge: nil,
+                            color: .indigo
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                .listRowBackground(Color.clear)
+            } header: {
+                Text("Tổng quan")
+            }
+
+            // ── Danh sách nhân viên ────────────────────────────
             Section(header: Text("Danh sách nhân viên")) {
                 if employees.isEmpty {
                     Text("Chưa có nhân viên nào.")
@@ -24,7 +83,7 @@ struct EmployeeManagementView: View {
                         NavigationLink(destination: EmployeeDetailView(member: employee.member, name: employee.name)) {
                             HStack {
                                 VStack(alignment: .leading) {
-                                    Text(employee.name) 
+                                    Text(employee.name)
                                         .font(.headline)
                                     Text(employee.member.role.displayName)
                                         .font(.caption)
@@ -53,6 +112,7 @@ struct EmployeeManagementView: View {
         }
         .refreshable {
             await loadEmployees()
+            await loadPendingLeave()
         }
         .navigationTitle("Quản lý nhân viên")
         .toolbar {
@@ -67,11 +127,19 @@ struct EmployeeManagementView: View {
                 await loadEmployees()
             })
         }
+        .sheet(isPresented: $showLeaveApproval) {
+            LeaveApprovalView()
+                .onDisappear { Task { await loadPendingLeave() } }
+        }
+        .sheet(isPresented: $showWorkHoursSettings) {
+            WorkHoursSettingsView()
+        }
         .onAppear {
             tabBarManager.customFabAction = { showAddEmployee = true }
             if employees.isEmpty {
                 Task {
                     await loadEmployees()
+                    await loadPendingLeave()
                 }
             }
         }
@@ -88,12 +156,76 @@ struct EmployeeManagementView: View {
         }
     }
 
+    // MARK: - Tile builders
+
+    @ViewBuilder
+    private func overviewTile(icon: String, label: String, value: String, color: Color) -> some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle().fill(color.opacity(0.12)).frame(width: 38, height: 38)
+                Image(systemName: icon).font(.subheadline).foregroundStyle(color)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.caption2).foregroundStyle(.gray)
+                Text(value).font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+
+    @ViewBuilder
+    private func overviewActionTile(icon: String, label: String, badge: String?, color: Color) -> some View {
+        HStack(spacing: 10) {
+            ZStack(alignment: .topTrailing) {
+                ZStack {
+                    Circle().fill(color.opacity(0.12)).frame(width: 38, height: 38)
+                    Image(systemName: icon).font(.subheadline).foregroundStyle(color)
+                }
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Capsule().fill(Color.red))
+                        .offset(x: 6, y: -4)
+                }
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.caption2).foregroundStyle(.gray)
+                Text(badge != nil ? "\(badge!) chờ duyệt" : "Cài đặt")
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(badge != nil ? color : Color.themeTextDark)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.gray.opacity(0.5))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+
+    // MARK: - Data
+
     func loadEmployees() async {
         let rawEmployees = await storeManager.getEmployees()
         let filtered = rawEmployees.filter { $0.0.role != .owner }
         employees = filtered.map { EmployeeViewModel(id: $0.0.id, member: $0.0, name: $0.1) }
     }
-    
+
+    func loadPendingLeave() async {
+        let all = (try? await SupabaseDatabaseService().fetchAllLeaveRequests()) ?? []
+        pendingLeaveCount = all.filter { $0.status == "pending" }.count
+    }
+
     func deleteEmployee(at offsets: IndexSet) {
         offsets.forEach { index in
             let employee = employees[index]
@@ -1014,5 +1146,280 @@ struct EmployeeAttendanceReport: View {
         records = (try? await SupabaseDatabaseService().fetchAttendanceRecords(
             userId: memberId, from: start, to: end
         )) ?? []
+    }
+}
+
+// MARK: - Leave Approval View (chủ duyệt đơn nghỉ)
+
+struct LeaveApprovalView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var requests: [LeaveRequest] = []
+    @State private var isLoading = false
+    @State private var filter: StatusFilter = .pending
+
+    enum StatusFilter: String, CaseIterable {
+        case pending  = "Chờ duyệt"
+        case approved = "Đã duyệt"
+        case rejected = "Từ chối"
+        var dbValue: String {
+            switch self { case .pending: return "pending"; case .approved: return "approved"; case .rejected: return "rejected" }
+        }
+    }
+
+    private var filtered: [LeaveRequest] {
+        requests.filter { $0.status == filter.dbValue }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("", selection: $filter) {
+                    ForEach(StatusFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal).padding(.vertical, 10)
+                .background(Color.white)
+                Divider()
+
+                if isLoading {
+                    VStack { ProgressView(); Spacer() }.padding()
+                } else if filtered.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "tray").font(.system(size: 40)).foregroundStyle(.gray.opacity(0.4))
+                        Text("Không có đơn nào").foregroundStyle(.gray)
+                    }
+                    .frame(maxWidth: .infinity).padding(40)
+                    Spacer()
+                } else {
+                    List {
+                        ForEach(filtered) { req in
+                            LeaveApprovalRow(request: req) {
+                                Task { await loadRequests() }
+                            }
+                            .listRowBackground(Color.white)
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Duyệt đơn nghỉ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } }
+            }
+            .task { await loadRequests() }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func loadRequests() async {
+        isLoading = true; defer { isLoading = false }
+        requests = (try? await SupabaseDatabaseService().fetchAllLeaveRequests()) ?? []
+    }
+}
+
+private struct LeaveApprovalRow: View {
+    let request: LeaveRequest
+    let onUpdated: () -> Void
+    @State private var isProcessing = false
+    @State private var showRejectSheet = false
+    @State private var rejectNote = ""
+
+    private func formatDate(_ s: String) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        guard let d = f.date(from: s) else { return s }
+        let f2 = DateFormatter(); f2.locale = Locale(identifier: "vi_VN"); f2.dateFormat = "EEE, dd/MM/yyyy"
+        return f2.string(from: d)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(request.userName).font(.subheadline).fontWeight(.semibold)
+                    Text(formatDate(request.leaveDate)).font(.caption).foregroundStyle(.gray)
+                    Text(request.leaveTypeLabel).font(.caption).foregroundStyle(Color.themePrimary)
+                }
+                Spacer()
+                statusBadge
+            }
+            if let reason = request.reason, !reason.isEmpty {
+                Text(reason).font(.caption).foregroundStyle(.gray)
+            }
+            if request.status == "pending" {
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await updateStatus("rejected") }
+                        showRejectSheet = true
+                    } label: {
+                        Text("Từ chối")
+                            .font(.caption).fontWeight(.semibold).foregroundStyle(.red)
+                            .frame(maxWidth: .infinity).padding(.vertical, 8)
+                            .background(Color.red.opacity(0.08)).cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        Task { await updateStatus("approved") }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isProcessing { ProgressView().scaleEffect(0.7).tint(.white) }
+                            else { Text("Duyệt").font(.caption).fontWeight(.bold) }
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).padding(.vertical, 8)
+                        .background(Color.green).cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isProcessing)
+                }
+            }
+        }
+        .padding(.vertical, 6)
+        .sheet(isPresented: $showRejectSheet) {
+            NavigationStack {
+                Form {
+                    Section(header: Text("Lý do từ chối")) {
+                        TextField("Nhập lý do...", text: $rejectNote)
+                    }
+                }
+                .navigationTitle("Từ chối đơn").navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Huỷ") { showRejectSheet = false } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Xác nhận") {
+                            Task { await updateStatus("rejected", note: rejectNote) }
+                            showRejectSheet = false
+                        }.fontWeight(.bold)
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+    }
+
+    private var statusBadge: some View {
+        let color: Color = request.status == "approved" ? .green : request.status == "rejected" ? .red : .orange
+        return Text(request.statusLabel)
+            .font(.caption2).fontWeight(.bold).foregroundStyle(color)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .background(Capsule().fill(color.opacity(0.12)))
+    }
+
+    private func updateStatus(_ status: String, note: String? = nil) async {
+        isProcessing = true; defer { isProcessing = false }
+        try? await SupabaseDatabaseService().updateLeaveRequestStatus(id: request.id, status: status, reviewNote: note)
+        onUpdated()
+    }
+}
+
+// MARK: - Work Hours Settings View
+
+struct WorkHoursSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    private let key = "work_hours_settings"
+
+    @State private var startHour: Int = 8
+    @State private var startMinute: Int = 0
+    @State private var endHour: Int = 17
+    @State private var endMinute: Int = 30
+    @State private var lateThresholdMinutes: Int = 15
+    @State private var workDays: Set<Int> = [2, 3, 4, 5, 6, 7] // 1=CN, 2=T2...7=T7
+
+    private let dayNames = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Giờ làm việc")) {
+                    HStack {
+                        Text("Giờ vào")
+                        Spacer()
+                        Picker("", selection: $startHour) {
+                            ForEach(0..<24, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                        }
+                        .pickerStyle(.wheel).frame(width: 60, height: 80).clipped()
+                        Text(":").font(.title3)
+                        Picker("", selection: $startMinute) {
+                            ForEach([0, 15, 30, 45], id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                        }
+                        .pickerStyle(.wheel).frame(width: 60, height: 80).clipped()
+                    }
+                    HStack {
+                        Text("Giờ ra")
+                        Spacer()
+                        Picker("", selection: $endHour) {
+                            ForEach(0..<24, id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                        }
+                        .pickerStyle(.wheel).frame(width: 60, height: 80).clipped()
+                        Text(":").font(.title3)
+                        Picker("", selection: $endMinute) {
+                            ForEach([0, 15, 30, 45], id: \.self) { Text(String(format: "%02d", $0)).tag($0) }
+                        }
+                        .pickerStyle(.wheel).frame(width: 60, height: 80).clipped()
+                    }
+                }
+
+                Section(header: Text("Ngưỡng đi trễ")) {
+                    Stepper("Trễ sau \(lateThresholdMinutes) phút", value: $lateThresholdMinutes, in: 0...60, step: 5)
+                }
+
+                Section(header: Text("Ngày làm việc")) {
+                    HStack(spacing: 8) {
+                        ForEach(1...7, id: \.self) { day in
+                            Button {
+                                if workDays.contains(day) { workDays.remove(day) }
+                                else { workDays.insert(day) }
+                            } label: {
+                                Text(dayNames[day - 1])
+                                    .font(.caption).fontWeight(.semibold)
+                                    .frame(width: 36, height: 36)
+                                    .background(workDays.contains(day) ? Color.themePrimary : Color.gray.opacity(0.12))
+                                    .foregroundStyle(workDays.contains(day) ? .white : Color.themeTextDark)
+                                    .clipShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section(footer: Text("Cài đặt này ảnh hưởng đến tính năng điểm danh và báo cáo giờ làm.")) {
+                    EmptyView()
+                }
+            }
+            .navigationTitle("Giờ làm việc")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Lưu") { save(); dismiss() }.fontWeight(.bold)
+                }
+            }
+            .onAppear { load() }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func save() {
+        let dict: [String: Any] = [
+            "startHour": startHour, "startMinute": startMinute,
+            "endHour": endHour, "endMinute": endMinute,
+            "lateThreshold": lateThresholdMinutes,
+            "workDays": Array(workDays)
+        ]
+        UserDefaults.standard.set(dict, forKey: key)
+    }
+
+    private func load() {
+        guard let dict = UserDefaults.standard.dictionary(forKey: key) else { return }
+        startHour = dict["startHour"] as? Int ?? 8
+        startMinute = dict["startMinute"] as? Int ?? 0
+        endHour = dict["endHour"] as? Int ?? 17
+        endMinute = dict["endMinute"] as? Int ?? 30
+        lateThresholdMinutes = dict["lateThreshold"] as? Int ?? 15
+        if let days = dict["workDays"] as? [Int] { workDays = Set(days) }
     }
 }
