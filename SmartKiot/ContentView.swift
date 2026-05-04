@@ -2094,6 +2094,9 @@ struct ContentView: View {
         @State private var receiptImage: UIImage?
         @State private var isUploadingReceipt = false
         @State private var showDiscountSheet = false
+        @State private var customVATRate: Double? = nil
+        @State private var showVATRatePicker = false
+        @State private var vatRateInputText: String = ""
         
         var body: some View {
             ZStack {
@@ -2142,7 +2145,12 @@ struct ContentView: View {
                                 receiptImage = img
                             },
                             onEditDiscount: { showDiscountSheet = true },
-                            sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber
+                            sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber,
+                            customVATRate: customVATRate,
+                            onEditVAT: {
+                                vatRateInputText = String(format: "%.0f", customVATRate ?? StoreManager.shared.currentStoreVATRate())
+                                showVATRatePicker = true
+                            }
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -2246,6 +2254,14 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showDiscountSheet) {
                 DiscountEditorView(viewModel: viewModel, dismiss: { showDiscountSheet = false })
+            }
+            .sheet(isPresented: $showVATRatePicker) {
+                VATRatePickerSheet(
+                    rateText: $vatRateInputText,
+                    defaultRate: StoreManager.shared.currentStoreVATRate(),
+                    onSave: { newRate in customVATRate = newRate },
+                    onReset: { customVATRate = nil }
+                )
             }
         }
         
@@ -2480,15 +2496,16 @@ struct ContentView: View {
         let receiptImageURL: String?
         let onPickedReceiptImage: ((UIImage) -> Void)?
         let onEditDiscount: (() -> Void)?
-        let sequenceNumber: String? // Added sequenceNumber
+        let sequenceNumber: String?
+        var customVATRate: Double?
+        var onEditVAT: (() -> Void)?
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
         @State private var previewURL: URL?
         @StateObject private var previewLoader = CachedImageLoader()
         @StateObject private var originalLoader = CachedImageLoader()
         
-        // Add an initializer to support optional sequenceNumber
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -2504,6 +2521,8 @@ struct ContentView: View {
             self.onPickedReceiptImage = onPickedReceiptImage
             self.onEditDiscount = onEditDiscount
             self.sequenceNumber = sequenceNumber
+            self.customVATRate = customVATRate
+            self.onEditVAT = onEditVAT
         }
         
         var body: some View {
@@ -2606,7 +2625,7 @@ struct ContentView: View {
                 
                 VStack(spacing: 8) {
                     let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
-                    let vatRate = StoreManager.shared.currentStoreVATRate()
+                    let vatRate = customVATRate ?? StoreManager.shared.currentStoreVATRate()
                     let vatAmount = vatEnabled ? (totalAmount * vatRate / 100.0) : 0
                     let subtotal = items.reduce(0) { $0 + $1.total }
                     let discountValue = max(0, subtotal - totalAmount)
@@ -2622,8 +2641,19 @@ struct ContentView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         HStack {
-                            Text("VAT (\(Int(vatRate))%)")
-                                .foregroundStyle(Color.gray)
+                            Button {
+                                onEditVAT?()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text("VAT (\(vatRate.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", vatRate) : String(format: "%.1f", vatRate))%)")
+                                        .foregroundStyle(Color.gray)
+                                    Image(systemName: "pencil.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(customVATRate != nil ? Color.orange : Color.gray.opacity(0.5))
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(onEditVAT == nil)
                             Spacer()
                             Text(formatCurrency(vatAmount))
                                 .fontWeight(.bold)
