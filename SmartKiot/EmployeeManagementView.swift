@@ -195,7 +195,10 @@ struct EmployeeDetailView: View {
     @State private var showEditPosition = false
     @StateObject private var speech = SpeechRecognizer()
     @State private var isSavingPosition = false
-    
+    @State private var employeeType: String = "fulltime" // "fulltime" | "parttime"
+
+    private var employeeTypeKey: String { "employee_type_\(member.id.uuidString)" }
+
     var body: some View {
         VStack(spacing: 0) {
             // Custom Header
@@ -224,25 +227,92 @@ struct EmployeeDetailView: View {
             
             Form {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text(name)
                             .font(.headline)
                             .foregroundStyle(Color.themeTextDark)
-                        
-                        PlainInfoRow(
-                            icon: "person.badge.key",
-                            title: "Chức vụ",
-                            value: positionTitle.isEmpty ? "—" : positionTitle,
-                            actionTitle: "Sửa",
-                            action: { showEditPosition = true }
-                        )
-                        
-                        PlainInfoRow(
-                            icon: statusIcon(member.status),
-                            title: "Trạng thái",
-                            value: statusText(member.status),
-                            valueColor: statusColor(member.status)
-                        )
+
+                        // Hai ô tile cạnh nhau
+                        HStack(spacing: 10) {
+                            // Ô chức vụ
+                            HStack(spacing: 8) {
+                                Image(systemName: "person.badge.key")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.themePrimary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Chức vụ")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
+                                    Text(positionTitle.isEmpty ? "—" : positionTitle)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.themeTextDark)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                                Button {
+                                    showEditPosition = true
+                                } label: {
+                                    Image(systemName: "pencil.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(Color.themePrimary.opacity(0.7))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.themePrimary.opacity(0.06))
+                            .cornerRadius(12)
+
+                            // Ô trạng thái + phân loại
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: statusIcon(member.status))
+                                        .font(.caption)
+                                        .foregroundStyle(statusColor(member.status))
+                                    Text(statusText(member.status))
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(statusColor(member.status))
+                                }
+                                // Phân loại
+                                Menu {
+                                    Button {
+                                        employeeType = "fulltime"
+                                        UserDefaults.standard.set("fulltime", forKey: employeeTypeKey)
+                                    } label: {
+                                        Label("Chính thức", systemImage: employeeType == "fulltime" ? "checkmark" : "")
+                                    }
+                                    Button {
+                                        employeeType = "parttime"
+                                        UserDefaults.standard.set("parttime", forKey: employeeTypeKey)
+                                    } label: {
+                                        Label("Part-time", systemImage: employeeType == "parttime" ? "checkmark" : "")
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: employeeType == "parttime" ? "clock.badge.questionmark" : "briefcase.fill")
+                                            .font(.caption2)
+                                        Text(employeeType == "parttime" ? "Part-time" : "Chính thức")
+                                            .font(.caption2)
+                                            .fontWeight(.semibold)
+                                        Image(systemName: "chevron.up.chevron.down")
+                                            .font(.system(size: 8))
+                                    }
+                                    .foregroundStyle(employeeType == "parttime" ? Color.orange : Color.green)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(
+                                        (employeeType == "parttime" ? Color.orange : Color.green).opacity(0.12)
+                                    ))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity)
+                            .background(statusColor(member.status).opacity(0.06))
+                            .cornerRadius(12)
+                        }
                     }
                 }
                 
@@ -351,6 +421,7 @@ struct EmployeeDetailView: View {
                 permissions = Set(memberPermissions)
             }
             positionTitle = member.positionTitle ?? ""
+            employeeType = UserDefaults.standard.string(forKey: employeeTypeKey) ?? "fulltime"
         }
     }
 }
