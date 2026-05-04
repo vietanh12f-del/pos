@@ -9,6 +9,53 @@ struct ProductionReportView: View {
     @State private var showFinishedImportReport = false
     @State private var showFinishedExportReport = false
 
+    // MARK: - Material import stats
+    @State private var materialImportTx: [ProductionTransaction] = []
+    @State private var isLoadingStats = false
+
+    /// Tổng giá trị tồn kho nguyên liệu hiện tại (gram × giá/kg)
+    private var totalMaterialStockValue: Double {
+        viewModel.materials.reduce(0) { sum, m in
+            let kg = Double(m.stockQuantity) / 1000.0
+            return sum + kg * m.lastUnitPrice
+        }
+    }
+
+    /// Tổng số nguyên liệu hiện tại (gram → kg)
+    private var totalMaterialStockKg: Double {
+        viewModel.materials.reduce(0) { $0 + Double($1.stockQuantity) } / 1000.0
+    }
+
+    /// Phiếu nhập NL trong kỳ đang chọn
+    private var filteredImportTx: [ProductionTransaction] {
+        let (start, end) = dateInterval(for: activeRange)
+        return materialImportTx.filter { $0.createdAt >= start && $0.createdAt <= end }
+    }
+
+    private var importTxCount: Int { filteredImportTx.count }
+    private var importTxTotal: Double { filteredImportTx.reduce(0) { $0 + $1.totalCost } }
+
+    private func dateInterval(for range: ReportDateRange) -> (Date, Date) {
+        let cal = Calendar.current
+        let now = Date()
+        switch range {
+        case .today:
+            return (cal.startOfDay(for: now),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now)
+        case .thisWeek:
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: .day, value: 7, to: start)?.addingTimeInterval(-1) ?? now)
+        case .thisMonth:
+            let comps = cal.dateComponents([.year, .month], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? now)
+        case .custom(let s, let e):
+            return (cal.startOfDay(for: s),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: e) ?? e)
+        }
+    }
+
     // MARK: - Date range
     enum QuickRange: String, CaseIterable {
         case today    = "Hôm nay"
@@ -69,18 +116,18 @@ struct ProductionReportView: View {
 
     private let configs: [CardConfig] = [
         CardConfig(
-            title: "Xuất nguyên liệu",
-            subtitle: "Nguyên liệu đã dùng cho sản xuất",
-            icon: "arrow.up.doc.fill",
-            color: .purple,
-            col2: "Số phiếu xuất", col3: "Tổng khối lượng"
-        ),
-        CardConfig(
             title: "Nhập nguyên liệu",
             subtitle: "Nguyên liệu đầu vào đã nhập kho",
             icon: "arrow.down.doc.fill",
             color: .green,
             col2: "Số phiếu nhập", col3: "Tổng chi phí"
+        ),
+        CardConfig(
+            title: "Xuất nguyên liệu",
+            subtitle: "Nguyên liệu đã dùng cho sản xuất",
+            icon: "arrow.up.doc.fill",
+            color: .purple,
+            col2: "Số phiếu xuất", col3: "Tổng khối lượng"
         ),
         CardConfig(
             title: "Nhập thành phẩm",
@@ -164,14 +211,18 @@ struct ProductionReportView: View {
                             let cfg = configs[i]
                             Button {
                                 switch i {
-                                case 0: showMaterialExportReport = true
-                                case 1: showMaterialImportReport = true
+                                case 0: showMaterialImportReport = true
+                                case 1: showMaterialExportReport = true
                                 case 2: showFinishedImportReport = true
                                 case 3: showFinishedExportReport = true
                                 default: break
                                 }
                             } label: {
-                                reportCard(cfg)
+                                if i == 0 {
+                                    materialImportCard(cfg)
+                                } else {
+                                    reportCard(cfg)
+                                }
                             }
                             .buttonStyle(.plain)
                         }
@@ -187,6 +238,15 @@ struct ProductionReportView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+            }
+            .task {
+                isLoadingStats = true
+                async let txTask = viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu")
+                if viewModel.materials.isEmpty {
+                    await viewModel.loadMaterials()
+                }
+                materialImportTx = await txTask
+                isLoadingStats = false
             }
             .sheet(isPresented: $showCustomPicker) {
                 NavigationStack {
@@ -318,6 +378,116 @@ struct ProductionReportView: View {
                 .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Material Import Card (số liệu thực)
+
+    @ViewBuilder
+    private func materialImportCard(_ cfg: CardConfig) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(cfg.color.opacity(0.12))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: cfg.icon)
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(cfg.color)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cfg.title)
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                    Text(cfg.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                Spacer()
+                if isLoadingStats {
+                    ProgressView().scaleEffect(0.7)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.gray.opacity(0.4))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+
+            Divider().padding(.horizontal, 16)
+
+            // Hàng 1: Tồn kho hiện tại (không phụ thuộc range)
+            HStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text("Tồn kho hiện tại")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text("\(viewModel.materials.count) nguyên liệu")
+                        .font(.caption).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Giá trị tồn kho")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(formatCurrency(totalMaterialStockValue))
+                        .font(.caption).fontWeight(.semibold).foregroundStyle(cfg.color)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            // Divider mỏng giữa 2 hàng
+            HStack {
+                Spacer().frame(width: 16)
+                Divider()
+                Spacer().frame(width: 16)
+            }
+            .frame(height: 1)
+
+            // Hàng 2: Nhập trong kỳ (theo range)
+            HStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text("Số phiếu nhập")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : "\(importTxCount) phiếu")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(importTxCount > 0 ? cfg.color : Color.gray.opacity(0.35))
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Tổng chi phí")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : formatCurrency(importTxTotal))
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(importTxTotal > 0 ? cfg.color : Color.gray.opacity(0.35))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 6)
+            .padding(.bottom, 12)
+        }
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(cfg.color.opacity(0.15), lineWidth: 1)
+        )
     }
 }
 
