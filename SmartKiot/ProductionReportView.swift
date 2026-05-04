@@ -17,6 +17,9 @@ struct ProductionReportView: View {
     @State private var materialExportTx: [ProductionTransaction] = []
     @State private var materialAutoExportLogs: [AutoMaterialExportLog] = []
 
+    // MARK: - Finished import stats
+    @State private var finishedImportTx: [ProductionTransaction] = []
+
     /// Tổng giá trị tồn kho nguyên liệu hiện tại (gram × giá/kg)
     private var totalMaterialStockValue: Double {
         viewModel.materials.reduce(0) { sum, m in
@@ -59,6 +62,31 @@ struct ProductionReportView: View {
 
     private var totalExportValue: Double {
         filteredExportTx.reduce(0) { $0 + $1.totalCost }
+    }
+
+    // MARK: - Finished import computed
+    private var filteredFinishedImportTx: [ProductionTransaction] {
+        let (start, end) = dateInterval(for: activeRange)
+        return finishedImportTx.filter { $0.createdAt >= start && $0.createdAt <= end }
+    }
+
+    private var finishedImportCount: Int { filteredFinishedImportTx.count }
+
+    /// Tổng số thành phẩm (gram → kg) nhập trong kỳ
+    private var finishedImportTotalKg: Double {
+        filteredFinishedImportTx
+            .flatMap { $0.items }
+            .reduce(0) { $0 + Double($1.quantity) } / 1000.0
+    }
+
+    /// Tổng giá trị nhập thành phẩm trong kỳ
+    private var finishedImportTotalValue: Double {
+        filteredFinishedImportTx.reduce(0) { $0 + $1.totalCost }
+    }
+
+    /// Số loại thành phẩm hiện có trong kho
+    private var finishedGoodsCount: Int {
+        viewModel.products.filter { $0.isFinishedGood }.count
     }
 
     private func dateInterval(for range: ReportDateRange) -> (Date, Date) {
@@ -248,6 +276,8 @@ struct ProductionReportView: View {
                                     materialImportCard(cfg)
                                 } else if i == 1 {
                                     materialExportCard(cfg)
+                                } else if i == 2 {
+                                    finishedImportCard(cfg)
                                 } else {
                                     reportCard(cfg)
                                 }
@@ -272,12 +302,14 @@ struct ProductionReportView: View {
                 async let txTask = viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu")
                 async let exportTask = viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
                 async let logsTask = viewModel.fetchAutoMaterialExportLogs(limit: 2000)
+                async let finishedImportTask = viewModel.fetchProductionTransactions(mode: "Nhập Thành Phẩm")
                 if viewModel.materials.isEmpty {
                     await viewModel.loadMaterials()
                 }
                 materialImportTx = await txTask
                 materialExportTx = await exportTask
                 materialAutoExportLogs = await logsTask
+                finishedImportTx = await finishedImportTask
                 isLoadingStats = false
             }
             .sheet(isPresented: $showCustomPicker) {
@@ -496,6 +528,98 @@ struct ProductionReportView: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(cfg.color.opacity(0.15), lineWidth: 1)
         )
+    }
+
+    // MARK: - Finished Import Card (số liệu thực)
+
+    @ViewBuilder
+    private func finishedImportCard(_ cfg: CardConfig) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(cfg.color.opacity(0.12))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: cfg.icon)
+                        .font(.title2).fontWeight(.semibold).foregroundStyle(cfg.color)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cfg.title)
+                        .font(.headline).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
+                    Text(cfg.subtitle)
+                        .font(.caption).foregroundStyle(.gray)
+                }
+                Spacer()
+                if isLoadingStats {
+                    ProgressView().scaleEffect(0.7)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline).foregroundStyle(Color.gray.opacity(0.4))
+                }
+            }
+            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 10)
+
+            Divider().padding(.horizontal, 16)
+
+            // Hàng 1: Tồn kho thành phẩm hiện tại
+            HStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text("Tồn kho hiện tại")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text("\(finishedGoodsCount) thành phẩm")
+                        .font(.caption).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Giá trị tồn kho")
+                        .font(.caption2).foregroundStyle(.gray)
+                    let stockValue = viewModel.products
+                        .filter { $0.isFinishedGood }
+                        .reduce(0) { $0 + Double($1.stockQuantity) / 1000.0 * $1.costPrice }
+                    Text(formatCurrency(stockValue))
+                        .font(.caption).fontWeight(.semibold).foregroundStyle(cfg.color)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 8).padding(.top, 10).padding(.bottom, 6)
+
+            HStack { Spacer().frame(width: 16); Divider(); Spacer().frame(width: 16) }.frame(height: 1)
+
+            // Hàng 2: Nhập trong kỳ
+            HStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text("Số phiếu nhập")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : "\(finishedImportCount) phiếu")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(finishedImportCount > 0 ? cfg.color : Color.gray.opacity(0.35))
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Tổng giá trị")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : formatCurrency(finishedImportTotalValue))
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(finishedImportTotalValue > 0 ? cfg.color : Color.gray.opacity(0.35))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 12)
+        }
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(cfg.color.opacity(0.15), lineWidth: 1))
     }
 
     // MARK: - Material Import Card (số liệu thực)
