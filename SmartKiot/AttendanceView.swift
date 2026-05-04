@@ -69,6 +69,7 @@ private struct CheckInView: View {
     @State private var isUploadingSelfie = false
     @State private var todayRecordId: UUID? = nil
     @State private var currentShift: Int = 1
+    @State private var showLeaveRequest = false
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -105,6 +106,29 @@ private struct CheckInView: View {
                 if hasCheckedIn {
                     todaySummaryCard
                 }
+
+                // Button đăng ký nghỉ
+                Button {
+                    showLeaveRequest = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "calendar.badge.minus")
+                            .font(.title3)
+                        Text("Đăng ký nghỉ")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(Color.red.opacity(0.85))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(Color.red.opacity(0.07))
+                    .cornerRadius(14)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.red.opacity(0.2), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal)
             .padding(.vertical, 16)
@@ -143,6 +167,9 @@ private struct CheckInView: View {
                 Task { await uploadAndCheckOut(image: image) }
             }
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showLeaveRequest) {
+            LeaveRequestSheet()
         }
     }
 
@@ -1179,6 +1206,293 @@ private struct AttendanceDetailSheet: View {
         f2.locale = Locale(identifier: "vi_VN"); f2.timeZone = .current
         f2.dateFormat = "EEEE, dd/MM/yyyy"
         return f2.string(from: date).capitalized
+    }
+}
+
+// MARK: - Leave Request Sheet
+
+struct LeaveRequestSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var leaveDate: Date = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    @State private var leaveType: String = "personal"
+    @State private var reason: String = ""
+    @State private var isSaving = false
+    @State private var showSuccess = false
+    @State private var myRequests: [LeaveRequest] = []
+    @State private var isLoadingHistory = false
+    @State private var selectedTab: LeaveTab = .new
+
+    enum LeaveTab: String, CaseIterable {
+        case new     = "Đăng ký mới"
+        case history = "Lịch sử"
+    }
+
+    private let leaveTypes: [(value: String, label: String, icon: String)] = [
+        ("personal", "Việc cá nhân",    "person.fill"),
+        ("sick",     "Nghỉ bệnh",       "cross.fill"),
+        ("annual",   "Nghỉ phép năm",   "calendar"),
+        ("other",    "Lý do khác",      "ellipsis.circle.fill"),
+    ]
+
+    private var userId: UUID { AuthManager.shared.currentUserProfile?.id ?? UUID() }
+    private var userName: String { AuthManager.shared.currentUserProfile?.fullName ?? "Nhân viên" }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("", selection: $selectedTab) {
+                    ForEach(LeaveTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal).padding(.vertical, 10)
+                .background(Color.white)
+
+                Divider()
+
+                if selectedTab == .new {
+                    newRequestForm
+                } else {
+                    historyList
+                }
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Đăng ký nghỉ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+            .task { await loadHistory() }
+            .onChange(of: selectedTab) { _, t in
+                if t == .history { Task { await loadHistory() } }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - New request form
+
+    private var newRequestForm: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Date picker
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Ngày xin nghỉ", systemImage: "calendar")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                    DatePicker("", selection: $leaveDate,
+                               in: Calendar.current.date(byAdding: .day, value: 0, to: Date())!...,
+                               displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .tint(Color.themePrimary)
+                }
+                .padding(16)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+
+                // Leave type
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Loại nghỉ", systemImage: "tag.fill")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                    VStack(spacing: 8) {
+                        ForEach(leaveTypes, id: \.value) { type in
+                            Button {
+                                leaveType = type.value
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: type.icon)
+                                        .foregroundStyle(leaveType == type.value ? Color.themePrimary : .gray)
+                                        .frame(width: 20)
+                                    Text(type.label)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.themeTextDark)
+                                    Spacer()
+                                    if leaveType == type.value {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Color.themePrimary)
+                                    }
+                                }
+                                .padding(.horizontal, 14).padding(.vertical, 12)
+                                .background(leaveType == type.value
+                                    ? Color.themePrimary.opacity(0.07)
+                                    : Color.gray.opacity(0.04))
+                                .cornerRadius(10)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(16)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+
+                // Reason
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Lý do (tuỳ chọn)", systemImage: "note.text")
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                    ZStack(alignment: .topLeading) {
+                        if reason.isEmpty {
+                            Text("Nhập lý do xin nghỉ...")
+                                .foregroundStyle(.gray.opacity(0.6))
+                                .padding(.top, 8).padding(.leading, 4)
+                        }
+                        TextEditor(text: $reason)
+                            .frame(minHeight: 80)
+                            .scrollContentBackground(.hidden)
+                    }
+                    .padding(10)
+                    .background(Color.gray.opacity(0.06))
+                    .cornerRadius(10)
+                }
+                .padding(16)
+                .background(Color.white)
+                .cornerRadius(16)
+                .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+
+                // Submit button
+                Button {
+                    Task { await submitRequest() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isSaving {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: showSuccess ? "checkmark.circle.fill" : "paperplane.fill")
+                        }
+                        Text(showSuccess ? "Đã gửi!" : "Gửi đăng ký")
+                            .fontWeight(.bold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(showSuccess ? Color.green : Color.themePrimary)
+                    .foregroundStyle(.white)
+                    .cornerRadius(16)
+                    .shadow(color: (showSuccess ? Color.green : Color.themePrimary).opacity(0.35),
+                            radius: 6, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
+                .disabled(isSaving || showSuccess)
+            }
+            .padding(.horizontal).padding(.vertical, 16)
+        }
+    }
+
+    // MARK: - History list
+
+    private var historyList: some View {
+        Group {
+            if isLoadingHistory {
+                VStack { ProgressView(); Spacer() }.padding()
+            } else if myRequests.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "tray").font(.system(size: 40)).foregroundStyle(.gray.opacity(0.4))
+                    Text("Chưa có đăng ký nghỉ nào").foregroundStyle(.gray)
+                }
+                .frame(maxWidth: .infinity).padding(40)
+            } else {
+                List {
+                    ForEach(myRequests) { req in
+                        LeaveRequestRow(request: req)
+                            .listRowBackground(Color.white)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    private func submitRequest() async {
+        isSaving = true
+        defer { isSaving = false }
+        guard let storeId = StoreManager.shared.currentStore?.id else { return }
+        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
+        let request = LeaveRequest(
+            storeId: storeId, userId: userId, userName: userName,
+            leaveDate: df.string(from: leaveDate),
+            leaveType: leaveType,
+            reason: reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : reason,
+            status: "pending"
+        )
+        try? await SupabaseDatabaseService().saveLeaveRequest(request)
+        withAnimation { showSuccess = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showSuccess = false
+            selectedTab = .history
+            Task { await loadHistory() }
+        }
+    }
+
+    private func loadHistory() async {
+        isLoadingHistory = true
+        defer { isLoadingHistory = false }
+        myRequests = (try? await SupabaseDatabaseService().fetchLeaveRequests(userId: userId)) ?? []
+    }
+}
+
+// MARK: - Leave Request Row
+
+private struct LeaveRequestRow: View {
+    let request: LeaveRequest
+
+    private var statusColor: Color {
+        switch request.status {
+        case "approved": return .green
+        case "rejected": return .red
+        default:         return .orange
+        }
+    }
+
+    private var statusIcon: String {
+        switch request.status {
+        case "approved": return "checkmark.circle.fill"
+        case "rejected": return "xmark.circle.fill"
+        default:         return "clock.fill"
+        }
+    }
+
+    private func formatDate(_ dateStr: String) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        guard let date = f.date(from: dateStr) else { return dateStr }
+        let f2 = DateFormatter()
+        f2.locale = Locale(identifier: "vi_VN"); f2.timeZone = .current
+        f2.dateFormat = "EEE, dd/MM/yyyy"
+        return f2.string(from: date)
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(statusColor.opacity(0.12)).frame(width: 40, height: 40)
+                Image(systemName: statusIcon).foregroundStyle(statusColor)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(formatDate(request.leaveDate))
+                    .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
+                Text(request.leaveTypeLabel)
+                    .font(.caption).foregroundStyle(.gray)
+                if let reason = request.reason, !reason.isEmpty {
+                    Text(reason).font(.caption).foregroundStyle(.gray).lineLimit(1)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(request.statusLabel)
+                    .font(.caption).fontWeight(.semibold).foregroundStyle(statusColor)
+                if let note = request.reviewNote, !note.isEmpty {
+                    Text(note).font(.caption2).foregroundStyle(.gray).lineLimit(1)
+                }
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

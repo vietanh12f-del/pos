@@ -94,6 +94,12 @@ protocol DatabaseService {
     func upsertAttendanceRecord(_ record: AttendanceRecordDB) async throws
     func fetchAttendanceRecords(userId: UUID, from: Date, to: Date) async throws -> [AttendanceRecordDB]
     func fetchTodayAttendance(userId: UUID) async throws -> AttendanceRecordDB?
+
+    // Leave requests
+    func saveLeaveRequest(_ request: LeaveRequest) async throws
+    func fetchLeaveRequests(userId: UUID) async throws -> [LeaveRequest]
+    func fetchAllLeaveRequests() async throws -> [LeaveRequest]
+    func updateLeaveRequestStatus(id: UUID, status: String, reviewNote: String?) async throws
 }
 
 // MARK: - Supabase Implementation
@@ -259,6 +265,54 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
             .value
         return rows.first?.toDomain()
+    }
+
+    // MARK: - Leave Requests
+
+    func saveLeaveRequest(_ request: LeaveRequest) async throws {
+        let dto = LeaveRequestDTO(from: request)
+        try await client.database
+            .from("leave_requests")
+            .insert(dto)
+            .execute()
+    }
+
+    func fetchLeaveRequests(userId: UUID) async throws -> [LeaveRequest] {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        let rows: [LeaveRequestDTO] = try await client.database
+            .from("leave_requests")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .eq("user_id", value: userId)
+            .order("leave_date", ascending: false)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+
+    func fetchAllLeaveRequests() async throws -> [LeaveRequest] {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
+        let rows: [LeaveRequestDTO] = try await client.database
+            .from("leave_requests")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .order("leave_date", ascending: false)
+            .execute()
+            .value
+        return rows.map { $0.toDomain() }
+    }
+
+    func updateLeaveRequestStatus(id: UUID, status: String, reviewNote: String?) async throws {
+        struct Payload: Encodable {
+            let status: String
+            let review_note: String?
+            let reviewed_at: Date
+        }
+        try await client.database
+            .from("leave_requests")
+            .update(Payload(status: status, review_note: reviewNote, reviewed_at: Date()))
+            .eq("id", value: id)
+            .execute()
     }
     
     // MARK: - Products
@@ -1021,6 +1075,10 @@ class SupabaseDatabaseService: DatabaseService {
     func upsertAttendanceRecord(_ record: AttendanceRecordDB) async throws { print("⚠️ upsertAttendanceRecord: Mocked success") }
     func fetchAttendanceRecords(userId: UUID, from: Date, to: Date) async throws -> [AttendanceRecordDB] { return [] }
     func fetchTodayAttendance(userId: UUID) async throws -> AttendanceRecordDB? { return nil }
+    func saveLeaveRequest(_ request: LeaveRequest) async throws { print("⚠️ saveLeaveRequest: Mocked success") }
+    func fetchLeaveRequests(userId: UUID) async throws -> [LeaveRequest] { return [] }
+    func fetchAllLeaveRequests() async throws -> [LeaveRequest] { return [] }
+    func updateLeaveRequestStatus(id: UUID, status: String, reviewNote: String?) async throws { print("⚠️ updateLeaveRequestStatus: Mocked success") }
 }
 #endif
 
@@ -2010,6 +2068,87 @@ struct AttendanceRecordDTO: Codable {
             shift: shift ?? 1,
             createdAt: created_at ?? Date(),
             updatedAt: updated_at ?? Date()
+        )
+    }
+}
+
+// MARK: - Leave Request Model & DTO
+
+struct LeaveRequest: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var storeId: UUID
+    var userId: UUID
+    var userName: String
+    var leaveDate: String       // "yyyy-MM-dd"
+    var leaveType: String       // "personal" | "sick" | "annual" | "other"
+    var reason: String?
+    var status: String          // "pending" | "approved" | "rejected"
+    var reviewedBy: UUID?
+    var reviewedAt: Date?
+    var reviewNote: String?
+    var createdAt: Date = Date()
+
+    var leaveTypeLabel: String {
+        switch leaveType {
+        case "sick":     return "Nghỉ bệnh"
+        case "annual":   return "Nghỉ phép năm"
+        case "other":    return "Lý do khác"
+        default:         return "Việc cá nhân"
+        }
+    }
+
+    var statusLabel: String {
+        switch status {
+        case "approved": return "Đã duyệt"
+        case "rejected": return "Từ chối"
+        default:         return "Chờ duyệt"
+        }
+    }
+
+    var statusColor: String {   // dùng string để Codable dễ, UI tự map
+        switch status {
+        case "approved": return "green"
+        case "rejected": return "red"
+        default:         return "orange"
+        }
+    }
+}
+
+struct LeaveRequestDTO: Codable {
+    let id: UUID
+    let store_id: UUID
+    let user_id: UUID
+    let user_name: String
+    let leave_date: String
+    let leave_type: String
+    let reason: String?
+    let status: String
+    let reviewed_by: UUID?
+    let reviewed_at: Date?
+    let review_note: String?
+    let created_at: Date?
+
+    init(from domain: LeaveRequest) {
+        self.id = domain.id
+        self.store_id = domain.storeId
+        self.user_id = domain.userId
+        self.user_name = domain.userName
+        self.leave_date = domain.leaveDate
+        self.leave_type = domain.leaveType
+        self.reason = domain.reason
+        self.status = domain.status
+        self.reviewed_by = domain.reviewedBy
+        self.reviewed_at = domain.reviewedAt
+        self.review_note = domain.reviewNote
+        self.created_at = domain.createdAt
+    }
+
+    func toDomain() -> LeaveRequest {
+        LeaveRequest(
+            id: id, storeId: store_id, userId: user_id, userName: user_name,
+            leaveDate: leave_date, leaveType: leave_type, reason: reason,
+            status: status, reviewedBy: reviewed_by, reviewedAt: reviewed_at,
+            reviewNote: review_note, createdAt: created_at ?? Date()
         )
     }
 }
