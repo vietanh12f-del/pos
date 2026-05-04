@@ -1005,12 +1005,64 @@ struct MaterialExportReportView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    // Date selection
+    // MARK: - Quick range (giống GenericProductionReportView)
+    enum QuickRange: String, CaseIterable {
+        case today     = "Hôm nay"
+        case thisWeek  = "Tuần này"
+        case thisMonth = "Tháng này"
+        case custom    = "Tuỳ chọn"
+    }
+
+    @State private var quickRange: QuickRange = .thisMonth
+    @State private var customStart: Date = Calendar.current.startOfDay(for: Date())
+    @State private var customEnd: Date = Date()
+    @State private var showCustomPicker = false
+
+    // Giữ lại để tương thích với reload()
     @State private var selectedDate: Date = Date()
-    @State private var isRangeMode: Bool = false
-    @State private var rangeStart: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
+    @State private var isRangeMode: Bool = true
+    @State private var rangeStart: Date = {
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.year, .month], from: Date())
+        return cal.date(from: comps) ?? Date()
+    }()
     @State private var rangeEnd: Date = Date()
     @State private var showDatePicker = false
+
+    private var activeRangeInterval: (start: Date, end: Date) {
+        let cal = Calendar.current; let now = Date()
+        switch quickRange {
+        case .today:
+            return (cal.startOfDay(for: now), cal.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now)
+        case .thisWeek:
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: .day, value: 7, to: start)?.addingTimeInterval(-1) ?? now)
+        case .thisMonth:
+            let comps = cal.dateComponents([.year, .month], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? now)
+        case .custom:
+            return (cal.startOfDay(for: customStart), cal.date(bySettingHour: 23, minute: 59, second: 59, of: customEnd) ?? customEnd)
+        }
+    }
+
+    private var rangeLabel: String {
+        let df = DateFormatter(); df.locale = Locale(identifier: "vi_VN"); df.dateFormat = "dd/MM"
+        switch quickRange {
+        case .today:
+            let f = DateFormatter(); f.locale = Locale(identifier: "vi_VN"); f.dateFormat = "dd/MM/yyyy"
+            return f.string(from: Date())
+        case .thisWeek:
+            let (s, e) = activeRangeInterval
+            return "\(df.string(from: s)) – \(df.string(from: e))"
+        case .thisMonth:
+            let f = DateFormatter(); f.locale = Locale(identifier: "vi_VN"); f.dateFormat = "MM/yyyy"
+            return "Tháng \(f.string(from: Date()))"
+        case .custom:
+            return "\(df.string(from: customStart)) – \(df.string(from: customEnd))"
+        }
+    }
 
     @State private var isLoading = false
 
@@ -1074,33 +1126,62 @@ struct MaterialExportReportView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isLoading {
-                    VStack { ProgressView(); Spacer() }.padding()
-                } else if isRangeMode {
-                    rangeContent
-                } else {
-                    singleDayContent
+            VStack(spacing: 0) {
+                // ── Thanh chọn thời gian ─────────────────────────────
+                VStack(spacing: 8) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(QuickRange.allCases, id: \.self) { r in
+                                Button {
+                                    quickRange = r
+                                    if r == .custom { showCustomPicker = true }
+                                    else { Task { await reload() } }
+                                } label: {
+                                    Text(r.rawValue)
+                                        .font(.caption)
+                                        .fontWeight(quickRange == r ? .semibold : .regular)
+                                        .foregroundStyle(quickRange == r ? .white : Color.themeTextDark)
+                                        .padding(.horizontal, 14).padding(.vertical, 7)
+                                        .background(Capsule().fill(quickRange == r ? Color.purple : Color.white))
+                                        .overlay(Capsule().stroke(quickRange == r ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar").font(.caption2).foregroundStyle(.purple)
+                        Text(rangeLabel).font(.caption).foregroundStyle(.gray)
+                        Spacer()
+                        if quickRange == .custom {
+                            Button { showCustomPicker = true } label: {
+                                Text("Đổi ngày").font(.caption).foregroundStyle(.purple)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                 }
+                .padding(.vertical, 10)
+                .background(Color.white)
+
+                Divider()
+
+                // ── Nội dung ─────────────────────────────────────────
+                Group {
+                    if isLoading {
+                        VStack { ProgressView(); Spacer() }.padding()
+                    } else {
+                        rangeContent
+                    }
+                }
+                .background(Color.themeBackgroundLight)
             }
-            .background(Color.themeBackgroundLight)
-            .navigationTitle(navTitle)
+            .navigationTitle("Xuất nguyên liệu")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showDatePicker = true } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: isRangeMode ? "calendar.badge.clock" : "calendar")
-                            Text(dateButtonLabel)
-                                .fontWeight(.semibold)
-                                .lineLimit(1)
-                        }
-                        .font(.caption)
-                        .foregroundStyle(isRangeMode ? Color.orange : Color.themePrimary)
-                    }
                 }
             }
             .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
@@ -1112,16 +1193,27 @@ struct MaterialExportReportView: View {
                 }
                 Button("Huỷ", role: .cancel) { }
             }
-            .sheet(isPresented: $showDatePicker) {
-                DateRangePickerSheet(
-                    isRangeMode: $isRangeMode,
-                    selectedDate: $selectedDate,
-                    rangeStart: $rangeStart,
-                    rangeEnd: $rangeEnd
-                ) {
-                    showDatePicker = false
-                    Task { await reload() }
+            .sheet(isPresented: $showCustomPicker) {
+                NavigationStack {
+                    Form {
+                        Section(header: Text("Chọn khoảng thời gian")) {
+                            DatePicker("Từ ngày", selection: $customStart, displayedComponents: .date)
+                            DatePicker("Đến ngày", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                        }
+                    }
+                    .navigationTitle("Tuỳ chọn ngày")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Xong") { showCustomPicker = false; Task { await reload() } }
+                                .fontWeight(.bold)
+                        }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Huỷ") { quickRange = .thisMonth; showCustomPicker = false }
+                        }
+                    }
                 }
+                .presentationDetents([.medium])
             }
         }
         .task { await reload() }
@@ -1279,10 +1371,11 @@ struct MaterialExportReportView: View {
         isLoading = true
         defer { isLoading = false }
         materials = await viewModel.fetchMaterials()
-        if isRangeMode { await reloadRange() } else { await reloadSingleDay() }
+        await reloadRange()
     }
 
     private func reloadSingleDay() async {
+        // Không dùng nữa — giữ lại để tránh lỗi compile
         let start = startOfDay(selectedDate)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
         let logs = await viewModel.fetchAutoMaterialExportLogs(limit: 500)
@@ -1296,23 +1389,23 @@ struct MaterialExportReportView: View {
     }
 
     private func reloadRange() async {
-        let start = startOfDay(rangeStart)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay(rangeEnd)) ?? startOfDay(rangeEnd)
+        let (start, end) = activeRangeInterval
         let allLogs = await viewModel.fetchAutoMaterialExportLogs(limit: 2000)
         let allImports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
         let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
         let allAutoIds = Set(allLogs.map { $0.productionTransactionId })
         var result: [String: DayReportData] = [:]
-        var cursor = start
-        while cursor < end {
+        var cursor = startOfDay(start)
+        let endDay = startOfDay(end)
+        while cursor <= endDay {
             let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: cursor) ?? cursor
             let key = dayKey(cursor)
-            result[key] = DayReportData(
-                date: cursor,
-                autoLogs: allLogs.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd },
-                manualExports: allExports.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd && !allAutoIds.contains($0.id) },
-                finishedImports: allImports.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
-            )
+            let dayLogs = allLogs.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
+            let dayManual = allExports.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd && !allAutoIds.contains($0.id) }
+            let dayImports = allImports.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
+            if !dayLogs.isEmpty || !dayManual.isEmpty {
+                result[key] = DayReportData(date: cursor, autoLogs: dayLogs, manualExports: dayManual, finishedImports: dayImports)
+            }
             cursor = dayEnd
         }
         rangeData = result
