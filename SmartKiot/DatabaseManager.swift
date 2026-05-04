@@ -83,6 +83,7 @@ protocol DatabaseService {
     // Trading Parties (buyers & suppliers)
     func fetchTradingParties(type: String) async throws -> [TradingParty]
     func upsertTradingParty(_ party: TradingParty) async throws
+    func deleteTradingParty(id: UUID) async throws
     func fetchTradingPartyByName(_ name: String, type: String) async throws -> TradingParty?
 
     // Website leads
@@ -159,6 +160,14 @@ class SupabaseDatabaseService: DatabaseService {
         try await client.database
             .from("trading_parties")
             .upsert(dto)
+            .execute()
+    }
+
+    func deleteTradingParty(id: UUID) async throws {
+        try await client.database
+            .from("trading_parties")
+            .delete()
+            .eq("id", value: id)
             .execute()
     }
 
@@ -955,6 +964,7 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchCategories(kind: String) async throws -> [String] { return [] }
     func fetchTradingParties(type: String) async throws -> [TradingParty] { return [] }
     func upsertTradingParty(_ party: TradingParty) async throws { print("⚠️ upsertTradingParty: Mocked success") }
+    func deleteTradingParty(id: UUID) async throws { print("⚠️ deleteTradingParty: Mocked success") }
     func fetchTradingPartyByName(_ name: String, type: String) async throws -> TradingParty? { return nil }
     func fetchWebsiteLeads() async throws -> [WebsiteLead] { return [] }
     func updateWebsiteLeadStatus(id: UUID, status: String, note: String?) async throws { print("⚠️ updateWebsiteLeadStatus: Mocked success") }

@@ -53,6 +53,7 @@ struct CustomerManagementView: View {
     @State private var selectedType: PartyTypeFilter
     @State private var selectedParty: TradingParty? = nil
     @State private var selectedLead: WebsiteLead? = nil
+    @State private var showAddParty = false
 
     init(initialTab: PartyTypeFilter = .buyer) {
         _selectedType = State(initialValue: initialTab)
@@ -193,6 +194,42 @@ struct CustomerManagementView: View {
             .sheet(item: $selectedLead) { lead in
                 WebsiteLeadDetailView(lead: lead) {
                     Task { await loadAll() }
+                }
+            }
+            .sheet(isPresented: $showAddParty) {
+                PartyEditSheet(
+                    party: TradingParty(
+                        partyType: selectedType == .supplier ? "supplier" : "buyer",
+                        name: "", phone: "", address: ""
+                    ),
+                    onSaved: { _ in Task { await loadAll() } }
+                )
+            }
+            .safeAreaInset(edge: .bottom) {
+                if selectedType != .all {
+                    HStack {
+                        Button {
+                            showAddParty = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.title3)
+                                Text(selectedType == .supplier ? "Thêm cơ sở" : "Thêm khách hàng")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 12)
+                            .background(Capsule().fill(Color.themePrimary))
+                            .shadow(color: Color.themePrimary.opacity(0.35), radius: 8, x: 0, y: 4)
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 12)
+                    .background(Color.clear)
                 }
             }
         }
@@ -469,9 +506,11 @@ struct PartyDetailView: View {
             }
             .task { await loadTransactions() }
             .sheet(isPresented: $showEdit) {
-                PartyEditSheet(party: currentParty) { updated in
+                PartyEditSheet(party: currentParty, onSaved: { updated in
                     currentParty = updated
-                }
+                }, onDeleted: {
+                    dismiss()
+                })
             }
         }
     }
@@ -826,35 +865,47 @@ struct PartyDetailView: View {
 struct PartyEditSheet: View {
     let party: TradingParty
     let onSaved: (TradingParty) -> Void
+    var onDeleted: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String
     @State private var phone: String
     @State private var address: String
-    @State private var imageURLs: [String]          // existing URLs from DB
-    @State private var pendingImages: [UIImage] = [] // newly picked, not yet uploaded
+    @State private var imageURLs: [String]
+    @State private var pendingImages: [UIImage] = []
     @State private var isSaving = false
-    @State private var uploadProgress: Int = 0       // how many uploaded so far
+    @State private var isDeleting = false
+    @State private var uploadProgress: Int = 0
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showDeleteConfirm = false
     @State private var showImagePicker = false
     @State private var showCamera = false
     @State private var pickerItems: [PhotosPickerItem] = []
-    @State private var previewImage: String? = nil   // URL to fullscreen preview
+    @State private var previewImage: String? = nil
     @State private var showPreview = false
 
-    init(party: TradingParty, onSaved: @escaping (TradingParty) -> Void) {
+    private var isOwner: Bool {
+        StoreManager.shared.currentMember?.role == .owner
+    }
+
+    init(party: TradingParty, onSaved: @escaping (TradingParty) -> Void, onDeleted: (() -> Void)? = nil) {
         self.party = party
         self.onSaved = onSaved
+        self.onDeleted = onDeleted
         _name      = State(initialValue: party.name)
         _phone     = State(initialValue: party.phone)
         _address   = State(initialValue: party.address)
         _imageURLs = State(initialValue: party.imageURLs)
     }
 
+    private var isNew: Bool { party.name.isEmpty }
     private var isSupplier: Bool { party.partyType == "supplier" }
     private var hasChanges: Bool {
-        name.trimmingCharacters(in: .whitespacesAndNewlines) != party.name ||
+        if isNew {
+            return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return name.trimmingCharacters(in: .whitespacesAndNewlines) != party.name ||
         phone.trimmingCharacters(in: .whitespacesAndNewlines) != party.phone ||
         address.trimmingCharacters(in: .whitespacesAndNewlines) != party.address ||
         imageURLs != party.imageURLs ||
@@ -989,11 +1040,30 @@ struct PartyEditSheet: View {
                     }
                 }
             }
-            .navigationTitle("Chỉnh sửa")
+            .navigationTitle(isNew ? (isSupplier ? "Thêm cơ sở" : "Thêm khách hàng") : "Chỉnh sửa")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Huỷ") { dismiss() }
+                }
+                // Nút xóa — chỉ hiện khi chỉnh sửa (không phải tạo mới) và là chủ cửa hàng
+                if !isNew && isOwner {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                if isDeleting {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "trash.fill")
+                                    Text("Xóa khách hàng")
+                                }
+                            }
+                            .foregroundStyle(.red)
+                        }
+                        .disabled(isDeleting || isSaving)
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -1018,6 +1088,14 @@ struct PartyEditSheet: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text(errorMessage)
+            }
+            .alert("Xóa khách hàng?", isPresented: $showDeleteConfirm) {
+                Button("Huỷ", role: .cancel) { }
+                Button("Xóa", role: .destructive) {
+                    Task { await deleteParty() }
+                }
+            } message: {
+                Text("Thao tác này không thể hoàn tác. Toàn bộ thông tin của \"\(party.name)\" sẽ bị xóa vĩnh viễn.")
             }
             .fullScreenCover(isPresented: $showCamera) {
                 ImagePicker(image: Binding(
@@ -1079,6 +1157,19 @@ struct PartyEditSheet: View {
         do {
             try await SupabaseDatabaseService().upsertTradingParty(updated)
             onSaved(updated)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
+        }
+    }
+
+    private func deleteParty() async {
+        isDeleting = true
+        defer { isDeleting = false }
+        do {
+            try await SupabaseDatabaseService().deleteTradingParty(id: party.id)
+            onDeleted?()
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
