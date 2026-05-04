@@ -44,7 +44,7 @@ struct ContentView: View {
             GeometryReader { geometry in
                 ZStack(alignment: .bottom) {
                     TabView(selection: $selectedTab) {
-                        HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab, showProductionManagement: $showProductionManagement)
+                        HomeDashboardView(viewModel: viewModel, showNewOrder: $showNewOrder, selectedTab: $selectedTab, showProductionManagement: $showProductionManagement, showProductionReport: $showProductionReport, showCustomerManagement: $showCustomerManagement)
                             .tabItem {
                                 Label("Tổng quan", systemImage: "house.fill")
                             }
@@ -223,6 +223,8 @@ struct ContentView: View {
         @Binding var showNewOrder: Bool
         @Binding var selectedTab: Int
         @Binding var showProductionManagement: Bool
+        @Binding var showProductionReport: Bool
+        @Binding var showCustomerManagement: Bool
         @State private var isKeyboardVisible = false
         @ObservedObject private var leadService = WebsiteLeadNotificationService.shared
         @State private var showLeadsSheet = false
@@ -678,6 +680,20 @@ struct ContentView: View {
                                     
                                     QuickActionButton(icon: "gearshape.2.fill", title: "Quản Lý Sản Xuất", isPrimary: false) {
                                         showProductionManagement = true
+                                    }
+                                    
+                                    if StoreManager.shared.hasPermission(.viewExpenses) {
+                                        QuickActionButton(icon: "banknote.fill", title: "Chi Phí", isPrimary: false) {
+                                            selectedTab = 4
+                                        }
+                                    }
+                                    
+                                    QuickActionButton(icon: "doc.text.magnifyingglass", title: "Báo Cáo SX", isPrimary: false) {
+                                        showProductionReport = true
+                                    }
+                                    
+                                    QuickActionButton(icon: "person.2.fill", title: "Khách Hàng", isPrimary: false) {
+                                        showCustomerManagement = true
                                     }
                                 }
                                 .padding(.horizontal)
