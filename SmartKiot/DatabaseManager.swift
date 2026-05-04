@@ -222,7 +222,7 @@ class SupabaseDatabaseService: DatabaseService {
         let dto = AttendanceRecordDTO(from: record)
         try await client.database
             .from("attendance_records")
-            .upsert(dto, onConflict: "store_id,user_id,date")
+            .upsert(dto, onConflict: "store_id,user_id,date,shift")
             .execute()
     }
 
@@ -254,6 +254,7 @@ class SupabaseDatabaseService: DatabaseService {
             .eq("store_id", value: storeId)
             .eq("user_id", value: userId)
             .eq("date", value: today)
+            .order("shift", ascending: false)
             .limit(1)
             .execute()
             .value
@@ -1955,6 +1956,7 @@ struct AttendanceRecordDB: Identifiable, Codable, Equatable {
     var checkOutSelfieURL: String?
     var note: String?
     var status: String        // "checked_in" | "checked_out" | "late"
+    var shift: Int = 1        // Ca làm: 1, 2, 3...
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 }
@@ -1971,6 +1973,7 @@ struct AttendanceRecordDTO: Codable {
     let check_out_selfie_url: String?
     let note: String?
     let status: String
+    let shift: Int?
     let created_at: Date?
     let updated_at: Date?
 
@@ -1986,6 +1989,7 @@ struct AttendanceRecordDTO: Codable {
         self.check_out_selfie_url = domain.checkOutSelfieURL
         self.note = domain.note
         self.status = domain.status
+        self.shift = domain.shift
         self.created_at = domain.createdAt
         self.updated_at = domain.updatedAt
     }
@@ -2003,6 +2007,7 @@ struct AttendanceRecordDTO: Codable {
             checkOutSelfieURL: check_out_selfie_url,
             note: note,
             status: status,
+            shift: shift ?? 1,
             createdAt: created_at ?? Date(),
             updatedAt: updated_at ?? Date()
         )

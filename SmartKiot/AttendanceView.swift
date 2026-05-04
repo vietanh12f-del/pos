@@ -68,6 +68,7 @@ private struct CheckInView: View {
     @State private var checkOutSelfieURL: String? = nil
     @State private var isUploadingSelfie = false
     @State private var todayRecordId: UUID? = nil
+    @State private var currentShift: Int = 1
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -120,6 +121,7 @@ private struct CheckInView: View {
                 noteText = record.note ?? ""
                 hasCheckedIn = record.checkInTime != nil
                 hasCheckedOut = record.checkOutTime != nil
+                currentShift = record.shift
             }
         }
         // Camera cho check-in (front camera)
@@ -185,6 +187,15 @@ private struct CheckInView: View {
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.themeTextDark)
+                if currentShift > 1 {
+                    Text("Ca \(currentShift)")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Color.indigo))
+                }
             }
 
             // Live clock
@@ -340,6 +351,53 @@ private struct CheckInView: View {
                 Text("Đã hoàn tất điểm danh hôm nay")
                     .font(.subheadline)
                     .foregroundStyle(.gray)
+
+                // Button bắt đầu ca mới
+                Button {
+                    withAnimation {
+                        // Reset state cho ca mới
+                        currentShift += 1
+                        todayRecordId = nil
+                        hasCheckedIn = false
+                        hasCheckedOut = false
+                        checkInTime = nil
+                        checkOutTime = nil
+                        checkInSelfie = nil
+                        checkOutSelfie = nil
+                        checkInSelfieURL = nil
+                        checkOutSelfieURL = nil
+                        noteText = ""
+                        showNoteInput = false
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Bắt đầu ca \(currentShift + 1)")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                            Text("Điểm danh ca làm tiếp theo")
+                                .font(.caption)
+                                .opacity(0.8)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.indigo, Color.indigo.opacity(0.8)],
+                            startPoint: .leading, endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(14)
+                    .shadow(color: Color.indigo.opacity(0.35), radius: 6, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
             }
 
             // Note toggle
@@ -554,7 +612,8 @@ private struct CheckInView: View {
             checkInSelfieURL: checkInURL,
             checkOutSelfieURL: checkOutURL,
             note: noteText.isEmpty ? nil : noteText,
-            status: status
+            status: status,
+            shift: currentShift
         )
         try? await SupabaseDatabaseService().upsertAttendanceRecord(record)
         if todayRecordId == nil { todayRecordId = record.id }
@@ -642,8 +701,7 @@ private struct AttendanceHistoryView: View {
                     }
                     .background(Color.white)
                     .cornerRadius(16)
-                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
-                }
+                    .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)                }
             }
             .padding(.horizontal)
             .padding(.vertical, 16)
@@ -771,10 +829,21 @@ private struct AttendanceRecordRow: View {
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(formatDisplayDate(record.date))
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.themeTextDark)
+                HStack(spacing: 6) {
+                    Text(formatDisplayDate(record.date))
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                    if record.shift > 1 {
+                        Text("Ca \(record.shift)")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.indigo))
+                    }
+                }
                 Text(statusLabel)
                     .font(.caption)
                     .foregroundStyle(statusColor)
@@ -861,11 +930,20 @@ private struct AttendanceDetailSheet: View {
                         Text(formatDisplayDate(record.date))
                             .font(.title3).fontWeight(.bold)
                             .foregroundStyle(Color.themeTextDark)
-                        Text(statusLabel)
-                            .font(.subheadline).fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14).padding(.vertical, 6)
-                            .background(Capsule().fill(statusColor))
+                        HStack(spacing: 8) {
+                            Text(statusLabel)
+                                .font(.subheadline).fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 14).padding(.vertical, 6)
+                                .background(Capsule().fill(statusColor))
+                            if record.shift > 1 {
+                                Text("Ca \(record.shift)")
+                                    .font(.subheadline).fontWeight(.semibold)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 14).padding(.vertical, 6)
+                                    .background(Capsule().fill(Color.indigo))
+                            }
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(16)
