@@ -74,7 +74,12 @@ struct TransactionEditView: View {
     }
 
     private var vatEnabled: Bool { StoreManager.shared.currentStoreVATEnabled() }
-    private var vatRate: Double { StoreManager.shared.currentStoreVATRate() }
+    private var vatRate: Double { customVATRate ?? StoreManager.shared.currentStoreVATRate() }
+
+    // VAT tùy chỉnh tại bước thanh toán
+    @State private var customVATRate: Double? = nil
+    @State private var showVATRatePicker = false
+    @State private var vatRateInputText: String = ""
 
     private var subtotal: Double {
         items.reduce(0) { $0 + $1.totalCost }
@@ -219,7 +224,19 @@ struct TransactionEditView: View {
                                 Text(formatCurrency(subtotal)).fontWeight(.semibold)
                             }
                             HStack {
-                                Text("VAT (\(Int(vatRate))%)").foregroundStyle(.gray)
+                                Button {
+                                    vatRateInputText = String(format: "%.0f", vatRate)
+                                    showVATRatePicker = true
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("VAT (\(vatRate.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", vatRate) : String(format: "%.1f", vatRate))%)")
+                                            .foregroundStyle(.gray)
+                                        Image(systemName: "pencil.circle.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(customVATRate != nil ? Color.orange : Color.gray.opacity(0.5))
+                                    }
+                                }
+                                .buttonStyle(.plain)
                                 Spacer()
                                 Text(formatCurrency(vatAmount)).fontWeight(.semibold)
                             }
@@ -454,6 +471,14 @@ struct TransactionEditView: View {
         }
         .sheet(isPresented: $showReceiptLibrary, onDismiss: uploadReceiptIfNeeded) {
             ImagePicker(image: $paymentReceiptImage, sourceType: .photoLibrary)
+        }
+        .sheet(isPresented: $showVATRatePicker) {
+            VATRatePickerSheet(
+                rateText: $vatRateInputText,
+                defaultRate: StoreManager.shared.currentStoreVATRate(),
+                onSave: { newRate in customVATRate = newRate },
+                onReset: { customVATRate = nil }
+            )
         }
         .sheet(item: $editingItem) { item in
             ProductionTransactionItemEditView(
@@ -843,4 +868,133 @@ struct TransactionEditView: View {
         return f.string(from: date)
     }
 
+}
+
+// MARK: - VAT Rate Picker Sheet (shared)
+struct VATRatePickerSheet: View {
+    @Binding var rateText: String
+    let defaultRate: Double
+    let onSave: (Double) -> Void
+    let onReset: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    // Bánh xe: phần nguyên 0–50, phần thập phân 0 / 0.5
+    @State private var intSelection: Int = 10
+    @State private var decSelection: Int = 0   // 0 → .0,  1 → .5
+
+    private var selectedRate: Double {
+        Double(intSelection) + (decSelection == 1 ? 0.5 : 0.0)
+    }
+
+    private func formatRate(_ v: Double) -> String {
+        v.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", v)
+            : String(format: "%.1f", v)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Handle
+            Capsule()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 36, height: 4)
+                .padding(.top, 10)
+
+            Text("Chỉnh VAT cho đơn này")
+                .font(.headline)
+                .padding(.top, 14)
+
+            Text("Chỉ áp dụng cho đơn hiện tại")
+                .font(.caption)
+                .foregroundStyle(.gray)
+                .padding(.bottom, 8)
+
+            // Bánh xe
+            HStack(spacing: 0) {
+                // Cột phần nguyên
+                Picker("", selection: $intSelection) {
+                    ForEach(0...50, id: \.self) { v in
+                        Text("\(v)").tag(v)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+
+                Text(".")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.gray)
+
+                // Cột thập phân
+                Picker("", selection: $decSelection) {
+                    Text("0").tag(0)
+                    Text("5").tag(1)
+                }
+                .pickerStyle(.wheel)
+                .frame(width: 70)
+
+                Text("%")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themePrimary)
+                    .padding(.leading, 4)
+                    .padding(.trailing, 16)
+            }
+            .frame(height: 160)
+
+            // Preview
+            Text("VAT: \(formatRate(selectedRate))%")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.themePrimary)
+                .padding(.bottom, 4)
+
+            Divider().padding(.horizontal)
+
+            // Buttons
+            HStack(spacing: 12) {
+                Button {
+                    onReset()
+                    dismiss()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Mặc định (\(formatRate(defaultRate))%)")
+                            .lineLimit(1)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    onSave(selectedRate)
+                    dismiss()
+                } label: {
+                    Text("Lưu")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.themePrimary))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+        }
+        .onAppear {
+            // Khởi tạo bánh xe từ rateText hoặc defaultRate
+            let initial = Double(rateText.replacingOccurrences(of: ",", with: ".")) ?? defaultRate
+            let clamped = max(0, min(50, initial))
+            intSelection = Int(clamped)
+            decSelection = (clamped.truncatingRemainder(dividingBy: 1) >= 0.25) ? 1 : 0
+        }
+        .presentationDetents([.height(360)])
+        .presentationDragIndicator(.hidden)
+    }
 }

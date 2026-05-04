@@ -84,7 +84,12 @@ struct FinishedGoodsExportView: View {
     // Store info
     private var receiptLines: [String] { StoreManager.shared.currentStoreReceiptHeaderLines() }
     private var vatEnabled: Bool { StoreManager.shared.currentStoreVATEnabled() }
-    private var vatRate: Double { StoreManager.shared.currentStoreVATRate() }
+    private var vatRate: Double { customVATRate ?? StoreManager.shared.currentStoreVATRate() }
+
+    // VAT tùy chỉnh tại bước thanh toán
+    @State private var customVATRate: Double? = nil
+    @State private var showVATRatePicker = false
+    @State private var vatRateInputText: String = ""
 
     // Buyer
     @State private var buyerName: String = ""
@@ -217,6 +222,14 @@ struct FinishedGoodsExportView: View {
         }
         .sheet(isPresented: $showReceiptLibrary, onDismiss: uploadReceiptIfNeeded) {
             ImagePicker(image: $paymentReceiptImage, sourceType: .photoLibrary)
+        }
+        .sheet(isPresented: $showVATRatePicker) {
+            VATRatePickerSheet(
+                rateText: $vatRateInputText,
+                defaultRate: StoreManager.shared.currentStoreVATRate(),
+                onSave: { newRate in customVATRate = newRate },
+                onReset: { customVATRate = nil }
+            )
         }
         .sheet(isPresented: $showPrintSheet) {
             ExportBillPrintView(
@@ -436,9 +449,20 @@ struct FinishedGoodsExportView: View {
                         .fontWeight(.semibold)
                 }
                 HStack {
-                    Text("VAT (\(Int(vatRate))%)")
-                        .font(.subheadline)
-                        .foregroundStyle(.gray)
+                    Button {
+                        vatRateInputText = String(format: "%.0f", vatRate)
+                        showVATRatePicker = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("VAT (\(vatRate.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", vatRate) : String(format: "%.1f", vatRate))%)")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(customVATRate != nil ? Color.orange : Color.gray.opacity(0.5))
+                        }
+                    }
+                    .buttonStyle(.plain)
                     Spacer()
                     Text(formatCurrency(vatAmount))
                         .font(.subheadline)
