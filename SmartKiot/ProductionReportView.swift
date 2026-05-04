@@ -280,7 +280,7 @@ struct ProductionReportView: View {
         .sheet(isPresented: $showMaterialImportReport) {
             GenericProductionReportView(
                 viewModel: viewModel,
-                mode: "Xuất Nguyên liệu",
+                mode: "Nhập Nguyên liệu",
                 title: "Nhập nguyên liệu",
                 accentColor: .green,
                 reportKind: .materialImport
@@ -1294,12 +1294,28 @@ struct GenericProductionReportView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    // Date
+    // MARK: - Quick range (giống ProductionReportView)
+    enum QuickRange: String, CaseIterable {
+        case today     = "Hôm nay"
+        case thisWeek  = "Tuần này"
+        case thisMonth = "Tháng này"
+        case custom    = "Tuỳ chọn"
+    }
+
+    @State private var quickRange: QuickRange = .thisMonth
+    @State private var customStart: Date = Calendar.current.startOfDay(for: Date())
+    @State private var customEnd: Date = Date()
+    @State private var showCustomPicker = false
+
+    // Giữ lại để tương thích với reload()
     @State private var selectedDate: Date = Date()
-    @State private var isRangeMode = false
-    @State private var rangeStart: Date = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date()
+    @State private var isRangeMode = true   // luôn range mode
+    @State private var rangeStart: Date = {
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.year, .month], from: Date())
+        return cal.date(from: comps) ?? Date()
+    }()
     @State private var rangeEnd: Date = Date()
-    @State private var showDatePicker = false
 
     @State private var isLoading = false
     @State private var transactions: [ProductionTransaction] = []
@@ -1309,11 +1325,51 @@ struct GenericProductionReportView: View {
     @State private var rangeData: [String: [ProductionTransaction]] = [:]
     @State private var expandedDays: Set<String> = []
 
+    // MARK: - Active range
+
+    private var activeRangeInterval: (start: Date, end: Date) {
+        let cal = Calendar.current
+        let now = Date()
+        switch quickRange {
+        case .today:
+            return (cal.startOfDay(for: now),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now)
+        case .thisWeek:
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: .day, value: 7, to: start)?.addingTimeInterval(-1) ?? now)
+        case .thisMonth:
+            let comps = cal.dateComponents([.year, .month], from: now)
+            let start = cal.date(from: comps) ?? now
+            return (start, cal.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? now)
+        case .custom:
+            return (cal.startOfDay(for: customStart),
+                    cal.date(bySettingHour: 23, minute: 59, second: 59, of: customEnd) ?? customEnd)
+        }
+    }
+
+    private var rangeLabel: String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd/MM"
+        switch quickRange {
+        case .today:
+            let f = DateFormatter(); f.locale = Locale(identifier: "vi_VN"); f.dateFormat = "dd/MM/yyyy"
+            return f.string(from: Date())
+        case .thisWeek:
+            let (s, e) = activeRangeInterval
+            return "\(df.string(from: s)) – \(df.string(from: e))"
+        case .thisMonth:
+            let f = DateFormatter(); f.locale = Locale(identifier: "vi_VN"); f.dateFormat = "MM/yyyy"
+            return "Tháng \(f.string(from: Date()))"
+        case .custom:
+            return "\(df.string(from: customStart)) – \(df.string(from: customEnd))"
+        }
+    }
+
     // MARK: - Computed
 
-    private var navTitle: String {
-        isRangeMode ? "\(title): \(formatDateOnly(rangeStart)) – \(formatDateOnly(rangeEnd))" : "\(title) \(formatDateOnly(selectedDate))"
-    }
+    private var navTitle: String { title }
 
     private var sortedRangeDays: [(key: String, date: Date, txs: [ProductionTransaction])] {
         rangeData.map { key, txs in
@@ -1323,7 +1379,6 @@ struct GenericProductionReportView: View {
         }.sorted { $0.date > $1.date }
     }
 
-    // Summary stats for a list of transactions
     private func stats(for txs: [ProductionTransaction]) -> (count: Int, totalCost: Double, totalQty: Int, totalRevenue: Double, totalDebt: Double, unpaidCount: Int) {
         let count = txs.count
         let totalCost = txs.reduce(0) { $0 + $1.totalCost }
@@ -1338,44 +1393,108 @@ struct GenericProductionReportView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isLoading {
-                    VStack { ProgressView(); Spacer() }.padding()
-                } else if isRangeMode {
-                    rangeContent
-                } else {
-                    singleDayContent
+            VStack(spacing: 0) {
+                // ── Thanh chọn thời gian ─────────────────────────────
+                VStack(spacing: 8) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(QuickRange.allCases, id: \.self) { r in
+                                Button {
+                                    quickRange = r
+                                    if r == .custom { showCustomPicker = true }
+                                    else { Task { await reload() } }
+                                } label: {
+                                    Text(r.rawValue)
+                                        .font(.caption)
+                                        .fontWeight(quickRange == r ? .semibold : .regular)
+                                        .foregroundStyle(quickRange == r ? .white : Color.themeTextDark)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 7)
+                                        .background(
+                                            Capsule().fill(quickRange == r ? accentColor : Color.white)
+                                        )
+                                        .overlay(
+                                            Capsule().stroke(
+                                                quickRange == r ? Color.clear : Color.gray.opacity(0.2),
+                                                lineWidth: 1
+                                            )
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.caption2)
+                            .foregroundStyle(accentColor)
+                        Text(rangeLabel)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        if quickRange == .custom {
+                            Button {
+                                showCustomPicker = true
+                            } label: {
+                                Text("Đổi ngày")
+                                    .font(.caption)
+                                    .foregroundStyle(accentColor)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
                 }
+                .padding(.vertical, 10)
+                .background(Color.white)
+
+                Divider()
+
+                // ── Nội dung ─────────────────────────────────────────
+                Group {
+                    if isLoading {
+                        VStack { ProgressView(); Spacer() }.padding()
+                    } else {
+                        rangeContent
+                    }
+                }
+                .background(Color.themeBackgroundLight)
             }
-            .background(Color.themeBackgroundLight)
             .navigationTitle(navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showDatePicker = true } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: isRangeMode ? "calendar.badge.clock" : "calendar")
-                            Text(isRangeMode ? "\(formatDateOnly(rangeStart))–\(formatDateOnly(rangeEnd))" : formatDateOnly(selectedDate))
-                                .fontWeight(.semibold).lineLimit(1)
+            }
+            .sheet(isPresented: $showCustomPicker) {
+                NavigationStack {
+                    Form {
+                        Section(header: Text("Chọn khoảng thời gian")) {
+                            DatePicker("Từ ngày", selection: $customStart, displayedComponents: .date)
+                            DatePicker("Đến ngày", selection: $customEnd, in: customStart..., displayedComponents: .date)
                         }
-                        .font(.caption)
-                        .foregroundStyle(isRangeMode ? Color.orange : accentColor)
+                    }
+                    .navigationTitle("Tuỳ chọn ngày")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Xong") {
+                                showCustomPicker = false
+                                Task { await reload() }
+                            }
+                            .fontWeight(.bold)
+                        }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Huỷ") {
+                                quickRange = .thisMonth
+                                showCustomPicker = false
+                            }
+                        }
                     }
                 }
-            }
-            .sheet(isPresented: $showDatePicker) {
-                DateRangePickerSheet(
-                    isRangeMode: $isRangeMode,
-                    selectedDate: $selectedDate,
-                    rangeStart: $rangeStart,
-                    rangeEnd: $rangeEnd
-                ) {
-                    showDatePicker = false
-                    Task { await reload() }
-                }
+                .presentationDetents([.medium])
             }
         }
         .task { await reload() }
@@ -1475,17 +1594,13 @@ struct GenericProductionReportView: View {
                 .font(.headline).fontWeight(.bold)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                statTile(label: "Số giao dịch", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
-                statTile(label: isMaterial ? "Tổng chi phí" : "Tổng giá trị", value: formatCurrency(isMaterial ? s.totalCost : s.totalRevenue), icon: "banknote.fill", color: .green)
-                if isMaterial {
-                    statTile(label: "Tổng khối lượng", value: FormatUtils.formatWeight(s.totalQty), icon: "scalemass.fill", color: .blue)
-                } else {
+                statTile(label: "Số đơn nhập", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
+                statTile(label: isMaterial ? "Tổng tiền nhập hàng" : "Tổng giá trị", value: formatCurrency(isMaterial ? s.totalCost : s.totalRevenue), icon: "banknote.fill", color: .green)
+                if !isMaterial {
                     statTile(label: "Đã thanh toán", value: formatCurrency(s.totalRevenue - s.totalDebt), icon: "checkmark.circle.fill", color: .green)
                 }
                 if reportKind == .finishedExport {
                     statTile(label: "Còn nợ", value: formatCurrency(s.totalDebt), icon: "exclamationmark.circle.fill", color: s.totalDebt > 0 ? .red : .gray)
-                } else {
-                    statTile(label: "Tổng khối lượng", value: FormatUtils.formatWeight(s.totalQty), icon: "scalemass.fill", color: .blue)
                 }
             }
         }
@@ -1644,10 +1759,11 @@ struct GenericProductionReportView: View {
         isLoading = true
         defer { isLoading = false }
         materials = await viewModel.fetchMaterials()
-        if isRangeMode { await reloadRange() } else { await reloadSingleDay() }
+        await reloadRange()
     }
 
     private func reloadSingleDay() async {
+        // Không dùng nữa — giữ lại để tránh lỗi compile nếu có reference
         let start = startOfDay(selectedDate)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
         let all = await viewModel.fetchProductionTransactions(mode: mode)
@@ -1655,16 +1771,17 @@ struct GenericProductionReportView: View {
     }
 
     private func reloadRange() async {
-        let start = startOfDay(rangeStart)
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: startOfDay(rangeEnd)) ?? startOfDay(rangeEnd)
+        let (start, end) = activeRangeInterval
         let all = await viewModel.fetchProductionTransactions(mode: mode)
-        let filtered = all.filter { $0.createdAt >= start && $0.createdAt < end }
+        let filtered = all.filter { $0.createdAt >= start && $0.createdAt <= end }
         var result: [String: [ProductionTransaction]] = [:]
-        var cursor = start
-        while cursor < end {
+        var cursor = startOfDay(start)
+        let endDay = startOfDay(end)
+        while cursor <= endDay {
             let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: cursor) ?? cursor
             let key = dayKey(cursor)
-            result[key] = filtered.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
+            let dayTxs = filtered.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
+            if !dayTxs.isEmpty { result[key] = dayTxs }
             cursor = dayEnd
         }
         rangeData = result
