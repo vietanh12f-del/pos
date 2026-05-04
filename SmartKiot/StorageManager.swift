@@ -108,4 +108,32 @@ class StorageManager {
     func generateImageName() -> String {
         return UUID().uuidString
     }
+
+    // Upload customer/party image
+    func uploadPartyImage(data: Data, partyId: UUID, fileName: String) async throws -> String {
+        let path = "party-images/\(partyId.uuidString)/\(fileName).jpg"
+        try await client.storage
+            .from(receiptBucket)
+            .upload(
+                path,
+                data: data,
+                options: FileOptions(
+                    cacheControl: "3600",
+                    contentType: "image/jpeg",
+                    upsert: true
+                )
+            )
+        let publicURL = try client.storage
+            .from(receiptBucket)
+            .getPublicURL(path: path)
+        return publicURL.absoluteString
+    }
+
+    // Delete party image by path extracted from URL
+    func deletePartyImage(url: String, partyId: UUID) async {
+        // Extract path from URL: everything after /party-images/
+        guard let range = url.range(of: "party-images/") else { return }
+        let path = "party-images/" + url[range.upperBound...]
+        try? await client.storage.from(receiptBucket).remove(paths: [path])
+    }
 }

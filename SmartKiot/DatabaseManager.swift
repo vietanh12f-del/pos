@@ -1839,6 +1839,7 @@ struct TradingParty: Identifiable, Codable, Equatable {
     var address: String
     var totalDebt: Double = 0
     var updatedAt: Date = Date()
+    var imageURLs: [String] = []
 }
 
 struct TradingPartyDTO: Codable {
@@ -1850,6 +1851,7 @@ struct TradingPartyDTO: Codable {
     let address: String?
     let total_debt: Double?
     let updated_at: Date?
+    let image_urls: [String]?
 
     init(from domain: TradingParty, storeId: UUID) {
         self.id = domain.id
@@ -1860,6 +1862,7 @@ struct TradingPartyDTO: Codable {
         self.address = domain.address
         self.total_debt = domain.totalDebt
         self.updated_at = domain.updatedAt
+        self.image_urls = domain.imageURLs.isEmpty ? nil : domain.imageURLs
     }
 
     func toDomain() -> TradingParty {
@@ -1870,7 +1873,8 @@ struct TradingPartyDTO: Codable {
             phone: phone ?? "",
             address: address ?? "",
             totalDebt: total_debt ?? 0,
-            updatedAt: updated_at ?? Date()
+            updatedAt: updated_at ?? Date(),
+            imageURLs: image_urls ?? []
         )
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 // MARK: - Website Lead Model
 
@@ -509,6 +510,26 @@ struct PartyDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.gray)
             }
+            // Ảnh khách hàng
+            if !currentParty.imageURLs.isEmpty {
+                Divider()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(currentParty.imageURLs, id: \.self) { url in
+                            AsyncImage(url: URL(string: url)) { phase in
+                                if case .success(let img) = phase {
+                                    img.resizable().scaledToFill()
+                                } else {
+                                    Color.gray.opacity(0.12)
+                                        .overlay(ProgressView().scaleEffect(0.7))
+                                }
+                            }
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                }
+            }
         }
         .padding(14)
         .background(Color.white)
@@ -810,28 +831,40 @@ struct PartyEditSheet: View {
     @State private var name: String
     @State private var phone: String
     @State private var address: String
+    @State private var imageURLs: [String]          // existing URLs from DB
+    @State private var pendingImages: [UIImage] = [] // newly picked, not yet uploaded
     @State private var isSaving = false
+    @State private var uploadProgress: Int = 0       // how many uploaded so far
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showImagePicker = false
+    @State private var showCamera = false
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var previewImage: String? = nil   // URL to fullscreen preview
+    @State private var showPreview = false
 
     init(party: TradingParty, onSaved: @escaping (TradingParty) -> Void) {
         self.party = party
         self.onSaved = onSaved
-        _name    = State(initialValue: party.name)
-        _phone   = State(initialValue: party.phone)
-        _address = State(initialValue: party.address)
+        _name      = State(initialValue: party.name)
+        _phone     = State(initialValue: party.phone)
+        _address   = State(initialValue: party.address)
+        _imageURLs = State(initialValue: party.imageURLs)
     }
 
     private var isSupplier: Bool { party.partyType == "supplier" }
     private var hasChanges: Bool {
         name.trimmingCharacters(in: .whitespacesAndNewlines) != party.name ||
         phone.trimmingCharacters(in: .whitespacesAndNewlines) != party.phone ||
-        address.trimmingCharacters(in: .whitespacesAndNewlines) != party.address
+        address.trimmingCharacters(in: .whitespacesAndNewlines) != party.address ||
+        imageURLs != party.imageURLs ||
+        !pendingImages.isEmpty
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                // ── Thông tin ──────────────────────────────────────
                 Section(header: Text(isSupplier ? "Thông tin cơ sở" : "Thông tin khách hàng")) {
                     HStack {
                         Image(systemName: "person.fill")
@@ -854,6 +887,107 @@ struct PartyEditSheet: View {
                         TextField("Địa chỉ", text: $address)
                     }
                 }
+
+                // ── Hình ảnh ───────────────────────────────────────
+                Section(header: Text("Hình ảnh")) {
+                    // Grid ảnh đã lưu + ảnh mới chọn
+                    let totalCount = imageURLs.count + pendingImages.count
+                    if totalCount > 0 {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                // Existing URLs
+                                ForEach(imageURLs, id: \.self) { url in
+                                    ZStack(alignment: .topTrailing) {
+                                        AsyncImage(url: URL(string: url)) { phase in
+                                            if case .success(let img) = phase {
+                                                img.resizable().scaledToFill()
+                                            } else {
+                                                Color.gray.opacity(0.15)
+                                                    .overlay(ProgressView())
+                                            }
+                                        }
+                                        .frame(width: 90, height: 90)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        .onTapGesture {
+                                            previewImage = url
+                                            showPreview = true
+                                        }
+
+                                        Button {
+                                            imageURLs.removeAll { $0 == url }
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 20))
+                                                .foregroundStyle(.white)
+                                                .background(Circle().fill(Color.red))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .offset(x: 6, y: -6)
+                                    }
+                                }
+                                // Pending (not yet uploaded)
+                                ForEach(pendingImages.indices, id: \.self) { i in
+                                    ZStack(alignment: .topTrailing) {
+                                        Image(uiImage: pendingImages[i])
+                                            .resizable().scaledToFill()
+                                            .frame(width: 90, height: 90)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(Color.blue.opacity(0.4), lineWidth: 2)
+                                            )
+                                        Button {
+                                            pendingImages.remove(at: i)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 20))
+                                                .foregroundStyle(.white)
+                                                .background(Circle().fill(Color.red))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .offset(x: 6, y: -6)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    }
+
+                    // Nút thêm ảnh
+                    HStack(spacing: 12) {
+                        PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
+                            Label("Chọn từ thư viện", systemImage: "photo.on.rectangle")
+                                .font(.subheadline)
+                        }
+                        .onChange(of: pickerItems) { _, items in
+                            Task {
+                                for item in items {
+                                    if let data = try? await item.loadTransferable(type: Data.self),
+                                       let img = UIImage(data: data) {
+                                        pendingImages.append(img)
+                                    }
+                                }
+                                pickerItems = []
+                            }
+                        }
+
+                        Divider().frame(height: 20)
+
+                        Button {
+                            showCamera = true
+                        } label: {
+                            Label("Chụp ảnh", systemImage: "camera.fill")
+                                .font(.subheadline)
+                        }
+                    }
+
+                    if !pendingImages.isEmpty {
+                        Text("\(pendingImages.count) ảnh mới chưa lưu")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                }
             }
             .navigationTitle("Chỉnh sửa")
             .navigationBarTitleDisplayMode(.inline)
@@ -866,7 +1000,13 @@ struct PartyEditSheet: View {
                         Task { await save() }
                     } label: {
                         if isSaving {
-                            ProgressView()
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                if uploadProgress > 0 {
+                                    Text("\(uploadProgress)/\(pendingImages.count)")
+                                        .font(.caption)
+                                }
+                            }
                         } else {
                             Text("Lưu").fontWeight(.bold)
                         }
@@ -879,19 +1019,63 @@ struct PartyEditSheet: View {
             } message: {
                 Text(errorMessage)
             }
+            .fullScreenCover(isPresented: $showCamera) {
+                ImagePicker(image: Binding(
+                    get: { nil },
+                    set: { img in if let img { pendingImages.append(img) } }
+                ), sourceType: .camera)
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: $showPreview) {
+                if let url = previewImage, let imageURL = URL(string: url) {
+                    NavigationStack {
+                        AsyncImage(url: imageURL) { phase in
+                            if case .success(let img) = phase {
+                                img.resizable().scaledToFit()
+                            } else {
+                                ProgressView()
+                            }
+                        }
+                        .ignoresSafeArea()
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Đóng") { showPreview = false }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
 
     private func save() async {
         isSaving = true
         defer { isSaving = false }
+
+        // Upload pending images
+        var newURLs: [String] = []
+        uploadProgress = 0
+        for img in pendingImages {
+            guard let data = img.jpegData(compressionQuality: 0.82) else { continue }
+            let fileName = UUID().uuidString
+            if let url = try? await StorageManager.shared.uploadPartyImage(
+                data: data, partyId: party.id, fileName: fileName
+            ) {
+                newURLs.append(url)
+            }
+            uploadProgress += 1
+        }
+
         var updated = party
-        updated.name    = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.phone   = phone.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.address = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.name      = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.phone     = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.address   = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.imageURLs = imageURLs + newURLs
         updated.updatedAt = Date()
+
         do {
             try await SupabaseDatabaseService().upsertTradingParty(updated)
             onSaved(updated)
