@@ -2308,7 +2308,7 @@ struct ContentView: View {
                                 }
                             }
                         }
-                        ActionButton(icon: "square.and.arrow.up", title: "In và đóng bill") {
+                        ActionButton(icon: "printer.fill", title: "In và đóng bill") {
                             renderImage()
                         }
                     }
