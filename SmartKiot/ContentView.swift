@@ -112,7 +112,14 @@ struct ContentView: View {
                 .fullScreenCover(isPresented: $showNewOrder) {
                     SmartOrderEntryView(viewModel: viewModel)
                 }
-                .fullScreenCover(isPresented: $showNewRestock) {
+                .fullScreenCover(isPresented: $showNewRestock, onDismiss: {
+                    // Chuyển sang tab Kho hàng và tab Lịch sử nhập (NBL)
+                    selectedTab = 3
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("InventoryShowHistory"),
+                        object: nil
+                    )
+                }) {
                     RestockEntryView(viewModel: viewModel)
                 }
                 .sheet(isPresented: $showNewOperatingExpense) {
@@ -136,8 +143,13 @@ struct ContentView: View {
                     CustomerManagementView()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToWebsiteLeads"))) { _ in
-                    selectedTab = 8 // Chuyển sang tab More
-                    showCustomerManagement = true // Mở sheet quản lý khách hàng
+                    selectedTab = 8
+                    showCustomerManagement = true
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToTab"))) { notif in
+                    if let tab = notif.userInfo?["tab"] as? Int {
+                        selectedTab = tab
+                    }
                 }
                 .onChange(of: viewModel.editingBill) { bill in
                     if bill != nil {
@@ -2221,13 +2233,19 @@ struct ContentView: View {
                             showButtons: viewModel.editingBill == nil,
                             onComplete: { isPaid in
                                 if viewModel.editingBill != nil {
-                                    Task { 
+                                    Task {
                                         await viewModel.finalizeEditedPayment()
                                         dismiss()
                                     }
                                 } else {
                                     viewModel.completeOrder(isPaid: isPaid)
                                     dismiss()
+                                    // Chuyển sang tab Đơn hàng (lịch sử XBL)
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("NavigateToTab"),
+                                        object: nil,
+                                        userInfo: ["tab": 1]
+                                    )
                                 }
                             },
                             customerName: viewModel.walkInName,

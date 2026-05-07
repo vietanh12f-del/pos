@@ -1547,9 +1547,16 @@ class OrderViewModel: ObservableObject {
                     }
                 } else {
                     try await database.saveRestockBill(bill)
-                    // Gán STT đầy đủ NBL sau khi lưu thành công
-                    let n = await database.nextSequenceNumber(type: SequenceType.retailRestock)
-                    let fullStt = FormatUtils.buildSequenceNumber(type: SequenceType.retailRestock, n: n)
+                    // Gán STT đầy đủ NBL — chỉ fetch N nếu STT chưa có suffix type
+                    let existingSTT = bill.sequenceNumber ?? ""
+                    let hasFullSTT = existingSTT.components(separatedBy: "-").count >= 4
+                    let fullStt: String
+                    if hasFullSTT {
+                        fullStt = existingSTT
+                    } else {
+                        let n = await database.nextSequenceNumber(type: SequenceType.retailRestock)
+                        fullStt = FormatUtils.buildSequenceNumber(type: SequenceType.retailRestock, n: n)
+                    }
                     var updatedBill = bill
                     updatedBill.sequenceNumber = fullStt
                     try? await database.updateRestockBill(updatedBill)

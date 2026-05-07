@@ -610,6 +610,9 @@ struct InventoryView: View {
             .navigationTitle("Kho hàng hóa")
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .contentShape(Rectangle())
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("InventoryShowHistory"))) { _ in
+                selectedTab = 1
+            }
             .onTapGesture {
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
