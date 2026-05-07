@@ -1259,6 +1259,33 @@ struct ExportBillPrintView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+
+            // Chữ ký
+            Divider()
+            HStack(alignment: .top) {
+                VStack(spacing: 4) {
+                    Text("Người thực hiện")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.gray)
+                    Text(creatorName.isEmpty ? " " : creatorName)
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(spacing: 4) {
+                    Text("Người xác nhận")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.gray)
+                    Text(" ")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.top, 8)
         }
     }
 

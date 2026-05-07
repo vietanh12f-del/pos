@@ -1885,6 +1885,33 @@ private struct ExportSlipShareSheet: View {
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
+
+            // Chữ ký
+            Divider()
+            HStack(alignment: .top) {
+                VStack(spacing: 4) {
+                    Text("Người thực hiện")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.gray)
+                    Text(creatorName.isEmpty ? " " : creatorName)
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(spacing: 4) {
+                    Text("Người xác nhận")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.gray)
+                    Text(" ")
+                        .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.top, 8)
         }
     }
 
