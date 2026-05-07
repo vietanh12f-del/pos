@@ -46,9 +46,10 @@ class BuyerHistoryStore {
 struct FinishedGoodsExportView: View {
     @ObservedObject var viewModel: OrderViewModel
     let items: [RestockItem]
-    let isImport: Bool          // true = nhập nguyên liệu/hàng hoá, false = xuất thành phẩm/nguyên liệu
-    var isRegularRestock: Bool = false // true = nhập hàng hoá thông thường (không phải nguyên liệu)
-    var isFinishedGoodsImport: Bool = false // true = nhập thành phẩm
+    let isImport: Bool
+    var isRegularRestock: Bool = false
+    var isFinishedGoodsImport: Bool = false
+    var isExportMaterials: Bool = false  // true = xuất nguyên liệu
     let onConfirm: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -73,11 +74,13 @@ struct FinishedGoodsExportView: View {
     private var billTitle: String {
         if isRegularRestock { return "PHIẾU NHẬP HÀNG HOÁ" }
         if isFinishedGoodsImport { return "PHIẾU NHẬP THÀNH PHẨM" }
+        if isExportMaterials { return "PHIẾU XUẤT NGUYÊN LIỆU" }
         return isImport ? "PHIẾU NHẬP NGUYÊN LIỆU" : "PHIẾU XUẤT THÀNH PHẨM"
     }
     private var billNavTitle: String {
         if isRegularRestock { return "Bill nhập hàng hoá" }
         if isFinishedGoodsImport { return "Bill nhập thành phẩm" }
+        if isExportMaterials { return "Bill xuất nguyên liệu" }
         return isImport ? "Bill nhập nguyên liệu" : "Bill xuất thành phẩm" 
     }
     private var billPartyHeader: String { isImport ? "THÔNG TIN CƠ SỞ CUNG CẤP" : "THÔNG TIN BÊN MUA" }
@@ -164,7 +167,9 @@ struct FinishedGoodsExportView: View {
                 VStack(spacing: 16) {
                     storeHeaderSection
                     creatorSection
-                    buyerSection
+                    if !isExportMaterials {
+                        buyerSection
+                    }
                     itemsSummarySection
                     paymentSection
                     qrSection
@@ -778,6 +783,8 @@ struct FinishedGoodsExportView: View {
             seqType = SequenceType.retailRestock
         } else if isFinishedGoodsImport {
             seqType = SequenceType.finishedImport
+        } else if isExportMaterials {
+            seqType = SequenceType.materialExport
         } else if isImport {
             seqType = SequenceType.materialImport
         } else {
@@ -792,7 +799,8 @@ struct FinishedGoodsExportView: View {
     }
 
     private func validate() -> String? {
-        if isImportFromFG { return nil } // Skip validation for FG imports
+        if isImportFromFG { return nil }
+        if isExportMaterials { return nil }  // Xuất nguyên liệu không cần thông tin bên mua
         let name = buyerName.trimmingCharacters(in: .whitespacesAndNewlines)
         let phone = buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines)
         let address = buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines)

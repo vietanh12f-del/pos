@@ -722,7 +722,8 @@ struct RestockEntryView: View {
                 items: viewModel.restockItems,
                 isImport: !isExportMaterialsContext(),
                 isRegularRestock: isUnitFinishedGoodsImport || (!isImportMaterialsContext() && !isFinishedGoodsExportContext() && !isFinishedGoodsContext() && !isExportMaterialsContext()),
-                isFinishedGoodsImport: isFinishedGoodsContext() && !isFinishedGoodsExportContext() && !isExportMaterialsContext()
+                isFinishedGoodsImport: isFinishedGoodsContext() && !isFinishedGoodsExportContext() && !isExportMaterialsContext(),
+                isExportMaterials: isExportMaterialsContext()
             ) {
                 if let cb = onComplete {
                     cb(viewModel.restockItems)
