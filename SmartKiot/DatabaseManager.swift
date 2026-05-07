@@ -100,6 +100,19 @@ protocol DatabaseService {
     func fetchLeaveRequests(userId: UUID) async throws -> [LeaveRequest]
     func fetchAllLeaveRequests() async throws -> [LeaveRequest]
     func updateLeaveRequestStatus(id: UUID, status: String, reviewNote: String?) async throws
+
+    // Sequence counters
+    func nextSequenceNumber(type: String) async -> Int
+}
+
+// MARK: - Sequence Counter Types
+enum SequenceType {
+    static let retailSale      = "XBL"  // Xuất Bán Lẻ
+    static let retailRestock   = "NBL"  // Nhập Bán Lẻ (nhận hàng hoá)
+    static let materialImport  = "NNL"  // Nhập Nguyên Liệu
+    static let materialExport  = "XNL"  // Xuất Nguyên Liệu
+    static let finishedImport  = "NTP"  // Nhập Thành Phẩm
+    static let finishedExport  = "XTP"  // Xuất Thành Phẩm
 }
 
 // MARK: - Supabase Implementation
@@ -313,6 +326,26 @@ class SupabaseDatabaseService: DatabaseService {
             .update(Payload(status: status, review_note: reviewNote, reviewed_at: Date()))
             .eq("id", value: id)
             .execute()
+    }
+
+    // MARK: - Sequence Counters
+
+    func nextSequenceNumber(type: String) async -> Int {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return 0 }
+        do {
+            // Supabase RPC trả về số nguyên trực tiếp
+            let result: Int = try await client
+                .rpc("increment_sequence_counter", params: [
+                    "p_store_id": storeId.uuidString,
+                    "p_type": type
+                ])
+                .execute()
+                .value
+            return result
+        } catch {
+            print("❌ nextSequenceNumber error: \(error)")
+            return 0
+        }
     }
     
     // MARK: - Products
@@ -1079,6 +1112,7 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchLeaveRequests(userId: UUID) async throws -> [LeaveRequest] { return [] }
     func fetchAllLeaveRequests() async throws -> [LeaveRequest] { return [] }
     func updateLeaveRequestStatus(id: UUID, status: String, reviewNote: String?) async throws { print("⚠️ updateLeaveRequestStatus: Mocked success") }
+    func nextSequenceNumber(type: String) async -> Int { return 0 }
 }
 #endif
 

@@ -47,4 +47,12 @@ struct FormatUtils {
         formatter.dateFormat = "yyMMdd-HHmmss"
         return formatter.string(from: date)
     }
+
+    /// Tạo STT đầy đủ: YYMMDD-HHMMSS-TYPE-N
+    static func buildSequenceNumber(type: String, n: Int) -> String {
+        let date = Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyMMdd-HHmmss"
+        return "\(formatter.string(from: date))-\(type)-\(n)"
+    }
 }

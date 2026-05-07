@@ -1229,10 +1229,22 @@ class OrderViewModel: ObservableObject {
             pastOrders.insert(bill, at: 0) // Newest first
             lastCreatedBill = bill
             
-            // Save Order to DB
+            // Save Order to DB + gán STT đầy đủ sau khi lưu
             Task {
                 do {
                     try await database.saveOrder(bill)
+                    // Lấy N và cập nhật sequenceNumber với format đầy đủ
+                    let n = await database.nextSequenceNumber(type: SequenceType.retailSale)
+                    let fullStt = FormatUtils.buildSequenceNumber(type: SequenceType.retailSale, n: n)
+                    var updated = bill
+                    updated.sequenceNumber = fullStt
+                    try? await database.updateOrder(updated)
+                    await MainActor.run {
+                        if let idx = pastOrders.firstIndex(where: { $0.id == bill.id }) {
+                            pastOrders[idx].sequenceNumber = fullStt
+                        }
+                        lastCreatedBill?.sequenceNumber = fullStt
+                    }
                 } catch {
                     print("❌ Error saving order: \(error)")
                 }
@@ -1535,6 +1547,15 @@ class OrderViewModel: ObservableObject {
                     }
                 } else {
                     try await database.saveRestockBill(bill)
+                    // Gán STT đầy đủ NBL sau khi lưu thành công
+                    let n = await database.nextSequenceNumber(type: SequenceType.retailRestock)
+                    let fullStt = FormatUtils.buildSequenceNumber(type: SequenceType.retailRestock, n: n)
+                    var updatedBill = bill
+                    updatedBill.sequenceNumber = fullStt
+                    try? await database.updateRestockBill(updatedBill)
+                    if let idx = restockHistory.firstIndex(where: { $0.id == bill.id }) {
+                        restockHistory[idx].sequenceNumber = fullStt
+                    }
                     
                     // Tạo ProductionTransaction "Xuất Thành Phẩm" cho các item là thành phẩm hoặc nhập từ thành phẩm
                     var exportTxItems: [RestockItem] = []
@@ -1607,6 +1628,12 @@ class OrderViewModel: ObservableObject {
                         
                         do {
                             try await database.saveProductionTransaction(exportTx)
+                            // Gán STT XTP
+                            let n = await database.nextSequenceNumber(type: SequenceType.finishedExport)
+                            let fullStt = FormatUtils.buildSequenceNumber(type: SequenceType.finishedExport, n: n)
+                            var updatedTx = exportTx
+                            updatedTx.sequenceNumber = fullStt
+                            try? await database.updateProductionTransaction(updatedTx)
                             await loadProductionHistory(mode: "Xuất Thành Phẩm")
                             print("✅ Saved finished goods export tx for \(exportTxItems.count) items")
                         } catch {
@@ -2086,6 +2113,13 @@ class OrderViewModel: ObservableObject {
         
         do {
             try await database.saveProductionTransaction(tx)
+            // Gán STT đầy đủ
+            let seqType = sequenceType(for: mode)
+            let n = await database.nextSequenceNumber(type: seqType)
+            let fullStt = FormatUtils.buildSequenceNumber(type: seqType, n: n)
+            var updatedTx = tx
+            updatedTx.sequenceNumber = fullStt
+            try? await database.updateProductionTransaction(updatedTx)
             await upsertMaterialsFromTransaction(tx)
             await loadMaterials()
             await loadProductionHistory(mode: mode)
@@ -2177,6 +2211,13 @@ class OrderViewModel: ObservableObject {
         Task {
             do {
                 try await database.saveProductionTransaction(tx)
+                // Gán STT đầy đủ sau khi lưu thành công
+                let seqType = sequenceType(for: mode)
+                let n = await database.nextSequenceNumber(type: seqType)
+                let fullStt = FormatUtils.buildSequenceNumber(type: seqType, n: n)
+                var updated = tx
+                updated.sequenceNumber = fullStt
+                try? await database.updateProductionTransaction(updated)
                 if mode.lowercased().contains("thành phẩm") {
                     await upsertProductsFromTransaction(tx)
                     await loadProducts()
@@ -2944,6 +2985,18 @@ class OrderViewModel: ObservableObject {
         return pastOrders
             .filter { $0.createdAt >= start && $0.createdAt <= end }
             .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    // MARK: - Sequence Type Helper
+
+    func sequenceType(for mode: String) -> String {
+        let m = mode.lowercased()
+        if m.contains("nhập") && m.contains("nguyên liệu") { return SequenceType.materialImport }
+        if m.contains("xuất") && m.contains("nguyên liệu") { return SequenceType.materialExport }
+        if m.contains("nhập") && m.contains("thành phẩm")  { return SequenceType.finishedImport }
+        if m.contains("xuất") && m.contains("thành phẩm")  { return SequenceType.finishedExport }
+        if m.contains("nhập")                               { return SequenceType.retailRestock }
+        return SequenceType.retailSale
     }
 
     // MARK: - Wholesale / Production Stats
