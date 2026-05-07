@@ -2209,6 +2209,7 @@ struct ContentView: View {
         @State private var customVATRate: Double? = nil
         @State private var showVATRatePicker = false
         @State private var vatRateInputText: String = ""
+        @State private var isPrinting = false
         
         var body: some View {
             ZStack {
@@ -2309,7 +2310,7 @@ struct ContentView: View {
                             }
                         }
                         ActionButton(icon: "printer.fill", title: "In và đóng bill") {
-                            renderImage()
+                            Task { await printAndClose() }
                         }
                     }
                     .padding(.horizontal).padding(.bottom, 20)
@@ -2439,6 +2440,82 @@ struct ContentView: View {
                     renderedImage = image
                     showShareSheet = true
                 }
+            }
+        }
+
+        @MainActor
+        private func printAndClose() async {
+            isPrinting = true
+            defer { isPrinting = false }
+
+            // Render bill thành ảnh
+            var loadedQR: UIImage? = nil
+            if let url = viewModel.vietQRURL(),
+               let (data, _) = try? await URLSession.shared.data(from: url) {
+                loadedQR = UIImage(data: data)
+            }
+            let renderView = BillReceiptView(
+                items: viewModel.items,
+                totalAmount: viewModel.totalAmount,
+                dateString: currentDateString(),
+                qrURL: viewModel.vietQRURL(),
+                qrImage: loadedQR,
+                billPayload: viewModel.billPayload(),
+                showButtons: false,
+                onComplete: nil,
+                customerName: viewModel.walkInName,
+                onOpenBankSettings: nil,
+                onCaptureReceipt: nil,
+                receiptImageURL: nil,
+                onPickedReceiptImage: nil,
+                onEditDiscount: nil,
+                sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber
+            )
+            .frame(width: 375)
+            let renderer = ImageRenderer(content: renderView)
+            renderer.scale = UIScreen.main.scale
+            guard let image = renderer.uiImage else { return }
+
+            // Hàm hoàn tất bill và điều hướng về tab lịch sử (chỉ gọi 1 lần)
+            var didFinish = false
+            let finishAndNavigate = {
+                guard !didFinish else { return }
+                didFinish = true
+                DispatchQueue.main.async {
+                    viewModel.completeOrder(isPaid: true)
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("NavigateToTab"),
+                            object: nil,
+                            userInfo: ["tab": 1]
+                        )
+                    }
+                }
+            }
+
+            // Mở print dialog
+            let printInfo = UIPrintInfo(dictionary: nil)
+            printInfo.outputType = .photo
+            printInfo.jobName = "Bill bán lẻ"
+            let pc = UIPrintInteractionController.shared
+            pc.printInfo = printInfo
+            pc.printingItem = image
+
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let root = scene.windows.first?.rootViewController {
+                var top = root
+                while let p = top.presentedViewController { top = p }
+                // completionHandler gọi khi sheet in đóng lại (dù in hay huỷ)
+                pc.present(from: top.view.bounds, in: top.view, animated: true) { _, _, _ in
+                    finishAndNavigate()
+                }
+            } else {
+                // Fallback nếu không tìm được root VC
+                finishAndNavigate()
             }
         }
     }
