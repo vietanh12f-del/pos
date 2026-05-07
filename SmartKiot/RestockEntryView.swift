@@ -1332,7 +1332,7 @@ struct ManualRestockItemView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text(isFinishedGoods ? "Chi tiết thành phẩm" : "Chi tiết hàng hóa")) {
+                Section(header: Text(isFinishedGoods ? "Chi tiết thành phẩm" : (addTitle.lowercased().contains("nguyên liệu") ? "Chi tiết nguyên liệu" : "Chi tiết hàng hóa"))) {
                     HStack(spacing: 8) {
                         TextField(isFinishedGoods ? "Tên thành phẩm" : "Tên hàng", text: $name)
                         Button {
@@ -1390,7 +1390,7 @@ struct ManualRestockItemView: View {
                         }
                     }
                     
-                    if !isFinishedGoods {
+                    if !isFinishedGoods && !addTitle.lowercased().contains("nguyên liệu") {
                         Toggle("Nhập từ thành phẩm", isOn: $importFromFinishedGood)
                             .padding(.vertical, 4)
                             .tint(Color.themePrimary)
