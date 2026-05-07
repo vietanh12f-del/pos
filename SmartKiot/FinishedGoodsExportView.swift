@@ -121,6 +121,7 @@ struct FinishedGoodsExportView: View {
     @State private var validationMessage = ""
     @State private var showConfirmAlert = false
     @State private var isPaid = false
+    @State private var resolvedSTT: String? = nil  // STT đầy đủ sau khi fetch N
 
     // Computed totals
     private var subtotal: Double {
@@ -254,7 +255,11 @@ struct FinishedGoodsExportView: View {
                 billNavTitle: billNavTitle,
                 billPartyHeader: billPartyHeader,
                 isRegularRestock: isRegularRestock,
-                sequenceNumber: viewModel.currentSequenceNumber
+                sequenceNumber: resolvedSTT ?? viewModel.currentSequenceNumber,
+                onConfirmAfterShare: {
+                    // Share sheet đã đóng → tự động confirm và lưu phiếu
+                    Task { await confirmExport() }
+                }
             )
         }
         .alert("Thiếu thông tin", isPresented: $showValidationAlert) {
@@ -680,28 +685,7 @@ struct FinishedGoodsExportView: View {
 
     private var actionButtons: some View {
         VStack(spacing: 10) {
-            // Print bill
-            Button {
-                if let msg = validate() {
-                    validationMessage = msg
-                    showValidationAlert = true
-                    return
-                }
-                showPrintSheet = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "printer.fill")
-                    Text(printButtonLabel)
-                        .fontWeight(.bold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.gray.opacity(0.12))
-                .foregroundStyle(Color.themeTextDark)
-                .cornerRadius(16)
-            }
-
-            // Payment status toggle
+            // Payment status toggle — đặt trên print button
             HStack {
                 Text("Trạng thái thanh toán")
                     .font(.subheadline)
@@ -727,6 +711,30 @@ struct FinishedGoodsExportView: View {
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
 
+            // Print bill
+            Button {
+                if let msg = validate() {
+                    validationMessage = msg
+                    showValidationAlert = true
+                    return
+                }
+                Task {
+                    await resolveSTTIfNeeded()
+                    showPrintSheet = true
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "printer.fill")
+                    Text(printButtonLabel)
+                        .fontWeight(.bold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.gray.opacity(0.12))
+                .foregroundStyle(Color.themeTextDark)
+                .cornerRadius(16)
+            }
+
             // Confirm
             Button {
                 if let msg = validate() {
@@ -734,7 +742,10 @@ struct FinishedGoodsExportView: View {
                     showValidationAlert = true
                     return
                 }
-                showConfirmAlert = true
+                Task {
+                    await resolveSTTIfNeeded()
+                    showConfirmAlert = true
+                }
             } label: {
                 HStack(spacing: 8) {
                     if isConfirming { ProgressView().tint(.white) }
@@ -755,6 +766,25 @@ struct FinishedGoodsExportView: View {
     }
 
     // MARK: - Helpers
+
+    /// Fetch N và build STT đầy đủ một lần — dùng cho cả print lẫn confirm
+    private func resolveSTTIfNeeded() async {
+        guard resolvedSTT == nil else { return }
+        let seqType: String
+        if isImport {
+            seqType = isRegularRestock ? SequenceType.retailRestock : SequenceType.materialImport
+        } else {
+            seqType = SequenceType.finishedExport
+        }
+        let n = await SupabaseDatabaseService().nextSequenceNumber(type: seqType)
+        let base = viewModel.currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
+        // Dùng phần date-time từ currentSequenceNumber (đã có sẵn), chỉ thêm suffix
+        let parts = base.split(separator: "-", maxSplits: 2).map(String.init)
+        let dateTimePart = parts.count >= 2 ? "\(parts[0])-\(parts[1])" : base
+        resolvedSTT = "\(dateTimePart)-\(seqType)-\(n)"
+        // Cập nhật currentSequenceNumber để completeProductionTransaction dùng đúng STT
+        await MainActor.run { viewModel.currentSequenceNumber = resolvedSTT }
+    }
 
     private func validate() -> String? {
         if isImportFromFG { return nil } // Skip validation for FG imports
@@ -997,6 +1027,7 @@ struct ExportBillPrintView: View {
     var billPartyHeader: String = "THÔNG TIN BÊN MUA"
     var isRegularRestock: Bool = false
     var sequenceNumber: String? = nil
+    var onConfirmAfterShare: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
@@ -1004,27 +1035,44 @@ struct ExportBillPrintView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                billContent
-                    .padding()
-            }
-            .navigationTitle(billNavTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Đóng") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
+                VStack(spacing: 0) {
+                    billContent
+                        .padding()
+
+                    // Button "In và kết thúc bill" ở cuối
                     Button {
                         Task { await shareBill() }
                     } label: {
-                        if isSharing {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "square.and.arrow.up").fontWeight(.bold)
+                        HStack(spacing: 10) {
+                            if isSharing {
+                                ProgressView().tint(.white)
+                            } else {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.title3)
+                            }
+                            Text(isSharing ? "Đang xử lý..." : "In và kết thúc bill")
+                                .fontWeight(.bold)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.themePrimary, Color.themePrimary.opacity(0.85)],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .foregroundStyle(.white)
+                        .cornerRadius(16)
+                        .shadow(color: Color.themePrimary.opacity(0.35), radius: 6, x: 0, y: 3)
                     }
+                    .buttonStyle(.plain)
+                    .disabled(isSharing)
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
                 }
             }
+            .navigationTitle(billNavTitle)
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 
@@ -1207,6 +1255,13 @@ struct ExportBillPrintView: View {
         renderer.scale = 3.0
         guard let image = renderer.uiImage else { return }
         let av = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+        av.completionWithItemsHandler = { [self] _, _, _, _ in
+            // Share sheet đã đóng → dismiss bill rồi trigger confirm
+            DispatchQueue.main.async {
+                self.dismiss()
+                self.onConfirmAfterShare?()
+            }
+        }
         if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let root = scene.windows.first?.rootViewController {
             var top = root

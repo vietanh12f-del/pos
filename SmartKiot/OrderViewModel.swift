@@ -2211,10 +2211,17 @@ class OrderViewModel: ObservableObject {
         Task {
             do {
                 try await database.saveProductionTransaction(tx)
-                // Gán STT đầy đủ sau khi lưu thành công
-                let seqType = sequenceType(for: mode)
-                let n = await database.nextSequenceNumber(type: seqType)
-                let fullStt = FormatUtils.buildSequenceNumber(type: seqType, n: n)
+                // Gán STT đầy đủ — chỉ fetch N nếu STT chưa có suffix type
+                let existingSTT = tx.sequenceNumber ?? ""
+                let hasFullSTT = existingSTT.components(separatedBy: "-").count >= 4
+                let fullStt: String
+                if hasFullSTT {
+                    fullStt = existingSTT
+                } else {
+                    let seqType = sequenceType(for: mode)
+                    let n = await database.nextSequenceNumber(type: seqType)
+                    fullStt = FormatUtils.buildSequenceNumber(type: seqType, n: n)
+                }
                 var updated = tx
                 updated.sequenceNumber = fullStt
                 try? await database.updateProductionTransaction(updated)
