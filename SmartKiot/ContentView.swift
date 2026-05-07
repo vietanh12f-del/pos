@@ -1798,6 +1798,9 @@ struct ContentView: View {
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
                     keyboardHeight = 0
                 }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("DismissOrderEntry"))) { _ in
+                    dismiss()
+                }
         }
     }
     
@@ -2240,12 +2243,17 @@ struct ContentView: View {
                                 } else {
                                     viewModel.completeOrder(isPaid: isPaid)
                                     dismiss()
-                                    // Chuyển sang tab Đơn hàng (lịch sử XBL)
-                                    NotificationCenter.default.post(
-                                        name: NSNotification.Name("NavigateToTab"),
-                                        object: nil,
-                                        userInfo: ["tab": 1]
-                                    )
+                                    // Đóng SmartOrderEntryView rồi chuyển tab Đơn hàng
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                        NotificationCenter.default.post(
+                                            name: NSNotification.Name("NavigateToTab"),
+                                            object: nil,
+                                            userInfo: ["tab": 1]
+                                        )
+                                    }
                                 }
                             },
                             customerName: viewModel.walkInName,
@@ -2288,6 +2296,16 @@ struct ContentView: View {
                                 // Default to unpaid when creating new order
                                 viewModel.completeOrder(isPaid: false)
                                 dismiss()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                    NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
+                                }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("NavigateToTab"),
+                                        object: nil,
+                                        userInfo: ["tab": 1]
+                                    )
+                                }
                             }
                         }
                         ActionButton(icon: "square.and.arrow.up", title: "Chia sẻ") {
