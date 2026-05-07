@@ -369,7 +369,10 @@ struct ProductionManagementView: View {
                     TransactionEditView(viewModel: viewModel, original: tx)
                 }
             }
-            .sheet(isPresented: $showAutoMaterialExport) {
+            .sheet(isPresented: $showAutoMaterialExport, onDismiss: {
+                materialTab = 1
+                Task { await viewModel.loadProductionHistory(mode: "Xuất nguyên liệu") }
+            }) {
                 AutoMaterialExportSheetView(viewModel: viewModel, defaultHeaderName: "Xuất tự động")
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)

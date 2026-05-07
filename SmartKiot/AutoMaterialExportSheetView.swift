@@ -32,6 +32,7 @@ struct AutoMaterialExportSheetView: View {
     @State private var showAutoPicker = false
     @State private var isSavingTemplate = false
     @State private var showConfirmAlert = false
+    @State private var isSavingExport = false
     @State private var lastValidationError: String?
     @State private var showTemplateManager = false
     @State private var newTemplateName: String = ""
@@ -275,6 +276,24 @@ struct AutoMaterialExportSheetView: View {
             }
             .navigationTitle("Xuất tự động")
             .navigationBarTitleDisplayMode(.inline)
+            .overlay {
+                if isSavingExport {
+                    ZStack {
+                        Color.black.opacity(0.35).ignoresSafeArea()
+                        VStack(spacing: 14) {
+                            ProgressView()
+                                .scaleEffect(1.4)
+                                .tint(.white)
+                            Text("Đang lưu phiếu...")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                        }
+                        .padding(28)
+                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.7)))
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") {
@@ -1100,8 +1119,10 @@ struct AutoMaterialExportSheetView: View {
             showErrorAlert = true
             return
         }
+        isSavingExport = true
         let templateName = draftName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? defaultHeaderName : draftName
-        let ok = await viewModel.performAutoMaterialExport(
+        // Chạy song song: export + save template
+        async let exportTask = viewModel.performAutoMaterialExport(
             mode: "Xuất nguyên liệu",
             templateId: selectedTemplateId,
             templateName: templateName,
@@ -1119,14 +1140,22 @@ struct AutoMaterialExportSheetView: View {
             percentChange: percentChange,
             autoRows: autoRows,
             extraPanRows: autoRowsForExtraPan,
-            resolvedSequenceNumber: resolvedAutoSTT  // dùng STT đã resolve, không increment thêm
+            resolvedSequenceNumber: resolvedAutoSTT
         )
+        async let templateTask: Bool = saveTemplateAsync()
+        let (ok, _) = await (exportTask, templateTask)
+        isSavingExport = false
         if ok {
-            await saveTemplate()
             dismiss()
         } else {
             lastValidationError = "Không thể xuất tự động"
         }
+    }
+
+    /// Lưu template và trả về Bool (để dùng với async let)
+    private func saveTemplateAsync() async -> Bool {
+        await saveTemplate()
+        return true
     }
     
     private func openWeightWheel(target: WeightWheelTarget, currentText: String) {
