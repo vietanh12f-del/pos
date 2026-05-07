@@ -2952,7 +2952,7 @@ class OrderViewModel: ObservableObject {
         var revenue: Double       // ∑ grandTotal của Xuất Thành Phẩm có grandTotal > 0
         var paid: Double          // ∑ paidAmount
         var debt: Double          // ∑ debtAmount
-        var materialCost: Double  // ∑ totalCost của Nhập Nguyên Liệu
+        var materialCost: Double  // ∑ (quantity × unitPrice) của các item trong phiếu Xuất Nguyên Liệu
         var transactions: [ProductionTransaction]
     }
 
@@ -2970,12 +2970,26 @@ class OrderViewModel: ObservableObject {
         let paid         = exports.reduce(0) { $0 + ($1.paidAmount ?? 0) }
         let debt         = exports.reduce(0) { $0 + ($1.debtAmount ?? 0) }
 
-        // Chi phí nguyên liệu: Nhập Nguyên Liệu trong kỳ
-        let materialImports = inRange.filter {
-            $0.mode.lowercased().contains("nhập") &&
+        // Chi phí nguyên liệu: tổng chi phí các phiếu Xuất Nguyên Liệu trong kỳ
+        // Tính theo quantity × unitPrice của từng item (grams/1000 × giá/kg cho nguyên liệu)
+        let materialExports = inRange.filter {
+            $0.mode.lowercased().contains("xuất") &&
             $0.mode.lowercased().contains("nguyên liệu")
         }
-        let materialCost = materialImports.reduce(0) { $0 + $1.totalCost }
+        let materialCost = materialExports.reduce(0.0) { txSum, tx in
+            txSum + tx.items.reduce(0.0) { itemSum, item in
+                // Nguyên liệu: quantity là grams, unitPrice là giá/kg
+                let cat = item.category?.lowercased() ?? ""
+                let unit = item.unit?.lowercased() ?? ""
+                if unit == "cái" {
+                    return itemSum + (Double(item.quantity) * item.unitPrice)
+                } else if cat == Category.materials.rawValue.lowercased() || unit == "kg" || unit.isEmpty {
+                    return itemSum + (item.unitPrice * (Double(item.quantity) / 1000.0))
+                } else {
+                    return itemSum + (Double(item.quantity) * item.unitPrice)
+                }
+            }
+        }
 
         return WholesaleStats(
             revenue: revenue,
