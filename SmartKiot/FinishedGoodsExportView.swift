@@ -48,6 +48,7 @@ struct FinishedGoodsExportView: View {
     let items: [RestockItem]
     let isImport: Bool          // true = nhập nguyên liệu/hàng hoá, false = xuất thành phẩm/nguyên liệu
     var isRegularRestock: Bool = false // true = nhập hàng hoá thông thường (không phải nguyên liệu)
+    var isFinishedGoodsImport: Bool = false // true = nhập thành phẩm
     let onConfirm: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -69,12 +70,14 @@ struct FinishedGoodsExportView: View {
     private var debtLabel: String { isImport ? "Thiếu nợ còn lại" : "Công nợ còn lại" }
     private var printButtonLabel: String { isImport ? "In bill nhập" : "In bill xuất" }
     private var navTitle: String { isImport ? "Thông tin nhập" : "Thông tin xuất" }
-    private var billTitle: String { 
+    private var billTitle: String {
         if isRegularRestock { return "PHIẾU NHẬP HÀNG HOÁ" }
-        return isImport ? "PHIẾU NHẬP NGUYÊN LIỆU" : "PHIẾU XUẤT THÀNH PHẨM" 
+        if isFinishedGoodsImport { return "PHIẾU NHẬP THÀNH PHẨM" }
+        return isImport ? "PHIẾU NHẬP NGUYÊN LIỆU" : "PHIẾU XUẤT THÀNH PHẨM"
     }
-    private var billNavTitle: String { 
+    private var billNavTitle: String {
         if isRegularRestock { return "Bill nhập hàng hoá" }
+        if isFinishedGoodsImport { return "Bill nhập thành phẩm" }
         return isImport ? "Bill nhập nguyên liệu" : "Bill xuất thành phẩm" 
     }
     private var billPartyHeader: String { isImport ? "THÔNG TIN CƠ SỞ CUNG CẤP" : "THÔNG TIN BÊN MUA" }
@@ -771,18 +774,20 @@ struct FinishedGoodsExportView: View {
     private func resolveSTTIfNeeded() async {
         guard resolvedSTT == nil else { return }
         let seqType: String
-        if isImport {
-            seqType = isRegularRestock ? SequenceType.retailRestock : SequenceType.materialImport
+        if isRegularRestock {
+            seqType = SequenceType.retailRestock
+        } else if isFinishedGoodsImport {
+            seqType = SequenceType.finishedImport
+        } else if isImport {
+            seqType = SequenceType.materialImport
         } else {
             seqType = SequenceType.finishedExport
         }
         let n = await SupabaseDatabaseService().nextSequenceNumber(type: seqType)
         let base = viewModel.currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
-        // Dùng phần date-time từ currentSequenceNumber (đã có sẵn), chỉ thêm suffix
         let parts = base.split(separator: "-", maxSplits: 2).map(String.init)
         let dateTimePart = parts.count >= 2 ? "\(parts[0])-\(parts[1])" : base
         resolvedSTT = "\(dateTimePart)-\(seqType)-\(n)"
-        // Cập nhật currentSequenceNumber để completeProductionTransaction dùng đúng STT
         await MainActor.run { viewModel.currentSequenceNumber = resolvedSTT }
     }
 
@@ -1031,6 +1036,7 @@ struct ExportBillPrintView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
+    @State private var didConfirm = false  // tránh double-confirm
 
     var body: some View {
         NavigationStack {
@@ -1073,6 +1079,12 @@ struct ExportBillPrintView: View {
             }
             .navigationTitle(billNavTitle)
             .navigationBarTitleDisplayMode(.inline)
+        }
+        // Vuốt xuống đóng sheet → cũng trigger confirm (nếu chưa confirm qua share)
+        .onDisappear {
+            guard !didConfirm else { return }
+            didConfirm = true
+            onConfirmAfterShare?()
         }
     }
 
@@ -1258,6 +1270,7 @@ struct ExportBillPrintView: View {
         av.completionWithItemsHandler = { [self] _, _, _, _ in
             // Share sheet đã đóng → dismiss bill rồi trigger confirm
             DispatchQueue.main.async {
+                self.didConfirm = true
                 self.dismiss()
                 self.onConfirmAfterShare?()
             }
