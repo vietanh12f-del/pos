@@ -2065,7 +2065,8 @@ class OrderViewModel: ObservableObject {
         actualPanWeightGrams: Double,
         percentChange: Double,
         autoRows: [AutoMaterialExportLogRow],
-        extraPanRows: [AutoMaterialExportLogRow] = []
+        extraPanRows: [AutoMaterialExportLogRow] = [],
+        resolvedSequenceNumber: String? = nil
     ) async -> Bool {
         var totalsByName: [String: Int] = [:]
         for r in freshRows {
@@ -2107,16 +2108,21 @@ class OrderViewModel: ObservableObject {
         let totalCost = items.reduce(0) { $0 + $1.totalCost }
         let note = "Xuất tự động: \(templateName)"
         var tx = ProductionTransaction(id: txId, createdAt: now, mode: mode, items: items, totalCost: totalCost, note: note)
-        tx.sequenceNumber = FormatUtils.generateSequenceNumber()
+        tx.sequenceNumber = resolvedSequenceNumber ?? FormatUtils.generateSequenceNumber()
         tx.creatorId = AuthManager.shared.currentUserProfile?.id
         tx.creatorName = AuthManager.shared.currentUserProfile?.fullName
         
         do {
             try await database.saveProductionTransaction(tx)
-            // Gán STT đầy đủ
-            let seqType = sequenceType(for: mode)
-            let n = await database.nextSequenceNumber(type: seqType)
-            let fullStt = FormatUtils.buildSequenceNumber(type: seqType, n: n)
+            // Gán STT đầy đủ — chỉ fetch N nếu chưa có STT đầy đủ từ trước
+            let fullStt: String
+            if let resolved = resolvedSequenceNumber {
+                fullStt = resolved
+            } else {
+                let seqType = sequenceType(for: mode)
+                let n = await database.nextSequenceNumber(type: seqType)
+                fullStt = FormatUtils.buildSequenceNumber(type: seqType, n: n)
+            }
             var updatedTx = tx
             updatedTx.sequenceNumber = fullStt
             try? await database.updateProductionTransaction(updatedTx)

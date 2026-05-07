@@ -1118,7 +1118,8 @@ struct AutoMaterialExportSheetView: View {
             actualPanWeightGrams: actualPanWeightGrams,
             percentChange: percentChange,
             autoRows: autoRows,
-            extraPanRows: autoRowsForExtraPan
+            extraPanRows: autoRowsForExtraPan,
+            resolvedSequenceNumber: resolvedAutoSTT  // dùng STT đã resolve, không increment thêm
         )
         if ok {
             await saveTemplate()
