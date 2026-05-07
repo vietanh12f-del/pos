@@ -64,6 +64,7 @@ struct AutoMaterialExportSheetView: View {
     @State private var showErrorAlert = false
     @State private var errorAlertMessage = ""
     @State private var showPrintSheet = false
+    @State private var resolvedAutoSTT: String? = nil
 
     init(viewModel: OrderViewModel, defaultHeaderName: String) {
         self.viewModel = viewModel
@@ -884,7 +885,18 @@ struct AutoMaterialExportSheetView: View {
                     showErrorAlert = true
                     return
                 }
-                showPrintSheet = true
+                Task {
+                    // Resolve STT XNL trước khi in
+                    if resolvedAutoSTT == nil {
+                        let n = await SupabaseDatabaseService().nextSequenceNumber(type: SequenceType.materialExport)
+                        let base = viewModel.currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
+                        let parts = base.split(separator: "-", maxSplits: 2).map(String.init)
+                        let dt = parts.count >= 2 ? "\(parts[0])-\(parts[1])" : base
+                        resolvedAutoSTT = "\(dt)-\(SequenceType.materialExport)-\(n)"
+                        viewModel.currentSequenceNumber = resolvedAutoSTT
+                    }
+                    showPrintSheet = true
+                }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "printer.fill")
@@ -941,7 +953,11 @@ struct AutoMaterialExportSheetView: View {
                 actualPanWeightGrams: actualPanWeightGrams,
                 autoMaterialsTitle: autoMaterialsTitle,
                 autoRows: autoRows,
-                extraPanRows: autoRowsForExtraPan
+                extraPanRows: autoRowsForExtraPan,
+                sequenceNumber: resolvedAutoSTT,
+                onConfirmAfterShare: {
+                    Task { await confirmExport() }
+                }
             )
         }
     }
@@ -1600,10 +1616,13 @@ private struct ExportSlipShareSheet: View {
     let autoMaterialsTitle: String
     let autoRows: [AutoMaterialExportLogRow]
     var extraPanRows: [AutoMaterialExportLogRow] = []
+    var sequenceNumber: String? = nil
+    var onConfirmAfterShare: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSharing = false
     @State private var shareImage: UIImage? = nil
+    @State private var didConfirm = false
 
     private var freshTotalGrams: Int {
         freshRows.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
@@ -1612,28 +1631,46 @@ private struct ExportSlipShareSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                slipContent
-                    .padding()
-            }
-            .navigationTitle("Phiếu xuất")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Đóng") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
+                VStack(spacing: 0) {
+                    slipContent
+                        .padding()
+
+                    // Button "In và kết thúc bill" ở cuối
                     Button {
                         Task { await shareSlip() }
                     } label: {
-                        if isSharing {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "square.and.arrow.up")
+                        HStack(spacing: 10) {
+                            if isSharing {
+                                ProgressView().tint(.white)
+                            } else {
+                                Image(systemName: "square.and.arrow.up").font(.title3)
+                            }
+                            Text(isSharing ? "Đang xử lý..." : "In và kết thúc bill")
                                 .fontWeight(.bold)
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(LinearGradient(
+                            colors: [Color.themePrimary, Color.themePrimary.opacity(0.85)],
+                            startPoint: .leading, endPoint: .trailing
+                        ))
+                        .foregroundStyle(.white)
+                        .cornerRadius(16)
+                        .shadow(color: Color.themePrimary.opacity(0.35), radius: 6, x: 0, y: 3)
                     }
+                    .buttonStyle(.plain)
+                    .disabled(isSharing)
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
                 }
             }
+            .navigationTitle("Phiếu xuất nguyên liệu")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .onDisappear {
+            guard !didConfirm else { return }
+            didConfirm = true
+            onConfirmAfterShare?()
         }
     }
 
@@ -1653,6 +1690,12 @@ private struct ExportSlipShareSheet: View {
                 Text(templateName)
                     .font(.title2)
                     .fontWeight(.bold)
+                if let stt = sequenceNumber {
+                    Text("STT: \(stt)")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                }
                 HStack(spacing: 8) {
                     if !creatorName.isEmpty {
                         Label(creatorName, systemImage: "person.fill")
@@ -1843,6 +1886,13 @@ private struct ExportSlipShareSheet: View {
         guard let image = renderer.uiImage else { return }
 
         let av = UIActivityViewController(activityItems: [image], applicationActivities: nil)
+        av.completionWithItemsHandler = { [self] _, _, _, _ in
+            DispatchQueue.main.async {
+                self.didConfirm = true
+                self.dismiss()
+                self.onConfirmAfterShare?()
+            }
+        }
         if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let root = scene.windows.first?.rootViewController {
             var top = root
