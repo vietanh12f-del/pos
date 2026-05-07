@@ -2308,10 +2308,7 @@ struct ContentView: View {
                                 }
                             }
                         }
-                        ActionButton(icon: "square.and.arrow.up", title: "Chia sẻ") {
-                            renderImage()
-                        }
-                        ActionButton(icon: "printer.fill", title: "In") {
+                        ActionButton(icon: "square.and.arrow.up", title: "In và đóng bill") {
                             renderImage()
                         }
                     }
@@ -3035,7 +3032,7 @@ struct ContentView: View {
                         }) {
                             HStack {
                                 Image(systemName: "checkmark.circle")
-                                Text("Đã nhận tiền")
+                                Text("Đã nhận và đóng bill")
                             }
                             .fontWeight(.medium).padding(.horizontal, 16).padding(.vertical, 10).background(Color.white).foregroundStyle(.green).overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.gray.opacity(0.3), lineWidth: 1))
                         }
