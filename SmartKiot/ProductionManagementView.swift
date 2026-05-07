@@ -320,14 +320,15 @@ struct ProductionManagementView: View {
                     useMaterialsList: (mode == .nhapNguyenLieu || mode == .xuatNguyenLieu),
                     onComplete: { items in
                         viewModel.completeProductionTransaction(mode: mode.rawValue)
-                        Task { 
+                        Task {
                             if mode == .nhapThanhPham || mode == .xuatThanhPham {
                                 await viewModel.loadProducts()
                             } else {
                                 await viewModel.loadMaterials()
                             }
+                            await viewModel.loadProductionHistory(mode: mode.rawValue)
                         }
-                        materialTab = 0
+                        materialTab = 1  // Chuyển sang tab Lịch sử sau khi lưu
                     }
                 )
             }
