@@ -27,6 +27,8 @@ struct AutoMaterialExportSheetView: View {
     @State private var autoSelected: Set<UUID> = []
     @State private var autoStandardPerPanKgTextById: [UUID: String] = [:]
     
+    @State private var subSheets: [String] = []
+    
     @State private var showTemplatePicker = false
     @State private var showFreshPicker = false
     @State private var showAutoPicker = false
@@ -367,13 +369,13 @@ struct AutoMaterialExportSheetView: View {
                         showTemplateManager = false
                     }
                 },
-                onCreateAndSave: { name in
+                onCreateAndSave: { name, subs in
                     Task {
                         if hasTemplateChanges {
                             await saveTemplate()
                         }
                         await MainActor.run {
-                            createNewTemplate(named: name)
+                            createNewTemplate(named: name, subSheets: subs)
                         }
                         await saveTemplate()
                         await MainActor.run {
@@ -383,6 +385,18 @@ struct AutoMaterialExportSheetView: View {
                 },
                 onDelete: { id in
                     Task { await viewModel.deleteAutoMaterialExportTemplate(id: id) }
+                },
+                onDeleteSubSheet: { templateId, subIndex in
+                    Task {
+                        // Tìm template, xoá sub-sheet tại index, upsert lại
+                        if var t = viewModel.autoMaterialExportTemplates.first(where: { $0.id == templateId }) {
+                            guard subIndex < t.data.subSheets.count else { return }
+                            t.data.subSheets.remove(at: subIndex)
+                            t.updatedAt = Date()
+                            _ = await viewModel.upsertAutoMaterialExportTemplate(t)
+                            await viewModel.loadAutoMaterialExportTemplates()
+                        }
+                    }
                 }
             )
             .presentationDetents([.medium, .large])
@@ -1133,7 +1147,7 @@ struct AutoMaterialExportSheetView: View {
         return defaultHeaderName
     }
     
-    private func createNewTemplate(named name: String? = nil) {
+    private func createNewTemplate(named name: String? = nil, subSheets newSubSheets: [String] = []) {
         selectedTemplateId = nil
         draftName = (name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ? name! : defaultHeaderName
         headerName = draftName
@@ -1150,6 +1164,7 @@ struct AutoMaterialExportSheetView: View {
         surplusThresholdKg = 0
         autoSelected = []
         autoStandardPerPanKgTextById = [:]
+        subSheets = newSubSheets
         syncSavedSnapshot()
     }
     
@@ -1183,6 +1198,7 @@ struct AutoMaterialExportSheetView: View {
             autoMap[id] = FormatUtils.formatKgDecimal(fromGrams: g)
         }
         autoStandardPerPanKgTextById = autoMap
+        subSheets = t.data.subSheets
         syncSavedSnapshot()
     }
     
@@ -1210,7 +1226,8 @@ struct AutoMaterialExportSheetView: View {
             autoSelectedMaterialIds: Array(autoSelected),
             autoStandardPerPanGramsByMaterialId: autoSelected.reduce(into: [:]) { dict, id in
                 dict[id.uuidString] = max(0, FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0)
-            }
+            },
+            subSheets: subSheets
         )
     }
     
@@ -1506,23 +1523,31 @@ private struct TemplateManagerSheet: View {
     let selectedTemplateId: UUID?
     @Binding var newName: String
     let onSelect: (AutoMaterialExportTemplate) -> Void
-    let onCreateAndSave: (String) -> Void
+    let onCreateAndSave: (String, [String]) -> Void
     let onDelete: (UUID) -> Void
+    let onDeleteSubSheet: (UUID, Int) -> Void
     
     @Environment(\.dismiss) private var dismiss
     @State private var searchText: String = ""
+    @State private var subSheetEnabled: Bool = false
+    @State private var subSheetNames: [String] = ["", ""]
     
     var body: some View {
         NavigationStack {
             List {
                 Section("Chọn sheet có sẵn") {
                     ForEach(filteredTemplates, id: \.id) { t in
+                        // Sheet chính
                         Button {
                             onSelect(t)
                             dismiss()
                         } label: {
                             HStack {
+                                Image(systemName: "doc.text")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.themePrimary)
                                 Text(t.name)
+                                    .fontWeight(.medium)
                                 Spacer()
                                 if t.id == selectedTemplateId {
                                     Image(systemName: "checkmark")
@@ -1530,11 +1555,34 @@ private struct TemplateManagerSheet: View {
                                 }
                             }
                         }
+                        
+                        // Sub-sheets của template này
+                        if !t.data.subSheets.isEmpty {
+                            ForEach(t.data.subSheets.indices, id: \.self) { i in
+                                HStack(spacing: 8) {
+                                    Image(systemName: "arrow.turn.down.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
+                                    Text(t.data.subSheets[i])
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Button {
+                                        onDeleteSubSheet(t.id, i)
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundStyle(.red.opacity(0.7))
+                                            .font(.system(size: 16))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.leading, 16)
+                            }
+                        }
                     }
                     .onDelete { indices in
                         let ids = indices.map { filteredTemplates[$0].id }
                         for id in ids {
-                            // Optimistic: remove immediately so it doesn't "reappear" while refresh happens.
                             localDeletedIds.insert(id)
                             onDelete(id)
                         }
@@ -1545,10 +1593,54 @@ private struct TemplateManagerSheet: View {
                     TextField("Tên sheet mới", text: $newName)
                         .textInputAutocapitalization(.words)
                         .disableAutocorrection(true)
+                    
+                    // Sub-sheet toggle
+                    Toggle(isOn: $subSheetEnabled) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "rectangle.split.3x1")
+                                .foregroundStyle(Color.themePrimary)
+                            Text("Sub-sheet")
+                                .fontWeight(.medium)
+                        }
+                    }
+                    .tint(Color.themePrimary)
+                    
+                    if subSheetEnabled {
+                        ForEach(subSheetNames.indices, id: \.self) { i in
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.turn.down.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                TextField("Tên sub-sheet \(i + 1)", text: $subSheetNames[i])
+                                    .textInputAutocapitalization(.words)
+                                    .disableAutocorrection(true)
+                                if subSheetNames.count > 1 {
+                                    Button {
+                                        subSheetNames.remove(at: i)
+                                    } label: {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundStyle(.red.opacity(0.7))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        Button {
+                            subSheetNames.append("")
+                        } label: {
+                            Label("New row", systemImage: "plus.circle.fill")
+                                .foregroundStyle(Color.themePrimary)
+                                .font(.subheadline)
+                        }
+                    }
+                    
                     Button("Tạo & lưu") {
                         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
                         if !trimmed.isEmpty {
-                            onCreateAndSave(trimmed)
+                            let subs = subSheetEnabled
+                                ? subSheetNames.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+                                : []
+                            onCreateAndSave(trimmed, subs)
                             dismiss()
                         }
                     }

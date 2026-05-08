@@ -227,15 +227,18 @@ struct AutoMaterialExportTemplateData: Codable, Equatable {
     var autoSelectedMaterialIds: [UUID]
     var autoStandardPerPanGramsByMaterialId: [String: Int]
     
+    var subSheets: [String]
+    
     // Backward compat: surplusThresholdKg defaults to 0 if missing
     enum CodingKeys: String, CodingKey {
         case headerName, freshTitle, afterBoilTitle, panCountTitle, panWeightTitle, autoMaterialsTitle
         case freshSelectedMaterialIds, freshExportGramsByMaterialId
         case afterBoilGrams, panCount, standardPanWeightGrams, surplusThresholdKg
         case autoSelectedMaterialIds, autoStandardPerPanGramsByMaterialId
+        case subSheets
     }
     
-    init(headerName: String, freshTitle: String, afterBoilTitle: String, panCountTitle: String, panWeightTitle: String, autoMaterialsTitle: String, freshSelectedMaterialIds: [UUID], freshExportGramsByMaterialId: [String: Int], afterBoilGrams: Int, panCount: Int, standardPanWeightGrams: Int, surplusThresholdKg: Int = 0, autoSelectedMaterialIds: [UUID], autoStandardPerPanGramsByMaterialId: [String: Int]) {
+    init(headerName: String, freshTitle: String, afterBoilTitle: String, panCountTitle: String, panWeightTitle: String, autoMaterialsTitle: String, freshSelectedMaterialIds: [UUID], freshExportGramsByMaterialId: [String: Int], afterBoilGrams: Int, panCount: Int, standardPanWeightGrams: Int, surplusThresholdKg: Int = 0, autoSelectedMaterialIds: [UUID], autoStandardPerPanGramsByMaterialId: [String: Int], subSheets: [String] = []) {
         self.headerName = headerName
         self.freshTitle = freshTitle
         self.afterBoilTitle = afterBoilTitle
@@ -250,6 +253,7 @@ struct AutoMaterialExportTemplateData: Codable, Equatable {
         self.surplusThresholdKg = surplusThresholdKg
         self.autoSelectedMaterialIds = autoSelectedMaterialIds
         self.autoStandardPerPanGramsByMaterialId = autoStandardPerPanGramsByMaterialId
+        self.subSheets = subSheets
     }
     
     init(from decoder: Decoder) throws {
@@ -268,6 +272,7 @@ struct AutoMaterialExportTemplateData: Codable, Equatable {
         surplusThresholdKg = (try? c.decodeIfPresent(Int.self, forKey: .surplusThresholdKg)) ?? 0
         autoSelectedMaterialIds = try c.decode([UUID].self, forKey: .autoSelectedMaterialIds)
         autoStandardPerPanGramsByMaterialId = try c.decode([String: Int].self, forKey: .autoStandardPerPanGramsByMaterialId)
+        subSheets = (try? c.decodeIfPresent([String].self, forKey: .subSheets)) ?? []
     }
 }
 
