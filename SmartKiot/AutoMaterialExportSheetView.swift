@@ -2016,7 +2016,6 @@ private struct AutoRowWheelView: View {
                                 RoundedRectangle(cornerRadius: 10)
                                     .fill(isOver ? Color.red.opacity(0.15) : Color.yellow.opacity(0.18))
                             )
-                            .id(totalText)
                     }
                 }
             }
@@ -2037,7 +2036,8 @@ private struct BlinkingContainer<Content: View>: View {
     
     var body: some View {
         content
-            .opacity(isActive ? (blinkOn ? 0.35 : 1) : 1)
+            .opacity(isActive && blinkOn ? 0.35 : 1)
+            .animation(isActive ? nil : .none, value: blinkOn)
             .onAppear {
                 guard isActive else { return }
                 blinkOn = false
@@ -2052,7 +2052,10 @@ private struct BlinkingContainer<Content: View>: View {
                         blinkOn = true
                     }
                 } else {
-                    blinkOn = false
+                    // Dừng animation ngay lập tức, không transition
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { blinkOn = false }
                 }
             }
     }
