@@ -228,6 +228,7 @@ struct AutoMaterialExportTemplateData: Codable, Equatable {
     var autoStandardPerPanGramsByMaterialId: [String: Int]
     
     var subSheets: [String]
+    var subSheetData: [SubSheetTemplateData]
     
     // Backward compat: surplusThresholdKg defaults to 0 if missing
     enum CodingKeys: String, CodingKey {
@@ -235,10 +236,10 @@ struct AutoMaterialExportTemplateData: Codable, Equatable {
         case freshSelectedMaterialIds, freshExportGramsByMaterialId
         case afterBoilGrams, panCount, standardPanWeightGrams, surplusThresholdKg
         case autoSelectedMaterialIds, autoStandardPerPanGramsByMaterialId
-        case subSheets
+        case subSheets, subSheetData
     }
     
-    init(headerName: String, freshTitle: String, afterBoilTitle: String, panCountTitle: String, panWeightTitle: String, autoMaterialsTitle: String, freshSelectedMaterialIds: [UUID], freshExportGramsByMaterialId: [String: Int], afterBoilGrams: Int, panCount: Int, standardPanWeightGrams: Int, surplusThresholdKg: Int = 0, autoSelectedMaterialIds: [UUID], autoStandardPerPanGramsByMaterialId: [String: Int], subSheets: [String] = []) {
+    init(headerName: String, freshTitle: String, afterBoilTitle: String, panCountTitle: String, panWeightTitle: String, autoMaterialsTitle: String, freshSelectedMaterialIds: [UUID], freshExportGramsByMaterialId: [String: Int], afterBoilGrams: Int, panCount: Int, standardPanWeightGrams: Int, surplusThresholdKg: Int = 0, autoSelectedMaterialIds: [UUID], autoStandardPerPanGramsByMaterialId: [String: Int], subSheets: [String] = [], subSheetData: [SubSheetTemplateData] = []) {
         self.headerName = headerName
         self.freshTitle = freshTitle
         self.afterBoilTitle = afterBoilTitle
@@ -254,6 +255,7 @@ struct AutoMaterialExportTemplateData: Codable, Equatable {
         self.autoSelectedMaterialIds = autoSelectedMaterialIds
         self.autoStandardPerPanGramsByMaterialId = autoStandardPerPanGramsByMaterialId
         self.subSheets = subSheets
+        self.subSheetData = subSheetData
     }
     
     init(from decoder: Decoder) throws {
@@ -273,6 +275,26 @@ struct AutoMaterialExportTemplateData: Codable, Equatable {
         autoSelectedMaterialIds = try c.decode([UUID].self, forKey: .autoSelectedMaterialIds)
         autoStandardPerPanGramsByMaterialId = try c.decode([String: Int].self, forKey: .autoStandardPerPanGramsByMaterialId)
         subSheets = (try? c.decodeIfPresent([String].self, forKey: .subSheets)) ?? []
+        subSheetData = (try? c.decodeIfPresent([SubSheetTemplateData].self, forKey: .subSheetData)) ?? []
+    }
+}
+
+/// Dữ liệu lưu trữ cho một sub-sheet trong template
+struct SubSheetTemplateData: Codable, Equatable {
+    var name: String
+    var afterBoilGrams: Int
+    var panCount: Int
+    var standardPanWeightGrams: Int
+    var surplusThresholdKg: Int
+    var autoStandardPerPanGramsByMaterialId: [String: Int]
+
+    init(name: String, afterBoilGrams: Int = 0, panCount: Int = 1, standardPanWeightGrams: Int = 0, surplusThresholdKg: Int = 0, autoStandardPerPanGramsByMaterialId: [String: Int] = [:]) {
+        self.name = name
+        self.afterBoilGrams = afterBoilGrams
+        self.panCount = panCount
+        self.standardPanWeightGrams = standardPanWeightGrams
+        self.surplusThresholdKg = surplusThresholdKg
+        self.autoStandardPerPanGramsByMaterialId = autoStandardPerPanGramsByMaterialId
     }
 }
 

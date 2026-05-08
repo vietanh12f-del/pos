@@ -1,5 +1,58 @@
 import SwiftUI
 
+/// State riêng cho mỗi sub-sheet trong "Xuất tự động"
+private struct SubSheetState: Identifiable {
+    let id: UUID
+    var name: String
+    var afterBoilKgText: String = "0"
+    var panCountText: String = "1"
+    var standardPanWeightKgText: String = "0"
+    var surplusThresholdKg: Int = 0
+    var autoStandardPerPanKgTextById: [UUID: String] = [:]
+
+    // Popover states
+    var showAfterBoilInfo: Bool = false
+    var showPanWeightStdInfo: Bool = false
+    var showPanCountInfo: Bool = false
+    var showPanWeightActualInfo: Bool = false
+    var showAutoInfo: Bool = false
+    var showSurplusWheel: Bool = false
+    var surplusWheelMax: Int = 100
+
+    init(name: String) {
+        self.id = UUID()
+        self.name = name
+    }
+
+    var afterBoilGrams: Int { max(0, FormatUtils.parseKgDecimalToGrams(afterBoilKgText) ?? 0) }
+    var standardPanWeightGrams: Int { max(0, FormatUtils.parseKgDecimalToGrams(standardPanWeightKgText) ?? 0) }
+    var panCount: Int { max(0, Int(panCountText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0) }
+
+    var surplusGrams: Int {
+        guard standardPanWeightGrams > 0, panCount > 0 else { return 0 }
+        return max(0, afterBoilGrams - standardPanWeightGrams * panCount)
+    }
+    var needsExtraPan: Bool {
+        guard surplusThresholdKg > 0 else { return false }
+        return surplusGrams > surplusThresholdKg * 1000
+    }
+    var actualPanWeightGrams: Double {
+        if needsExtraPan { return Double(standardPanWeightGrams) }
+        guard panCount > 0 else { return 0 }
+        return Double(afterBoilGrams) / Double(panCount)
+    }
+    var percentChange: Double {
+        guard standardPanWeightGrams > 0 else { return 0 }
+        return actualPanWeightGrams / Double(standardPanWeightGrams)
+    }
+
+    mutating func autoCalcPanCount() {
+        if standardPanWeightGrams > 0 {
+            panCountText = String(max(1, afterBoilGrams / standardPanWeightGrams))
+        }
+    }
+}
+
 struct AutoMaterialExportSheetView: View {
     @ObservedObject var viewModel: OrderViewModel
     let defaultHeaderName: String
@@ -28,6 +81,7 @@ struct AutoMaterialExportSheetView: View {
     @State private var autoStandardPerPanKgTextById: [UUID: String] = [:]
     
     @State private var subSheets: [String] = []
+    @State private var subSheetStates: [SubSheetState] = []
     
     @State private var showTemplatePicker = false
     @State private var showFreshPicker = false
@@ -191,25 +245,77 @@ struct AutoMaterialExportSheetView: View {
         }
         .sorted { $0.name < $1.name }
     }
+
+    // Auto rows cho một sub-sheet cụ thể
+    private func autoRowsForSubSheet(_ i: Int) -> [AutoMaterialExportLogRow] {
+        guard i < subSheetStates.count else { return [] }
+        let s = subSheetStates[i]
+        return autoSelected.compactMap { id in
+            guard let m = materialsById[id] else { return nil }
+            let standard = max(0, Double(FormatUtils.parseKgDecimalToGrams(s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            let perPanActual = standard * s.percentChange
+            let total = perPanActual * Double(s.panCount)
+            return AutoMaterialExportLogRow(
+                id: UUID(),
+                materialId: m.id,
+                name: m.name,
+                stockGrams: m.stockQuantity,
+                standardPerPanGrams: standard,
+                actualPerPanGrams: perPanActual,
+                totalExportGrams: total
+            )
+        }
+        .sorted { $0.name < $1.name }
+    }
+
+    // Extra pan rows cho một sub-sheet
+    private func autoRowsForExtraPanSubSheet(_ i: Int) -> [AutoMaterialExportLogRow] {
+        guard i < subSheetStates.count else { return [] }
+        let s = subSheetStates[i]
+        guard s.needsExtraPan, s.standardPanWeightGrams > 0 else { return [] }
+        let ratio = Double(s.surplusGrams) / Double(s.standardPanWeightGrams)
+        return autoSelected.compactMap { id in
+            guard let m = materialsById[id] else { return nil }
+            let standard = max(0, Double(FormatUtils.parseKgDecimalToGrams(s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            let total = standard * ratio
+            return AutoMaterialExportLogRow(
+                id: UUID(),
+                materialId: m.id,
+                name: m.name,
+                stockGrams: m.stockQuantity,
+                standardPerPanGrams: standard,
+                actualPerPanGrams: total,
+                totalExportGrams: total
+            )
+        }
+        .sorted { $0.name < $1.name }
+    }
     
     private var totalExportByMaterialName: [(name: String, grams: Int, stock: Int, isOver: Bool)] {
         var map: [String: (g: Int, stock: Int)] = [:]
-        for r in freshRows {
-            let g = Int(max(0, r.totalExportGrams.rounded()))
-            map[r.name, default: (0, r.stockGrams)].g += g
-            map[r.name, default: (0, r.stockGrams)].stock = r.stockGrams
+
+        func addRows(_ rows: [AutoMaterialExportLogRow]) {
+            for r in rows {
+                let g = Int(max(0, r.totalExportGrams.rounded()))
+                map[r.name, default: (0, r.stockGrams)].g += g
+                map[r.name, default: (0, r.stockGrams)].stock = r.stockGrams
+            }
         }
-        for r in autoRows {
-            let g = Int(max(0, r.totalExportGrams.rounded()))
-            map[r.name, default: (0, r.stockGrams)].g += g
-            map[r.name, default: (0, r.stockGrams)].stock = r.stockGrams
+
+        if subSheetStates.isEmpty {
+            // Không có sub-sheet: dùng state chính
+            addRows(freshRows)
+            addRows(autoRows)
+            addRows(autoRowsForExtraPan)
+        } else {
+            // Có sub-sheet: cộng fresh từ state chính + auto từ từng sub-sheet
+            addRows(freshRows)
+            for i in subSheetStates.indices {
+                addRows(autoRowsForSubSheet(i))
+                addRows(autoRowsForExtraPanSubSheet(i))
+            }
         }
-        // Cộng thêm phần xào thêm nếu có
-        for r in autoRowsForExtraPan {
-            let g = Int(max(0, r.totalExportGrams.rounded()))
-            map[r.name, default: (0, r.stockGrams)].g += g
-            map[r.name, default: (0, r.stockGrams)].stock = r.stockGrams
-        }
+
         return map.keys.sorted().map { k in
             let v = map[k] ?? (0, 0)
             return (k, v.g, v.stock, v.g > v.stock)
@@ -272,10 +378,18 @@ struct AutoMaterialExportSheetView: View {
                     headerSection
                     freshSection
                     afterBoilSection
-                    panWeightStandardSection
-                    panCountSection
-                    panWeightActualSection
-                    autoMaterialsSection
+                    if subSheetStates.isEmpty {
+                        // Không có sub-sheet: layout cũ
+                        panWeightStandardSection
+                        panCountSection
+                        panWeightActualSection
+                        autoMaterialsSection
+                    } else {
+                        // Có sub-sheet: mỗi sub-sheet có block riêng
+                        ForEach(subSheetStates.indices, id: \.self) { i in
+                            subSheetBlock(i)
+                        }
+                    }
                     summarySection
                     confirmSection
                 }
@@ -343,7 +457,15 @@ struct AutoMaterialExportSheetView: View {
                 }
             }
         }
-        .onChange(of: afterBoilKgText) { _, _ in autoCalcPanCount() }
+        .onChange(of: afterBoilKgText) { _, _ in
+            autoCalcPanCount()
+            // Cập nhật default afterBoil cho sub-sheets nếu chưa có giá trị (= 0)
+            let half = afterBoilGrams / max(1, subSheetStates.count)
+            for i in subSheetStates.indices where subSheetStates[i].afterBoilGrams == 0 {
+                subSheetStates[i].afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: half)
+                subSheetStates[i].autoCalcPanCount()
+            }
+        }
         .onChange(of: standardPanWeightKgText) { _, _ in autoCalcPanCount() }
         .onChange(of: hasTemplateChanges) { _, newValue in
             if newValue {
@@ -464,10 +586,19 @@ struct AutoMaterialExportSheetView: View {
                 maxValue: $intWheelMax,
                 selection: $intWheelSelection,
                 onSave: {
-                    panCountText = String(intWheelSelection)
+                    // Kiểm tra nếu đang chỉnh cho sub-sheet
+                    if case .subPanCount(let i) = weightWheelTarget, i < subSheetStates.count {
+                        subSheetStates[i].panCountText = String(intWheelSelection)
+                    } else {
+                        panCountText = String(intWheelSelection)
+                    }
+                    weightWheelTarget = nil
                     showIntWheel = false
                 },
-                onClose: { showIntWheel = false }
+                onClose: {
+                    weightWheelTarget = nil
+                    showIntWheel = false
+                }
             )
             .presentationDetents([.height(300)])
         }
@@ -1024,7 +1155,335 @@ struct AutoMaterialExportSheetView: View {
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
-    
+
+    // MARK: - Sub-sheet block
+
+    @ViewBuilder
+    private func subSheetBlock(_ i: Int) -> some View {
+        let s = subSheetStates[i]
+
+        // Header button cho sub-sheet
+        Button {
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "rectangle.split.3x1")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(s.name.isEmpty ? "Sub-sheet \(i + 1)" : s.name)
+                    .fontWeight(.bold)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .foregroundStyle(.white)
+            .background(
+                LinearGradient(
+                    colors: [Color.themePrimary.opacity(0.75), Color.themePrimary.opacity(0.55)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+
+        // Khối lượng sau luộc cần dùng
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("Khối lượng sau luộc cần dùng")
+                    .font(.headline)
+                Button { subSheetStates[i].showAfterBoilInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $subSheetStates[i].showAfterBoilInfo, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Cần nhập thủ công", systemImage: "hand.point.up.left.fill")
+                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
+                        Text("Khối lượng nguyên liệu tươi còn lại sau luộc dành riêng cho sub-sheet này. Dùng để tính số chảo và khối lượng thực tế/chảo.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14).frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
+                Spacer()
+                Button {
+                    openWeightWheel(target: .subAfterBoil(i), currentText: s.afterBoilKgText)
+                } label: {
+                    Text(FormatUtils.formatKgDecimal(fromGrams: s.afterBoilGrams))
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                        .padding(.horizontal, 10).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                }
+                .buttonStyle(.plain)
+                Text("kg").font(.caption).foregroundStyle(.gray)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+
+        // Khối lượng chuẩn / chảo
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("Khối lượng chuẩn / chảo")
+                    .font(.headline)
+                Button { subSheetStates[i].showPanWeightStdInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $subSheetStates[i].showPanWeightStdInfo, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Cần nhập thủ công", systemImage: "hand.point.up.left.fill")
+                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
+                        Text("Khối lượng nguyên liệu tươi tiêu chuẩn cho một chảo xào. Dùng để tính số chảo tự động và làm cơ sở tính định mức nguyên liệu xuất tự động.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14).frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
+                Spacer()
+                Button {
+                    openWeightWheel(target: .subStandardPanWeight(i), currentText: s.standardPanWeightKgText)
+                } label: {
+                    Text(FormatUtils.formatKgDecimal(fromGrams: s.standardPanWeightGrams))
+                        .foregroundStyle(Color.themeTextDark)
+                        .padding(.horizontal, 10).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                }
+                .buttonStyle(.plain)
+                Text("kg").font(.caption).foregroundStyle(.gray)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+
+        // Số lượng chảo xào
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("Số lượng chảo xào")
+                    .font(.headline)
+                Button { subSheetStates[i].showPanCountInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $subSheetStates[i].showPanCountInfo, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Tự động tính / có thể chỉnh", systemImage: "sparkles")
+                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
+                        Text("Số chảo được tính tự động từ [Khối lượng sau luộc cần dùng] ÷ [Khối lượng chuẩn/chảo]. Bạn có thể bấm vào giá trị để chỉnh tay nếu cần.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14).frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
+                Spacer()
+                Button {
+                    intWheelSelection = max(1, s.panCount)
+                    intWheelMax = max(20, intWheelSelection + 200)
+                    weightWheelTarget = .subPanCount(i)
+                    showIntWheel = true
+                } label: {
+                    Text("\(s.panCount)")
+                        .foregroundStyle(Color.themeTextDark)
+                        .padding(.horizontal, 10).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                }
+                .buttonStyle(.plain)
+                Text("cái").font(.caption).foregroundStyle(.gray)
+                // Button setting khối lượng dư trên
+                Button { subSheetStates[i].showSurplusWheel = true } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 16))
+                        .foregroundStyle(s.surplusThresholdKg > 0 ? Color.orange : Color.gray.opacity(0.5))
+                        .padding(8)
+                        .background(Circle().fill(s.surplusThresholdKg > 0 ? Color.orange.opacity(0.12) : Color.gray.opacity(0.08)))
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $subSheetStates[i].showSurplusWheel) {
+                    VStack(spacing: 16) {
+                        Text("Khối lượng dư trên").font(.headline)
+                        Picker("", selection: $subSheetStates[i].surplusThresholdKg) {
+                            ForEach(Array(0...subSheetStates[i].surplusWheelMax), id: \.self) { v in
+                                Text(v == 0 ? "Không giới hạn" : "\(v) kg").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: subSheetStates[i].surplusThresholdKg) { _, v in
+                            if v >= subSheetStates[i].surplusWheelMax - 5 {
+                                subSheetStates[i].surplusWheelMax += 20
+                            }
+                        }
+                        Text("nếu trên thì xào thêm 1 chảo")
+                            .font(.caption).foregroundStyle(.gray).italic()
+                        HStack {
+                            Button("Đóng") { subSheetStates[i].showSurplusWheel = false }
+                            Spacer()
+                            Button("Lưu") { subSheetStates[i].showSurplusWheel = false }
+                        }
+                        .font(.headline)
+                    }
+                    .padding()
+                    .presentationDetents([.height(300)])
+                }
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+
+        // Khối lượng thực tế / chảo
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text("Khối lượng thực tế / chảo")
+                    .font(.headline)
+                Button { subSheetStates[i].showPanWeightActualInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $subSheetStates[i].showPanWeightActualInfo, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Tự động tính", systemImage: "sparkles")
+                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
+                        Text("Được tính tự động: [Khối lượng sau luộc cần dùng] ÷ [Số chảo xào]. Dùng để tính lượng nguyên liệu xuất tự động theo tỉ lệ thực tế.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14).frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
+                Spacer()
+                Text(FormatUtils.formatKgDecimal(fromGrams: Int(s.actualPanWeightGrams.rounded())))
+                    .foregroundStyle(Color.themeTextDark)
+                    .padding(.horizontal, 10).padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
+                Text("kg").font(.caption).foregroundStyle(.gray)
+            }
+
+            if s.needsExtraPan {
+                Divider()
+                HStack(spacing: 10) {
+                    Text("Số lượng chảo xào thêm").font(.subheadline).foregroundStyle(Color.orange)
+                    Spacer()
+                    Text("1").foregroundStyle(Color.orange)
+                        .padding(.horizontal, 10).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
+                    Text("cái").font(.caption).foregroundStyle(.gray)
+                }
+                HStack(spacing: 10) {
+                    Text("Khối lượng xào thêm").font(.subheadline).foregroundStyle(Color.orange)
+                    Spacer()
+                    Text(FormatUtils.formatKgDecimal(fromGrams: s.surplusGrams))
+                        .foregroundStyle(Color.orange)
+                        .padding(.horizontal, 10).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.12)))
+                    Text("kg").font(.caption).foregroundStyle(.gray)
+                }
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+
+        // Nguyên liệu xuất tự động
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(autoMaterialsTitle)
+                    .font(.headline)
+                Button { subSheetStates[i].showAutoInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $subSheetStates[i].showAutoInfo, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Tự động tính toán", systemImage: "sparkles")
+                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
+                        Text("Hệ thống tự tính lượng xuất dựa trên định mức chuẩn/chảo và số chảo thực tế. Bạn chỉ cần nhập định mức chuẩn cho mỗi nguyên liệu.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14).frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
+                Spacer()
+                // Icon setting để chọn nguyên liệu (dùng chung showAutoPicker)
+                Button { showAutoPicker = true } label: {
+                    ZStack {
+                        Circle().fill(Color.gray.opacity(0.15)).frame(width: 40, height: 40)
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color.themePrimary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+
+            if autoSelected.isEmpty {
+                Text("Chưa chọn nguyên liệu").foregroundStyle(.gray)
+            } else {
+                let rows = autoRowsForSubSheet(i)
+                VStack(spacing: 10) {
+                    ForEach(rows) { row in
+                        let mid = row.materialId
+                        AutoRowWheelView(
+                            name: row.name,
+                            stockText: FormatUtils.formatWeight(row.stockGrams),
+                            standardText: (mid == nil ? "0" : (subSheetStates[i].autoStandardPerPanKgTextById[mid!] ?? autoStandardPerPanKgTextById[mid!] ?? "0")),
+                            perPanActualText: FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())),
+                            totalText: FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())),
+                            isOver: Int(row.totalExportGrams.rounded()) > row.stockGrams,
+                            onTapStandard: {
+                                guard let id = mid else { return }
+                                let current = subSheetStates[i].autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "0"
+                                openWeightWheel(target: .subAutoStandard(i, id), currentText: current)
+                            }
+                        )
+                    }
+                }
+
+                let extraRows = autoRowsForExtraPanSubSheet(i)
+                if s.needsExtraPan && !extraRows.isEmpty {
+                    Divider().padding(.vertical, 4)
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill").foregroundStyle(Color.orange).font(.subheadline)
+                        Text("Nguyên liệu xuất tự động cho phần xào thêm")
+                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.orange)
+                    }
+                    VStack(spacing: 10) {
+                        ForEach(extraRows) { row in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.name).font(.subheadline).foregroundStyle(Color.orange)
+                                    Text("Kho: \(FormatUtils.formatWeight(row.stockGrams))").font(.caption).foregroundStyle(.gray)
+                                }
+                                Spacer()
+                                Text(FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())))
+                                    .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.orange)
+                                    .padding(.horizontal, 10).padding(.vertical, 6)
+                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                                Text("kg").font(.caption).foregroundStyle(.gray)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+    }
+
     private var summarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Tổng khối lượng cần xuất")
@@ -1165,6 +1624,12 @@ struct AutoMaterialExportSheetView: View {
         autoSelected = []
         autoStandardPerPanKgTextById = [:]
         subSheets = newSubSheets
+        subSheetStates = newSubSheets.map { name in
+            var s = SubSheetState(name: name)
+            // Default afterBoil = half của main (hiện tại = 0 vì mới tạo, sẽ cập nhật khi user nhập)
+            s.afterBoilKgText = "0"
+            return s
+        }
         syncSavedSnapshot()
     }
     
@@ -1199,6 +1664,31 @@ struct AutoMaterialExportSheetView: View {
         }
         autoStandardPerPanKgTextById = autoMap
         subSheets = t.data.subSheets
+        // Load sub-sheet states từ subSheetData nếu có, fallback về tên từ subSheets
+        let savedData = t.data.subSheetData
+        subSheetStates = t.data.subSheets.enumerated().map { (i, name) in
+            var s = SubSheetState(name: name)
+            if i < savedData.count {
+                let d = savedData[i]
+                s.afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: d.afterBoilGrams)
+                s.panCountText = String(d.panCount)
+                s.standardPanWeightKgText = FormatUtils.formatKgDecimal(fromGrams: d.standardPanWeightGrams)
+                s.surplusThresholdKg = d.surplusThresholdKg
+                var autoMap: [UUID: String] = [:]
+                for id in t.data.autoSelectedMaterialIds {
+                    let g = d.autoStandardPerPanGramsByMaterialId[id.uuidString] ?? 0
+                    autoMap[id] = FormatUtils.formatKgDecimal(fromGrams: g)
+                }
+                s.autoStandardPerPanKgTextById = autoMap
+            } else {
+                // Default: afterBoil = half của main afterBoil
+                let half = t.data.afterBoilGrams / max(1, t.data.subSheets.count)
+                s.afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: half)
+                s.standardPanWeightKgText = FormatUtils.formatKgDecimal(fromGrams: t.data.standardPanWeightGrams)
+                s.autoCalcPanCount()
+            }
+            return s
+        }
         syncSavedSnapshot()
     }
     
@@ -1227,7 +1717,20 @@ struct AutoMaterialExportSheetView: View {
             autoStandardPerPanGramsByMaterialId: autoSelected.reduce(into: [:]) { dict, id in
                 dict[id.uuidString] = max(0, FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0)
             },
-            subSheets: subSheets
+            subSheets: subSheets,
+            subSheetData: subSheetStates.map { s in
+                SubSheetTemplateData(
+                    name: s.name,
+                    afterBoilGrams: s.afterBoilGrams,
+                    panCount: s.panCount,
+                    standardPanWeightGrams: s.standardPanWeightGrams,
+                    surplusThresholdKg: s.surplusThresholdKg,
+                    autoStandardPerPanGramsByMaterialId: autoSelected.reduce(into: [:]) { dict, id in
+                        let text = s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? ""
+                        dict[id.uuidString] = max(0, FormatUtils.parseKgDecimalToGrams(text) ?? 0)
+                    }
+                )
+            }
         )
     }
     
@@ -1350,6 +1853,20 @@ struct AutoMaterialExportSheetView: View {
             }
         case .autoStandard(let id):
             autoStandardPerPanKgTextById[id] = text
+        case .subAfterBoil(let i):
+            guard i < subSheetStates.count else { return }
+            subSheetStates[i].afterBoilKgText = text
+            subSheetStates[i].autoCalcPanCount()
+        case .subStandardPanWeight(let i):
+            guard i < subSheetStates.count else { return }
+            subSheetStates[i].standardPanWeightKgText = text
+            subSheetStates[i].autoCalcPanCount()
+        case .subPanCount(let i):
+            guard i < subSheetStates.count else { return }
+            subSheetStates[i].panCountText = String(grams) // grams reused as int count
+        case .subAutoStandard(let i, let id):
+            guard i < subSheetStates.count else { return }
+            subSheetStates[i].autoStandardPerPanKgTextById[id] = text
         }
     }
 }
@@ -1359,6 +1876,10 @@ private enum WeightWheelTarget: Equatable {
     case standardPanWeight
     case fresh(UUID)
     case autoStandard(UUID)
+    case subAfterBoil(Int)           // sub-sheet index
+    case subStandardPanWeight(Int)   // sub-sheet index
+    case subPanCount(Int)            // sub-sheet index
+    case subAutoStandard(Int, UUID)  // sub-sheet index, material id
 }
 
 private struct FreshRowWheelView: View {
