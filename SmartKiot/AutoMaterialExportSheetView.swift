@@ -66,6 +66,12 @@ struct AutoMaterialExportSheetView: View {
     @State private var errorAlertMessage = ""
     @State private var showPrintSheet = false
     @State private var resolvedAutoSTT: String? = nil
+    @State private var showFreshInfoPopover = false
+    @State private var showAutoInfoPopover = false
+    @State private var showAfterBoilInfoPopover = false
+    @State private var showPanCountInfoPopover = false
+    @State private var showPanWeightStdInfoPopover = false
+    @State private var showPanWeightActualInfoPopover = false
 
     init(viewModel: OrderViewModel, defaultHeaderName: String) {
         self.viewModel = viewModel
@@ -580,6 +586,29 @@ struct AutoMaterialExportSheetView: View {
             HStack {
                 TextField("Nguyên liệu tươi", text: $freshTitle)
                     .font(.headline)
+                Button {
+                    showFreshInfoPopover = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showFreshInfoPopover, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Cần nhập thủ công", systemImage: "hand.point.up.left.fill")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        Text("Nhập khối lượng thực tế của từng nguyên liệu tươi cần xuất kho cho mẻ sản xuất này.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
                 Spacer()
                 Button {
                     showFreshPicker = true
@@ -639,6 +668,29 @@ struct AutoMaterialExportSheetView: View {
             HStack(spacing: 10) {
                 TextField("Còn sau luộc", text: $afterBoilTitle)
                     .font(.headline)
+                Button {
+                    showAfterBoilInfoPopover = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showAfterBoilInfoPopover, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Cần nhập thủ công", systemImage: "hand.point.up.left.fill")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        Text("Tổng khối lượng nguyên liệu tươi còn lại sau khi luộc/sơ chế. Dùng để tính số chảo xào và khối lượng thực tế mỗi chảo.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
                 Spacer()
                 Button {
                     openWeightWheel(target: .afterBoil, currentText: afterBoilKgText)
@@ -665,6 +717,29 @@ struct AutoMaterialExportSheetView: View {
             HStack(spacing: 10) {
                 TextField("Số lượng chảo xào", text: $panCountTitle)
                     .font(.headline)
+                Button {
+                    showPanCountInfoPopover = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showPanCountInfoPopover, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Tự động tính / có thể chỉnh", systemImage: "sparkles")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        Text("Số chảo được tính tự động từ [Còn sau luộc] ÷ [Khối lượng chuẩn/chảo]. Bạn có thể bấm vào giá trị để chỉnh tay nếu cần.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
                 Spacer()
                 Button {
                     intWheelSelection = max(1, panCount)
@@ -672,7 +747,6 @@ struct AutoMaterialExportSheetView: View {
                     showIntWheel = true
                 } label: {
                     Text("\(panCount)")
-                        .fontWeight(.bold)
                         .foregroundStyle(Color.themeTextDark)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
@@ -704,6 +778,29 @@ struct AutoMaterialExportSheetView: View {
             HStack(spacing: 10) {
                 Text("Khối lượng chuẩn / chảo")
                     .font(.headline)
+                Button {
+                    showPanWeightStdInfoPopover = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showPanWeightStdInfoPopover, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Cần nhập thủ công", systemImage: "hand.point.up.left.fill")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        Text("Khối lượng nguyên liệu tươi tiêu chuẩn cho một chảo xào. Dùng để tính số chảo tự động và làm cơ sở tính định mức nguyên liệu xuất tự động.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
                 Spacer()
                 Button {
                     openWeightWheel(target: .standardPanWeight, currentText: standardPanWeightKgText)
@@ -729,6 +826,29 @@ struct AutoMaterialExportSheetView: View {
             HStack(spacing: 10) {
                 Text("Khối lượng thực tế / chảo")
                     .font(.headline)
+                Button {
+                    showPanWeightActualInfoPopover = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showPanWeightActualInfoPopover, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Tự động tính", systemImage: "sparkles")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        Text("Được tính tự động: [Còn sau luộc] ÷ [Số chảo xào]. Phản ánh khối lượng thực tế mỗi chảo trong mẻ này, dùng để tính lượng nguyên liệu xuất tự động theo tỉ lệ thực tế.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
                 Spacer()
                 Text(FormatUtils.formatKgDecimal(fromGrams: Int(actualPanWeightGrams.rounded())))
                     .foregroundStyle(Color.themeTextDark)
@@ -783,6 +903,29 @@ struct AutoMaterialExportSheetView: View {
             HStack {
                 TextField("Nguyên liệu xuất tự động", text: $autoMaterialsTitle)
                     .font(.headline)
+                Button {
+                    showAutoInfoPopover = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showAutoInfoPopover, arrowEdge: .top) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Tự động tính toán", systemImage: "sparkles")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        Text("Hệ thống tự tính lượng xuất dựa trên định mức chuẩn/chảo và số chảo thực tế. Bạn chỉ cần nhập định mức chuẩn cho mỗi nguyên liệu.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(14)
+                    .frame(width: 260)
+                    .presentationCompactAdaptation(.popover)
+                }
                 Spacer()
                 Button {
                     showAutoPicker = true
