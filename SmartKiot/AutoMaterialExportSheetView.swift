@@ -459,10 +459,15 @@ struct AutoMaterialExportSheetView: View {
         }
         .onChange(of: afterBoilKgText) { _, _ in
             autoCalcPanCount()
-            // Cập nhật default afterBoil cho sub-sheets nếu chưa có giá trị (= 0)
-            let half = afterBoilGrams / max(1, subSheetStates.count)
-            for i in subSheetStates.indices where subSheetStates[i].afterBoilGrams == 0 {
-                subSheetStates[i].afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: half)
+            // Khi main afterBoil thay đổi, phân bổ lại đều cho tất cả sub-sheets
+            guard !subSheetStates.isEmpty else { return }
+            let total = afterBoilGrams
+            let count = subSheetStates.count
+            let perSheet = total / count
+            let leftover = total - perSheet * count
+            for i in subSheetStates.indices {
+                let extra = i == 0 ? leftover : 0
+                subSheetStates[i].afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: perSheet + extra)
                 subSheetStates[i].autoCalcPanCount()
             }
         }
@@ -1855,8 +1860,22 @@ struct AutoMaterialExportSheetView: View {
             autoStandardPerPanKgTextById[id] = text
         case .subAfterBoil(let i):
             guard i < subSheetStates.count else { return }
-            subSheetStates[i].afterBoilKgText = text
+            // Ràng buộc: tổng afterBoil các sub-sheets = afterBoilGrams (main)
+            let newGrams = max(0, min(grams, afterBoilGrams))
+            subSheetStates[i].afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: newGrams)
             subSheetStates[i].autoCalcPanCount()
+            // Phân bổ phần còn lại đều cho các sub-sheets khác
+            let remaining = max(0, afterBoilGrams - newGrams)
+            let others = subSheetStates.indices.filter { $0 != i }
+            if !others.isEmpty {
+                let perOther = remaining / others.count
+                let leftover = remaining - perOther * others.count
+                for (offset, j) in others.enumerated() {
+                    let extra = offset == 0 ? leftover : 0
+                    subSheetStates[j].afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: perOther + extra)
+                    subSheetStates[j].autoCalcPanCount()
+                }
+            }
         case .subStandardPanWeight(let i):
             guard i < subSheetStates.count else { return }
             subSheetStates[i].standardPanWeightKgText = text
