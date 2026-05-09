@@ -340,12 +340,13 @@ struct RestockEntryView: View {
                                                             viewModel.restockItems[idx].unitPrice = unit
                                                             viewModel.restockItems[idx].category = p.category
                                                             viewModel.restockItems[idx].isFinishedGood = true
+                                                            viewModel.restockItems[idx].hasVAT = p.hasVAT
                                                             if viewModel.restockItems[idx].weightPerUnitGrams == nil {
                                                                 viewModel.restockItems[idx].weightPerUnitGrams = 0
                                                             }
                                                             lastAddedItemId = viewModel.restockItems[idx].id
                                                         } else {
-                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: unitQty, additionalCost: 0, suggestedPrice: nil, category: p.category, isFinishedGood: true)
+                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: unitQty, additionalCost: 0, suggestedPrice: nil, category: p.category, isFinishedGood: true, hasVAT: p.hasVAT)
                                                             if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == key }) {
                                                                 viewModel.restockItems[newIdx].weightPerUnitGrams = 0
                                                                 lastAddedItemId = viewModel.restockItems[newIdx].id
@@ -361,9 +362,10 @@ struct RestockEntryView: View {
                                                             viewModel.restockItems[idx].suggestedPrice = suggested
                                                             viewModel.restockItems[idx].category = p.category
                                                             viewModel.restockItems[idx].isFinishedGood = true
+                                                            viewModel.restockItems[idx].hasVAT = p.hasVAT
                                                             lastAddedItemId = viewModel.restockItems[idx].id
                                                         } else {
-                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: suggested, category: p.category, isFinishedGood: true)
+                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: suggested, category: p.category, isFinishedGood: true, hasVAT: p.hasVAT)
                                                             if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == key }) {
                                                                 lastAddedItemId = viewModel.restockItems[newIdx].id
                                                             }
