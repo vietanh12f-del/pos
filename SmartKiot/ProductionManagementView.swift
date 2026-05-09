@@ -175,7 +175,7 @@ struct ProductionManagementView: View {
                                                     } label: {
                                                         ProductionProductListRow(
                                                             name: p.name,
-                                                            priceText: formatCurrency(p.price),
+                                                            priceText: formatCurrency(p.price > p.costPrice ? p.price : p.costPrice * 1.3),
                                                             stockText: FormatUtils.formatWeight(p.stockQuantity),
                                                             hasVAT: p.hasVAT
                                                         )

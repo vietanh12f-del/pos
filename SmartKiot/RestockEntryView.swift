@@ -353,15 +353,17 @@ struct RestockEntryView: View {
                                                         }
                                                     } else {
                                                         let qty = 1000
-                                                        let unit = p.price
+                                                        let unit = p.costPrice > 0 ? p.costPrice : p.price
+                                                        let suggested = p.price > p.costPrice ? p.price : nil
                                                         if let idx = viewModel.restockItems.firstIndex(where: { $0.name.lowercased() == key }) {
                                                             viewModel.restockItems[idx].quantity += qty
                                                             viewModel.restockItems[idx].unitPrice = unit
+                                                            viewModel.restockItems[idx].suggestedPrice = suggested
                                                             viewModel.restockItems[idx].category = p.category
                                                             viewModel.restockItems[idx].isFinishedGood = true
                                                             lastAddedItemId = viewModel.restockItems[idx].id
                                                         } else {
-                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: nil, category: p.category, isFinishedGood: true)
+                                                            viewModel.addRestockItem(p.name, unitPrice: unit, quantity: qty, additionalCost: 0, suggestedPrice: suggested, category: p.category, isFinishedGood: true)
                                                             if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == key }) {
                                                                 lastAddedItemId = viewModel.restockItems[newIdx].id
                                                             }
@@ -1545,7 +1547,7 @@ struct ManualRestockItemView: View {
                         if isFinishedGoods || isMatExport {
                             HStack {
                                 HStack(spacing: 4) {
-                                    Text(isFinishedGoods ? (isFGExport ? "Giá xuất" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
+                                    Text(isFGExport ? "Giá xuất" : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
                                     InfoPopoverButton(text: isMatExport
                                         ? "Đơn giá xuất."
                                         : "Đơn giá nhập + Chi phí phát sinh / Số lượng.\nPhản ánh giá vốn thực tế mỗi đơn vị sau khi tính chi phí.")
@@ -1554,6 +1556,49 @@ struct ManualRestockItemView: View {
                                 Text(getCalculatedUnitPriceDisplay(pVal: pVal, qVal: qVal, incVal: incVal, isMatExport: isMatExport))
                                     .fontWeight(.semibold)
                                     .foregroundStyle(qVal > 0 ? Color.primary : Color.gray)
+                            }
+                            
+                            // Giá bán dự kiến — chỉ cho thành phẩm nhập (không phải xuất)
+                            if isFinishedGoods && !isFGExport && qVal > 0 {
+                                // unitCost = giá nhập gồm chi phí per đơn vị
+                                // pVal là giá per đơn vị (cái hoặc kg tuỳ context)
+                                // incVal là chi phí tổng lô → chia đều cho số đơn vị
+                                let unitCost: Double = pVal + (qVal > 0 ? incVal / Double(qVal) : 0)
+                                let displayedSuggestedPrice = userEditedSuggestedPrice
+                                    ? Double(suggestedPriceWheelSelection)
+                                    : unitCost * (1 + markupPercent / 100)
+                                
+                                HStack(spacing: 6) {
+                                    Text("Giá bán dự kiến:")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    
+                                    Spacer()
+                                    
+                                    Button {
+                                        showMarkupPicker = true
+                                    } label: {
+                                        Text("+\(Int(markupPercent))%")
+                                            .font(.caption2)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(Color.orange.opacity(0.85))
+                                            .clipShape(Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    Button {
+                                        suggestedPriceWheelSelection = Int(displayedSuggestedPrice)
+                                        showSuggestedPriceWheel = true
+                                    } label: {
+                                        Text(formatCurrency(displayedSuggestedPrice))
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
                     } // end else branch
@@ -2447,15 +2492,28 @@ struct ManualRestockItemView: View {
         guard !name.isEmpty, q > 0 else { return }
         let extra = parseDouble(incurredCost) ?? 0
         // Tính finalUnitCost = giá nhập gồm chi phí phân bổ trên mỗi đơn vị
+        // Với nguyên liệu (useKgGram + không phải FG): p là per kg, q là gram → tính per kg
+        // Với thành phẩm và hàng hoá: p là per đơn vị, q là số đơn vị → tính per đơn vị
         let finalUnitCost: Double
-        if useKgGram {
+        if useKgGram && !isFinishedGoods {
+            // Nguyên liệu: p per kg, q gram
             let kg = Double(q) / 1000.0
             finalUnitCost = kg > 0 ? p + extra / kg : p
         } else {
+            // Hàng hoá và thành phẩm: p per cái, q số cái
             finalUnitCost = q > 0 ? p + extra / Double(q) : p
         }
         // Giá bán = (100 + markupPercent)% giá vốn gồm chi phí; chỉ dùng giá user nhập nếu user đã tự chỉnh
-        let suggested: Double? = (!isFinishedGoods ? (userEditedSuggestedPrice ? Double(suggestedPriceWheelSelection) : finalUnitCost * (1 + markupPercent / 100)) : nil)
+        // Áp dụng cho cả hàng hoá và thành phẩm (không áp dụng cho xuất)
+        let isExportContext = addTitle.lowercased().contains("xuất")
+        let suggested: Double?
+        if isExportContext {
+            suggested = nil
+        } else if userEditedSuggestedPrice {
+            suggested = Double(suggestedPriceWheelSelection)
+        } else {
+            suggested = finalUnitCost * (1 + markupPercent / 100)
+        }
         let perUnitGrams: Int? = {
             guard treatFinishedGoodsAsUnits || importFromFinishedGood else { return nil }
             let grams = weightPerUnitKgSelection * 1000 + weightPerUnitGramsSelection

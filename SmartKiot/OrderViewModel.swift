@@ -2618,9 +2618,14 @@ class OrderViewModel: ObservableObject {
                 var p = current[idx]
                 if isImport {
                     p.stockQuantity = max(0, p.stockQuantity + it.quantity)
-                    if it.unitPrice > 0 { p.price = it.unitPrice }
+                    p.costPrice = it.finalUnitCost
+                    // Giá bán = suggestedPrice nếu có, không thì giữ nguyên giá cũ
+                    if let suggested = it.suggestedPrice, suggested > 0 {
+                        p.price = suggested
+                    }
                     if let cat = it.category, !cat.isEmpty, p.category != cat { p.category = cat }
                     p.isFinishedGood = true
+                    p.hasVAT = it.hasVAT
                 } else if isExport {
                     p.stockQuantity = max(0, p.stockQuantity - it.quantity)
                 }
@@ -2628,17 +2633,19 @@ class OrderViewModel: ObservableObject {
                 current[idx] = p
             } else {
                 if isImport {
-                    let price = max(0, it.unitPrice)
+                    let costPrice = it.finalUnitCost
+                    let salePrice = it.suggestedPrice ?? (costPrice * 1.3)
                     let newProduct = Product(
                         id: UUID(),
                         name: it.name,
-                        price: price,
-                        costPrice: 0,
+                        price: salePrice,
+                        costPrice: costPrice,
                         category: it.category ?? Category.others.rawValue,
                         imageName: "shippingbox.fill",
                         color: "gray",
                         stockQuantity: it.quantity,
-                        isFinishedGood: true
+                        isFinishedGood: true,
+                        hasVAT: it.hasVAT
                     )
                     do { try await database.saveProduct(newProduct) } catch { print("❌ saveProduct error: \(error)") }
                     current.append(newProduct)
