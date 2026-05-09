@@ -436,6 +436,11 @@ struct FinishedGoodsExportView: View {
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                         }
+                        if item.additionalCost > 0 {
+                            Text("Chi phí: \(formatCurrency(item.additionalCost))")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
                     }
                     Spacer()
                     if isRegularRestock || item.unit?.lowercased() == "cái" {

@@ -513,13 +513,15 @@ struct InventoryView: View {
                                                         .padding(.vertical, 6)
                                                         .background(Color.purple.opacity(0.75))
                                                         .clipShape(Capsule())
-                                                    Text("Chi phí \(formatCurrency(item.additionalCost))")
-                                                        .font(.caption2)
-                                                        .foregroundStyle(.white)
-                                                        .padding(.horizontal, 10)
-                                                        .padding(.vertical, 6)
-                                                        .background((item.additionalCost > 0 ? Color.orange : Color.gray).opacity(0.75))
-                                                        .clipShape(Capsule())
+                                                    if item.additionalCost > 0 {
+                                                        Text("Chi phí \(formatCurrency(item.additionalCost))")
+                                                            .font(.caption2)
+                                                            .foregroundStyle(.white)
+                                                            .padding(.horizontal, 10)
+                                                            .padding(.vertical, 6)
+                                                            .background(Color.orange.opacity(0.75))
+                                                            .clipShape(Capsule())
+                                                    }
                                                 }
                                             }
                                             .padding(.vertical, 4)
