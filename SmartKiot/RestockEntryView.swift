@@ -1498,6 +1498,90 @@ struct ManualRestockItemView: View {
                         } else {
                             if importFromFinishedGood { sourceInputView() }
                             documentImageSection()
+                            
+                            HStack {
+                                Text("Đơn giá nhập")
+                                Spacer()
+                                Button {
+                                    if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
+                                    showUnitPriceWheel = true
+                                } label: {
+                                    Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            
+                            HStack {
+                                HStack(spacing: 4) {
+                                    Text("Chi phí phát sinh")
+                                    InfoPopoverButton(text: "Chi phí vận chuyển, bốc xếp hoặc các chi phí khác phát sinh khi nhập hàng.")
+                                }
+                                Spacer()
+                                Button {
+                                    if let v = parseDouble(incurredCost) { additionalCostWheelSelection = Int(v) }
+                                    showAdditionalCostWheel = true
+                                } label: {
+                                    Text(formatCurrency(parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)))
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            
+                            Toggle(isOn: $hasVAT) {
+                                HStack(spacing: 4) {
+                                    Text("Có VAT")
+                                    InfoPopoverButton(text: "Đánh dấu nếu thành phẩm này nhập có hoá đơn VAT.")
+                                }
+                            }
+                            .tint(Color.themePrimary)
+                            
+                            let fgPVal = parseDouble(price) ?? Double(unitPriceWheelSelection)
+                            let fgQVal = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : quantityWheelSelection
+                            let fgIncVal = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
+                            if fgQVal > 0 {
+                                HStack {
+                                    Text("Giá nhập gồm chi phí")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                    Text(getCalculatedUnitPriceDisplay(pVal: fgPVal, qVal: fgQVal, incVal: fgIncVal, isMatExport: false))
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                
+                                let fgUnitCost = fgPVal + (fgQVal > 0 ? fgIncVal / Double(fgQVal) : 0)
+                                let fgDisplayedSuggestedPrice = userEditedSuggestedPrice
+                                    ? Double(suggestedPriceWheelSelection)
+                                    : fgUnitCost * (1 + markupPercent / 100)
+                                
+                                HStack(spacing: 6) {
+                                    Text("Giá bán dự kiến:")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                    Button {
+                                        showMarkupPicker = true
+                                    } label: {
+                                        Text("+\(Int(markupPercent))%")
+                                            .font(.caption2)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(Color.orange.opacity(0.85))
+                                            .clipShape(Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                    Button {
+                                        suggestedPriceWheelSelection = Int(fgDisplayedSuggestedPrice)
+                                        showSuggestedPriceWheel = true
+                                    } label: {
+                                        Text(formatCurrency(fgDisplayedSuggestedPrice))
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
                     } else {
                         quantityRow()
