@@ -1508,19 +1508,22 @@ struct ManualRestockItemView: View {
                         // Hàng hoá tính theo cái: dùng quantityWheelSelection; nguyên liệu/thành phẩm tính theo gram
                         let qVal = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : quantityWheelSelection
                         let incVal = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
-                        HStack {
-                            HStack(spacing: 4) {
-                                Text(isFinishedGoods ? (isFGExport ? "Giá xuất" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
-                                InfoPopoverButton(text: isMatExport
-                                    ? "Đơn giá xuất."
-                                    : "Đơn giá nhập + Chi phí phát sinh / Số lượng.\nPhản ánh giá vốn thực tế mỗi đơn vị sau khi tính chi phí.")
+                        // Chỉ hiện ở đây cho FG hoặc export — hàng hoá thường đã có trong block tổng chi phí bên dưới
+                        if isFinishedGoods || isMatExport {
+                            HStack {
+                                HStack(spacing: 4) {
+                                    Text(isFinishedGoods ? (isFGExport ? "Giá xuất" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
+                                    InfoPopoverButton(text: isMatExport
+                                        ? "Đơn giá xuất."
+                                        : "Đơn giá nhập + Chi phí phát sinh / Số lượng.\nPhản ánh giá vốn thực tế mỗi đơn vị sau khi tính chi phí.")
+                                }
+                                Spacer()
+                                Text(getCalculatedUnitPriceDisplay(pVal: pVal, qVal: qVal, incVal: incVal, isMatExport: isMatExport))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(qVal > 0 ? Color.primary : Color.gray)
                             }
-                            Spacer()
-                            Text(getCalculatedUnitPriceDisplay(pVal: pVal, qVal: qVal, incVal: incVal, isMatExport: isMatExport))
-                                .fontWeight(.semibold)
-                                .foregroundStyle(qVal > 0 ? Color.primary : Color.gray)
                         }
-                    }
+                    } // end else branch
                     
                     if !isFinishedGoodsTransactionEdit {
                         HStack {
@@ -1557,21 +1560,20 @@ struct ManualRestockItemView: View {
                         documentImageSection()
                     }
                     
-                    if !isSimpleFinishedGoodsEdit, let p = parseDouble(price) {
-                        let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
+                    if !isSimpleFinishedGoodsEdit {
+                        let p = parseDouble(price) ?? (unitPriceWheelSelection > 0 ? Double(unitPriceWheelSelection) : nil)
                         let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
+                        // Chỉ hiện block tổng chi phí + giá bán dự kiến cho hàng hoá thông thường (không FG, không export)
+                        if !isFinishedGoods && !isMatExport, let p = p {
                         let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : quantityWheelSelection
                         if q > 0 {
                             let extra = parseDouble(incurredCost) ?? 0
-                            let total = getCalculatedTotal(pVal: p, qVal: q, incVal: extra, isMatExport: isMatExport)
-
+                            let total = getCalculatedTotal(pVal: p, qVal: q, incVal: extra, isMatExport: false)
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     HStack(spacing: 4) {
-                                        Text(isFinishedGoods ? (isFGExport ? "Tổng xuất thành phẩm:" : "Tổng nhập thành phẩm:") : (isMatExport ? "Tổng xuất nguyên liệu:" : "Tổng chi phí:"))
-                                        InfoPopoverButton(text: isMatExport
-                                            ? "Số lượng × Đơn giá xuất."
-                                            : "Số lượng × Đơn giá nhập + Chi phí phát sinh.")
+                                        Text("Tổng chi phí:")
+                                        InfoPopoverButton(text: "Số lượng × Đơn giá nhập + Chi phí phát sinh.")
                                     }
                                     Spacer()
                                     Text(formatCurrency(total))
@@ -1579,66 +1581,58 @@ struct ManualRestockItemView: View {
                                 }
 
                                 HStack {
-                                    Text(isFinishedGoods ? (isFGExport ? "Giá xuất:" : "Giá bán (bao gồm chi phí):") : (isMatExport ? "Đơn giá xuất:" : "Đơn giá nhập (bao gồm chi phí):"))
+                                    Text("Đơn giá nhập (bao gồm chi phí):")
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                     Spacer()
-                                    Text(getCalculatedUnitPriceDisplay(pVal: p, qVal: q, incVal: extra, isMatExport: isMatExport))
+                                    Text(getCalculatedUnitPriceDisplay(pVal: p, qVal: q, incVal: extra, isMatExport: false))
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                 }
                                 
-                                // Giá bán dự kiến — chỉ hiện cho hàng hoá thông thường
-                                if !isFinishedGoods && !isMatExport {
-                                    let unitCost: Double = {
-                                        if useKgGram {
-                                            let kg = Double(q) / 1000.0
-                                            return kg > 0 ? p + extra / kg : p
-                                        } else {
-                                            return q > 0 ? p + extra / Double(q) : p
-                                        }
-                                    }()
-                                    let displayedSuggestedPrice = userEditedSuggestedPrice
-                                        ? Double(suggestedPriceWheelSelection)
-                                        : unitCost * (1 + markupPercent / 100)
+                                // Giá bán dự kiến
+                                let unitCost: Double = q > 0 ? p + extra / Double(q) : p
+                                let displayedSuggestedPrice = userEditedSuggestedPrice
+                                    ? Double(suggestedPriceWheelSelection)
+                                    : unitCost * (1 + markupPercent / 100)
+                                
+                                HStack(spacing: 6) {
+                                    Text("Giá bán dự kiến:")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
                                     
-                                    HStack(spacing: 6) {
-                                        Text("Giá bán dự kiến:")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                        
-                                        Spacer()
-                                        
-                                        // Button % — tap mở popup bánh xe
-                                        Button {
-                                            showMarkupPicker = true
-                                        } label: {
-                                            Text("+\(Int(markupPercent))%")
-                                                .font(.caption2)
-                                                .fontWeight(.semibold)
-                                                .foregroundStyle(.white)
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 4)
-                                                .background(Color.orange.opacity(0.85))
-                                                .clipShape(Capsule())
-                                        }
-                                        .buttonStyle(.plain)
-                                        
-                                        // Giá bán — tap để chỉnh thủ công
-                                        Button {
-                                            suggestedPriceWheelSelection = Int(displayedSuggestedPrice)
-                                            showSuggestedPriceWheel = true
-                                        } label: {
-                                            Text(formatCurrency(displayedSuggestedPrice))
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(Color.primary)
-                                        }
-                                        .buttonStyle(.plain)
+                                    Spacer()
+                                    
+                                    // Button % — tap mở popup bánh xe
+                                    Button {
+                                        showMarkupPicker = true
+                                    } label: {
+                                        Text("+\(Int(markupPercent))%")
+                                            .font(.caption2)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(Color.orange.opacity(0.85))
+                                            .clipShape(Capsule())
                                     }
+                                    .buttonStyle(.plain)
+                                    
+                                    // Giá bán — tap để chỉnh thủ công
+                                    Button {
+                                        suggestedPriceWheelSelection = Int(displayedSuggestedPrice)
+                                        showSuggestedPriceWheel = true
+                                    } label: {
+                                        Text(formatCurrency(displayedSuggestedPrice))
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.primary)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .foregroundStyle(.secondary)
                         }
+                        } // end if !isFinishedGoods && !isMatExport
                     }
                     
                     
