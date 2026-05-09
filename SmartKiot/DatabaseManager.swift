@@ -31,6 +31,7 @@ protocol DatabaseService {
     // Production management
     func saveProductionTransaction(_ tx: ProductionTransaction) async throws
     func updateProductionTransaction(_ tx: ProductionTransaction) async throws
+    func softDeleteProductionTransaction(id: UUID, deletedAt: Date, deletedByName: String?, deleteNote: String?) async throws
     func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction]
     
     func fetchPriceHistory() async throws -> [String: Double]
@@ -852,7 +853,23 @@ class SupabaseDatabaseService: DatabaseService {
             }
         }
     }
-    
+
+    func softDeleteProductionTransaction(id: UUID, deletedAt: Date, deletedByName: String?, deleteNote: String?) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        struct Payload: Encodable {
+            let is_deleted: Bool
+            let deleted_at: Date
+            let deleted_by_name: String?
+            let delete_note: String?
+        }
+        try await client.database
+            .from("production_transactions")
+            .update(Payload(is_deleted: true, deleted_at: deletedAt, deleted_by_name: deletedByName, delete_note: deleteNote))
+            .eq("id", value: id)
+            .eq("store_id", value: storeId)
+            .execute()
+    }
+
     func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction] {
         guard let storeId = StoreManager.shared.currentStore?.id else { return [] }
         // Fetch all for store, then filter by mode (case-insensitive) in Swift to tolerate legacy values
@@ -1092,6 +1109,7 @@ class SupabaseDatabaseService: DatabaseService {
     
     func saveProductionTransaction(_ tx: ProductionTransaction) async throws { print("⚠️ saveProductionTransaction: Mocked success") }
     func fetchProductionTransactions(mode: String?) async throws -> [ProductionTransaction] { return [] }
+    func softDeleteProductionTransaction(id: UUID, deletedAt: Date, deletedByName: String?, deleteNote: String?) async throws { print("⚠️ softDeleteProductionTransaction: Mocked success") }
     
     func fetchMaterials() async throws -> [MaterialItem] { return [] }
     func saveMaterial(_ material: MaterialItem) async throws { print("⚠️ saveMaterial: Mocked success") }

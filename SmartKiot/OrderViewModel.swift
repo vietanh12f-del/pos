@@ -2434,13 +2434,16 @@ class OrderViewModel: ObservableObject {
     }
     
     func softDeleteProductionTransaction(_ tx: ProductionTransaction, note: String) async -> Bool {
-        var deleted = tx
-        deleted.isDeleted = true
-        deleted.deletedAt = Date()
-        deleted.deletedByName = AuthManager.shared.currentUserProfile?.fullName
-        deleted.deleteNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let now = Date()
+        let deletedByName = AuthManager.shared.currentUserProfile?.fullName
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            try await database.updateProductionTransaction(deleted)
+            try await database.softDeleteProductionTransaction(
+                id: tx.id,
+                deletedAt: now,
+                deletedByName: deletedByName,
+                deleteNote: trimmedNote.isEmpty ? nil : trimmedNote
+            )
             // Hoàn trả kho: đảo ngược effect của transaction gốc
             await restoreStockFromDeletedTransaction(tx)
             await loadProductionHistory(mode: tx.mode)

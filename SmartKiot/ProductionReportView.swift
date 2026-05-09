@@ -1114,6 +1114,7 @@ private struct ManualExportCard: View {
     let materials: [MaterialItem]
 
     @State private var showDetails = false
+    @State private var showDeleteInfo = false
 
     private func getMaterialPrice(for name: String) -> Double {
         materials.first(where: { $0.name.lowercased() == name.lowercased() })?.lastUnitPrice ?? 0
@@ -1133,8 +1134,52 @@ private struct ManualExportCard: View {
             HStack(alignment: .top) {
                 Label("Xuất thủ công", systemImage: "hand.point.up.fill")
                     .font(.headline)
-                    .foregroundStyle(Color.themeTextDark)
+                    .foregroundStyle(tx.isDeleted ? Color.gray : Color.themeTextDark)
                 Spacer()
+                // Badge "Đã xoá"
+                if tx.isDeleted {
+                    Button {
+                        showDeleteInfo = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash.fill").font(.caption2)
+                            Text("Đã xoá").font(.caption).fontWeight(.semibold)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(Color.red.opacity(0.75)))
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showDeleteInfo, arrowEdge: .top) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Thông tin xoá", systemImage: "trash.fill")
+                                .font(.subheadline).fontWeight(.semibold).foregroundStyle(.red)
+                            if let name = tx.deletedByName, !name.isEmpty {
+                                HStack(spacing: 4) {
+                                    Text("Người xoá:").foregroundStyle(.gray)
+                                    Text(name).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                            if let at = tx.deletedAt {
+                                HStack(spacing: 4) {
+                                    Text("Thời gian:").foregroundStyle(.gray)
+                                    Text(formatTime(at)).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                            if let note = tx.deleteNote, !note.isEmpty {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("Lý do:").foregroundStyle(.gray)
+                                    Text(note).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                        }
+                        .padding(14).frame(width: 240)
+                        .presentationCompactAdaptation(.popover)
+                    }
+                }
             }
 
             HStack(spacing: 6) {
@@ -1158,79 +1203,86 @@ private struct ManualExportCard: View {
                         Spacer()
                         Text(FormatUtils.formatWeight(item.quantity))
                             .fontWeight(.bold)
-                            .foregroundStyle(Color.themePrimary)
+                            .foregroundStyle(tx.isDeleted ? Color.gray : Color.themePrimary)
                     }
                 }
             }
             .font(.subheadline)
+            .opacity(tx.isDeleted ? 0.5 : 1)
 
-            Divider()
+            if !tx.isDeleted {
+                Divider()
 
-            // Detail toggle
-            Button {
-                showDetails.toggle()
-            } label: {
-                HStack {
-                    Text("Chi tiết nguyên liệu xuất")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    Spacer()
-                    Image(systemName: showDetails ? "chevron.up" : "chevron.down")
-                        .font(.caption)
-                }
-                .foregroundStyle(Color.themePrimary)
-            }
-            .buttonStyle(.plain)
-
-            if showDetails {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(tx.items) { item in
-                        let pricePerKg = getMaterialPrice(for: item.name)
-                        let weightKg = Double(item.quantity) / 1000.0
-                        let itemCost = pricePerKg * weightKg
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.name)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                            HStack {
-                                Text("Khối lượng:").font(.caption).foregroundStyle(.gray)
-                                Text(FormatUtils.formatWeight(item.quantity)).font(.caption).fontWeight(.semibold)
-                            }
-                            HStack {
-                                Text("Đơn giá:").font(.caption).foregroundStyle(.gray)
-                                Text(formatCurrency(pricePerKg) + "/kg").font(.caption).fontWeight(.semibold)
-                            }
-                            HStack {
-                                Text("Tổng tiền:").font(.caption).foregroundStyle(.gray)
-                                Text(formatCurrency(itemCost)).font(.caption).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
-                            }
-                        }
-                        .padding(8)
-                        .background(Color.gray.opacity(0.05))
-                        .cornerRadius(8)
-                    }
-
-                    Divider()
-
+                // Detail toggle
+                Button {
+                    showDetails.toggle()
+                } label: {
                     HStack {
-                        Text("Tổng tiền nguyên liệu")
+                        Text("Chi tiết nguyên liệu xuất")
                             .font(.subheadline)
-                            .fontWeight(.semibold)
+                            .fontWeight(.medium)
                         Spacer()
-                        Text(formatCurrency(totalCost))
-                            .font(.subheadline)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.themePrimary)
+                        Image(systemName: showDetails ? "chevron.up" : "chevron.down")
+                            .font(.caption)
                     }
+                    .foregroundStyle(Color.themePrimary)
                 }
-                .padding(.top, 4)
+                .buttonStyle(.plain)
+
+                if showDetails {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(tx.items) { item in
+                            let pricePerKg = getMaterialPrice(for: item.name)
+                            let weightKg = Double(item.quantity) / 1000.0
+                            let itemCost = pricePerKg * weightKg
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(item.name)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                HStack {
+                                    Text("Khối lượng:").font(.caption).foregroundStyle(.gray)
+                                    Text(FormatUtils.formatWeight(item.quantity)).font(.caption).fontWeight(.semibold)
+                                }
+                                HStack {
+                                    Text("Đơn giá:").font(.caption).foregroundStyle(.gray)
+                                    Text(formatCurrency(pricePerKg) + "/kg").font(.caption).fontWeight(.semibold)
+                                }
+                                HStack {
+                                    Text("Tổng tiền:").font(.caption).foregroundStyle(.gray)
+                                    Text(formatCurrency(itemCost)).font(.caption).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
+                                }
+                            }
+                            .padding(8)
+                            .background(Color.gray.opacity(0.05))
+                            .cornerRadius(8)
+                        }
+
+                        Divider()
+
+                        HStack {
+                            Text("Tổng tiền nguyên liệu")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            Spacer()
+                            Text(formatCurrency(totalCost))
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
             }
         }
         .padding(12)
-        .background(Color.white)
+        .background(tx.isDeleted ? Color.gray.opacity(0.08) : Color.white)
         .cornerRadius(14)
-        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(tx.isDeleted ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1)
+        )
+        .shadow(color: tx.isDeleted ? .clear : .black.opacity(0.04), radius: 5, x: 0, y: 2)
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -1740,6 +1792,188 @@ enum ProductionReportKind {
     case finishedExport   // Xuất thành phẩm
 }
 
+private struct GenericTxCard: View {
+    let tx: ProductionTransaction
+    let reportKind: ProductionReportKind
+    let accentColor: Color
+    let isMaterial: Bool
+
+    @State private var showDeleteInfo = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(formatTime(tx.createdAt))
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundStyle(tx.isDeleted ? .gray : Color.themeTextDark)
+                        if let name = tx.creatorName, !name.isEmpty {
+                            Text("•").font(.caption).foregroundStyle(.gray)
+                            Text(name).font(.subheadline).foregroundStyle(.gray)
+                        }
+                    }
+                    if let note = tx.note, !note.isEmpty {
+                        Text(note).font(.caption).foregroundStyle(.gray).lineLimit(1)
+                    }
+                }
+                Spacer()
+                // Badge "Đã xoá"
+                if tx.isDeleted {
+                    Button { showDeleteInfo = true } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash.fill").font(.caption2)
+                            Text("Đã xoá").font(.caption).fontWeight(.semibold)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(Color.red.opacity(0.75)))
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showDeleteInfo, arrowEdge: .top) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Thông tin xoá", systemImage: "trash.fill")
+                                .font(.subheadline).fontWeight(.semibold).foregroundStyle(.red)
+                            if let name = tx.deletedByName, !name.isEmpty {
+                                HStack(spacing: 4) {
+                                    Text("Người xoá:").foregroundStyle(.gray)
+                                    Text(name).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                            if let at = tx.deletedAt {
+                                HStack(spacing: 4) {
+                                    Text("Thời gian:").foregroundStyle(.gray)
+                                    Text(formatTime(at)).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                            if let note = tx.deleteNote, !note.isEmpty {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("Lý do:").foregroundStyle(.gray)
+                                    Text(note).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                        }
+                        .padding(14).frame(width: 240)
+                        .presentationCompactAdaptation(.popover)
+                    }
+                } else if reportKind == .finishedExport {
+                    Text(tx.isPaid ? "Đã TT" : "Chưa TT")
+                        .font(.caption2).fontWeight(.bold)
+                        .foregroundStyle(tx.isPaid ? .green : .orange)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(tx.isPaid ? Color.green.opacity(0.12) : Color.orange.opacity(0.12)))
+                }
+            }
+
+            Divider()
+
+            // Items list
+            VStack(spacing: 6) {
+                ForEach(tx.items) { item in
+                    HStack {
+                        Text(item.name).font(.subheadline)
+                            .foregroundStyle(tx.isDeleted ? .gray : Color.themeTextDark)
+                        Spacer()
+                        Text(isMaterial ? FormatUtils.formatWeight(item.quantity, unit: item.unit) : "\(item.quantity) kg")
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundStyle(tx.isDeleted ? .gray : accentColor)
+                        Text(formatCurrency(item.unitPrice) + (isMaterial ? (item.unit?.lowercased() == "cái" ? "/cái" : "/kg") : ""))
+                            .font(.caption).foregroundStyle(.gray)
+                    }
+                }
+            }
+            .opacity(tx.isDeleted ? 0.5 : 1)
+
+            if !tx.isDeleted {
+                // Buyer info for finishedExport
+                if reportKind == .finishedExport, let buyer = tx.buyerName, !buyer.isEmpty {
+                    Divider()
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "person.fill").font(.caption).foregroundStyle(.gray)
+                            Text(buyer).font(.subheadline).fontWeight(.semibold)
+                            if let phone = tx.buyerPhone, !phone.isEmpty {
+                                Text("•").font(.caption).foregroundStyle(.gray)
+                                Text(phone).font(.caption).foregroundStyle(.gray)
+                            }
+                        }
+                        if let addr = tx.buyerAddress, !addr.isEmpty {
+                            Text(addr).font(.caption).foregroundStyle(.gray)
+                        }
+                    }
+                }
+
+                // Financial summary
+                Divider()
+                if reportKind == .finishedExport {
+                    VStack(spacing: 4) {
+                        if let vat = tx.vatAmount, vat > 0 {
+                            HStack {
+                                Text("VAT (\(Int(tx.vatRate ?? 0))%)").font(.caption).foregroundStyle(.gray)
+                                Spacer()
+                                Text(formatCurrency(vat)).font(.caption).fontWeight(.semibold)
+                            }
+                        }
+                        HStack {
+                            Text("Tổng cộng").font(.subheadline).fontWeight(.bold)
+                            Spacer()
+                            Text(formatCurrency(tx.grandTotal ?? tx.totalCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(accentColor)
+                        }
+                        if let paid = tx.paidAmount {
+                            HStack {
+                                Text("Đã thanh toán").font(.caption).foregroundStyle(.gray)
+                                Spacer()
+                                Text(formatCurrency(paid)).font(.caption).fontWeight(.semibold).foregroundStyle(.green)
+                            }
+                        }
+                        if let debt = tx.debtAmount, debt > 0 {
+                            HStack {
+                                Text("Còn nợ").font(.caption).foregroundStyle(.red)
+                                Spacer()
+                                Text(formatCurrency(debt)).font(.caption).fontWeight(.bold).foregroundStyle(.red)
+                            }
+                            if let payDate = tx.expectedPayDate {
+                                HStack {
+                                    Text("Dự kiến trả:").font(.caption).foregroundStyle(.gray)
+                                    Spacer()
+                                    Text(formatDateOnly(payDate)).font(.caption).fontWeight(.semibold)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    HStack {
+                        Text("Tổng chi phí").font(.subheadline).fontWeight(.bold)
+                        Spacer()
+                        Text(formatCurrency(tx.totalCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(accentColor)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(tx.isDeleted ? Color.gray.opacity(0.08) : Color.white)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(tx.isDeleted ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1))
+        .shadow(color: tx.isDeleted ? .clear : .black.opacity(0.04), radius: 5, x: 0, y: 2)
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "HH:mm"
+        return f.string(from: date)
+    }
+
+    private func formatDateOnly(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
+    }
+}
+
 struct GenericProductionReportView: View {
     @ObservedObject var viewModel: OrderViewModel
     let mode: String
@@ -1835,12 +2069,13 @@ struct GenericProductionReportView: View {
     }
 
     private func stats(for txs: [ProductionTransaction]) -> (count: Int, totalCost: Double, totalQty: Int, totalRevenue: Double, totalDebt: Double, unpaidCount: Int) {
-        let count = txs.count
-        let totalCost = txs.reduce(0) { $0 + $1.totalCost }
-        let totalQty = txs.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
-        let totalRevenue = txs.compactMap { $0.grandTotal }.reduce(0, +)
-        let totalDebt = txs.compactMap { $0.debtAmount }.reduce(0, +)
-        let unpaidCount = txs.filter { !$0.isPaid }.count
+        let active = txs.filter { !$0.isDeleted }
+        let count = active.count
+        let totalCost = active.reduce(0) { $0 + $1.totalCost }
+        let totalQty = active.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
+        let totalRevenue = active.compactMap { $0.grandTotal }.reduce(0, +)
+        let totalDebt = active.compactMap { $0.debtAmount }.reduce(0, +)
+        let unpaidCount = active.filter { !$0.isPaid }.count
         return (count, totalCost, totalQty, totalRevenue, totalDebt, unpaidCount)
     }
 
@@ -2086,120 +2321,15 @@ struct GenericProductionReportView: View {
     // MARK: - Transaction card
 
     @State private var expandedTxIds: Set<UUID> = []
+    @State private var deleteInfoTxId: UUID? = nil
 
     private func transactionCard(_ tx: ProductionTransaction) -> some View {
-        let isExpanded = expandedTxIds.contains(tx.id)
-        return VStack(alignment: .leading, spacing: 10) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(formatTime(tx.createdAt))
-                            .font(.subheadline).fontWeight(.semibold)
-                        if let name = tx.creatorName, !name.isEmpty {
-                            Text("•").font(.caption).foregroundStyle(.gray)
-                            Text(name).font(.subheadline).foregroundStyle(.gray)
-                        }
-                    }
-                    if let note = tx.note, !note.isEmpty {
-                        Text(note).font(.caption).foregroundStyle(.gray).lineLimit(1)
-                    }
-                }
-                Spacer()
-                // Payment badge for finishedExport
-                if reportKind == .finishedExport {
-                    Text(tx.isPaid ? "Đã TT" : "Chưa TT")
-                        .font(.caption2).fontWeight(.bold)
-                        .foregroundStyle(tx.isPaid ? .green : .orange)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Capsule().fill(tx.isPaid ? Color.green.opacity(0.12) : Color.orange.opacity(0.12)))
-                }
-            }
-
-            Divider()
-
-            // Items list
-            VStack(spacing: 6) {
-                ForEach(tx.items) { item in
-                    HStack {
-                        Text(item.name).font(.subheadline)
-                        Spacer()
-                        Text(isMaterial ? FormatUtils.formatWeight(item.quantity, unit: item.unit) : "\(item.quantity) kg")
-                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(accentColor)
-                        Text(formatCurrency(item.unitPrice) + (isMaterial ? (item.unit?.lowercased() == "cái" ? "/cái" : "/kg") : ""))
-                            .font(.caption).foregroundStyle(.gray)
-                    }
-                }
-            }
-
-            // Buyer info for finishedExport
-            if reportKind == .finishedExport, let buyer = tx.buyerName, !buyer.isEmpty {
-                Divider()
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Image(systemName: "person.fill").font(.caption).foregroundStyle(.gray)
-                        Text(buyer).font(.subheadline).fontWeight(.semibold)
-                        if let phone = tx.buyerPhone, !phone.isEmpty {
-                            Text("•").font(.caption).foregroundStyle(.gray)
-                            Text(phone).font(.caption).foregroundStyle(.gray)
-                        }
-                    }
-                    if let addr = tx.buyerAddress, !addr.isEmpty {
-                        Text(addr).font(.caption).foregroundStyle(.gray)
-                    }
-                }
-            }
-
-            // Financial summary
-            Divider()
-            if reportKind == .finishedExport {
-                VStack(spacing: 4) {
-                    if let vat = tx.vatAmount, vat > 0 {
-                        HStack {
-                            Text("VAT (\(Int(tx.vatRate ?? 0))%)").font(.caption).foregroundStyle(.gray)
-                            Spacer()
-                            Text(formatCurrency(vat)).font(.caption).fontWeight(.semibold)
-                        }
-                    }
-                    HStack {
-                        Text("Tổng cộng").font(.subheadline).fontWeight(.bold)
-                        Spacer()
-                        Text(formatCurrency(tx.grandTotal ?? tx.totalCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(accentColor)
-                    }
-                    if let paid = tx.paidAmount {
-                        HStack {
-                            Text("Đã thanh toán").font(.caption).foregroundStyle(.gray)
-                            Spacer()
-                            Text(formatCurrency(paid)).font(.caption).fontWeight(.semibold).foregroundStyle(.green)
-                        }
-                    }
-                    if let debt = tx.debtAmount, debt > 0 {
-                        HStack {
-                            Text("Còn nợ").font(.caption).foregroundStyle(.red)
-                            Spacer()
-                            Text(formatCurrency(debt)).font(.caption).fontWeight(.bold).foregroundStyle(.red)
-                        }
-                        if let payDate = tx.expectedPayDate {
-                            HStack {
-                                Text("Dự kiến trả:").font(.caption).foregroundStyle(.gray)
-                                Spacer()
-                                Text(formatDateOnly(payDate)).font(.caption).fontWeight(.semibold)
-                            }
-                        }
-                    }
-                }
-            } else {
-                HStack {
-                    Text("Tổng chi phí").font(.subheadline).fontWeight(.bold)
-                    Spacer()
-                    Text(formatCurrency(tx.totalCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(accentColor)
-                }
-            }
-        }
-        .padding(12)
-        .background(Color.white)
-        .cornerRadius(14)
-        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+        GenericTxCard(
+            tx: tx,
+            reportKind: reportKind,
+            accentColor: accentColor,
+            isMaterial: isMaterial
+        )
     }
 
     private var emptyView: some View {
