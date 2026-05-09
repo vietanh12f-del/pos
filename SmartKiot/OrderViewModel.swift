@@ -2090,6 +2090,17 @@ class OrderViewModel: ObservableObject {
             let g = Int(max(0, r.totalExportGrams.rounded()))
             totalsByName[r.name] = (totalsByName[r.name] ?? 0) + g
         }
+        // Cộng từ sub-sheets nếu có
+        for slip in subSheetSlips {
+            for r in slip.autoRows {
+                let g = Int(max(0, r.totalExportGrams.rounded()))
+                totalsByName[r.name] = (totalsByName[r.name] ?? 0) + g
+            }
+            for r in slip.extraPanRows {
+                let g = Int(max(0, r.totalExportGrams.rounded()))
+                totalsByName[r.name] = (totalsByName[r.name] ?? 0) + g
+            }
+        }
         let now = Date()
         let txId = UUID()
         let items: [RestockItem] = totalsByName.keys.sorted().compactMap { nameKey in
