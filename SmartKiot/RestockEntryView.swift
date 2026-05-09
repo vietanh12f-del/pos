@@ -1530,7 +1530,7 @@ struct ManualRestockItemView: View {
                         Toggle(isOn: $hasVAT) {
                             HStack(spacing: 4) {
                                 Text("Có VAT")
-                                InfoPopoverButton(text: "Đánh dấu nếu hàng hoá này nhập có hoá đơn VAT.")
+                                InfoPopoverButton(text: "Đánh dấu nếu hàng hoá/thành phẩm này nhập có hoá đơn VAT.")
                             }
                         }
                         .tint(Color.themePrimary)

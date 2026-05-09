@@ -176,7 +176,8 @@ struct ProductionManagementView: View {
                                                         ProductionProductListRow(
                                                             name: p.name,
                                                             priceText: formatCurrency(p.price),
-                                                            stockText: FormatUtils.formatWeight(p.stockQuantity)
+                                                            stockText: FormatUtils.formatWeight(p.stockQuantity),
+                                                            hasVAT: p.hasVAT
                                                         )
                                                     }
                                                     Divider().padding(.leading, 0)
@@ -537,13 +538,25 @@ private struct ProductionProductListRow: View {
     let name: String
     let priceText: String
     let stockText: String
+    var hasVAT: Bool = false
     
     var body: some View {
         HStack {
-            Text(name)
-                .font(.subheadline)
-                .foregroundStyle(Color.themeTextDark)
-                .lineLimit(2)
+            HStack(spacing: 4) {
+                Text(name)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.themeTextDark)
+                    .lineLimit(2)
+                if hasVAT {
+                    Text("VAT")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.85))
+                        .clipShape(Capsule())
+                }
+            }
             Spacer()
             Text(priceText)
                 .font(.subheadline)

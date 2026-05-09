@@ -1867,6 +1867,7 @@ class OrderViewModel: ObservableObject {
                 // Giá vốn = giá nhập gồm chi phí của lần nhập này (finalUnitCost = (unitPrice * qty + additionalCost) / qty)
                 product.costPrice = item.finalUnitCost
                 product.stockQuantity = newQuantity
+                product.hasVAT = item.hasVAT
                 
                 // Keep the type intended (Normal or FG)
                 product.isFinishedGood = item.isFinishedGood
@@ -1907,7 +1908,8 @@ class OrderViewModel: ObservableObject {
                     imageName: "shippingbox.fill",
                     color: "gray",
                     stockQuantity: newQuantity,
-                    isFinishedGood: item.isFinishedGood
+                    isFinishedGood: item.isFinishedGood,
+                    hasVAT: item.hasVAT
                 )
                 products.append(newProduct)
                 self.productCategories.insert(catValue)
