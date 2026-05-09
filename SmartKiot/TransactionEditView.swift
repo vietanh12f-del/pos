@@ -79,6 +79,9 @@ struct TransactionEditView: View {
     // VAT tùy chỉnh tại bước thanh toán
     @State private var customVATRate: Double? = nil
     @State private var showVATRatePicker = false
+    @State private var showDeleteAlert = false
+    @State private var deleteNoteText = ""
+    @State private var isDeletingTx = false
     @State private var vatRateInputText: String = ""
 
     private var subtotal: Double {
@@ -375,6 +378,16 @@ struct TransactionEditView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Hủy") { dismiss() }
                 }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(role: .destructive) {
+                        deleteNoteText = ""
+                        showDeleteAlert = true
+                    } label: {
+                        Label("Xoá", systemImage: "trash")
+                            .foregroundStyle(.red)
+                    }
+                    .disabled(original.isDeleted || isDeletingTx)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
                         let total = items.reduce(0) { $0 + $1.totalCost }
@@ -414,6 +427,22 @@ struct TransactionEditView: View {
                     .disabled(items.contains { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
                 }
             }
+        }
+        .alert("Xoá giao dịch", isPresented: $showDeleteAlert) {
+            TextField("Lý do xoá...", text: $deleteNoteText)
+            Button("Hủy", role: .cancel) { }
+            Button("Xoá", role: .destructive) {
+                isDeletingTx = true
+                Task {
+                    _ = await viewModel.softDeleteProductionTransaction(original, note: deleteNoteText)
+                    await MainActor.run {
+                        isDeletingTx = false
+                        dismiss()
+                    }
+                }
+            }
+        } message: {
+            Text("Kho sẽ được hoàn trả. Hành động này không thể hoàn tác.")
         }
         .onAppear {
             items = original.items

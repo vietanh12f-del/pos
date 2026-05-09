@@ -594,41 +594,44 @@ private struct ProductionTransactionHistoryCard: View {
     let onShowEditHistory: () -> Void
     let onShowAutoExportDetail: () -> Void
     let onEdit: () -> Void
-    
+
+    @State private var showDeleteInfo = false
+
     private var isExportMode: Bool {
         guard let m = selectedMode else { return false }
         return m == .xuatThanhPham || m == .xuatNguyenLieu
     }
-    
+
     private var showEditedBadge: Bool {
         editedIds.contains(tx.id)
     }
-    
+
     private var showAutoExportButton: Bool {
         let note = tx.note?.lowercased() ?? ""
         return note.contains("xuất tự động")
     }
-    
+
     private var isExportToInventory: Bool {
         let note = tx.note?.lowercased() ?? ""
         return note.contains("xuất sang kho hàng hoá") || note.contains("tự động xuất kho từ phiếu nhập")
     }
-    
+
     var body: some View {
         let dateText = formatTxDate(tx.createdAt)
         VStack(alignment: .leading, spacing: 8) {
+            // Header row
             HStack {
                 Text(dateText)
                     .font(.subheadline)
-                    .foregroundStyle(Color.themeTextDark)
-                
+                    .foregroundStyle(tx.isDeleted ? Color.gray : Color.themeTextDark)
+
                 if let stt = tx.sequenceNumber {
                     Text("• \(stt)")
                         .font(.subheadline)
                         .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
+                        .foregroundStyle(tx.isDeleted ? Color.gray : Color.themePrimary)
                 }
-                
+
                 if let name = tx.creatorName, !name.isEmpty {
                     Text("• \(name)")
                         .font(.caption)
@@ -636,69 +639,117 @@ private struct ProductionTransactionHistoryCard: View {
                 }
                 Spacer()
             }
-            
+
+            // Badge row
             HStack(spacing: 8) {
-                if showEditedBadge {
-                    Text("Đã chỉnh sửa")
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                if tx.isDeleted {
+                    // Badge "Đã xoá" — bấm để xem thông tin
+                    Button {
+                        showDeleteInfo = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash.fill")
+                                .font(.caption2)
+                            Text("Đã xoá")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                        }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.orange))
-                }
-                if showAutoExportButton {
-                    Button(action: onShowAutoExportDetail) {
-                        Text("Chi tiết tự động")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.themePrimary)
+                        .background(Capsule().fill(Color.red.opacity(0.75)))
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showDeleteInfo, arrowEdge: .top) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Thông tin xoá", systemImage: "trash.fill")
+                                .font(.subheadline).fontWeight(.semibold)
+                                .foregroundStyle(.red)
+                            if let name = tx.deletedByName, !name.isEmpty {
+                                HStack(spacing: 4) {
+                                    Text("Người xoá:").foregroundStyle(.gray)
+                                    Text(name).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                            if let at = tx.deletedAt {
+                                HStack(spacing: 4) {
+                                    Text("Thời gian:").foregroundStyle(.gray)
+                                    Text(formatTxDate(at)).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                            if let note = tx.deleteNote, !note.isEmpty {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("Lý do:").foregroundStyle(.gray)
+                                    Text(note).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                        }
+                        .padding(14)
+                        .frame(width: 240)
+                        .presentationCompactAdaptation(.popover)
+                    }
+                } else {
+                    if showEditedBadge {
+                        Text("Đã chỉnh sửa")
+                            .font(.caption).fontWeight(.semibold).foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(Capsule().fill(Color.orange))
+                    }
+                    if showAutoExportButton {
+                        Button(action: onShowAutoExportDetail) {
+                            Text("Chi tiết tự động")
+                                .font(.caption).fontWeight(.bold).foregroundStyle(Color.themePrimary)
+                        }
                     }
                 }
                 Spacer()
-                Button(action: onShowEditHistory) {
-                    Text("Lịch sử chỉnh sửa")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
+                if !tx.isDeleted {
+                    Button(action: onShowEditHistory) {
+                        Text("Lịch sử chỉnh sửa")
+                            .font(.caption).fontWeight(.bold).foregroundStyle(Color.themePrimary)
+                    }
                 }
             }
-            
+
+            // Items
             VStack(spacing: 6) {
                 ForEach(tx.items, id: \.id) { it in
                     ProductionTransactionItemRow(item: it, isExportMode: isExportMode)
                 }
             }
-            
+            .opacity(tx.isDeleted ? 0.45 : 1)
+
+            // Bottom row
             HStack {
-                // Label bên trái button Sửa
-                if isExportToInventory {
+                if isExportToInventory && !tx.isDeleted {
                     Text("xuất sang kho hàng hoá")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .font(.caption2).fontWeight(.bold).foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
                         .background(Capsule().fill(Color.purple.opacity(0.85)))
                 }
                 Spacer()
+                // Nút Sửa — luôn hiện để có thể xoá từ đây
                 Button(action: onEdit) {
                     Text("Sửa")
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Color.themePrimary))
+                        .font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(tx.isDeleted ? Color.gray : Color.themePrimary))
                 }
             }
         }
         .padding(12)
-        .background(Color.white)
+        .background(tx.isDeleted ? Color.gray.opacity(0.08) : Color.white)
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(tx.isDeleted ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1)
+        )
         .padding(.horizontal)
     }
-    
+
     private func formatTxDate(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "vi_VN")

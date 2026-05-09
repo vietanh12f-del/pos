@@ -130,6 +130,11 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     var expectedPayDate: Date? = nil
     var paymentReceiptURL: String? = nil
     var sequenceNumber: String? = nil
+    // Soft delete
+    var isDeleted: Bool = false
+    var deletedAt: Date? = nil
+    var deletedByName: String? = nil
+    var deleteNote: String? = nil
     static func == (lhs: ProductionTransaction, rhs: ProductionTransaction) -> Bool {
         return lhs.id == rhs.id
     }

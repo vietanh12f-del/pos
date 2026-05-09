@@ -1649,12 +1649,18 @@ struct ProductionTransactionDTO: Codable {
     let expected_pay_date: Date?
     let payment_receipt_url: String?
     let sequence_number: String?
+    // Soft delete
+    let is_deleted: Bool?
+    let deleted_at: Date?
+    let deleted_by_name: String?
+    let delete_note: String?
 
     init(id: UUID, mode: String, total_cost: Double, created_at: Date, note: String?, creator_id: UUID?, creator_name: String?, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?,
          buyer_name: String? = nil, buyer_phone: String? = nil, buyer_address: String? = nil,
          grand_total: Double? = nil, paid_amount: Double? = nil, debt_amount: Double? = nil,
          vat_rate: Double? = nil, vat_amount: Double? = nil, is_paid: Bool? = nil,
-         expected_pay_date: Date? = nil, payment_receipt_url: String? = nil, sequence_number: String? = nil) {
+         expected_pay_date: Date? = nil, payment_receipt_url: String? = nil, sequence_number: String? = nil,
+         is_deleted: Bool? = nil, deleted_at: Date? = nil, deleted_by_name: String? = nil, delete_note: String? = nil) {
         self.id = id
         self.mode = mode
         self.total_cost = total_cost
@@ -1676,6 +1682,10 @@ struct ProductionTransactionDTO: Codable {
         self.expected_pay_date = expected_pay_date
         self.payment_receipt_url = payment_receipt_url
         self.sequence_number = sequence_number
+        self.is_deleted = is_deleted
+        self.deleted_at = deleted_at
+        self.deleted_by_name = deleted_by_name
+        self.delete_note = delete_note
     }
 
     init(from domain: ProductionTransaction) {
@@ -1700,6 +1710,10 @@ struct ProductionTransactionDTO: Codable {
         self.expected_pay_date = domain.expectedPayDate
         self.payment_receipt_url = domain.paymentReceiptURL
         self.sequence_number = domain.sequenceNumber
+        self.is_deleted = domain.isDeleted
+        self.deleted_at = domain.deletedAt
+        self.deleted_by_name = domain.deletedByName
+        self.delete_note = domain.deleteNote
     }
 
     func toDomain() -> ProductionTransaction {
@@ -1719,6 +1733,10 @@ struct ProductionTransactionDTO: Codable {
         tx.expectedPayDate = expected_pay_date
         tx.paymentReceiptURL = payment_receipt_url
         tx.sequenceNumber = sequence_number
+        tx.isDeleted = is_deleted ?? false
+        tx.deletedAt = deleted_at
+        tx.deletedByName = deleted_by_name
+        tx.deleteNote = delete_note
         return tx
     }
 
@@ -1731,7 +1749,8 @@ struct ProductionTransactionDTO: Codable {
             grand_total: grand_total, paid_amount: paid_amount, debt_amount: debt_amount,
             vat_rate: vat_rate, vat_amount: vat_amount, is_paid: is_paid,
             expected_pay_date: expected_pay_date, payment_receipt_url: payment_receipt_url,
-            sequence_number: sequence_number
+            sequence_number: sequence_number,
+            is_deleted: is_deleted, deleted_at: deleted_at, deleted_by_name: deleted_by_name, delete_note: delete_note
         )
     }
 }

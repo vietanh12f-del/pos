@@ -2433,6 +2433,70 @@ class OrderViewModel: ObservableObject {
         self.inventory = newInventory
     }
     
+    func softDeleteProductionTransaction(_ tx: ProductionTransaction, note: String) async -> Bool {
+        var deleted = tx
+        deleted.isDeleted = true
+        deleted.deletedAt = Date()
+        deleted.deletedByName = AuthManager.shared.currentUserProfile?.fullName
+        deleted.deleteNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try await database.updateProductionTransaction(deleted)
+            // Hoàn trả kho: đảo ngược effect của transaction gốc
+            await restoreStockFromDeletedTransaction(tx)
+            await loadProductionHistory(mode: tx.mode)
+            return true
+        } catch {
+            print("❌ softDeleteProductionTransaction error: \(error)")
+            return false
+        }
+    }
+
+    /// Đảo ngược effect kho của một transaction bị xoá:
+    /// - Xuất → cộng lại số lượng đã xuất
+    /// - Nhập → trừ lại số lượng đã nhập
+    private func restoreStockFromDeletedTransaction(_ tx: ProductionTransaction) async {
+        let modeLower = tx.mode.lowercased()
+        let isExport = modeLower.contains("xuất")
+        let isImport = modeLower.contains("nhập")
+        let isFinishedGoods = modeLower.contains("thành phẩm") && !modeLower.contains("nguyên liệu")
+
+        if isFinishedGoods {
+            // Hoàn trả sản phẩm thành phẩm
+            await loadProducts()
+            var current = self.products
+            for it in tx.items {
+                if let idx = current.firstIndex(where: { $0.name.lowercased() == it.name.lowercased() }) {
+                    var p = current[idx]
+                    if isExport {
+                        p.stockQuantity = p.stockQuantity + it.quantity  // cộng lại
+                    } else if isImport {
+                        p.stockQuantity = max(0, p.stockQuantity - it.quantity)  // trừ lại
+                    }
+                    try? await database.updateProduct(p)
+                    current[idx] = p
+                }
+            }
+            await MainActor.run { self.products = current; self.syncInventoryFromProducts() }
+        } else {
+            // Hoàn trả nguyên liệu
+            await loadMaterials()
+            var current = self.materials
+            for it in tx.items {
+                if let idx = current.firstIndex(where: { $0.name.lowercased() == it.name.lowercased() }) {
+                    var m = current[idx]
+                    if isExport {
+                        m.stockQuantity = m.stockQuantity + it.quantity  // cộng lại
+                    } else if isImport {
+                        m.stockQuantity = max(0, m.stockQuantity - it.quantity)  // trừ lại
+                    }
+                    try? await database.updateMaterial(m)
+                    current[idx] = m
+                }
+            }
+            await MainActor.run { self.materials = current }
+        }
+    }
+
     func updateProductionTransaction(original: ProductionTransaction, updated: ProductionTransaction) async -> Bool {
         do {
             var updatedTx = updated
