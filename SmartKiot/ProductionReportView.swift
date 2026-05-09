@@ -862,6 +862,7 @@ private struct ProductionReportRow {
     let yieldPercent: Double
     let finishedImportTx: ProductionTransaction?
     let materials: [MaterialItem]
+    var transaction: ProductionTransaction? = nil  // transaction tương ứng để check isDeleted
     
     func finishedProductLossPercent(importGrams: Int) -> Double {
         guard freshTotalGrams > 0, importGrams > 0 else { return 0 }
@@ -894,215 +895,196 @@ private struct ProductionReportCard: View {
     let totalFinishedImportGramsInDay: Int
     let hasMultipleFinishedGoods: Bool
     let onSelectFinishedGood: () -> Void
-    
+
     @State private var showMaterialDetails = false
-    
+    @State private var showDeleteInfo = false
+
+    private var isDeleted: Bool { row.transaction?.isDeleted ?? false }
+
     private var lossPercent: Double {
         row.finishedProductLossPercent(importGrams: totalFinishedImportGramsInDay)
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // Header
             HStack(alignment: .top) {
                 Text(row.log.templateName)
                     .font(.headline)
-                    .foregroundStyle(Color.themeTextDark)
+                    .foregroundStyle(isDeleted ? Color.gray : Color.themeTextDark)
                 Spacer()
+                // Badge "Đã xoá"
+                if isDeleted {
+                    Button { showDeleteInfo = true } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trash.fill").font(.caption2)
+                            Text("Đã xoá").font(.caption).fontWeight(.semibold)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(Color.red.opacity(0.75)))
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showDeleteInfo, arrowEdge: .top) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Thông tin xoá", systemImage: "trash.fill")
+                                .font(.subheadline).fontWeight(.semibold).foregroundStyle(.red)
+                            if let name = row.transaction?.deletedByName, !name.isEmpty {
+                                HStack(spacing: 4) {
+                                    Text("Người xoá:").foregroundStyle(.gray)
+                                    Text(name).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                            if let at = row.transaction?.deletedAt {
+                                HStack(spacing: 4) {
+                                    Text("Thời gian:").foregroundStyle(.gray)
+                                    Text(formatTime(at)).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                            if let note = row.transaction?.deleteNote, !note.isEmpty {
+                                HStack(alignment: .top, spacing: 4) {
+                                    Text("Lý do:").foregroundStyle(.gray)
+                                    Text(note).fontWeight(.semibold)
+                                }
+                                .font(.caption)
+                            }
+                        }
+                        .padding(14).frame(width: 240)
+                        .presentationCompactAdaptation(.popover)
+                    }
+                }
             }
-            
+
             HStack(spacing: 6) {
                 Text(formatTime(row.log.createdAt))
-                    .font(.subheadline)
-                    .foregroundStyle(.gray)
+                    .font(.subheadline).foregroundStyle(.gray)
                 if let name = row.log.creatorName, !name.isEmpty {
                     Text("•").font(.caption).foregroundStyle(.gray)
                     Text(name).font(.subheadline).foregroundStyle(.gray)
                 }
             }
-            
+
             Divider()
-            
+
             // Stats grid
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                 GridRow {
-                    Text("Nguyên liệu tươi")
-                        .foregroundStyle(.gray)
+                    Text("Nguyên liệu tươi").foregroundStyle(.gray)
                     Spacer()
                     Text(FormatUtils.formatWeight(row.freshTotalGrams))
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
+                        .fontWeight(.bold).foregroundStyle(isDeleted ? .gray : Color.themePrimary)
                 }
                 GridRow {
-                    Text("Còn sau luộc")
-                        .foregroundStyle(.gray)
+                    Text("Còn sau luộc").foregroundStyle(.gray)
                     Spacer()
                     Text(FormatUtils.formatWeight(row.afterBoilGrams))
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
+                        .fontWeight(.bold).foregroundStyle(isDeleted ? .gray : Color.themePrimary)
                 }
                 GridRow {
-                    Text("Tỉ lệ hao hụt")
-                        .foregroundStyle(.gray)
+                    Text("Tỉ lệ hao hụt").foregroundStyle(.gray)
                     Spacer()
                     Text(String(format: "%.2f%%", row.yieldPercent))
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
+                        .fontWeight(.bold).foregroundStyle(isDeleted ? .gray : Color.themePrimary)
                 }
                 GridRow {
-                    // Label with optional picker button
                     HStack(spacing: 6) {
-                        Text("Nhập thành phẩm")
-                            .foregroundStyle(.gray)
-                        if hasMultipleFinishedGoods {
-                            Button {
-                                onSelectFinishedGood()
-                            } label: {
+                        Text("Nhập thành phẩm").foregroundStyle(.gray)
+                        if hasMultipleFinishedGoods && !isDeleted {
+                            Button { onSelectFinishedGood() } label: {
                                 HStack(spacing: 2) {
                                     Text(selectedFinishedGoodName ?? "Tất cả")
-                                        .font(.caption)
-                                        .foregroundStyle(Color.themePrimary)
+                                        .font(.caption).foregroundStyle(Color.themePrimary)
                                     Image(systemName: "chevron.down")
-                                        .font(.caption2)
-                                        .foregroundStyle(Color.themePrimary)
+                                        .font(.caption2).foregroundStyle(Color.themePrimary)
                                 }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
                                 .background(Capsule().fill(Color.themePrimary.opacity(0.1)))
                             }
                             .buttonStyle(.plain)
                         } else if let name = selectedFinishedGoodName {
-                            Text(name)
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
+                            Text(name).font(.caption).foregroundStyle(.gray)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
                                 .background(Capsule().fill(Color.gray.opacity(0.1)))
                         }
                     }
                     Spacer()
-                    Text(totalFinishedImportGramsInDay > 0
-                         ? FormatUtils.formatWeight(totalFinishedImportGramsInDay)
-                         : "—")
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
+                    Text(totalFinishedImportGramsInDay > 0 ? FormatUtils.formatWeight(totalFinishedImportGramsInDay) : "—")
+                        .fontWeight(.bold).foregroundStyle(isDeleted ? .gray : Color.themePrimary)
                 }
                 GridRow {
-                    Text("Tỉ lệ hao hụt thành phẩm")
-                        .foregroundStyle(.gray)
+                    Text("Tỉ lệ hao hụt thành phẩm").foregroundStyle(.gray)
                     Spacer()
                     Text(String(format: "%.2f%%", lossPercent))
-                        .fontWeight(.bold)
-                        .foregroundStyle(lossPercent > 0 ? Color.green : Color.gray)
+                        .fontWeight(.bold).foregroundStyle(isDeleted ? .gray : (lossPercent > 0 ? Color.green : Color.gray))
                 }
             }
             .font(.subheadline)
-            
-            Divider()
-            
-            // Material details toggle
-            Button {
-                showMaterialDetails.toggle()
-            } label: {
-                HStack {
-                    Text("Chi tiết nguyên liệu xuất")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    Spacer()
-                    Image(systemName: showMaterialDetails ? "chevron.up" : "chevron.down")
-                        .font(.caption)
+            .opacity(isDeleted ? 0.5 : 1)
+
+            if !isDeleted {
+                Divider()
+                Button { showMaterialDetails.toggle() } label: {
+                    HStack {
+                        Text("Chi tiết nguyên liệu xuất").font(.subheadline).fontWeight(.medium)
+                        Spacer()
+                        Image(systemName: showMaterialDetails ? "chevron.up" : "chevron.down").font(.caption)
+                    }
+                    .foregroundStyle(Color.themePrimary)
                 }
-                .foregroundStyle(Color.themePrimary)
-            }
-            .buttonStyle(.plain)
-            
-            if showMaterialDetails {
-                materialDetailsSection
+                .buttonStyle(.plain)
+                if showMaterialDetails { materialDetailsSection }
             }
         }
         .padding(12)
-        .background(Color.white)
+        .background(isDeleted ? Color.gray.opacity(0.08) : Color.white)
         .cornerRadius(14)
-        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(isDeleted ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1))
+        .shadow(color: isDeleted ? .clear : .black.opacity(0.04), radius: 5, x: 0, y: 2)
     }
-    
+
     // MARK: Material details
-    
+
     private var materialDetailsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !row.log.data.fresh.isEmpty {
                 Text(row.log.data.freshTitle)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.themePrimary)
-                    .padding(.bottom, 4)
-                ForEach(row.log.data.fresh) { material in
-                    materialRow(material)
-                }
+                    .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themePrimary).padding(.bottom, 4)
+                ForEach(row.log.data.fresh) { material in materialRow(material) }
             }
-            
             if !row.log.data.autoMaterials.isEmpty {
-                if !row.log.data.fresh.isEmpty {
-                    Divider().padding(.vertical, 4)
-                }
+                if !row.log.data.fresh.isEmpty { Divider().padding(.vertical, 4) }
                 Text(row.log.data.autoMaterialsTitle)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.themePrimary)
-                    .padding(.bottom, 4)
-                ForEach(row.log.data.autoMaterials) { material in
-                    materialRow(material)
-                }
+                    .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.themePrimary).padding(.bottom, 4)
+                ForEach(row.log.data.autoMaterials) { material in materialRow(material) }
             }
-            
             Divider()
-            
             HStack {
-                Text("Tổng tiền nguyên liệu")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
+                Text("Tổng tiền nguyên liệu").font(.subheadline).fontWeight(.semibold)
                 Spacer()
-                Text(formatCurrency(row.totalMaterialCost))
-                    .font(.subheadline)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color.themePrimary)
+                Text(formatCurrency(row.totalMaterialCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themePrimary)
             }
         }
         .padding(.top, 4)
     }
-    
+
     private func materialRow(_ material: AutoMaterialExportLogRow) -> some View {
         let pricePerKg = row.getMaterialPrice(materialId: material.materialId)
         let weightKg = material.totalExportGrams / 1000.0
         let totalCost = pricePerKg * weightKg
-        
         return VStack(alignment: .leading, spacing: 4) {
-            Text(material.name)
-                .font(.subheadline)
-                .fontWeight(.medium)
-            HStack {
-                Text("Khối lượng:").font(.caption).foregroundStyle(.gray)
-                Text(FormatUtils.formatWeight(Int(material.totalExportGrams))).font(.caption).fontWeight(.semibold)
-            }
-            HStack {
-                Text("Đơn giá:").font(.caption).foregroundStyle(.gray)
-                Text(formatCurrency(pricePerKg) + "/kg").font(.caption).fontWeight(.semibold)
-            }
-            HStack {
-                Text("Tổng tiền:").font(.caption).foregroundStyle(.gray)
-                Text(formatCurrency(totalCost)).font(.caption).fontWeight(.semibold).foregroundStyle(Color.themePrimary)
-            }
+            Text(material.name).font(.subheadline).fontWeight(.medium)
+            HStack { Text("Khối lượng:").font(.caption).foregroundStyle(.gray); Text(FormatUtils.formatWeight(Int(material.totalExportGrams))).font(.caption).fontWeight(.semibold) }
+            HStack { Text("Đơn giá:").font(.caption).foregroundStyle(.gray); Text(formatCurrency(pricePerKg) + "/kg").font(.caption).fontWeight(.semibold) }
+            HStack { Text("Tổng tiền:").font(.caption).foregroundStyle(.gray); Text(formatCurrency(totalCost)).font(.caption).fontWeight(.semibold).foregroundStyle(Color.themePrimary) }
         }
-        .padding(8)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(8)
+        .padding(8).background(Color.gray.opacity(0.05)).cornerRadius(8)
     }
-    
+
     private func formatTime(_ date: Date) -> String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "vi_VN")
-        f.timeZone = .current
-        f.dateFormat = "HH:mm"
+        f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "HH:mm"
         return f.string(from: date)
     }
 }
@@ -1373,6 +1355,7 @@ struct MaterialExportReportView: View {
     // Data (range mode)
     @State private var rangeData: [String: DayReportData] = [:]
     @State private var expandedDays: Set<String> = []
+    @State private var allExportTxs: [ProductionTransaction] = []
 
     struct DayReportData {
         let date: Date
@@ -1401,8 +1384,11 @@ struct MaterialExportReportView: View {
             let afterBoil = max(0, log.data.afterBoilGrams)
             let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
             let importTx = finishedImports.filter { $0.createdAt >= log.createdAt }.min(by: { $0.createdAt < $1.createdAt })
-            return ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
+            let exportTx = allExportTxs.first(where: { $0.id == log.productionTransactionId })
+            var row = ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
                 yieldPercent: ratio, finishedImportTx: importTx, materials: materials)
+            row.transaction = exportTx
+            return row
         }
     }
 
@@ -1654,8 +1640,11 @@ struct MaterialExportReportView: View {
             let afterBoil = max(0, log.data.afterBoilGrams)
             let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
             let importTx = finishedImports.filter { $0.createdAt >= log.createdAt }.min(by: { $0.createdAt < $1.createdAt })
-            return ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
+            let exportTx = allExportTxs.first(where: { $0.id == log.productionTransactionId })
+            var row = ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
                 yieldPercent: ratio, finishedImportTx: importTx, materials: materials)
+            row.transaction = exportTx
+            return row
         }
     }
 
@@ -1679,6 +1668,7 @@ struct MaterialExportReportView: View {
         let imports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
         finishedImports = imports.filter { $0.createdAt >= start && $0.createdAt < end }
         let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
+        allExportTxs = allExports
         let autoIds = Set(autoLogs.map { $0.productionTransactionId })
         manualExports = allExports.filter { $0.createdAt >= start && $0.createdAt < end && !autoIds.contains($0.id) }
         selectedFinishedGoodName = nil
@@ -1689,6 +1679,7 @@ struct MaterialExportReportView: View {
         let allLogs = await viewModel.fetchAutoMaterialExportLogs(limit: 2000)
         let allImports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
         let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
+        allExportTxs = allExports  // lưu để makeRows dùng
         let allAutoIds = Set(allLogs.map { $0.productionTransactionId })
         var result: [String: DayReportData] = [:]
         var cursor = startOfDay(start)
