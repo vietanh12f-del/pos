@@ -10,8 +10,14 @@ struct AutoMaterialExportLogDetailSheet: View {
                 VStack(spacing: 14) {
                     header
                     sectionFresh
-                    sectionPan
-                    sectionAuto
+                    if log.data.subSheetLogs.isEmpty {
+                        sectionPan
+                        sectionAuto
+                    } else {
+                        ForEach(log.data.subSheetLogs) { slip in
+                            subSheetBlock(slip)
+                        }
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
@@ -126,45 +132,118 @@ struct AutoMaterialExportLogDetailSheet: View {
             if log.data.autoMaterials.isEmpty {
                 Text("—").foregroundStyle(.gray)
             } else {
-                VStack(spacing: 10) {
-                    ForEach(log.data.autoMaterials) { r in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(r.name)
-                                Spacer()
-                                Text("Kho: \(FormatUtils.formatWeight(r.stockGrams))")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                            }
-                            HStack {
-                                Text("Chuẩn/chảo")
-                                Spacer()
-                                Text(FormatUtils.formatWeight(Int((r.standardPerPanGrams ?? 0).rounded())))
-                                    .fontWeight(.bold)
-                            }
-                            HStack {
-                                Text("/Chảo thực tế")
-                                Spacer()
-                                Text(FormatUtils.formatWeight(Int((r.actualPerPanGrams ?? 0).rounded())))
-                                    .fontWeight(.bold)
-                            }
-                            HStack {
-                                Text("Tổng xuất")
-                                Spacer()
-                                let total = Int(r.totalExportGrams.rounded())
-                                Text(FormatUtils.formatWeight(total))
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(total > r.stockGrams ? .red : Color.themePrimary)
-                            }
-                        }
-                        .padding()
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
-                    }
-                }
+                autoRowsView(log.data.autoMaterials, extraRows: [])
             }
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+    }
+
+    @ViewBuilder
+    private func subSheetBlock(_ slip: SubSheetLogData) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header sub-sheet
+            HStack(spacing: 6) {
+                Image(systemName: "rectangle.split.3x1")
+                    .font(.caption)
+                    .foregroundStyle(Color.themePrimary)
+                Text(slip.name.isEmpty ? "Sub-sheet" : slip.name)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themePrimary)
+            }
+            Divider()
+            // Thông số chảo
+            HStack {
+                Text("Sau luộc")
+                    .foregroundStyle(.gray)
+                Spacer()
+                Text(FormatUtils.formatWeight(slip.afterBoilGrams))
+                    .fontWeight(.semibold)
+            }
+            .font(.subheadline)
+            HStack {
+                Text("Số chảo")
+                    .foregroundStyle(.gray)
+                Spacer()
+                Text("\(slip.panCount) chảo")
+                    .fontWeight(.semibold)
+            }
+            .font(.subheadline)
+            HStack {
+                Text("KL thực tế/chảo")
+                    .foregroundStyle(.gray)
+                Spacer()
+                Text(FormatUtils.formatWeight(Int(slip.actualPanWeightGrams.rounded())))
+                    .fontWeight(.semibold)
+            }
+            .font(.subheadline)
+            if !slip.autoMaterials.isEmpty {
+                Divider()
+                Text(log.data.autoMaterialsTitle)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.gray)
+                autoRowsView(slip.autoMaterials, extraRows: slip.extraPanRows)
+            }
+        }
+        .padding()
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+    }
+
+    @ViewBuilder
+    private func autoRowsView(_ rows: [AutoMaterialExportLogRow], extraRows: [AutoMaterialExportLogRow]) -> some View {
+        VStack(spacing: 10) {
+            ForEach(rows) { r in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(r.name).fontWeight(.semibold)
+                        Spacer()
+                        Text("Kho: \(FormatUtils.formatWeight(r.stockGrams))")
+                            .font(.caption).foregroundStyle(.gray)
+                    }
+                    HStack {
+                        Text("Chuẩn/chảo").foregroundStyle(.gray)
+                        Spacer()
+                        Text(FormatUtils.formatWeight(Int((r.standardPerPanGrams ?? 0).rounded())))
+                            .fontWeight(.bold)
+                    }
+                    HStack {
+                        Text("/Chảo thực tế").foregroundStyle(.gray)
+                        Spacer()
+                        Text(FormatUtils.formatWeight(Int((r.actualPerPanGrams ?? 0).rounded())))
+                            .fontWeight(.bold)
+                    }
+                    HStack {
+                        Text("Tổng xuất").foregroundStyle(.gray)
+                        Spacer()
+                        let total = Int(r.totalExportGrams.rounded())
+                        Text(FormatUtils.formatWeight(total))
+                            .fontWeight(.bold)
+                            .foregroundStyle(total > r.stockGrams ? .red : Color.themePrimary)
+                    }
+                }
+                .font(.subheadline)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.06)))
+            }
+            if !extraRows.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus.circle.fill").foregroundStyle(Color.orange).font(.caption)
+                    Text("Xào thêm").font(.caption).fontWeight(.semibold).foregroundStyle(Color.orange)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                ForEach(extraRows) { r in
+                    HStack {
+                        Text(r.name).font(.subheadline).foregroundStyle(Color.orange)
+                        Spacer()
+                        Text(FormatUtils.formatWeight(Int(r.totalExportGrams.rounded())))
+                            .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.orange)
+                    }
+                    .padding(.horizontal, 10)
+                }
+            }
+        }
     }
     
     private func formatDate(_ date: Date) -> String {

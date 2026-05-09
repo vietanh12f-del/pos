@@ -326,6 +326,82 @@ struct AutoMaterialExportLogData: Codable, Equatable {
     let percentChange: Double
     
     let autoMaterials: [AutoMaterialExportLogRow]
+    var subSheetLogs: [SubSheetLogData]
+
+    enum CodingKeys: String, CodingKey {
+        case headerName, freshTitle, afterBoilTitle, panCountTitle, panWeightTitle, autoMaterialsTitle
+        case fresh, afterBoilGrams, panCount, standardPanWeightGrams, actualPanWeightGrams, percentChange
+        case autoMaterials, subSheetLogs
+    }
+
+    init(headerName: String, freshTitle: String, afterBoilTitle: String, panCountTitle: String, panWeightTitle: String, autoMaterialsTitle: String, fresh: [AutoMaterialExportLogRow], afterBoilGrams: Int, panCount: Int, standardPanWeightGrams: Int, actualPanWeightGrams: Double, percentChange: Double, autoMaterials: [AutoMaterialExportLogRow], subSheetLogs: [SubSheetLogData] = []) {
+        self.headerName = headerName
+        self.freshTitle = freshTitle
+        self.afterBoilTitle = afterBoilTitle
+        self.panCountTitle = panCountTitle
+        self.panWeightTitle = panWeightTitle
+        self.autoMaterialsTitle = autoMaterialsTitle
+        self.fresh = fresh
+        self.afterBoilGrams = afterBoilGrams
+        self.panCount = panCount
+        self.standardPanWeightGrams = standardPanWeightGrams
+        self.actualPanWeightGrams = actualPanWeightGrams
+        self.percentChange = percentChange
+        self.autoMaterials = autoMaterials
+        self.subSheetLogs = subSheetLogs
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        headerName = try c.decode(String.self, forKey: .headerName)
+        freshTitle = try c.decode(String.self, forKey: .freshTitle)
+        afterBoilTitle = try c.decode(String.self, forKey: .afterBoilTitle)
+        panCountTitle = try c.decode(String.self, forKey: .panCountTitle)
+        panWeightTitle = try c.decode(String.self, forKey: .panWeightTitle)
+        autoMaterialsTitle = try c.decode(String.self, forKey: .autoMaterialsTitle)
+        fresh = try c.decode([AutoMaterialExportLogRow].self, forKey: .fresh)
+        afterBoilGrams = try c.decode(Int.self, forKey: .afterBoilGrams)
+        panCount = try c.decode(Int.self, forKey: .panCount)
+        standardPanWeightGrams = try c.decode(Int.self, forKey: .standardPanWeightGrams)
+        actualPanWeightGrams = try c.decode(Double.self, forKey: .actualPanWeightGrams)
+        percentChange = try c.decode(Double.self, forKey: .percentChange)
+        autoMaterials = try c.decode([AutoMaterialExportLogRow].self, forKey: .autoMaterials)
+        subSheetLogs = (try? c.decodeIfPresent([SubSheetLogData].self, forKey: .subSheetLogs)) ?? []
+    }
+}
+
+/// Dữ liệu log của một sub-sheet
+struct SubSheetLogData: Codable, Equatable, Identifiable {
+    let id: UUID
+    let name: String
+    let afterBoilGrams: Int
+    let panCount: Int
+    let standardPanWeightGrams: Int
+    let actualPanWeightGrams: Double
+    let autoMaterials: [AutoMaterialExportLogRow]
+    let extraPanRows: [AutoMaterialExportLogRow]
+
+    init(id: UUID = UUID(), name: String, afterBoilGrams: Int, panCount: Int, standardPanWeightGrams: Int, actualPanWeightGrams: Double, autoMaterials: [AutoMaterialExportLogRow], extraPanRows: [AutoMaterialExportLogRow] = []) {
+        self.id = id
+        self.name = name
+        self.afterBoilGrams = afterBoilGrams
+        self.panCount = panCount
+        self.standardPanWeightGrams = standardPanWeightGrams
+        self.actualPanWeightGrams = actualPanWeightGrams
+        self.autoMaterials = autoMaterials
+        self.extraPanRows = extraPanRows
+    }
+}
+
+/// Lightweight struct để truyền sub-sheet data vào performAutoMaterialExport
+struct SubSheetSlipForLog {
+    let name: String
+    let afterBoilGrams: Int
+    let panCount: Int
+    let standardPanWeightGrams: Int
+    let actualPanWeightGrams: Double
+    let autoRows: [AutoMaterialExportLogRow]
+    let extraPanRows: [AutoMaterialExportLogRow]
 }
 
 struct AutoMaterialExportLogRow: Codable, Equatable, Identifiable {

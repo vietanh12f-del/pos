@@ -2073,6 +2073,7 @@ class OrderViewModel: ObservableObject {
         percentChange: Double,
         autoRows: [AutoMaterialExportLogRow],
         extraPanRows: [AutoMaterialExportLogRow] = [],
+        subSheetSlips: [SubSheetSlipForLog] = [],
         resolvedSequenceNumber: String? = nil
     ) async -> Bool {
         var totalsByName: [String: Int] = [:]
@@ -2154,7 +2155,18 @@ class OrderViewModel: ObservableObject {
             standardPanWeightGrams: standardPanWeightGrams,
             actualPanWeightGrams: actualPanWeightGrams,
             percentChange: percentChange,
-            autoMaterials: autoRows
+            autoMaterials: autoRows,
+            subSheetLogs: subSheetSlips.map { slip in
+                SubSheetLogData(
+                    name: slip.name,
+                    afterBoilGrams: slip.afterBoilGrams,
+                    panCount: slip.panCount,
+                    standardPanWeightGrams: slip.standardPanWeightGrams,
+                    actualPanWeightGrams: slip.actualPanWeightGrams,
+                    autoMaterials: slip.autoRows,
+                    extraPanRows: slip.extraPanRows
+                )
+            }
         )
         var log = AutoMaterialExportLog(
             id: UUID(),

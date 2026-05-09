@@ -1849,8 +1849,19 @@ struct AutoMaterialExportSheetView: View {
             standardPanWeightGrams: standardPanWeightGrams,
             actualPanWeightGrams: actualPanWeightGrams,
             percentChange: percentChange,
-            autoRows: autoRows,
-            extraPanRows: autoRowsForExtraPan,
+            autoRows: subSheetStates.isEmpty ? autoRows : [],
+            extraPanRows: subSheetStates.isEmpty ? autoRowsForExtraPan : [],
+            subSheetSlips: subSheetStates.indices.map { i in
+                SubSheetSlipForLog(
+                    name: subSheetStates[i].name,
+                    afterBoilGrams: subSheetStates[i].afterBoilGrams,
+                    panCount: subSheetStates[i].panCount,
+                    standardPanWeightGrams: subSheetStates[i].standardPanWeightGrams,
+                    actualPanWeightGrams: subSheetStates[i].actualPanWeightGrams,
+                    autoRows: autoRowsForSubSheet(i),
+                    extraPanRows: autoRowsForExtraPanSubSheet(i)
+                )
+            },
             resolvedSequenceNumber: resolvedAutoSTT
         )
         async let templateTask: Bool = saveTemplateAsync()
