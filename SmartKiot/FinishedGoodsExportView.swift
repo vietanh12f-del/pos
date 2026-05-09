@@ -1179,6 +1179,10 @@ struct ExportBillPrintView: View {
                             } else {
                                 Text(formatCurrency(item.unitPrice) + "/kg").font(.caption).foregroundStyle(.gray)
                             }
+                            if item.additionalCost > 0 {
+                                Text("Chi phí: \(formatCurrency(item.additionalCost))")
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         if isRegularRestock {
