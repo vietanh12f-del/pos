@@ -1728,11 +1728,18 @@ class OrderViewModel: ObservableObject {
     private func recomputeProductPricingAfterRestockChange(productKey: String) async {
         guard let pIndex = products.firstIndex(where: { $0.name.lowercased() == productKey }) else { return }
         
+        // Lấy finalUnitCost của lần nhập gần nhất (không bị xóa)
+        let sortedBills = restockHistory
+            .filter { !$0.isDeleted }
+            .sorted { $0.createdAt > $1.createdAt } // mới nhất trước
+        
         var latestItem: RestockItem?
-        for bill in restockHistory {
-            if bill.isDeleted { continue }
+        var latestSuggestedPrice: Double? = nil
+        
+        for bill in sortedBills {
             if let match = bill.items.first(where: { $0.name.lowercased() == productKey }) {
                 latestItem = match
+                latestSuggestedPrice = match.suggestedPrice
                 break
             }
         }
@@ -1740,7 +1747,7 @@ class OrderViewModel: ObservableObject {
         var p = products[pIndex]
         if let latestItem {
             p.costPrice = latestItem.finalUnitCost
-            if let suggested = latestItem.suggestedPrice {
+            if let suggested = latestSuggestedPrice {
                 p.price = suggested
             }
         } else {
@@ -1856,8 +1863,8 @@ class OrderViewModel: ObservableObject {
             
             if let index = products.firstIndex(where: { $0.name.lowercased() == key && $0.isFinishedGood == item.isFinishedGood }) {
                 var product = products[index]
-                let newUnitCost = item.finalUnitCost
-                product.costPrice = newUnitCost
+                // Giá vốn = giá nhập gồm chi phí của lần nhập này (finalUnitCost = (unitPrice * qty + additionalCost) / qty)
+                product.costPrice = item.finalUnitCost
                 product.stockQuantity = newQuantity
                 
                 // Keep the type intended (Normal or FG)

@@ -60,9 +60,14 @@ struct RestockItem: Identifiable, Hashable, Codable {
             return quantity > 0 ? totalCost / Double(quantity) : 0
         }
         if let cat = category, cat.lowercased() == Category.materials.rawValue.lowercased() {
-            // unit cost per kg
+            // quantity là gram, unitPrice là per kg
+            // totalCost = unitPrice * (quantity/1000) + additionalCost
+            // finalUnitCost per kg = totalCost / (quantity/1000)
+            // Nhưng additionalCost là chi phí tổng lô hàng, phân bổ theo kg:
+            // finalUnitCost per kg = unitPrice + (additionalCost / (quantity/1000))
             let kg = Double(quantity) / 1000.0
-            return kg > 0 ? totalCost / kg : 0
+            guard kg > 0 else { return 0 }
+            return unitPrice + (additionalCost / kg)
         } else {
             return quantity > 0 ? totalCost / Double(quantity) : 0
         }

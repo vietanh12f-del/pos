@@ -1300,11 +1300,12 @@ struct ManualRestockItemView: View {
     @State private var suggestedPriceHundredsSelection = 0
     @State private var suggestedPriceWheelRangeBase = 0
     @State private var showSuggestedPriceWheelRangePicker = false
+    @State private var userEditedSuggestedPrice = false // flag: user đã tự chỉnh giá bán
     @State private var showWeightPerUnitWheel = false
     @State private var weightPerUnitKgSelection = 0
     @State private var weightPerUnitGramsSelection = 0
     @State private var weightPerUnitMax = 100
-    @State private var selectedCategoryName: String = Category.materials.rawValue
+    @State private var selectedCategoryName: String = Category.others.rawValue
     @State private var showCategorySheet = false
     @State private var newCategoryName: String = ""
     @State private var showNamePicker = false
@@ -2254,9 +2255,11 @@ struct ManualRestockItemView: View {
                 let defaultCost = p.costPrice > 0 ? p.costPrice : p.price * 0.7
                 unitPriceWheelSelection = Int(defaultCost)
                 price = String(Int(defaultCost))
-                // Set giá bán dự kiến = giá bán hiện tại của sản phẩm nếu có, không thì 130% giá nhập
+                // Set giá bán dự kiến = giá bán hiện tại của sản phẩm nếu có, không thì 130% giá nhập gồm chi phí
                 if !isFinishedGoods && suggestedPriceWheelSelection == 0 {
-                    suggestedPriceWheelSelection = p.price > 0 ? Int(p.price) : Int(defaultCost * 1.3)
+                    let extra = Double(additionalCostWheelSelection)
+                    let finalUnitCost = extra > 0 && Int(defaultCost) > 0 ? defaultCost + extra / 1.0 : defaultCost
+                    suggestedPriceWheelSelection = p.price > 0 ? Int(p.price) : Int(finalUnitCost * 1.3)
                 }
             }
         }
@@ -2339,7 +2342,16 @@ struct ManualRestockItemView: View {
         }
         guard !name.isEmpty, q > 0 else { return }
         let extra = parseDouble(incurredCost) ?? 0
-        let suggested: Double? = (!isFinishedGoods ? Double(suggestedPriceWheelSelection) : nil)
+        // Tính finalUnitCost = giá nhập gồm chi phí phân bổ trên mỗi đơn vị
+        let finalUnitCost: Double
+        if useKgGram {
+            let kg = Double(q) / 1000.0
+            finalUnitCost = kg > 0 ? p + extra / kg : p
+        } else {
+            finalUnitCost = q > 0 ? p + extra / Double(q) : p
+        }
+        // Giá bán = 130% giá vốn gồm chi phí; chỉ dùng giá user nhập nếu user đã tự chỉnh
+        let suggested: Double? = (!isFinishedGoods ? (userEditedSuggestedPrice ? Double(suggestedPriceWheelSelection) : finalUnitCost * 1.3) : nil)
         let perUnitGrams: Int? = {
             guard treatFinishedGoodsAsUnits || importFromFinishedGood else { return nil }
             let grams = weightPerUnitKgSelection * 1000 + weightPerUnitGramsSelection
@@ -2420,9 +2432,18 @@ struct ManualRestockItemView: View {
 
     private func handleSaveUnitPrice() {
         price = String(unitPriceWheelSelection)
-        // Tự động set giá bán dự kiến = 130% giá nhập nếu chưa có giá bán
+        // Tự động set giá bán dự kiến = 130% giá nhập gồm chi phí
         if !isFinishedGoods && suggestedPriceWheelSelection == 0 {
-            suggestedPriceWheelSelection = Int(Double(unitPriceWheelSelection) * 1.3)
+            let q = useKgGram ? quantityWheelSelection : quantityWheelSelection
+            let extra = Double(additionalCostWheelSelection)
+            let finalUnitCost: Double
+            if useKgGram {
+                let kg = Double(q) / 1000.0
+                finalUnitCost = kg > 0 ? Double(unitPriceWheelSelection) + extra / kg : Double(unitPriceWheelSelection)
+            } else {
+                finalUnitCost = q > 0 ? Double(unitPriceWheelSelection) + extra / Double(q) : Double(unitPriceWheelSelection)
+            }
+            suggestedPriceWheelSelection = Int(finalUnitCost * 1.3)
         }
         showUnitPriceWheel = false
     }
@@ -2434,6 +2455,7 @@ struct ManualRestockItemView: View {
 
     private func handleSaveSuggestedPrice() {
          suggestedPriceWheelSelection = suggestedPriceWheelSelection
+         userEditedSuggestedPrice = true
          showSuggestedPriceWheel = false
      }
 
@@ -2476,9 +2498,10 @@ struct ManualRestockItemView: View {
                 if let sp = item.suggestedPrice {
                     suggestedPriceWheelSelection = Int(sp)
                 } else {
-                    suggestedPriceWheelSelection = max(Int(item.unitPrice * 1.3), Int(item.unitPrice))
+                    suggestedPriceWheelSelection = max(Int(item.finalUnitCost * 1.3), Int(item.unitPrice))
                 }
             }
+            userEditedSuggestedPrice = false // reset: chưa chỉnh, sẽ tính lại khi lưu
             // no selling price wheel
         } else if let product = prefilledProduct {
             name = product.name
@@ -2490,6 +2513,17 @@ struct ManualRestockItemView: View {
             unitPriceWheelSelection = Int(defaultCost)
             if !isFinishedGoods {
                 suggestedPriceWheelSelection = Int(product.price)
+            }
+            // Set category từ sản phẩm
+            if !product.category.isEmpty {
+                selectedCategoryName = product.category
+            }
+        } else {
+            // Thêm mới: default category theo context
+            if addTitle.lowercased().contains("nguyên liệu") {
+                selectedCategoryName = Category.materials.rawValue
+            } else {
+                selectedCategoryName = Category.others.rawValue
             }
         }
         
