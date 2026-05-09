@@ -154,6 +154,7 @@ struct MaterialItem: Identifiable, Codable, Equatable {
     var category: String = Category.materials.rawValue
     var barcode: String? = nil
     var unit: String? = nil
+    var hasVAT: Bool = false
 }
 
 struct OperatingExpense: Identifiable, Codable, Equatable {

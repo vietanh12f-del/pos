@@ -194,6 +194,18 @@ struct RestockEntryView: View {
                                                         .foregroundStyle(Color.themeTextDark)
                                                         .lineLimit(2)
                                                         .frame(maxWidth: .infinity, alignment: .leading)
+                                                    if m.hasVAT {
+                                                        HStack {
+                                                            Text("VAT")
+                                                                .font(.system(size: 9, weight: .bold))
+                                                                .foregroundStyle(.white)
+                                                                .padding(.horizontal, 5)
+                                                                .padding(.vertical, 2)
+                                                                .background(Color.green.opacity(0.85))
+                                                                .clipShape(Capsule())
+                                                            Spacer()
+                                                        }
+                                                    }
                                                     HStack {
                                                         Text("Kho: \(FormatUtils.formatWeight(m.stockQuantity, unit: m.unit))")
                                                             .font(.caption)

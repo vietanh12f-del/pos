@@ -1606,9 +1606,10 @@ struct MaterialDTO: Codable {
     let store_id: UUID?
     let barcode: String?
     let unit: String?
+    let has_vat: Bool?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode, unit
+        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode, unit, has_vat
     }
     
     init(from decoder: Decoder) throws {
@@ -1622,9 +1623,10 @@ struct MaterialDTO: Codable {
         store_id = try c.decodeIfPresent(UUID.self, forKey: .store_id)
         barcode = try c.decodeIfPresent(String.self, forKey: .barcode)
         unit = try c.decodeIfPresent(String.self, forKey: .unit)
+        has_vat = try c.decodeIfPresent(Bool.self, forKey: .has_vat)
     }
     
-    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil, unit: String? = nil) {
+    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil, unit: String? = nil, has_vat: Bool? = nil) {
         self.id = id
         self.name = name
         self.stock_quantity = stock_quantity
@@ -1634,6 +1636,7 @@ struct MaterialDTO: Codable {
         self.store_id = store_id
         self.barcode = barcode
         self.unit = unit
+        self.has_vat = has_vat
     }
     
     init(from domain: MaterialItem, storeId: UUID?) {
@@ -1646,10 +1649,11 @@ struct MaterialDTO: Codable {
         self.store_id = storeId
         self.barcode = domain.barcode
         self.unit = domain.unit
+        self.has_vat = domain.hasVAT
     }
     
     func toDomain() -> MaterialItem {
-        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue, barcode: barcode, unit: unit)
+        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue, barcode: barcode, unit: unit, hasVAT: has_vat ?? false)
     }
 }
 

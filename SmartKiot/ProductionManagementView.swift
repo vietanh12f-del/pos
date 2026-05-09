@@ -227,6 +227,15 @@ struct ProductionManagementView: View {
                                                                 .font(.subheadline)
                                                                 .foregroundStyle(Color.themeTextDark)
                                                                 .lineLimit(2)
+                                                            if item.hasVAT {
+                                                                Text("VAT")
+                                                                    .font(.system(size: 9, weight: .bold))
+                                                                    .foregroundStyle(.white)
+                                                                    .padding(.horizontal, 5)
+                                                                    .padding(.vertical, 2)
+                                                                    .background(Color.green.opacity(0.85))
+                                                                    .clipShape(Capsule())
+                                                            }
                                                             Spacer()
                                                             Text(formatCurrency(item.lastUnitPrice))
                                                                 .font(.subheadline)

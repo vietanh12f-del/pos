@@ -34,6 +34,7 @@ struct MaterialEditView: View {
     @State private var barcode: String = ""
     @State private var showBarcodeScanner = false
     @State private var showPrintBarcode = false
+    @State private var hasVAT: Bool = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -99,6 +100,14 @@ struct MaterialEditView: View {
                                 .foregroundStyle(.gray)
                         }
                     }
+                    
+                    Toggle(isOn: $hasVAT) {
+                        HStack(spacing: 4) {
+                            Text("Có VAT")
+                            InfoPopoverButton(text: "Đánh dấu nếu nguyên liệu này nhập có hoá đơn VAT.")
+                        }
+                    }
+                    .tint(Color.themePrimary)
                 }
                 
                 if case .edit(_) = mode, StoreManager.shared.currentMember?.role == .owner {
@@ -345,6 +354,7 @@ struct MaterialEditView: View {
                 costWheelSelection = Int(material.lastUnitPrice)
                 selectedCategoryName = material.category
                 barcode = material.barcode ?? ""
+                hasVAT = material.hasVAT
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -361,7 +371,7 @@ struct MaterialEditView: View {
         guard let unit = Double(importPrice), let qty = Int(stock) else { return }
         switch mode {
         case .add:
-            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode)
+            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, hasVAT: hasVAT)
             Task {
                 try? await viewModel.databaseSaveMaterial(material)
                 viewModel.addMaterialCategory(selectedCategoryName)
@@ -369,7 +379,7 @@ struct MaterialEditView: View {
                 dismiss()
             }
         case .edit(let m):
-            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode)
+            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, hasVAT: hasVAT)
             Task {
                 try? await viewModel.databaseUpdateMaterial(updated)
                 viewModel.addMaterialCategory(selectedCategoryName)
