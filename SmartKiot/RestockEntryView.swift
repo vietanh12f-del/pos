@@ -1466,7 +1466,7 @@ struct ManualRestockItemView: View {
                                     .foregroundStyle(qVal > 0 ? Color.primary : Color.gray)
                             }
                         } else {
-                            sourceInputView()
+                            if importFromFinishedGood { sourceInputView() }
                             documentImageSection()
                         }
                     } else {
@@ -1550,7 +1550,7 @@ struct ManualRestockItemView: View {
                     }
                     
                     if !isSimpleFinishedGoodsEdit && !isExport && !isFinishedGoodsTransactionEdit {
-                        sourceInputView()
+                        if importFromFinishedGood { sourceInputView() }
                         documentImageSection()
                     }
                     
