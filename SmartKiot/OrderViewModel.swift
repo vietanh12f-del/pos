@@ -2801,10 +2801,11 @@ class OrderViewModel: ObservableObject {
                 imageName: imageName,
                 color: color,
                 imageData: imageData,
-                imageURL: imageURL, // Use passed URL (handles deletion if nil)
+                imageURL: imageURL,
                 stockQuantity: quantity,
                 barcode: barcode,
-                isFinishedGood: product.isFinishedGood // Preserve the original isFinishedGood value
+                isFinishedGood: product.isFinishedGood,
+                hasVAT: product.hasVAT // Preserve hasVAT từ product đã được set trước khi gọi hàm này
             )
             print("📦 [OrderViewModel] Updated product: \(updatedProduct.name), isFinishedGood: \(updatedProduct.isFinishedGood)")
             products[index] = updatedProduct

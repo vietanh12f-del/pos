@@ -322,13 +322,24 @@ struct InventoryView: View {
                                     }
                                     
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(product.name)
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(Color.themeTextDark)
-                                            .lineLimit(nil)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .layoutPriority(1)
+                                        HStack(spacing: 4) {
+                                            Text(product.name)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(Color.themeTextDark)
+                                                .lineLimit(nil)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                                .layoutPriority(1)
+                                            if product.hasVAT {
+                                                Text("VAT")
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.green.opacity(0.85))
+                                                    .clipShape(Capsule())
+                                            }
+                                        }
                                         
                                         Text(product.category)
                                             .font(.caption)

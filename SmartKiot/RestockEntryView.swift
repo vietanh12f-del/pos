@@ -278,6 +278,18 @@ struct RestockEntryView: View {
                                                         .foregroundStyle(Color.themeTextDark)
                                                         .lineLimit(2)
                                                         .frame(maxWidth: .infinity, alignment: .leading)
+                                                    if p.hasVAT {
+                                                        HStack {
+                                                            Text("VAT")
+                                                                .font(.system(size: 9, weight: .bold))
+                                                                .foregroundStyle(.white)
+                                                                .padding(.horizontal, 5)
+                                                                .padding(.vertical, 2)
+                                                                .background(Color.green.opacity(0.85))
+                                                                .clipShape(Capsule())
+                                                            Spacer()
+                                                        }
+                                                    }
                                                     HStack {
                                                         let qtyText = inventorySubTab == 0
                                                             ? FormatUtils.formatWeight(p.stockQuantity)
