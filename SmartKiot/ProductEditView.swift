@@ -50,8 +50,14 @@ struct ProductEditView: View {
     @State private var showStockWheel = false
     @State private var stockWheelSelection = 0
     @State private var stockWheelMax = 1000
-    @State private var stockWheelRangeBase = 0
-    @State private var showStockWheelRangePicker = false
+    @State private var stockKgSelection = 0
+    @State private var stockGramsSelection = 0
+    @State private var stockGramsMax = 990
+    @State private var stockKgRangeBase = 0
+    @State private var stockGramsRangeBase = 0
+    @State private var showStockKgRangePicker = false
+    @State private var showStockGramsRangePicker = false
+    @State private var stockUnit = "kg" // "kg" hoặc "cái"
     @State private var showDuplicateNameAlert = false
     @State private var hasVAT: Bool = false
     @State private var markupPercent: Double = 30
@@ -82,7 +88,7 @@ struct ProductEditView: View {
             _price = State(initialValue: String(Int(product.price)))
             _importPrice = State(initialValue: String(Int(product.costPrice)))
             _additionalCost = State(initialValue: "0")
-            _quantity = State(initialValue: String(viewModel.stockLevel(for: product.name)))
+            _quantity = State(initialValue: String(product.isFinishedGood ? product.stockQuantity : viewModel.stockLevel(for: product.name)))
             _barcode = State(initialValue: product.barcode ?? "")
             _selectedCategory = State(initialValue: Category(rawValue: product.category) ?? .others)
             _selectedColor = State(initialValue: product.color)
@@ -231,17 +237,28 @@ struct ProductEditView: View {
                         Spacer()
                         if allowEditCostAndStock {
                             Button {
-                                stockWheelSelection = Int(quantity) ?? stockWheelSelection
-                                if stockWheelSelection > stockWheelMax - 50 {
-                                    stockWheelMax = stockWheelSelection + 500
+                                // Init wheel từ quantity hiện tại
+                                let current = Int(quantity) ?? 0
+                                if stockUnit == "kg" {
+                                    stockKgSelection = current / 1000
+                                    stockGramsSelection = ((current % 1000) / 10) * 10
+                                } else {
+                                    stockWheelSelection = current
+                                    if stockWheelSelection > stockWheelMax - 50 {
+                                        stockWheelMax = stockWheelSelection + 500
+                                    }
                                 }
                                 showStockWheel = true
                             } label: {
-                                Text(quantity)
+                                Text(stockUnit == "kg"
+                                     ? FormatUtils.formatWeight(Int(quantity) ?? 0)
+                                     : "\(Int(quantity) ?? 0) cái")
                                     .fontWeight(.semibold)
                             }
                         } else {
-                            Text(quantity)
+                            Text(stockUnit == "kg"
+                                 ? FormatUtils.formatWeight(Int(quantity) ?? 0)
+                                 : "\(Int(quantity) ?? 0) cái")
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.gray)
                         }
@@ -747,77 +764,161 @@ struct ProductEditView: View {
                 VStack(spacing: 12) {
                     Text("Sửa tồn kho")
                         .font(.headline)
-                    HStack {
-                        Button {
-                            showStockWheelRangePicker = true
-                        } label: {
-                            Text(stockWheelRangeBase <= 0 ? ">0" : ">\(stockWheelRangeBase)")
-                                .fontWeight(.bold)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Capsule().fill(Color.gray.opacity(0.15)))
-                        }
-                        .buttonStyle(.plain)
-                        Spacer()
+                    
+                    // Segment chọn đơn vị
+                    Picker("Đơn vị", selection: $stockUnit) {
+                        Text("Kg").tag("kg")
+                        Text("Cái").tag("cái")
                     }
-                    Picker("", selection: $stockWheelSelection) {
-                        ForEach(Array(max(0, stockWheelRangeBase)...stockWheelMax), id: \.self) { v in
-                            Text("\(v)").tag(v)
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal)
+                    
+                    if stockUnit == "kg" {
+                        // Bánh xe Kg + Gam
+                        HStack {
+                            Button {
+                                showStockKgRangePicker = true
+                            } label: {
+                                Text(stockKgRangeBase <= 0 ? ">0" : ">\(stockKgRangeBase)")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                            Button {
+                                showStockGramsRangePicker = true
+                            } label: {
+                                Text(stockGramsRangeBase <= 0 ? ">0g" : ">\(stockGramsRangeBase)g")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        HStack {
+                            VStack {
+                                Text("Kg").font(.caption).foregroundStyle(.gray)
+                                Picker("", selection: $stockKgSelection) {
+                                    ForEach(Array(stockKgRangeBase...stockWheelMax), id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: stockKgSelection) { _, v in
+                                    if v >= stockWheelMax - 10 { stockWheelMax += 200 }
+                                }
+                            }
+                            VStack {
+                                Text("Gam").font(.caption).foregroundStyle(.gray)
+                                Picker("", selection: $stockGramsSelection) {
+                                    ForEach(Array(stride(from: stockGramsRangeBase, through: stockGramsMax, by: 10)), id: \.self) { g in
+                                        Text("\(g)").tag(g)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                            }
+                        }
+                    } else {
+                        // Bánh xe số cái
+                        HStack {
+                            Button {
+                                showStockKgRangePicker = true
+                            } label: {
+                                Text(stockKgRangeBase <= 0 ? ">0" : ">\(stockKgRangeBase)")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                        }
+                        Picker("", selection: $stockWheelSelection) {
+                            ForEach(Array(max(0, stockKgRangeBase)...stockWheelMax), id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: stockWheelSelection) { _, v in
+                            if v > stockWheelMax - 10 { stockWheelMax += 500 }
                         }
                     }
-                    .pickerStyle(.wheel)
-                    .onChange(of: stockWheelSelection) { v in
-                        if v > stockWheelMax - 10 {
-                            stockWheelMax += 500
-                        }
-                    }
-                    .onAppear {
-                        if stockWheelSelection > stockWheelMax - 50 {
-                            stockWheelMax = stockWheelSelection + 500
-                        }
-                        stockWheelRangeBase = (stockWheelSelection / 100) * 100
-                    }
+                    
                     HStack {
                         Button("Đóng") { showStockWheel = false }
                         Spacer()
                         Button("Lưu") {
-                            quantity = String(stockWheelSelection)
+                            if stockUnit == "kg" {
+                                quantity = String(stockKgSelection * 1000 + stockGramsSelection)
+                            } else {
+                                quantity = String(stockWheelSelection)
+                            }
                             showStockWheel = false
                         }
                     }
                     .font(.headline)
                 }
                 .padding()
-                .presentationDetents([.height(300)])
-                .sheet(isPresented: $showStockWheelRangePicker) {
+                .presentationDetents([.height(stockUnit == "kg" ? 400 : 340)])
+                .onAppear {
+                    let current = Int(quantity) ?? 0
+                    if stockUnit == "kg" {
+                        stockKgSelection = current / 1000
+                        stockGramsSelection = ((current % 1000) / 10) * 10
+                        stockKgRangeBase = (stockKgSelection / 100) * 100
+                    } else {
+                        stockWheelSelection = current
+                        if stockWheelSelection > stockWheelMax - 50 { stockWheelMax = stockWheelSelection + 500 }
+                        stockKgRangeBase = (stockWheelSelection / 100) * 100
+                    }
+                }
+                .sheet(isPresented: $showStockKgRangePicker) {
                     VStack(spacing: 16) {
                         Text("Chọn vùng giá trị").font(.headline)
-                        Picker("", selection: $stockWheelRangeBase) {
+                        Picker("", selection: $stockKgRangeBase) {
                             ForEach(Array(stride(from: 0, through: stockWheelMax, by: 100)), id: \.self) { v in
                                 Text(v == 0 ? ">0" : ">\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: stockWheelRangeBase) { _, newValue in
-                            if newValue >= stockWheelMax - 100 {
-                                stockWheelMax += 500
+                        .onChange(of: stockKgRangeBase) { _, v in
+                            if v >= stockWheelMax - 100 { stockWheelMax += 500 }
+                        }
+                        Button {
+                            if stockUnit == "kg" {
+                                if stockKgSelection < stockKgRangeBase { stockKgSelection = stockKgRangeBase }
+                            } else {
+                                if stockWheelSelection < stockKgRangeBase { stockWheelSelection = stockKgRangeBase }
+                            }
+                            showStockKgRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white).frame(maxWidth: .infinity)
+                                .padding(.vertical, 10).background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }
+                    .padding()
+                    .presentationDetents([.height(320)])
+                }
+                .sheet(isPresented: $showStockGramsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng Gam").font(.headline)
+                        Picker("", selection: $stockGramsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 990, by: 10)), id: \.self) { v in
+                                Text(v == 0 ? ">0g" : ">\(v)g").tag(v)
                             }
                         }
-                        
-                        HStack(spacing: 12) {
-                            Button {
-                                let minValue = max(0, stockWheelRangeBase)
-                                if stockWheelSelection < minValue { stockWheelSelection = minValue }
-                                showStockWheelRangePicker = false
-                            } label: {
-                                Text("Xong")
-                                    .font(.subheadline).fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(Color.themePrimary)
-                                    .cornerRadius(10)
-                            }
+                        .pickerStyle(.wheel)
+                        Button {
+                            if stockGramsSelection < stockGramsRangeBase { stockGramsSelection = stockGramsRangeBase }
+                            showStockGramsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white).frame(maxWidth: .infinity)
+                                .padding(.vertical, 10).background(Color.themePrimary).cornerRadius(10)
                         }
                     }
                     .padding()
