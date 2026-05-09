@@ -337,14 +337,6 @@ struct AutoMaterialExportSheetView: View {
             issues.append("Còn sau luộc phải > 0 kg.")
         }
 
-        if standardPanWeightGrams <= 0 {
-            issues.append("Khối lượng/chảo (Chuẩn) phải > 0 kg để tính số lượng chảo.")
-        }
-
-        if panCount <= 0 {
-            issues.append("Số lượng chảo xào phải > 0 (được tính từ Còn sau luộc / Chuẩn).")
-        }
-
         let zeroFreshNames = freshRows
             .filter { Int($0.totalExportGrams.rounded()) <= 0 }
             .map { $0.name }
@@ -352,11 +344,47 @@ struct AutoMaterialExportSheetView: View {
             issues.append("Nguyên liệu tươi chưa nhập số lượng: \(zeroFreshNames.joined(separator: ", ")).")
         }
 
-        let zeroAutoNames = autoRows
-            .filter { Int($0.totalExportGrams.rounded()) <= 0 }
-            .map { $0.name }
-        if !zeroAutoNames.isEmpty {
-            issues.append("Nguyên liệu xuất tự động chưa hợp lệ (tổng xuất = 0): \(zeroAutoNames.joined(separator: ", ")).")
+        if subSheetStates.isEmpty {
+            // Validation cho mode không có sub-sheet
+            if standardPanWeightGrams <= 0 {
+                issues.append("Khối lượng/chảo (Chuẩn) phải > 0 kg để tính số lượng chảo.")
+            }
+            if panCount <= 0 {
+                issues.append("Số lượng chảo xào phải > 0 (được tính từ Còn sau luộc / Chuẩn).")
+            }
+            let zeroAutoNames = autoRows
+                .filter { Int($0.totalExportGrams.rounded()) <= 0 }
+                .map { $0.name }
+            if !zeroAutoNames.isEmpty {
+                issues.append("Nguyên liệu xuất tự động chưa hợp lệ (tổng xuất = 0): \(zeroAutoNames.joined(separator: ", ")).")
+            }
+        } else {
+            // Validation cho từng sub-sheet
+            for (i, s) in subSheetStates.enumerated() {
+                let label = s.name.isEmpty ? "Sub-sheet \(i + 1)" : s.name
+                if s.afterBoilGrams <= 0 {
+                    issues.append("\(label): Khối lượng sau luộc cần dùng phải > 0 kg.")
+                }
+                if s.standardPanWeightGrams <= 0 {
+                    issues.append("\(label): Khối lượng chuẩn/chảo phải > 0 kg.")
+                }
+                if s.panCount <= 0 {
+                    issues.append("\(label): Số chảo xào phải > 0.")
+                }
+                if !autoSelected.isEmpty {
+                    let zeroNames = autoRowsForSubSheet(i)
+                        .filter { Int($0.totalExportGrams.rounded()) <= 0 }
+                        .map { $0.name }
+                    if !zeroNames.isEmpty {
+                        issues.append("\(label): Nguyên liệu chưa hợp lệ (tổng = 0): \(zeroNames.joined(separator: ", ")).")
+                    }
+                }
+            }
+            // Kiểm tra tổng afterBoil sub-sheets ≈ main afterBoil
+            let totalSub = subSheetStates.reduce(0) { $0 + $1.afterBoilGrams }
+            if abs(totalSub - afterBoilGrams) > 100 { // sai lệch > 100g
+                issues.append("Tổng khối lượng sau luộc của các sub-sheet (\(FormatUtils.formatKgDecimal(fromGrams: totalSub)) kg) chưa khớp với còn sau luộc (\(FormatUtils.formatKgDecimal(fromGrams: afterBoilGrams)) kg).")
+            }
         }
 
         let overRows = totalExportByMaterialName.filter { $0.isOver }
@@ -1592,8 +1620,19 @@ struct AutoMaterialExportSheetView: View {
                 standardPanWeightGrams: standardPanWeightGrams,
                 actualPanWeightGrams: actualPanWeightGrams,
                 autoMaterialsTitle: autoMaterialsTitle,
-                autoRows: autoRows,
-                extraPanRows: autoRowsForExtraPan,
+                autoRows: subSheetStates.isEmpty ? autoRows : [],
+                extraPanRows: subSheetStates.isEmpty ? autoRowsForExtraPan : [],
+                subSheetSlips: subSheetStates.indices.map { i in
+                    SubSheetSlipData(
+                        name: subSheetStates[i].name,
+                        afterBoilGrams: subSheetStates[i].afterBoilGrams,
+                        panCount: subSheetStates[i].panCount,
+                        standardPanWeightGrams: subSheetStates[i].standardPanWeightGrams,
+                        actualPanWeightGrams: subSheetStates[i].actualPanWeightGrams,
+                        autoRows: autoRowsForSubSheet(i),
+                        extraPanRows: autoRowsForExtraPanSubSheet(i)
+                    )
+                },
                 sequenceNumber: resolvedAutoSTT,
                 onConfirmAfterShare: {
                     Task { await confirmExport() }
@@ -2408,6 +2447,18 @@ private struct MaterialMultiSelectSheet: View {
 
 // MARK: - Export Slip Share Sheet
 
+/// Dữ liệu một sub-sheet để hiển thị trên phiếu in
+private struct SubSheetSlipData: Identifiable {
+    let id = UUID()
+    let name: String
+    let afterBoilGrams: Int
+    let panCount: Int
+    let standardPanWeightGrams: Int
+    let actualPanWeightGrams: Double
+    let autoRows: [AutoMaterialExportLogRow]
+    let extraPanRows: [AutoMaterialExportLogRow]
+}
+
 private struct ExportSlipShareSheet: View {
     let templateName: String
     let creatorName: String
@@ -2424,6 +2475,7 @@ private struct ExportSlipShareSheet: View {
     let autoMaterialsTitle: String
     let autoRows: [AutoMaterialExportLogRow]
     var extraPanRows: [AutoMaterialExportLogRow] = []
+    var subSheetSlips: [SubSheetSlipData] = []   // Dữ liệu sub-sheets để in
     var sequenceNumber: String? = nil
     var onConfirmAfterShare: (() -> Void)? = nil
 
@@ -2485,8 +2537,15 @@ private struct ExportSlipShareSheet: View {
     private var totalExportSummary: [(name: String, grams: Int)] {
         var map: [String: Int] = [:]
         for r in freshRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
-        for r in autoRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
-        for r in extraPanRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
+        if subSheetSlips.isEmpty {
+            for r in autoRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
+            for r in extraPanRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
+        } else {
+            for slip in subSheetSlips {
+                for r in slip.autoRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
+                for r in slip.extraPanRows { map[r.name, default: 0] += Int(max(0, r.totalExportGrams.rounded())) }
+            }
+        }
         return map.keys.sorted().map { ($0, map[$0] ?? 0) }
     }
 
@@ -2544,89 +2603,43 @@ private struct ExportSlipShareSheet: View {
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
 
-            // Auto materials
-            if !autoRows.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(autoMaterialsTitle)
-                        .font(.headline)
-
-                    // Column headers
-                    HStack {
-                        Text("Nguyên liệu")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("/Chảo (TT)")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                            .frame(width: 90, alignment: .trailing)
-                        Text("Tổng xuất")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                            .frame(width: 80, alignment: .trailing)
-                    }
-                    .padding(.bottom, 2)
-
-                    Divider()
-
-                    ForEach(autoRows) { row in
-                        HStack {
-                            Text(row.name)
-                                .font(.subheadline)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text(FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())))
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .frame(width: 90, alignment: .trailing)
-                            Text(FormatUtils.formatWeight(Int(max(0, row.totalExportGrams.rounded()))))
-                                .font(.subheadline)
+            // Auto materials hoặc sub-sheets
+            if subSheetSlips.isEmpty {
+                // Không có sub-sheet: hiển thị như cũ
+                if !autoRows.isEmpty {
+                    autoRowsBlock(title: autoMaterialsTitle, rows: autoRows, extraRows: extraPanRows, tint: Color.gray.opacity(0.06))
+                }
+            } else {
+                // Có sub-sheet: mỗi sub-sheet một block riêng
+                ForEach(subSheetSlips) { slip in
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Sub-sheet header
+                        HStack(spacing: 6) {
+                            Image(systemName: "rectangle.split.3x1")
+                                .font(.caption)
+                                .foregroundStyle(Color.themePrimary)
+                            Text(slip.name)
+                                .font(.headline)
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.themePrimary)
-                                .frame(width: 80, alignment: .trailing)
                         }
-                        .padding(.vertical, 2)
+                        HStack(spacing: 16) {
+                            Label("\(FormatUtils.formatKgDecimal(fromGrams: slip.afterBoilGrams)) kg", systemImage: "scalemass")
+                                .font(.caption).foregroundStyle(.gray)
+                            Label("\(slip.panCount) chảo", systemImage: "flame")
+                                .font(.caption).foregroundStyle(.gray)
+                            Label("\(FormatUtils.formatKgDecimal(fromGrams: Int(slip.actualPanWeightGrams.rounded()))) kg/chảo", systemImage: "chart.bar")
+                                .font(.caption).foregroundStyle(.gray)
+                        }
+                    }
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.themePrimary.opacity(0.07)))
+
+                    if !slip.autoRows.isEmpty {
+                        autoRowsBlock(title: autoMaterialsTitle, rows: slip.autoRows, extraRows: slip.extraPanRows, tint: Color.gray.opacity(0.06))
                     }
                 }
-                .padding(12)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
-            }
-
-            // Extra pan rows (xào thêm)
-            if !extraPanRows.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Nguyên liệu xuất tự động cho phần xào thêm")
-                        .font(.headline)
-                        .foregroundStyle(Color.orange)
-
-                    HStack {
-                        Text("Nguyên liệu")
-                            .font(.caption).foregroundStyle(.gray)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("Tổng xuất")
-                            .font(.caption).foregroundStyle(.gray)
-                            .frame(width: 80, alignment: .trailing)
-                    }
-                    .padding(.bottom, 2)
-
-                    Divider()
-
-                    ForEach(extraPanRows) { row in
-                        HStack {
-                            Text(row.name)
-                                .font(.subheadline)
-                                .foregroundStyle(Color.orange)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text(FormatUtils.formatWeight(Int(max(0, row.totalExportGrams.rounded()))))
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.orange)
-                                .frame(width: 80, alignment: .trailing)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-                .padding(12)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.orange.opacity(0.06)))
             }
 
             // Tổng khối lượng cần xuất
@@ -2691,6 +2704,47 @@ private struct ExportSlipShareSheet: View {
             }
             .padding(.top, 8)
         }
+    }
+
+    @ViewBuilder
+    private func autoRowsBlock(title: String, rows: [AutoMaterialExportLogRow], extraRows: [AutoMaterialExportLogRow], tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            HStack {
+                Text("Nguyên liệu").font(.caption).foregroundStyle(.gray).frame(maxWidth: .infinity, alignment: .leading)
+                Text("/Chảo (TT)").font(.caption).foregroundStyle(.gray).frame(width: 90, alignment: .trailing)
+                Text("Tổng xuất").font(.caption).foregroundStyle(.gray).frame(width: 80, alignment: .trailing)
+            }
+            .padding(.bottom, 2)
+            Divider()
+            ForEach(rows) { row in
+                HStack {
+                    Text(row.name).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
+                    Text(FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())))
+                        .font(.subheadline).fontWeight(.semibold).frame(width: 90, alignment: .trailing)
+                    Text(FormatUtils.formatWeight(Int(max(0, row.totalExportGrams.rounded()))))
+                        .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themePrimary)
+                        .frame(width: 80, alignment: .trailing)
+                }
+                .padding(.vertical, 2)
+            }
+            if !extraRows.isEmpty {
+                Divider().padding(.top, 4)
+                Text("Xào thêm").font(.caption).fontWeight(.semibold).foregroundStyle(Color.orange)
+                ForEach(extraRows) { row in
+                    HStack {
+                        Text(row.name).font(.subheadline).foregroundStyle(Color.orange).frame(maxWidth: .infinity, alignment: .leading)
+                        Text("—").font(.subheadline).frame(width: 90, alignment: .trailing)
+                        Text(FormatUtils.formatWeight(Int(max(0, row.totalExportGrams.rounded()))))
+                            .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.orange)
+                            .frame(width: 80, alignment: .trailing)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(tint))
     }
 
     private func slipInfoRow(label: String, value: String) -> some View {
