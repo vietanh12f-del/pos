@@ -421,6 +421,9 @@ struct AutoMaterialExportSheetView: View {
                     summarySection
                     confirmSection
                 }
+                .animation(.none, value: needsExtraPan)
+                .animation(.none, value: surplusThresholdKg)
+                .animation(.none, value: subSheetStates.map(\.surplusThresholdKg))
                 .padding(.horizontal)
                 .padding(.vertical, 12)
             }
@@ -1187,6 +1190,7 @@ struct AutoMaterialExportSheetView: View {
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+        .animation(.none, value: needsExtraPan)
     }
 
     // MARK: - Sub-sheet block
