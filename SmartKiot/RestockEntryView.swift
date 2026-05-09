@@ -1326,6 +1326,8 @@ struct ManualRestockItemView: View {
     @State private var showFinishedGoodPicker = false
     @State private var showValidationAlert = false
     @State private var validationAlertMessage = ""
+
+    @AppStorage("production_enabled_global") private var productionEnabled: Bool = true
     
     private var isSimpleFinishedGoodsEdit: Bool {
         isFinishedGoods && itemToEdit != nil && editTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "sửa thành phẩm"
@@ -1392,7 +1394,7 @@ struct ManualRestockItemView: View {
                         }
                     }
                     
-                    if !isFinishedGoods && !addTitle.lowercased().contains("nguyên liệu") {
+                    if !isFinishedGoods && !addTitle.lowercased().contains("nguyên liệu") && productionEnabled {
                         Toggle("Nhập từ thành phẩm", isOn: $importFromFinishedGood)
                             .padding(.vertical, 4)
                             .tint(Color.themePrimary)
@@ -1481,9 +1483,12 @@ struct ManualRestockItemView: View {
                                     .fontWeight(.semibold)
                             }
                         }
-                        
+
                         HStack {
-                            Text("Chi phí phát sinh")
+                            HStack(spacing: 4) {
+                                Text("Chi phí phát sinh")
+                                InfoPopoverButton(text: "Chi phí vận chuyển, bốc xếp hoặc các chi phí khác phát sinh khi nhập hàng. Được cộng vào tổng chi phí và chia đều vào đơn giá.")
+                            }
                             Spacer()
                             Button {
                                 if let v = parseDouble(incurredCost) { additionalCostWheelSelection = Int(v) }
@@ -1497,10 +1502,16 @@ struct ManualRestockItemView: View {
                         let pVal = parseDouble(price) ?? Double(unitPriceWheelSelection)
                         let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
                         let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
-                        let qVal = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                        // Hàng hoá tính theo cái: dùng quantityWheelSelection; nguyên liệu/thành phẩm tính theo gram
+                        let qVal = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : quantityWheelSelection
                         let incVal = parseDouble(incurredCost) ?? Double(additionalCostWheelSelection)
                         HStack {
-                            Text(isFinishedGoods ? (isFGExport ? "Giá xuất" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
+                            HStack(spacing: 4) {
+                                Text(isFinishedGoods ? (isFGExport ? "Giá xuất" : "Giá bán gồm chi phí") : (isMatExport ? "Giá xuất" : "Giá nhập gồm chi phí"))
+                                InfoPopoverButton(text: isMatExport
+                                    ? "Đơn giá xuất."
+                                    : "Đơn giá nhập + Chi phí phát sinh / Số lượng.\nPhản ánh giá vốn thực tế mỗi đơn vị sau khi tính chi phí.")
+                            }
                             Spacer()
                             Text(getCalculatedUnitPriceDisplay(pVal: pVal, qVal: qVal, incVal: incVal, isMatExport: isMatExport))
                                 .fontWeight(.semibold)
@@ -1546,19 +1557,24 @@ struct ManualRestockItemView: View {
                     if !isSimpleFinishedGoodsEdit, let p = parseDouble(price) {
                         let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
                         let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
-                        let q = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+                        let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : quantityWheelSelection
                         if q > 0 {
                             let extra = parseDouble(incurredCost) ?? 0
                             let total = getCalculatedTotal(pVal: p, qVal: q, incVal: extra, isMatExport: isMatExport)
-                            
+
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
-                                    Text(isFinishedGoods ? (isFGExport ? "Tổng xuất thành phẩm:" : "Tổng nhập thành phẩm:") : (isMatExport ? "Tổng xuất nguyên liệu:" : "Tổng chi phí:"))
+                                    HStack(spacing: 4) {
+                                        Text(isFinishedGoods ? (isFGExport ? "Tổng xuất thành phẩm:" : "Tổng nhập thành phẩm:") : (isMatExport ? "Tổng xuất nguyên liệu:" : "Tổng chi phí:"))
+                                        InfoPopoverButton(text: isMatExport
+                                            ? "Số lượng × Đơn giá xuất."
+                                            : "Số lượng × Đơn giá nhập + Chi phí phát sinh.")
+                                    }
                                     Spacer()
                                     Text(formatCurrency(total))
                                         .fontWeight(.bold)
                                 }
-                                
+
                                 HStack {
                                     Text(isFinishedGoods ? (isFGExport ? "Giá xuất:" : "Giá bán (bao gồm chi phí):") : (isMatExport ? "Đơn giá xuất:" : "Đơn giá nhập (bao gồm chi phí):"))
                                         .font(.caption)
@@ -2197,18 +2213,30 @@ struct ManualRestockItemView: View {
     }
 
     private func getCalculatedUnitPriceDisplay(pVal: Double, qVal: Int, incVal: Double, isMatExport: Bool) -> String {
-        if qVal > 0 {
-            let total = getCalculatedTotal(pVal: pVal, qVal: qVal, incVal: incVal, isMatExport: isMatExport)
-            let unitValue = isMatExport ? pVal : (total / (Double(qVal) / 1000.0))
-            return formatCurrency(unitValue)
+        guard qVal > 0 else { return "—" }
+        if isMatExport { return formatCurrency(pVal) }
+        // Giá nhập gồm chi phí = đơn giá nhập + chi phí / số lượng
+        if useKgGram {
+            let qKg = Double(qVal) / 1000.0
+            guard qKg > 0 else { return "—" }
+            return formatCurrency(pVal + incVal / qKg)
         } else {
-            return "—"
+            return formatCurrency(pVal + incVal / Double(qVal))
         }
     }
 
     private func getCalculatedTotal(pVal: Double, qVal: Int, incVal: Double, isMatExport: Bool) -> Double {
-        let quantityInKg = Double(qVal) / 1000.0
-        return isMatExport ? (pVal * quantityInKg) : ((pVal * quantityInKg) + incVal)
+        if isMatExport {
+            let quantityInKg = Double(qVal) / 1000.0
+            return pVal * quantityInKg
+        }
+        // Tổng chi phí = số lượng × đơn giá nhập + chi phí phát sinh
+        if useKgGram {
+            let quantityInKg = Double(qVal) / 1000.0
+            return pVal * quantityInKg + incVal
+        } else {
+            return pVal * Double(qVal) + incVal
+        }
     }
 
     private func handleItemSelection(_ n: String, isMaterialsCtx: Bool) {
@@ -2226,6 +2254,10 @@ struct ManualRestockItemView: View {
                 let defaultCost = p.costPrice > 0 ? p.costPrice : p.price * 0.7
                 unitPriceWheelSelection = Int(defaultCost)
                 price = String(Int(defaultCost))
+                // Set giá bán dự kiến = giá bán hiện tại của sản phẩm nếu có, không thì 130% giá nhập
+                if !isFinishedGoods && suggestedPriceWheelSelection == 0 {
+                    suggestedPriceWheelSelection = p.price > 0 ? Int(p.price) : Int(defaultCost * 1.3)
+                }
             }
         }
         if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -2388,6 +2420,10 @@ struct ManualRestockItemView: View {
 
     private func handleSaveUnitPrice() {
         price = String(unitPriceWheelSelection)
+        // Tự động set giá bán dự kiến = 130% giá nhập nếu chưa có giá bán
+        if !isFinishedGoods && suggestedPriceWheelSelection == 0 {
+            suggestedPriceWheelSelection = Int(Double(unitPriceWheelSelection) * 1.3)
+        }
         showUnitPriceWheel = false
     }
 
@@ -2706,6 +2742,28 @@ struct ManualRestockItemView: View {
         }
     }
  
+}
+
+private struct InfoPopoverButton: View {
+    let text: String
+    @State private var show = false
+    var body: some View {
+        Button { show = true } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.gray.opacity(0.6))
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $show, arrowEdge: .top) {
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(14)
+                .frame(width: 260)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
 }
 
 private struct ZoomableView<Content: View>: View {
