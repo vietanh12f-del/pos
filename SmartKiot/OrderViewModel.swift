@@ -2359,6 +2359,7 @@ class OrderViewModel: ObservableObject {
                     let total = isPiece ? (it.unitPrice * Double(it.quantity) + it.additionalCost) : (it.unitPrice * (Double(it.quantity) / 1000.0) + it.additionalCost)
                     let unitInclusive = isPiece ? (it.quantity > 0 ? total / Double(it.quantity) : it.unitPrice) : (it.quantity > 0 ? total / (Double(it.quantity) / 1000.0) : it.unitPrice)
                     m.lastUnitPrice = unitInclusive
+                    m.hasVAT = it.hasVAT // Cập nhật VAT từ RestockItem
                     if let newCat = it.category, !newCat.isEmpty, m.category != newCat {
                         m.category = newCat
                         self.materialCategories.insert(newCat)
@@ -2380,7 +2381,7 @@ class OrderViewModel: ObservableObject {
                     let total = (it.unitPrice * Double(it.quantity)) + it.additionalCost
                     let unitInclusive = it.quantity > 0 ? (total / Double(it.quantity)) : it.unitPrice
                     let cat = it.category ?? Category.materials.rawValue
-                    let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: unitInclusive, category: cat, unit: it.unit)
+                    let m = MaterialItem(id: UUID(), name: it.name, stockQuantity: it.quantity, lastUnitPrice: unitInclusive, category: cat, unit: it.unit, hasVAT: it.hasVAT)
                     do { try await database.saveMaterial(m) }
                     catch { print("❌ saveMaterial error: \(error)") }
                     current.append(m)
@@ -2564,15 +2565,15 @@ class OrderViewModel: ObservableObject {
         let modeLower = updated.mode.lowercased()
         let isImport = modeLower.contains("nhập")
         let isExport = modeLower.contains("xuất")
-        var map: [String: (origQty: Int, newQty: Int, newPriceIncl: Double?, unit: String?)] = [:]
+        var map: [String: (origQty: Int, newQty: Int, newPriceIncl: Double?, unit: String?, hasVAT: Bool)] = [:]
         for it in original.items {
             let k = it.name.lowercased()
-            map[k] = (it.quantity, map[k]?.newQty ?? 0, map[k]?.newPriceIncl, it.unit)
+            map[k] = (it.quantity, map[k]?.newQty ?? 0, map[k]?.newPriceIncl, it.unit, it.hasVAT)
         }
         for it in updated.items {
             let k = it.name.lowercased()
             let o = map[k]?.origQty ?? 0
-            map[k] = (o, it.quantity, it.finalUnitCost, it.unit)
+            map[k] = (o, it.quantity, it.finalUnitCost, it.unit, it.hasVAT)
         }
         await loadMaterials()
         var current = self.materials
@@ -2584,6 +2585,7 @@ class OrderViewModel: ObservableObject {
                 if isImport {
                     m.stockQuantity = max(0, m.stockQuantity + delta)
                     if let p = info.newPriceIncl { m.lastUnitPrice = p }
+                    m.hasVAT = info.hasVAT
                 } else if isExport {
                     m.stockQuantity = max(0, m.stockQuantity + delta)
                 }
@@ -2593,7 +2595,7 @@ class OrderViewModel: ObservableObject {
                 if isImport {
                     let q = max(0, delta)
                     let p = info.newPriceIncl ?? 0
-                    let m = MaterialItem(id: UUID(), name: name, stockQuantity: q, lastUnitPrice: p, category: Category.materials.rawValue, unit: info.unit)
+                    let m = MaterialItem(id: UUID(), name: name, stockQuantity: q, lastUnitPrice: p, category: Category.materials.rawValue, unit: info.unit, hasVAT: info.hasVAT)
                     try? await database.saveMaterial(m)
                     current.append(m)
                 }
