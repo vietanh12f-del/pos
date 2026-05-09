@@ -2665,14 +2665,9 @@ private struct ExportSlipShareSheet: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.themePrimary.opacity(0.06)))
             }
 
-            // Footer info
+            // Footer info — chỉ hiện "còn sau luộc", bỏ số chảo và KL/chảo vì đã có ở trên
             VStack(alignment: .leading, spacing: 6) {
                 slipInfoRow(label: afterBoilTitle, value: FormatUtils.formatWeight(afterBoilGrams))
-                slipInfoRow(label: panCountTitle, value: "\(panCount) chảo")
-                slipInfoRow(
-                    label: panWeightTitle,
-                    value: "Chuẩn: \(FormatUtils.formatKgDecimal(fromGrams: standardPanWeightGrams)) kg  •  TT: \(FormatUtils.formatKgDecimal(fromGrams: Int(actualPanWeightGrams.rounded()))) kg"
-                )
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
