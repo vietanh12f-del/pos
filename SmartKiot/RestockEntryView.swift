@@ -1301,6 +1301,8 @@ struct ManualRestockItemView: View {
     @State private var suggestedPriceWheelRangeBase = 0
     @State private var showSuggestedPriceWheelRangePicker = false
     @State private var userEditedSuggestedPrice = false // flag: user đã tự chỉnh giá bán
+    @State private var markupPercent: Double = 30 // % lợi nhuận trên giá vốn
+    @State private var showMarkupPicker = false
     @State private var showWeightPerUnitWheel = false
     @State private var weightPerUnitKgSelection = 0
     @State private var weightPerUnitGramsSelection = 0
@@ -1584,6 +1586,55 @@ struct ManualRestockItemView: View {
                                     Text(getCalculatedUnitPriceDisplay(pVal: p, qVal: q, incVal: extra, isMatExport: isMatExport))
                                         .font(.caption)
                                         .foregroundStyle(.gray)
+                                }
+                                
+                                // Giá bán dự kiến — chỉ hiện cho hàng hoá thông thường
+                                if !isFinishedGoods && !isMatExport {
+                                    let unitCost: Double = {
+                                        if useKgGram {
+                                            let kg = Double(q) / 1000.0
+                                            return kg > 0 ? p + extra / kg : p
+                                        } else {
+                                            return q > 0 ? p + extra / Double(q) : p
+                                        }
+                                    }()
+                                    let displayedSuggestedPrice = userEditedSuggestedPrice
+                                        ? Double(suggestedPriceWheelSelection)
+                                        : unitCost * (1 + markupPercent / 100)
+                                    
+                                    HStack(spacing: 6) {
+                                        Text("Giá bán dự kiến:")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        
+                                        Spacer()
+                                        
+                                        // Button % — tap mở popup bánh xe
+                                        Button {
+                                            showMarkupPicker = true
+                                        } label: {
+                                            Text("+\(Int(markupPercent))%")
+                                                .font(.caption2)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background(Color.orange.opacity(0.85))
+                                                .clipShape(Capsule())
+                                        }
+                                        .buttonStyle(.plain)
+                                        
+                                        // Giá bán — tap để chỉnh thủ công
+                                        Button {
+                                            suggestedPriceWheelSelection = Int(displayedSuggestedPrice)
+                                            showSuggestedPriceWheel = true
+                                        } label: {
+                                            Text(formatCurrency(displayedSuggestedPrice))
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(Color.primary)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                 }
                             }
                             .foregroundStyle(.secondary)
@@ -2167,6 +2218,32 @@ struct ManualRestockItemView: View {
                 }
             }
         }
+        .sheet(isPresented: $showMarkupPicker) {
+            VStack(spacing: 16) {
+                Text("Chỉnh % lợi nhuận")
+                    .font(.headline)
+                    .padding(.top, 8)
+                
+                Picker("% lợi nhuận", selection: Binding(
+                    get: { Int(markupPercent) },
+                    set: { markupPercent = Double($0); userEditedSuggestedPrice = false }
+                )) {
+                    ForEach(1...999, id: \.self) { pct in
+                        Text("+\(pct)%").tag(pct)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(height: 160)
+                
+                Button("Xong") { showMarkupPicker = false }
+                    .font(.headline)
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.orange)
+                    .padding(.bottom, 8)
+            }
+            .padding(.horizontal)
+            .presentationDetents([.height(280)])
+        }
     }
     
     func uploadSelectedDocumentImage() {
@@ -2350,8 +2427,8 @@ struct ManualRestockItemView: View {
         } else {
             finalUnitCost = q > 0 ? p + extra / Double(q) : p
         }
-        // Giá bán = 130% giá vốn gồm chi phí; chỉ dùng giá user nhập nếu user đã tự chỉnh
-        let suggested: Double? = (!isFinishedGoods ? (userEditedSuggestedPrice ? Double(suggestedPriceWheelSelection) : finalUnitCost * 1.3) : nil)
+        // Giá bán = (100 + markupPercent)% giá vốn gồm chi phí; chỉ dùng giá user nhập nếu user đã tự chỉnh
+        let suggested: Double? = (!isFinishedGoods ? (userEditedSuggestedPrice ? Double(suggestedPriceWheelSelection) : finalUnitCost * (1 + markupPercent / 100)) : nil)
         let perUnitGrams: Int? = {
             guard treatFinishedGoodsAsUnits || importFromFinishedGood else { return nil }
             let grams = weightPerUnitKgSelection * 1000 + weightPerUnitGramsSelection
