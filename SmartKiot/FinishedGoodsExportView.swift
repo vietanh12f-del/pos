@@ -420,39 +420,93 @@ struct FinishedGoodsExportView: View {
             Text(itemsSectionLabel)
                 .font(.headline)
 
+            // Header row
+            HStack {
+                Text("Tên")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("SL")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .frame(width: 72, alignment: .trailing)
+                Text("Đơn giá")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .frame(width: 80, alignment: .trailing)
+                Text("Thành tiền")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .frame(width: 90, alignment: .trailing)
+            }
+            .padding(.horizontal, 4)
+
+            Divider()
+
             ForEach(items) { item in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name)
-                            .font(.subheadline)
-                        if isRegularRestock {
-                            // Hàng hoá: hiển thị số lượng nguyên
-                            Text("SL: \(item.quantity)")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                        } else {
-                            // Nguyên liệu / thành phẩm: hiển thị kg hoặc cái
-                            Text(FormatUtils.formatWeight(item.quantity, unit: item.unit))
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                        }
-                        if item.additionalCost > 0 {
-                            Text("Chi phí: \(formatCurrency(item.additionalCost))")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                    Spacer()
-                    if isRegularRestock || item.unit?.lowercased() == "cái" {
-                        Text(formatCurrency(Double(item.quantity) * item.unitPrice))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
+                let isCai = item.unit?.lowercased() == "cái"
+                let lineTotal: Double = {
+                    if isRegularRestock || isCai {
+                        return Double(item.quantity) * item.unitPrice + item.additionalCost
                     } else {
-                        Text(formatCurrency(Double(item.quantity) / 1000.0 * item.unitPrice))
+                        return Double(item.quantity) / 1000.0 * item.unitPrice + item.additionalCost
+                    }
+                }()
+                let qtyText: String = {
+                    if isRegularRestock { return "\(item.quantity)" }
+                    return FormatUtils.formatWeight(item.quantity, unit: item.unit)
+                }()
+                let unitLabel = isCai ? "/cái" : (isRegularRestock ? "/đv" : "/kg")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top) {
+                        // Tên + badges
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 4) {
+                                Text(item.name)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(Color.themeTextDark)
+                                if item.hasVAT {
+                                    Text("VAT")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Color.green.opacity(0.85))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            if item.additionalCost > 0 {
+                                Text("+ Chi phí: \(formatCurrency(item.additionalCost))")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text(qtyText)
                             .font(.subheadline)
                             .fontWeight(.semibold)
+                            .foregroundStyle(Color.themeTextDark)
+                            .frame(width: 72, alignment: .trailing)
+
+                        Text(formatCurrency(item.unitPrice) + unitLabel)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themeTextDark)
+                            .frame(width: 80, alignment: .trailing)
+
+                        Text(formatCurrency(lineTotal))
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themePrimary)
+                            .frame(width: 90, alignment: .trailing)
                     }
                 }
+                .padding(.vertical, 6)
+                .padding(.horizontal, 4)
+
                 Divider()
             }
 
@@ -498,6 +552,8 @@ struct FinishedGoodsExportView: View {
                     .foregroundStyle(Color.themePrimary)
             }
         }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
