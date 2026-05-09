@@ -1426,7 +1426,7 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Restock Actions
     
-    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil, source: String? = nil, documentImageURL: String? = nil, weightPerUnitGrams: Int? = nil, isFinishedGood: Bool = false, importFromFinishedGood: Bool = false, sourceFinishedGoodId: UUID? = nil, unit: String? = nil) {
+    func addRestockItem(_ name: String, unitPrice: Double, quantity: Int, additionalCost: Double = 0, suggestedPrice: Double? = nil, category: String? = nil, source: String? = nil, documentImageURL: String? = nil, weightPerUnitGrams: Int? = nil, isFinishedGood: Bool = false, importFromFinishedGood: Bool = false, sourceFinishedGoodId: UUID? = nil, unit: String? = nil, hasVAT: Bool = false) {
         restockItems.append(
             RestockItem(
                 name: name,
@@ -1442,7 +1442,8 @@ class OrderViewModel: ObservableObject {
                 isFinishedGood: isFinishedGood,
                 importFromFinishedGood: importFromFinishedGood,
                 sourceFinishedGoodId: sourceFinishedGoodId,
-                unit: unit
+                unit: unit,
+                hasVAT: hasVAT
             )
         )
     }

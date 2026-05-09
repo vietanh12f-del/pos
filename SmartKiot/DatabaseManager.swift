@@ -1201,13 +1201,14 @@ struct ProductDTO: Codable {
     let barcode: String?
     let image_url: String?
     let is_finished_good: Bool?
+    let has_vat: Bool?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, price, category, image_name, color, stock_quantity, stock_weight_kg, cost_price, store_id, barcode, image_url, is_finished_good
+        case id, name, price, category, image_name, color, stock_quantity, stock_weight_kg, cost_price, store_id, barcode, image_url, is_finished_good, has_vat
         case costPrice // Fallback for camelCase
     }
     
-    init(id: UUID, name: String, price: Double, category: String, image_name: String?, color: String?, stock_quantity: Int, stock_weight_kg: Double?, cost_price: Double?, store_id: UUID?, barcode: String?, image_url: String?, is_finished_good: Bool? = nil) {
+    init(id: UUID, name: String, price: Double, category: String, image_name: String?, color: String?, stock_quantity: Int, stock_weight_kg: Double?, cost_price: Double?, store_id: UUID?, barcode: String?, image_url: String?, is_finished_good: Bool? = nil, has_vat: Bool? = nil) {
         self.id = id
         self.name = name
         self.price = price
@@ -1221,6 +1222,7 @@ struct ProductDTO: Codable {
         self.barcode = barcode
         self.image_url = image_url
         self.is_finished_good = is_finished_good
+        self.has_vat = has_vat
     }
     
     init(from decoder: Decoder) throws {
@@ -1237,6 +1239,7 @@ struct ProductDTO: Codable {
         barcode = try container.decodeIfPresent(String.self, forKey: .barcode)
         image_url = try container.decodeIfPresent(String.self, forKey: .image_url)
         is_finished_good = try container.decodeIfPresent(Bool.self, forKey: .is_finished_good)
+        has_vat = try container.decodeIfPresent(Bool.self, forKey: .has_vat)
         
         // Robust decoding: Try cost_price (snake_case) first, then costPrice (camelCase)
         if let cp = try container.decodeIfPresent(Double.self, forKey: .cost_price) {
@@ -1256,11 +1259,12 @@ struct ProductDTO: Codable {
         try container.encode(color, forKey: .color)
         try container.encode(stock_quantity, forKey: .stock_quantity)
         try container.encode(stock_weight_kg, forKey: .stock_weight_kg)
-        try container.encode(cost_price, forKey: .cost_price) // Always persist as snake_case
+        try container.encode(cost_price, forKey: .cost_price)
         try container.encode(store_id, forKey: .store_id)
         try container.encode(barcode, forKey: .barcode)
         try container.encode(image_url, forKey: .image_url)
         try container.encode(is_finished_good ?? false, forKey: .is_finished_good)
+        try container.encodeIfPresent(has_vat, forKey: .has_vat)
     }
     
     init(from domain: Product, inventory: [String: Int] = [:]) {
@@ -1277,14 +1281,15 @@ struct ProductDTO: Codable {
         self.barcode = domain.barcode
         self.image_url = domain.imageURL
         self.is_finished_good = domain.isFinishedGood
+        self.has_vat = domain.hasVAT
     }
     
     func toDomain() -> Product {
-        return Product(id: id, name: name, price: price, costPrice: cost_price ?? 0, category: category, imageName: image_name ?? "shippingbox", color: color ?? "gray", imageData: nil, imageURL: image_url, stockQuantity: stock_quantity, barcode: barcode, isFinishedGood: is_finished_good ?? false)
+        return Product(id: id, name: name, price: price, costPrice: cost_price ?? 0, category: category, imageName: image_name ?? "shippingbox", color: color ?? "gray", imageData: nil, imageURL: image_url, stockQuantity: stock_quantity, barcode: barcode, isFinishedGood: is_finished_good ?? false, hasVAT: has_vat ?? false)
     }
     
     func withStore(_ storeId: UUID) -> ProductDTO {
-        return ProductDTO(id: id, name: name, price: price, category: category, image_name: image_name, color: color, stock_quantity: stock_quantity, stock_weight_kg: stock_weight_kg, cost_price: cost_price, store_id: storeId, barcode: barcode, image_url: image_url, is_finished_good: is_finished_good)
+        return ProductDTO(id: id, name: name, price: price, category: category, image_name: image_name, color: color, stock_quantity: stock_quantity, stock_weight_kg: stock_weight_kg, cost_price: cost_price, store_id: storeId, barcode: barcode, image_url: image_url, is_finished_good: is_finished_good, has_vat: has_vat)
     }
 }
 
@@ -1476,6 +1481,7 @@ struct RestockItemDTO: Codable {
     let weight_per_unit_grams: Int?
     let is_finished_good: Bool?
     let unit: String?
+    let has_vat: Bool?
     // import_from_finished_good và source_finished_good_id không có trong DB schema — chỉ decode, không encode
     let import_from_finished_good: Bool?
     let source_finished_good_id: UUID?
@@ -1483,7 +1489,7 @@ struct RestockItemDTO: Codable {
     enum CodingKeys: String, CodingKey {
         case id, bill_id, product_name, quantity, unit_price
         case additional_cost, suggested_price, category, source
-        case document_image_url, weight_per_unit_grams, is_finished_good, unit
+        case document_image_url, weight_per_unit_grams, is_finished_good, unit, has_vat
         // Không include import_from_finished_good và source_finished_good_id khi encode
     }
     
@@ -1503,6 +1509,7 @@ struct RestockItemDTO: Codable {
         weight_per_unit_grams = try c.decodeIfPresent(Int.self, forKey: .weight_per_unit_grams)
         is_finished_good = try c.decodeIfPresent(Bool.self, forKey: .is_finished_good)
         unit = try c.decodeIfPresent(String.self, forKey: .unit)
+        has_vat = try c.decodeIfPresent(Bool.self, forKey: .has_vat)
         // Các cột không có trong DB — set nil
         import_from_finished_good = nil
         source_finished_good_id = nil
@@ -1522,6 +1529,7 @@ struct RestockItemDTO: Codable {
         self.weight_per_unit_grams = domain.weightPerUnitGrams
         self.is_finished_good = domain.isFinishedGood
         self.unit = domain.unit
+        self.has_vat = domain.hasVAT
         self.import_from_finished_good = nil  // không lưu vào DB
         self.source_finished_good_id = nil    // không lưu vào DB
     }
@@ -1542,7 +1550,8 @@ struct RestockItemDTO: Codable {
             isFinishedGood: is_finished_good ?? false,
             importFromFinishedGood: import_from_finished_good ?? false,
             sourceFinishedGoodId: source_finished_good_id,
-            unit: unit
+            unit: unit,
+            hasVAT: has_vat ?? false
         )
     }
 }

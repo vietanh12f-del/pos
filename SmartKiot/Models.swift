@@ -35,6 +35,7 @@ struct RestockItem: Identifiable, Hashable, Codable {
     var importFromFinishedGood: Bool = false
     var sourceFinishedGoodId: UUID? = nil
     var unit: String? = nil
+    var hasVAT: Bool = false // Hàng hoá nhập có VAT hay không
     
     var totalCost: Double {
         if let u = unit, u.lowercased() == "cái" {
@@ -437,8 +438,9 @@ struct Product: Identifiable, Codable, Hashable {
     var stockQuantity: Int = 0
     var barcode: String? // New barcode field
     var isFinishedGood: Bool = false
+    var hasVAT: Bool = false // Hàng hoá nhập có VAT hay không
     
-    init(id: UUID = UUID(), name: String, price: Double, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false) {
+    init(id: UUID = UUID(), name: String, price: Double, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false, hasVAT: Bool = false) {
         self.id = id
         self.name = name
         self.price = price
@@ -451,6 +453,7 @@ struct Product: Identifiable, Codable, Hashable {
         self.stockQuantity = stockQuantity
         self.barcode = barcode
         self.isFinishedGood = isFinishedGood
+        self.hasVAT = hasVAT
     }
 }
 

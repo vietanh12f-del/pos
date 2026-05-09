@@ -53,6 +53,9 @@ struct ProductEditView: View {
     @State private var stockWheelRangeBase = 0
     @State private var showStockWheelRangePicker = false
     @State private var showDuplicateNameAlert = false
+    @State private var hasVAT: Bool = false
+    @State private var markupPercent: Double = 30
+    @State private var showMarkupPicker = false
     
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
     let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
@@ -87,6 +90,11 @@ struct ProductEditView: View {
             _selectedImageData = State(initialValue: product.imageData)
             _selectedImageURL = State(initialValue: product.imageURL)
             _isFinishedGood = State(initialValue: product.isFinishedGood)
+            _hasVAT = State(initialValue: product.hasVAT)
+            // markupPercent: tính ngược từ giá bán / giá vốn nếu có
+            if product.costPrice > 0 && product.price > product.costPrice {
+                _markupPercent = State(initialValue: ((product.price / product.costPrice) - 1) * 100)
+            }
             if let data = product.imageData, let uiImage = UIImage(data: data) {
                 _capturedImage = State(initialValue: uiImage)
             }
@@ -179,6 +187,14 @@ struct ProductEditView: View {
                         }
                     }
                     
+                    Toggle(isOn: $hasVAT) {
+                        HStack(spacing: 4) {
+                            Text("Có VAT")
+                            InfoPopoverButton(text: "Đánh dấu nếu hàng hoá này nhập có hoá đơn VAT.")
+                        }
+                    }
+                    .tint(Color.themePrimary)
+                    
                     if case .add = mode {
                         CurrencyTextField(title: "Chi phí phát sinh", text: $additionalCost)
                     }
@@ -186,6 +202,21 @@ struct ProductEditView: View {
                     HStack {
                         Text("Giá bán dự kiến")
                         Spacer()
+                        // Button % markup
+                        Button {
+                            showMarkupPicker = true
+                        } label: {
+                            Text("+\(Int(markupPercent))%")
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(Color.orange.opacity(0.85))
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        
                         Button {
                             if let v = Double(price) { priceWheelSelection = Int(v) }
                             showPriceWheel = true
@@ -507,6 +538,41 @@ struct ProductEditView: View {
                 )
                 BarcodePrintView(product: tempProduct)
             }
+            .sheet(isPresented: $showMarkupPicker) {
+                VStack(spacing: 16) {
+                    Text("Chỉnh % lợi nhuận")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    
+                    Picker("% lợi nhuận", selection: Binding(
+                        get: { Int(markupPercent) },
+                        set: { newVal in
+                            markupPercent = Double(newVal)
+                            // Tự động cập nhật giá bán theo % mới
+                            let costVal = Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))
+                            if costVal > 0 {
+                                let newPrice = costVal * (1 + markupPercent / 100)
+                                priceWheelSelection = Int(newPrice)
+                                price = String(Int(newPrice))
+                            }
+                        }
+                    )) {
+                        ForEach(1...999, id: \.self) { pct in
+                            Text("+\(pct)%").tag(pct)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .frame(height: 160)
+                    
+                    Button("Xong") { showMarkupPicker = false }
+                        .font(.headline)
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.orange)
+                        .padding(.bottom, 8)
+                }
+                .padding(.horizontal)
+                .presentationDetents([.height(280)])
+            }
             .sheet(isPresented: $showCostWheel) {
                 VStack(spacing: 12) {
                     HStack {
@@ -812,9 +878,9 @@ struct ProductEditView: View {
         case .add:
             viewModel.createProduct(name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood)
         case .edit(let product):
-            // We pass the isFinishedGood from the toggle, allowing users to convert types if needed
             var updatedProduct = product
             updatedProduct.isFinishedGood = isFinishedGood
+            updatedProduct.hasVAT = hasVAT
             viewModel.updateProduct(updatedProduct, name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL)
         }
         dismiss()

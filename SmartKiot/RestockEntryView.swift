@@ -1329,6 +1329,7 @@ struct ManualRestockItemView: View {
     @State private var showFinishedGoodPicker = false
     @State private var showValidationAlert = false
     @State private var validationAlertMessage = ""
+    @State private var hasVAT = false
 
     @AppStorage("production_enabled_global") private var productionEnabled: Bool = true
     
@@ -1501,6 +1502,14 @@ struct ManualRestockItemView: View {
                                     .fontWeight(.semibold)
                             }
                         }
+                        
+                        Toggle(isOn: $hasVAT) {
+                            HStack(spacing: 4) {
+                                Text("Có VAT")
+                                InfoPopoverButton(text: "Đánh dấu nếu hàng hoá này nhập có hoá đơn VAT.")
+                            }
+                        }
+                        .tint(Color.themePrimary)
                         
                         let pVal = parseDouble(price) ?? Double(unitPriceWheelSelection)
                         let isFGExport = isFinishedGoods && addTitle.lowercased().contains("xuất")
@@ -2445,6 +2454,7 @@ struct ManualRestockItemView: View {
             item.source = src.isEmpty ? nil : src
             item.documentImageURL = documentImageURL
             item.isConfirmed = true
+            item.hasVAT = hasVAT
             viewModel.updateRestockItem(item)
         } else {
             let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2461,7 +2471,8 @@ struct ManualRestockItemView: View {
                 isFinishedGood: isFinishedGoods,
                 importFromFinishedGood: importFromFinishedGood,
                 sourceFinishedGoodId: sourceFinishedGoodId,
-                unit: useKgGram ? selectedUnit : nil
+                unit: useKgGram ? selectedUnit : nil,
+                hasVAT: hasVAT
             )
         }
         dismiss()
@@ -2564,6 +2575,7 @@ struct ManualRestockItemView: View {
             
             importFromFinishedGood = item.importFromFinishedGood
             sourceFinishedGoodId = item.sourceFinishedGoodId
+            hasVAT = item.hasVAT
             
             if !isFinishedGoods {
                 if let sp = item.suggestedPrice {
@@ -2849,7 +2861,7 @@ struct ManualRestockItemView: View {
  
 }
 
-private struct InfoPopoverButton: View {
+struct InfoPopoverButton: View {
     let text: String
     @State private var show = false
     var body: some View {
