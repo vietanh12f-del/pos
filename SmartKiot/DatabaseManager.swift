@@ -1595,7 +1595,7 @@ struct RestockEditDTO: Codable {
         )
     }
 }
- 
+
 struct MaterialDTO: Codable {
     let id: UUID
     let name: String

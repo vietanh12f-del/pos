@@ -7,6 +7,7 @@ struct MoreView: View {
     @Binding var showCustomerManagement: Bool
     @AppStorage("production_enabled_global") private var productionEnabled: Bool = true
     @State private var showAttendance = false
+    @ObservedObject var viewModel: OrderViewModel
 
     private var menuItems: [MenuItem] {
         var items: [MenuItem] = [
@@ -44,24 +45,26 @@ struct MoreView: View {
                                 selectedTab = item.id
                             }
                         }) {
-                            VStack(spacing: 12) {
-                                Circle()
-                                    .fill(item.color.opacity(0.1))
-                                    .frame(width: 60, height: 60)
-                                    .overlay(
-                                        Image(systemName: item.icon)
-                                            .font(.title2)
-                                            .foregroundStyle(item.color)
-                                    )
-                                Text(item.title)
-                                    .font(.headline)
-                                    .foregroundStyle(Color.themeTextDark)
+                            ZStack(alignment: .topTrailing) {
+                                VStack(spacing: 12) {
+                                    Circle()
+                                        .fill(item.color.opacity(0.1))
+                                        .frame(width: 60, height: 60)
+                                        .overlay(
+                                            Image(systemName: item.icon)
+                                                .font(.title2)
+                                                .foregroundStyle(item.color)
+                                        )
+                                    Text(item.title)
+                                        .font(.headline)
+                                        .foregroundStyle(Color.themeTextDark)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                                .background(Color.white)
+                                .cornerRadius(16)
+                                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
-                            .background(Color.white)
-                            .cornerRadius(16)
-                            .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
                         }
                     }
                 }

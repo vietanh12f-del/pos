@@ -3,9 +3,10 @@ import PhotosUI
 
 // MARK: - Website Lead Model
 
-struct WebsiteLead: Identifiable, Codable {
+struct WebsiteLead: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
-    var leadType: String  // "consultation" | "appointment"
+    var storeId: UUID?
+    var leadType: String  // "consultation" | "appointment" | "feedback"
     var fullName: String
     var phone: String
     var serviceType: String?
@@ -17,27 +18,47 @@ struct WebsiteLead: Identifiable, Codable {
     var timeSlot: String?
     var email: String?
     var branch: String?
+    var source: String?
+
+    var leadTypeLabel: String {
+        switch leadType {
+        case "appointment": return "Đặt lịch"
+        case "feedback":    return "Góp ý"
+        default:            return "Tư vấn"
+        }
+    }
+
+    var statusLabel: String {
+        switch status {
+        case "contacted": return "Đã liên hệ"
+        case "done":      return "Hoàn thành"
+        case "cancelled": return "Đã huỷ"
+        default:          return "Mới"
+        }
+    }
 }
 
 struct WebsiteLeadDTO: Codable {
     let id: UUID
+    let store_id: UUID?
     let lead_type: String
     let full_name: String
     let phone: String
     let service_type: String?
     let note: String?
     let created_at: Date
-    let status: String
+    let status: String?
     let booking_date: String?
     let time_slot: String?
     let email: String?
     let branch: String?
+    let source: String?
 
     func toDomain() -> WebsiteLead {
         WebsiteLead(
-            id: id, leadType: lead_type, fullName: full_name, phone: phone,
-            serviceType: service_type, note: note, createdAt: created_at, status: status,
-            bookingDate: booking_date, timeSlot: time_slot, email: email, branch: branch
+            id: id, storeId: store_id, leadType: lead_type, fullName: full_name, phone: phone,
+            serviceType: service_type, note: note, createdAt: created_at, status: status ?? "new",
+            bookingDate: booking_date, timeSlot: time_slot, email: email, branch: branch, source: source
         )
     }
 }
@@ -1277,25 +1298,28 @@ private struct LeadRowView: View {
 
     private var iconName: String {
         switch lead.leadType {
-        case "partner": return "building.2.fill"
+        case "partner":     return "building.2.fill"
         case "appointment": return "calendar.badge.plus"
-        default: return "bubble.left.fill"
+        case "feedback":    return "bubble.left.fill"
+        default:            return "person.fill.questionmark"
         }
     }
 
     private var iconColor: Color {
         switch lead.leadType {
-        case "partner": return .orange
+        case "partner":     return .orange
         case "appointment": return .blue
-        default: return .teal
+        case "feedback":    return .purple
+        default:            return .teal
         }
     }
 
     private var typeLabel: String {
         switch lead.leadType {
-        case "partner": return "Đối tác"
+        case "partner":     return "Đối tác"
         case "appointment": return "Đặt lịch"
-        default: return "Tư vấn"
+        case "feedback":    return "Góp ý"
+        default:            return "Tư vấn"
         }
     }
 
@@ -1514,6 +1538,7 @@ struct WebsiteLeadDetailView: View {
         switch lead.leadType {
         case "appointment": return "Đặt lịch hẹn"
         case "partner":     return "Đăng ký đối tác"
+        case "feedback":    return "Góp ý"
         default:            return "Tư vấn dịch vụ"
         }
     }
@@ -1522,6 +1547,7 @@ struct WebsiteLeadDetailView: View {
         switch t {
         case "appointment": return "Đặt lịch"
         case "partner":     return "Đối tác"
+        case "feedback":    return "Góp ý"
         default:            return "Tư vấn"
         }
     }

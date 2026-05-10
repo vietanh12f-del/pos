@@ -86,7 +86,7 @@ struct ContentView: View {
                             }
                             .tag(6)
                         
-                        MoreView(selectedTab: $selectedTab, showProductionManagement: $showProductionManagement, showProductionReport: $showProductionReport, showCustomerManagement: $showCustomerManagement)
+                        MoreView(selectedTab: $selectedTab, showProductionManagement: $showProductionManagement, showProductionReport: $showProductionReport, showCustomerManagement: $showCustomerManagement, viewModel: viewModel)
                             .tabItem {
                                 Label("Thêm", systemImage: "square.grid.2x2.fill")
                             }
