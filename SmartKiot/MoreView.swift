@@ -70,7 +70,7 @@ struct MoreView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Thêm")
+            .navigationBarHidden(true)
             .background(Color.themeBackgroundLight)
             .sheet(isPresented: $showAttendance) {
                 AttendanceView()
