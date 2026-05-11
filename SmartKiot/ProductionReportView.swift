@@ -2122,6 +2122,8 @@ struct GenericProductionReportView: View {
     @State private var selectedStoreName: String? = nil
     @State private var showCreatorPicker = false
     @State private var showStorePicker = false
+    @State private var showTransactionDetail = false
+    @State private var selectedTransaction: ProductionTransaction?
 
     // MARK: - Active range
 
@@ -2553,6 +2555,13 @@ struct GenericProductionReportView: View {
             }
             Button("Huỷ", role: .cancel) { }
         }
+        .sheet(isPresented: $showTransactionDetail) {
+            if let tx = selectedTransaction {
+                NavigationStack {
+                    ProductionBillDetailView(tx: tx, viewModel: viewModel)
+                }
+            }
+        }
     }
 
     // MARK: - Summary card
@@ -2605,12 +2614,18 @@ struct GenericProductionReportView: View {
     @State private var deleteInfoTxId: UUID? = nil
 
     private func transactionCard(_ tx: ProductionTransaction) -> some View {
-        GenericTxCard(
-            tx: tx,
-            reportKind: reportKind,
-            accentColor: accentColor,
-            isMaterial: isMaterial
-        )
+        Button {
+            selectedTransaction = tx
+            showTransactionDetail = true
+        } label: {
+            GenericTxCard(
+                tx: tx,
+                reportKind: reportKind,
+                accentColor: accentColor,
+                isMaterial: isMaterial
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var emptyView: some View {
