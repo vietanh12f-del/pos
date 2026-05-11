@@ -2005,6 +2005,19 @@ struct GenericProductionReportView: View {
     @State private var rangeData: [String: [ProductionTransaction]] = [:]
     @State private var expandedDays: Set<String> = []
 
+    // MARK: - Filters
+    enum VATFilter: String, CaseIterable {
+        case all = "Tất cả"
+        case withVAT = "Có VAT"
+        case withoutVAT = "Không VAT"
+    }
+
+    @State private var selectedVATFilter: VATFilter = .all
+    @State private var selectedCreatorName: String? = nil
+    @State private var selectedStoreName: String? = nil
+    @State private var showCreatorPicker = false
+    @State private var showStorePicker = false
+
     // MARK: - Active range
 
     private var activeRangeInterval: (start: Date, end: Date) {
@@ -2051,11 +2064,63 @@ struct GenericProductionReportView: View {
 
     private var navTitle: String { title }
 
+    // Tất cả giao dịch đã load (tất cả ngày, chưa lọc)
+    private var allLoadedTxs: [ProductionTransaction] {
+        rangeData.values.flatMap { $0 }.filter { !$0.isDeleted }
+    }
+
+    // Danh sách tên người tạo (không trùng)
+    private var allCreatorNames: [String] {
+        Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
+    }
+
+    // Danh sách tên cơ sở nhập (store) - giả định chúng ta dùng storeName nếu có, hoặc dùng một trường nào đó
+    private var allStoreNames: [String] {
+        // Nếu ProductionTransaction có trường storeName, dùng nó, hiện tại ta dùng creator làm ví dụ
+        // Hoặc nếu không có, ta sẽ để trống
+        Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
+    }
+
+    // Lọc giao dịch theo các bộ lọc
+    private func filteredTxs(_ txs: [ProductionTransaction]) -> [ProductionTransaction] {
+        return txs.filter { tx in
+            // Lọc VAT
+            let vatMatch: Bool
+            switch selectedVATFilter {
+            case .all:
+                vatMatch = true
+            case .withVAT:
+                vatMatch = (tx.vatAmount ?? 0) > 0
+            case .withoutVAT:
+                vatMatch = (tx.vatAmount ?? 0) == 0
+            }
+
+            // Lọc creator name
+            let creatorMatch: Bool
+            if let selected = selectedCreatorName {
+                creatorMatch = tx.creatorName == selected
+            } else {
+                creatorMatch = true
+            }
+
+            // Lọc store name (hiện tại dùng creator làm ví dụ, nếu sau này có trường storeName thì thay thế)
+            let storeMatch: Bool
+            if let selected = selectedStoreName {
+                storeMatch = tx.creatorName == selected
+            } else {
+                storeMatch = true
+            }
+
+            return vatMatch && creatorMatch && storeMatch && !tx.isDeleted
+        }
+    }
+
     private var sortedRangeDays: [(key: String, date: Date, txs: [ProductionTransaction])] {
         rangeData.map { key, txs in
             let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
             let date = f.date(from: key) ?? Date()
-            return (key, date, txs)
+            let filtered = filteredTxs(txs)
+            return (key, date, filtered)
         }.sorted { $0.date > $1.date }
     }
 
@@ -2205,35 +2270,135 @@ struct GenericProductionReportView: View {
     private var rangeContent: some View {
         ScrollView {
             VStack(spacing: 8) {
+                // Filters section
+                VStack(spacing: 8) {
+                    Text("Bộ lọc")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // VAT Filter
+                    HStack(spacing: 6) {
+                        Text("VAT:")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        ForEach(VATFilter.allCases, id: \.self) { option in
+                            Button {
+                                selectedVATFilter = option
+                            } label: {
+                                Text(option.rawValue)
+                                    .font(.caption)
+                                    .fontWeight(selectedVATFilter == option ? .semibold : .regular)
+                                    .foregroundStyle(selectedVATFilter == option ? .white : Color.themeTextDark)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        Capsule()
+                                            .fill(selectedVATFilter == option ? Color.themePrimary : Color.gray.opacity(0.1))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
+                    }
+
+                    // Creator Filter
+                    HStack(spacing: 6) {
+                        Text("Người tạo:")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Button {
+                            showCreatorPicker = true
+                        } label: {
+                            Text(selectedCreatorName ?? "Tất cả")
+                                .font(.caption)
+                                .fontWeight(selectedCreatorName != nil ? .semibold : .regular)
+                                .foregroundStyle(selectedCreatorName != nil ? .white : Color.themeTextDark)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    Capsule()
+                                        .fill(selectedCreatorName != nil ? Color.themePrimary : Color.gray.opacity(0.1))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        if selectedCreatorName != nil {
+                            Button {
+                                selectedCreatorName = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        // Store Filter
+                        Text("Cơ sở nhập:")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Button {
+                            showStorePicker = true
+                        } label: {
+                            Text(selectedStoreName ?? "Tất cả")
+                                .font(.caption)
+                                .fontWeight(selectedStoreName != nil ? .semibold : .regular)
+                                .foregroundStyle(selectedStoreName != nil ? .white : Color.themeTextDark)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    Capsule()
+                                        .fill(selectedStoreName != nil ? Color.themePrimary : Color.gray.opacity(0.1))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        if selectedStoreName != nil {
+                            Button {
+                                selectedStoreName = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
+                    }
+                }
+                .padding(12)
+                .background(Color.white)
+                .cornerRadius(12)
+                .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                .padding(.horizontal)
+
                 // Overall summary across all days
                 if !rangeData.isEmpty {
-                    let allTxs = rangeData.values.flatMap { $0 }
+                    let allTxs = filteredTxs(rangeData.values.flatMap { $0 })
                     if !allTxs.isEmpty {
                         summaryCard(txs: allTxs)
                             .padding(.horizontal)
                     }
                 }
 
-                if sortedRangeDays.isEmpty {
+                if sortedRangeDays.allSatisfy({ $0.txs.isEmpty }) {
                     emptyView.padding(.horizontal)
                 } else {
                     ForEach(sortedRangeDays, id: \.key) { item in
-                        let isExpanded = expandedDays.contains(item.key)
-                        VStack(spacing: 0) {
-                            // Day header
-                            Button {
-                                if isExpanded { expandedDays.remove(item.key) }
-                                else { expandedDays.insert(item.key) }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                                        .font(.caption).foregroundStyle(.gray).frame(width: 16)
-                                    Text(formatDateOnly(item.date))
-                                        .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
-                                    Spacer()
-                                    if item.txs.isEmpty {
-                                        Text("Không có").font(.caption).foregroundStyle(.gray)
-                                    } else {
+                        if !item.txs.isEmpty {
+                            let isExpanded = expandedDays.contains(item.key)
+                            VStack(spacing: 0) {
+                                // Day header
+                                Button {
+                                    if isExpanded { expandedDays.remove(item.key) }
+                                    else { expandedDays.insert(item.key) }
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                            .font(.caption).foregroundStyle(.gray).frame(width: 16)
+                                        Text(formatDateOnly(item.date))
+                                            .font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
+                                        Spacer()
                                         Text("\(item.txs.count) giao dịch")
                                             .font(.caption).foregroundStyle(accentColor)
                                         let s = stats(for: item.txs)
@@ -2241,29 +2406,47 @@ struct GenericProductionReportView: View {
                                         Text("• \(formatCurrency(displayValue))")
                                             .font(.caption).foregroundStyle(.gray)
                                     }
+                                    .padding(.horizontal).padding(.vertical, 12).background(Color.white)
                                 }
-                                .padding(.horizontal).padding(.vertical, 12).background(Color.white)
-                            }
-                            .buttonStyle(.plain)
+                                .buttonStyle(.plain)
 
-                            if isExpanded && !item.txs.isEmpty {
-                                VStack(spacing: 12) {
-                                    ForEach(item.txs.sorted { $0.createdAt > $1.createdAt }) { tx in
-                                        transactionCard(tx)
+                                if isExpanded {
+                                    VStack(spacing: 12) {
+                                        ForEach(item.txs.sorted { $0.createdAt > $1.createdAt }) { tx in
+                                            transactionCard(tx)
+                                        }
                                     }
+                                    .padding(.horizontal, 12).padding(.vertical, 10)
+                                    .background(Color.themeBackgroundLight)
                                 }
-                                .padding(.horizontal, 12).padding(.vertical, 10)
-                                .background(Color.themeBackgroundLight)
                             }
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                            .padding(.horizontal)
                         }
-                        .background(Color.white)
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
-                        .padding(.horizontal)
                     }
                 }
             }
             .padding(.vertical, 12)
+        }
+        .confirmationDialog("Chọn người tạo", isPresented: $showCreatorPicker, titleVisibility: .visible) {
+            ForEach(allCreatorNames, id: \.self) { name in
+                Button(name) { selectedCreatorName = name }
+            }
+            if selectedCreatorName != nil {
+                Button("Tất cả", role: .destructive) { selectedCreatorName = nil }
+            }
+            Button("Huỷ", role: .cancel) { }
+        }
+        .confirmationDialog("Chọn cơ sở nhập", isPresented: $showStorePicker, titleVisibility: .visible) {
+            ForEach(allStoreNames, id: \.self) { name in
+                Button(name) { selectedStoreName = name }
+            }
+            if selectedStoreName != nil {
+                Button("Tất cả", role: .destructive) { selectedStoreName = nil }
+            }
+            Button("Huỷ", role: .cancel) { }
         }
     }
 
@@ -2277,14 +2460,15 @@ struct GenericProductionReportView: View {
                 .font(.headline).fontWeight(.bold)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                statTile(label: "Số phiếu xuất", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
-                statTile(label: "Doanh thu sỉ", value: formatCurrency(s.totalRevenue), icon: "banknote.fill", color: .green)
-                if reportKind == .finishedExport {
+                if isMaterial {
+                    statTile(label: "Số phiếu nhập", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
+                    statTile(label: "Tổng tiền nhập hàng", value: formatCurrency(s.totalCost), icon: "banknote.fill", color: .green)
+                } else if reportKind == .finishedExport {
+                    statTile(label: "Số phiếu xuất", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
                     statTile(label: "Giá trị tồn kho", value: formatCurrency(currentStockValue), icon: "shippingbox.fill", color: accentColor)
                     statTile(label: "Còn nợ", value: formatCurrency(s.totalDebt), icon: "exclamationmark.circle.fill", color: s.totalDebt > 0 ? .red : .gray)
-                } else if !isMaterial {
-                    statTile(label: "Đã thanh toán", value: formatCurrency(s.totalRevenue - s.totalDebt), icon: "checkmark.circle.fill", color: .green)
                 } else {
+                    statTile(label: "Số phiếu nhập", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
                     statTile(label: "Tổng tiền nhập hàng", value: formatCurrency(s.totalCost), icon: "banknote.fill", color: .green)
                 }
             }
