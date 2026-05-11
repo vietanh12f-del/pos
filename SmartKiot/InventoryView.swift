@@ -1351,6 +1351,20 @@ struct RestockFilterSheet: View {
 struct InventoryReportView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showInfoSheet = false
+    @State private var selectedFieldInfo: (title: String, desc: String)? = nil
+    
+    private let fieldExplanations: [String: (title: String, desc: String)] = [
+        "Số hàng hóa hiện tại": ("Số hàng hóa hiện tại", "Số loại hàng hóa hiện có trong kho (không bao gồm thành phẩm)"),
+        "Giá trị tồn kho": ("Giá trị tồn kho", "Tổng giá trị hàng hóa hiện có trong kho (tính theo giá vốn)"),
+        "Số phiếu xuất": ("Số đơn hàng", "Tổng số đơn hàng bán lẻ trong khoảng thời gian đã chọn"),
+        "Số đơn hàng": ("Số đơn hàng", "Tổng số đơn hàng bán lẻ trong khoảng thời gian đã chọn"),
+        "Doanh thu": ("Tổng doanh thu", "Tổng doanh thu từ tất cả đơn hàng trong khoảng thời gian đã chọn"),
+        "Phiếu có VAT": ("Phiếu có VAT", "Số phiếu nhập hàng có ít nhất một mặt hàng có VAT"),
+        "Giá trị VAT": ("Tổng VAT", "Tổng giá trị VAT từ tất cả các mặt hàng trong các phiếu nhập"),
+        "Số phiếu nhập": ("Số phiếu nhập", "Tổng số phiếu nhập hàng trong khoảng thời gian đã chọn"),
+        "Tổng chi phí": ("Tổng chi phí", "Tổng chi phí nhập hàng trong khoảng thời gian đã chọn")
+    ]
     
     // MARK: - Date Filter
     enum QuickRange: String, CaseIterable {
@@ -1583,6 +1597,12 @@ struct InventoryReportView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: { showInfoSheet = true }) {
+                        Image(systemName: "info.circle")
+                            .font(.title3)
+                    }
+                }
             }
 
             .sheet(isPresented: $showCustomPicker) {
@@ -1616,6 +1636,70 @@ struct InventoryReportView: View {
             .sheet(isPresented: $showImportReport) {
                 InventoryImportReportView(viewModel: viewModel, allBills: viewModel.restockHistory.filter { !$0.isDeleted })
             }
+            .sheet(isPresented: $showInfoSheet) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            // Xuất kho section
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Báo cáo xuất kho")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themeTextDark)
+                                
+                                infoRow(title: "Số đơn hàng", desc: "Tổng số đơn hàng bán lẻ trong khoảng thời gian đã chọn")
+                                infoRow(title: "Tổng doanh thu", desc: "Tổng doanh thu từ tất cả đơn hàng trong khoảng thời gian đã chọn")
+                                infoRow(title: "Số hàng hóa hiện tại", desc: "Số loại hàng hóa hiện có trong kho (không bao gồm thành phẩm)")
+                                infoRow(title: "Giá trị tồn kho", desc: "Tổng giá trị hàng hóa hiện có trong kho (tính theo giá vốn)")
+                            }
+                            
+                            Divider()
+                            
+                            // Nhập kho section
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Báo cáo nhập kho")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themeTextDark)
+                                
+                                infoRow(title: "Số phiếu nhập", desc: "Tổng số phiếu nhập hàng trong khoảng thời gian đã chọn")
+                                infoRow(title: "Tổng chi phí", desc: "Tổng chi phí nhập hàng trong khoảng thời gian đã chọn")
+                                infoRow(title: "Phiếu có VAT", desc: "Số phiếu nhập hàng có ít nhất một mặt hàng có VAT")
+                                infoRow(title: "Tổng VAT", desc: "Tổng giá trị VAT từ tất cả các mặt hàng trong các phiếu nhập")
+                            }
+                        }
+                        .padding()
+                    }
+                    .background(Color.themeBackgroundLight)
+                    .navigationTitle("Chú ý nghĩa các trường")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showInfoSheet = false }
+                        }
+                    }
+                }
+            }
+            .alert(selectedFieldInfo?.title ?? "Giải thích", isPresented: Binding(
+                get: { selectedFieldInfo != nil },
+                set: { _ in selectedFieldInfo = nil }
+            )) {
+                Button("Đóng", role: .cancel) { }
+            } message: {
+                Text(selectedFieldInfo?.desc ?? "")
+            }
+        }
+    }
+    
+    private func infoRow(title: String, desc: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .foregroundStyle(Color.themePrimary)
+            Text(desc)
+                .font(.subheadline)
+                .foregroundStyle(.gray)
         }
     }
     
@@ -1756,10 +1840,22 @@ struct InventoryReportView: View {
     @ViewBuilder
     private func summaryCol(label: String, value: String) -> some View {
         VStack(spacing: 4) {
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.gray)
-                .multilineTextAlignment(.center)
+            HStack(spacing: 2) {
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.gray)
+                    .multilineTextAlignment(.center)
+                if let explanation = fieldExplanations[label] {
+                    Button(action: {
+                        selectedFieldInfo = explanation
+                    }) {
+                        Image(systemName: "info.circle")
+                            .font(.caption2)
+                            .foregroundStyle(Color.themePrimary.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
             Text(value)
                 .font(.caption)
                 .fontWeight(.semibold)
