@@ -446,6 +446,8 @@ struct PartyDetailView: View {
     @State private var showBillDetail: Bool = false
     @State private var selectedBillForDetail: Bill?
     @StateObject private var orderViewModel = OrderViewModel()
+    @State private var showProductionDetail: Bool = false
+    @State private var selectedProductionTx: ProductionTransaction?
 
     init(party: TradingParty, onDeleted: (() -> Void)? = nil) {
         self.party = party
@@ -554,6 +556,13 @@ struct PartyDetailView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showProductionDetail) {
+                if let tx = selectedProductionTx {
+                    NavigationStack {
+                        ProductionBillDetailView(tx: tx, viewModel: orderViewModel)
+                    }
+                }
+            }
         }
     }
 
@@ -655,14 +664,8 @@ struct PartyDetailView: View {
 
                 ForEach(txs) { tx in
                     Button {
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            NotificationCenter.default.post(
-                                name: NSNotification.Name("NavigateToProductionTx"),
-                                object: nil,
-                                userInfo: ["txId": tx.id, "mode": tx.mode]
-                            )
-                        }
+                        selectedProductionTx = tx
+                        showProductionDetail = true
                     } label: {
                         txCard(tx)
                     }
