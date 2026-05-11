@@ -842,168 +842,7 @@ struct ContentView: View {
                             AttendanceView()
                         }
                         .sheet(isPresented: $showGuide) {
-                            NavigationStack {
-                                ScrollView {
-                                    VStack(alignment: .leading, spacing: 20) {
-                                        Group {
-                                            Text("📖 Hướng dẫn sử dụng & Tính năng")
-                                                .font(.title)
-                                                .fontWeight(.bold)
-                                            
-                                            Text("Chào mừng bạn đến với hệ thống quản lý cửa hàng! Dưới đây là tổng hợp tất cả tính năng và cách sử dụng:")
-                                                .font(.subheadline)
-                                                .foregroundStyle(.gray)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Divider()
-                                        
-                                        Group {
-                                            Text("🏠 Tab Tổng quan")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Xem doanh thu, lợi nhuận theo thời gian thực")
-                                                Text("• Xem lợi nhuận bán lẻ và bán sỉ")
-                                                Text("• Tác vụ nhanh để truy cập các chức năng quan trọng")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("🛒 Tab Đơn hàng")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Tạo đơn hàng bán lẻ nhanh chóng")
-                                                Text("• Quét mã vạch sản phẩm")
-                                                Text("• Nhập bằng giọng nói AI")
-                                                Text("• Xem lịch sử tất cả đơn hàng")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("📦 Tab Kho hàng")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Quản lý danh sách sản phẩm")
-                                                Text("• Nhập hàng (Restock)")
-                                                Text("• Xem lịch sử nhập kho")
-                                                Text("• Quản lý kho nguyên vật liệu (nếu bật chế độ sản xuất)")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("💰 Tab Chi phí")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Quản lý chi phí vận hành (thuê mặt bằng, lương, điện nước...)")
-                                                Text("• Xem lịch sử chi phí")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("💬 Tab Chat")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Chat với khách hàng")
-                                                Text("• Nhận thông báo từ website")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("📊 Tab Thống kê")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Xem doanh thu, lợi nhuận chi tiết theo ngày/tuần/tháng/quý")
-                                                Text("• Xem lợi nhuận bán lẻ và bán sỉ")
-                                                Text("• Xuất báo cáo CSV")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("⚙️ Tab Cài đặt")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Cài đặt cửa hàng")
-                                                Text("• Quản lý nhân viên và quyền hạn")
-                                                Text("• Tuỳ chỉnh tab bar")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("➕ Tab Thêm")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Quản lý sản xuất (nếu bật)")
-                                                Text("• Báo cáo sản xuất")
-                                                Text("• Quản lý khách hàng")
-                                                Text("• Điểm danh nhân viên")
-                                                Text("• Chat")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("🏭 Tính năng sản xuất")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Xuất thành phẩm (bán sỉ)")
-                                                Text("• Nhập nguyên liệu")
-                                                Text("• Xuất nguyên liệu tự động theo template")
-                                                Text("• Xem báo cáo sản xuất")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Group {
-                                            Text("👥 Quản lý nhân viên")
-                                                .font(.headline)
-                                                .fontWeight(.semibold)
-                                            VStack(alignment: .leading, spacing: 8) {
-                                                Text("• Mời nhân viên vào cửa hàng")
-                                                Text("• Phân quyền truy cập")
-                                                Text("• Điểm danh và xem lịch sử làm việc")
-                                                Text("• Quản lý nghỉ phép")
-                                            }
-                                            .font(.subheadline)
-                                        }
-                                        .padding(.horizontal)
-                                        
-                                        Spacer()
-                                    }
-                                    .padding(.vertical)
-                                }
-                                .navigationTitle("Hướng dẫn")
-                                .navigationBarTitleDisplayMode(.inline)
-                                .toolbar {
-                                    ToolbarItem(placement: .confirmationAction) {
-                                        Button("Đóng") { showGuide = false }
-                                    }
-                                }
-                            }
+                            GuideView(isPresented: $showGuide)
                         }
                     }
                     .refreshable {
@@ -2544,7 +2383,7 @@ struct ContentView: View {
                 ImagePicker(image: $receiptImage)
                     .ignoresSafeArea()
             }
-            .onChange(of: receiptImage) { img in
+            .onChange(of: receiptImage) { _, img in
                 guard let img else { return }
                 Task {
                     isUploadingReceipt = true
@@ -2578,7 +2417,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .onChange(of: viewModel.paymentReceiptImageURL) { urlString in
+            .onChange(of: viewModel.paymentReceiptImageURL) { _, urlString in
                 guard let urlString, let u = URL(string: urlString) else { return }
                 if BillReceiptView.ImageCache.shared.image(for: u) == nil {
                     Task {
@@ -3429,6 +3268,376 @@ struct ContentView: View {
                 return nil
             }
         }
+    }
+
+// MARK: - Guide View with Accordion
+struct GuideView: View {
+    @Binding var isPresented: Bool
+    @State private var expandedSections: Set<String> = []
+    
+    private func toggleSection(_ id: String) {
+        if expandedSections.contains(id) {
+            expandedSections.remove(id)
+        } else {
+            expandedSections.insert(id)
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    Group {
+                        Text("📖 Hướng dẫn sử dụng & Tính năng")
+                            .font(.title)
+                            .fontWeight(.bold)
+                        
+                        Text("Chào mừng bạn đến với hệ thống quản lý cửa hàng! Nhấn vào từng phần để xem chi tiết:")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                    
+                    SectionButton(
+                        icon: "🏠",
+                        title: "Tab Tổng quan & Tính doanh thu lợi nhuận",
+                        isExpanded: expandedSections.contains("overview"),
+                        action: { toggleSection("overview") }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("🎯 Tính năng chính:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("• Xem doanh thu, lợi nhuận theo thời gian thực")
+                                Text("• Lọc theo hôm nay/tuần này/tháng này/quý này")
+                                Text("• Xem lợi nhuận bán lẻ và bán sỉ riêng biệt")
+                            }
+                            .font(.subheadline)
+                            
+                            Divider()
+                            
+                            Text("📊 Công thức tính lợi nhuận (Bán lẻ):")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("1. Doanh thu = Tổng tiền các đơn đã thanh toán")
+                                Text("2. Giá vốn (COGS) = Tổng giá nhập của các sản phẩm đã bán (tính theo AVCO)")
+                                Text("3. Lợi nhuận gộp = Doanh thu − Giá vốn")
+                                Text("4. Lợi nhuận ròng = Lợi nhuận gộp − Chi phí vận hành")
+                            }
+                            .font(.subheadline)
+                            
+                            Divider()
+                            
+                            Text("📝 Ví dụ minh họa (Bán lẻ):")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Bạn bán 10 bó hoa hồng, mỗi bó 50.000đ:")
+                                    .font(.subheadline)
+                                HStack {
+                                    Text("• Doanh thu:")
+                                    Spacer()
+                                    Text("500.000đ")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.green)
+                                }
+                                HStack {
+                                    Text("• Giá vốn (mỗi bó 30.000đ):")
+                                    Spacer()
+                                    Text("300.000đ")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.red)
+                                }
+                                HStack {
+                                    Text("• Lợi nhuận gộp:")
+                                    Spacer()
+                                    Text("200.000đ")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                HStack {
+                                    Text("• Chi phí vận hành (thuê mặt bằng):")
+                                    Spacer()
+                                    Text("50.000đ")
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.orange)
+                                }
+                                Divider()
+                                HStack {
+                                    Text("👉 Lợi nhuận ròng:")
+                                        .fontWeight(.bold)
+                                    Spacer()
+                                    Text("150.000đ")
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.green)
+                                }
+                            }
+                            .font(.subheadline)
+                            .padding()
+                            .background(Color.themeBackgroundLight)
+                            .cornerRadius(12)
+                            
+                            Divider()
+                            
+                            Text("🏭 Công thức tính lợi nhuận (Bán sỉ):")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("1. Đã thu = Tổng tiền thực tế thu được từ khách sỉ")
+                                Text("2. Chi phí nguyên liệu = Tổng chi phí nhập nguyên liệu trong cùng kỳ")
+                                Text("3. Lợi nhuận ròng bán sỉ = Đã thu − Chi phí nguyên liệu")
+                            }
+                            .font(.subheadline)
+                        }
+                    }
+                    
+                    SectionButton(
+                        icon: "🛒",
+                        title: "Tab Đơn hàng",
+                        isExpanded: expandedSections.contains("orders"),
+                        action: { toggleSection("orders") }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("🎯 Tính năng chính:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("• Tạo đơn hàng bán lẻ nhanh chóng")
+                                Text("• Quét mã vạch sản phẩm bằng camera")
+                                Text("• Nhập đơn hàng bằng giọng nói AI")
+                                Text("• Xem lịch sử tất cả đơn hàng")
+                                Text("• Chỉnh sửa đơn hàng đã tạo")
+                            }
+                            .font(.subheadline)
+                            
+                            Divider()
+                            
+                            Text("💡 Cách dùng nhanh:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            Text("Nhấn nút lớn màu xanh dương ở giữa tab bar để tạo đơn hàng ngay lập tức!")
+                                .font(.subheadline)
+                        }
+                    }
+                    
+                    SectionButton(
+                        icon: "📦",
+                        title: "Tab Kho hàng",
+                        isExpanded: expandedSections.contains("inventory"),
+                        action: { toggleSection("inventory") }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("🎯 Tính năng chính:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("• Quản lý danh sách sản phẩm (thêm/sửa/xoá)")
+                                Text("• Nhập hàng (Restock)")
+                                Text("• Xem lịch sử nhập kho chi tiết")
+                                Text("• Quản lý kho nguyên vật liệu (nếu bật chế độ sản xuất)")
+                            }
+                            .font(.subheadline)
+                        }
+                    }
+                    
+                    SectionButton(
+                        icon: "💰",
+                        title: "Tab Chi phí",
+                        isExpanded: expandedSections.contains("expenses"),
+                        action: { toggleSection("expenses") }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("🎯 Tính năng chính:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("• Quản lý chi phí vận hành (thuê mặt bằng, lương, điện nước...)")
+                                Text("• Xem lịch sử chi phí")
+                                Text("• Chi phí này sẽ được trừ vào lợi nhuận ròng bán lẻ")
+                            }
+                            .font(.subheadline)
+                        }
+                    }
+                    
+                    SectionButton(
+                        icon: "📊",
+                        title: "Tab Thống kê",
+                        isExpanded: expandedSections.contains("statistics"),
+                        action: { toggleSection("statistics") }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("🎯 Tính năng chính:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("• Xem doanh thu, lợi nhuận chi tiết theo ngày/tuần/tháng/quý")
+                                Text("• Xem lợi nhuận bán lẻ và bán sỉ riêng biệt")
+                                Text("• Xem chi tiết từng ngày")
+                                Text("• Xuất báo cáo CSV để mở trong Excel")
+                            }
+                            .font(.subheadline)
+                        }
+                    }
+                    
+                    SectionButton(
+                        icon: "🏭",
+                        title: "Tính năng sản xuất",
+                        isExpanded: expandedSections.contains("production"),
+                        action: { toggleSection("production") }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("🎯 Tính năng chính:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("• Xuất thành phẩm (bán sỉ cho khách hàng)")
+                                Text("• Nhập nguyên liệu vào kho")
+                                Text("• Xuất nguyên liệu tự động theo template")
+                                Text("• Xem báo cáo sản xuất chi tiết")
+                            }
+                            .font(.subheadline)
+                            
+                            Divider()
+                            
+                            Text("📝 Ví dụ quy trình sản xuất:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("1. Nhập nguyên liệu (vd: 10kg hồng tươi, giá 500.000đ/kg)")
+                                Text("2. Sản xuất thành phẩm (vd: làm 100 bó hoa từ 10kg hồng)")
+                                Text("3. Xuất thành phẩm bán sỉ cho khách (vd: bán 50 bó, giá 100.000đ/bó)")
+                                Text("4. Xem báo cáo sản xuất để biết lợi nhuận")
+                            }
+                            .font(.subheadline)
+                            .padding()
+                            .background(Color.themeBackgroundLight)
+                            .cornerRadius(12)
+                        }
+                    }
+                    
+                    SectionButton(
+                        icon: "👥",
+                        title: "Quản lý nhân viên",
+                        isExpanded: expandedSections.contains("employees"),
+                        action: { toggleSection("employees") }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("🎯 Tính năng chính:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("• Mời nhân viên vào cửa hàng bằng email/SDT")
+                                Text("• Phân quyền truy cập cho từng nhân viên")
+                                Text("• Điểm danh nhân viên (chụp ảnh selfie)")
+                                Text("• Xem lịch sử làm việc và giờ làm")
+                                Text("• Quản lý nghỉ phép")
+                            }
+                            .font(.subheadline)
+                        }
+                    }
+                    
+                    SectionButton(
+                        icon: "➕",
+                        title: "Các tính năng khác",
+                        isExpanded: expandedSections.contains("others"),
+                        action: { toggleSection("others") }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("🎯 Tính năng khác:")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("• 💬 Chat với khách hàng")
+                                Text("• ⚙️ Cài đặt cửa hàng và tuỳ chỉnh tab bar")
+                                Text("• 👤 Quản lý khách hàng")
+                                Text("• 📱 Nhận thông báo từ website")
+                            }
+                            .font(.subheadline)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.vertical)
+            }
+            .navigationTitle("Hướng dẫn")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Đóng") { isPresented = false }
+                }
+            }
+        }
+    }
+}
+
+struct SectionButton<Content: View>: View {
+    let icon: String
+    let title: String
+    let isExpanded: Bool
+    let action: () -> Void
+    let content: () -> Content
+    
+    init(icon: String, title: String, isExpanded: Bool, action: @escaping () -> Void, @ViewBuilder content: @escaping () -> Content) {
+        self.icon = icon
+        self.title = title
+        self.isExpanded = isExpanded
+        self.action = action
+        self.content = content
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            Button(action: action) {
+                HStack(spacing: 12) {
+                    Text(icon)
+                        .font(.title2)
+                    Text(title)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .background(Color.white)
+            }
+            .buttonStyle(.plain)
+            
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 0) {
+                    Divider()
+                    content()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
+                }
+                .background(Color.themeBackgroundLight)
+            }
+        }
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+        .padding(.horizontal)
+    }
+}
         
         // MARK: - Restock Views
         
@@ -3438,8 +3647,6 @@ struct ContentView: View {
         
         // DiscountEditorView moved to top-level under ContentView for wider visibility
         
-        
-    }
     
     #Preview {
         ContentView()
