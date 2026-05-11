@@ -855,6 +855,8 @@ struct InventoryFullPrintView: View {
             }
             
             HStack {
+                Text("STT").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 30, alignment: .trailing)
                 Text("Sản phẩm").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("Giá bán").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
@@ -865,8 +867,12 @@ struct InventoryFullPrintView: View {
                     .frame(width: 60, alignment: .trailing)
             }
             
-            ForEach(products) { p in
+            ForEach(Array(products.enumerated()), id: \.element.id) { index, p in
                 HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .frame(width: 30, alignment: .trailing)
                     Text(p.name)
                         .foregroundStyle(Color.themeTextDark)
                         .lineLimit(nil)
@@ -927,6 +933,10 @@ struct InventoryBlankPrintView: View {
             }
             
             HStack(spacing: 0) {
+                Text("STT")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 30, alignment: .trailing)
+                Divider()
                 Text("Sản phẩm")
                     .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -956,8 +966,13 @@ struct InventoryBlankPrintView: View {
                 }
             }
             
-            ForEach(products) { p in
+            ForEach(Array(products.enumerated()), id: \.element.id) { index, p in
                 HStack(alignment: .top, spacing: 0) {
+                    Text("\(index + 1)")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .frame(width: 30, alignment: .trailing)
+                    Divider()
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 6)
                             .stroke(Color.gray.opacity(0.3), lineWidth: 1)
