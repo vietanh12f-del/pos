@@ -1363,7 +1363,9 @@ struct InventoryReportView: View {
         "Phiếu có VAT": ("Phiếu có VAT", "Số phiếu nhập hàng có ít nhất một mặt hàng có VAT"),
         "Giá trị VAT": ("Tổng VAT", "Tổng giá trị VAT từ tất cả các mặt hàng trong các phiếu nhập"),
         "Số phiếu nhập": ("Số phiếu nhập", "Tổng số phiếu nhập hàng trong khoảng thời gian đã chọn"),
-        "Tổng chi phí": ("Tổng chi phí", "Tổng chi phí nhập hàng trong khoảng thời gian đã chọn")
+        "Tổng chi phí": ("Tổng chi phí", "Tổng chi phí nhập hàng trong khoảng thời gian đã chọn"),
+        "Lợi nhuận gộp": ("Lợi nhuận gộp", "Tổng doanh thu trừ đi giá vốn hàng bán trong khoảng thời gian đã chọn"),
+        "Giá vốn": ("Giá vốn", "Tổng giá vốn của tất cả hàng hóa đã bán trong khoảng thời gian đã chọn")
     ]
     
     // MARK: - Date Filter
@@ -1454,12 +1456,25 @@ struct InventoryReportView: View {
     private var currentProductCount: Int {
         viewModel.products.filter { !$0.isFinishedGood }.count
     }
-    
     private var currentInventoryValue: Double {
         viewModel.products.filter { !$0.isFinishedGood }
             .reduce(0.0) { acc, product in
                 acc + Double(product.stockQuantity) * product.costPrice
             }
+    }
+    private var totalCostOfGoodsSold: Double {
+        filteredExportOrders.reduce(0.0) { total, bill in
+            total + bill.items.reduce(0.0) { itemTotal, item in
+                if let product = viewModel.products.first(where: { $0.name == item.name }) {
+                    itemTotal + Double(item.quantity) * product.costPrice
+                } else {
+                    itemTotal
+                }
+            }
+        }
+    }
+    private var grossProfit: Double {
+        exportRevenue - totalCostOfGoodsSold
     }
     
     // MARK: - Export Report (Xuất kho - from sales orders (pastOrders))
@@ -1740,9 +1755,9 @@ struct InventoryReportView: View {
             
             // Summary 6 columns
             HStack(spacing: 0) {
-                summaryCol(label: "Số hàng hóa hiện tại", value: "\(currentProductCount)")
+                summaryCol(label: "Lợi nhuận gộp", value: formatCurrency(grossProfit))
                 Divider().frame(height: 40)
-                summaryCol(label: "Giá trị tồn kho", value: formatCurrency(currentInventoryValue))
+                summaryCol(label: "Giá vốn", value: formatCurrency(totalCostOfGoodsSold))
                 Divider().frame(height: 40)
                 summaryCol(label: "Số đơn hàng", value: "\(exportBillCount)")
             }
