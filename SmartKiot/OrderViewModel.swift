@@ -127,6 +127,7 @@ class OrderViewModel: ObservableObject {
     @Published var materialsInventory: [MaterialItem] = []
     @Published var materials: [MaterialItem] = []
     @Published var productionHistory: [ProductionTransaction] = []
+    @Published var suppliers: [TradingParty] = []
     
     // Catalog & Dashboard
     @Published var selectedCategory: Category = .all
@@ -403,6 +404,7 @@ class OrderViewModel: ObservableObject {
         self.products = []
         self.pastOrders = []
         self.restockHistory = []
+        self.suppliers = []
         self.priceHistory = [:]
         self.operatingExpenses = []
         self.inventory = [:]
@@ -447,8 +449,9 @@ class OrderViewModel: ObservableObject {
         async let restockResult = fetchResult { try await self.database.fetchRestockHistory() }
         async let pricesResult = fetchResult { try await self.database.fetchPriceHistory() }
         async let expensesResult = fetchResult { try await self.database.fetchOperatingExpenses() }
+        async let suppliersResult = fetchResult { try await self.database.fetchTradingParties(type: "supplier") }
         
-        let (rProds, rOrders, rRestock, rPrices, rExpenses) = await (productsResult, ordersResult, restockResult, pricesResult, expensesResult)
+        let (rProds, rOrders, rRestock, rPrices, rExpenses, rSuppliers) = await (productsResult, ordersResult, restockResult, pricesResult, expensesResult, suppliersResult)
         
         // 1. Products (CRITICAL)
         switch rProds {
@@ -549,6 +552,14 @@ class OrderViewModel: ObservableObject {
             self.operatingExpenses = expenses
         case .failure(let error):
             print("⚠️ Error fetching expenses: \(error)")
+        }
+        
+        // 6. Suppliers
+        switch rSuppliers {
+        case .success(let suppliers):
+            self.suppliers = suppliers
+        case .failure(let error):
+            print("⚠️ Error fetching suppliers: \(error)")
         }
         
         // Fetch categories from DB (merge with in-memory sets)

@@ -53,7 +53,9 @@ struct InventoryView: View {
     }
     
     private var uniqueSuppliers: [String] {
-        Array(Set(viewModel.restockHistory.compactMap { $0.supplierName })).sorted()
+        let savedSuppliers = viewModel.suppliers.map { $0.name }
+        let restockSuppliers = viewModel.restockHistory.compactMap { $0.supplierName }
+        return Array(Set(savedSuppliers + restockSuppliers)).sorted()
     }
     
     // Get unique product names from all restock items
