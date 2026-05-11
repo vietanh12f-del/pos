@@ -1611,7 +1611,7 @@ struct InventoryReportView: View {
                 .presentationDetents([.medium])
             }
             .sheet(isPresented: $showExportReport) {
-                InventoryExportReportView(viewModel: viewModel, filteredOrders: filteredExportOrders, rangeLabel: rangeLabel)
+                InventoryExportReportView(viewModel: viewModel, allOrders: viewModel.pastOrders)
             }
             .sheet(isPresented: $showImportReport) {
                 InventoryImportReportView(viewModel: viewModel, filteredBills: filteredRestockBills, rangeLabel: rangeLabel)
@@ -1925,10 +1925,97 @@ struct InventoryImportReportView: View {
 // MARK: - Inventory Export Report View (Sales Orders)
 struct InventoryExportReportView: View {
     @ObservedObject var viewModel: OrderViewModel
-    let filteredOrders: [Bill]
-    let rangeLabel: String
+    let allOrders: [Bill]
     @Environment(\.dismiss) private var dismiss
     @State private var selectedBill: Bill? = nil
+    
+    // Filters
+    enum TimeFilter: String, CaseIterable {
+        case today = "Hôm nay"
+        case week = "Tuần này"
+        case month = "Tháng này"
+        case custom = "Tuỳ chọn"
+    }
+    @State private var timeFilter: TimeFilter = .today
+    @State private var customStartDate = Date()
+    @State private var customEndDate = Date()
+    @State private var showCustomDatePicker = false
+    enum VATFilter: String, CaseIterable {
+        case all = "Tất cả"
+        case hasVAT = "Có VAT"
+        case noVAT = "Không VAT"
+    }
+    @State private var vatFilter: VATFilter = .all
+    @State private var filterCreator = ""
+    @State private var filterCustomer = ""
+    @State private var showCreatorPicker = false
+    @State private var showCustomerPicker = false
+    
+    private var creators: [String] {
+        Array(Set(allOrders.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
+    }
+    
+    private var customers: [String] {
+        Array(Set(allOrders.compactMap { $0.customerName }.filter { !$0.isEmpty })).sorted()
+    }
+    
+    private var dateInterval: (Date, Date) {
+        let cal = Calendar.current
+        let now = Date()
+        switch timeFilter {
+        case .today:
+            let start = cal.startOfDay(for: now)
+            return (start, now)
+        case .week:
+            let start = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
+            return (start, now)
+        case .month:
+            let start = cal.date(from: cal.dateComponents([.year, .month], from: now))!
+            return (start, now)
+        case .custom:
+            return (cal.startOfDay(for: customStartDate), cal.date(bySettingHour: 23, minute: 59, second: 59, of: customEndDate) ?? customEndDate)
+        }
+    }
+    
+    private var filteredOrders: [Bill] {
+        var result = allOrders
+        
+        // Time filter
+        let (start, end) = dateInterval
+        result = result.filter { $0.createdAt >= start && $0.createdAt <= end }
+        
+        // Creator filter
+        if !filterCreator.isEmpty {
+            result = result.filter { $0.creatorName == filterCreator }
+        }
+        
+        // Customer filter
+        if !filterCustomer.isEmpty {
+            result = result.filter { $0.customerName == filterCustomer }
+        }
+        
+        // VAT filter - Note: currently Bill has no VAT fields, so we skip this for now
+        // switch vatFilter {
+        // case .all: break
+        // case .hasVAT: result = result.filter { ... }
+        // case .noVAT: result = result.filter { ... }
+        // }
+        
+        return result
+    }
+    
+    private var timeRangeLabel: String {
+        switch timeFilter {
+        case .today: return "Hôm nay"
+        case .week: return "Tuần này"
+        case .month: return "Tháng này"
+        case .custom:
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "vi_VN")
+            df.dateFormat = "dd/MM/yyyy"
+            return "\(df.string(from: customStartDate)) - \(df.string(from: customEndDate))"
+        }
+    }
     
     private func formatCurrency(_ amount: Double) -> String {
         let formatter = NumberFormatter()
@@ -1949,6 +2036,96 @@ struct InventoryExportReportView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    // Filters
+                    VStack(spacing: 12) {
+                        // Time filter
+                        HStack {
+                            Text("Thời gian")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                            Picker("", selection: $timeFilter) {
+                                ForEach(TimeFilter.allCases, id: \.self) { filter in
+                                    Text(filter.rawValue).tag(filter)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        if timeFilter == .custom {
+                            HStack {
+                                Text(timeRangeLabel)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.themePrimary)
+                                Spacer()
+                                Button("Đổi ngày") {
+                                    showCustomDatePicker = true
+                                }
+                                .font(.subheadline)
+                            }
+                        }
+                        
+                        // Creator and Customer filters
+                        HStack {
+                            Button(action: { showCreatorPicker = true }) {
+                                HStack {
+                                    Text(filterCreator.isEmpty ? "Người tạo" : filterCreator)
+                                        .font(.subheadline)
+                                        .foregroundStyle(filterCreator.isEmpty ? .gray : .primary)
+                                    if !filterCreator.isEmpty {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                .padding(8)
+                                .background(Color.white)
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                            .onLongPressGesture {
+                                filterCreator = ""
+                            }
+                            
+                            Button(action: { showCustomerPicker = true }) {
+                                HStack {
+                                    Text(filterCustomer.isEmpty ? "Người mua" : filterCustomer)
+                                        .font(.subheadline)
+                                        .foregroundStyle(filterCustomer.isEmpty ? .gray : .primary)
+                                    if !filterCustomer.isEmpty {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                .padding(8)
+                                .background(Color.white)
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                            .onLongPressGesture {
+                                filterCustomer = ""
+                            }
+                        }
+                        
+                        // VAT filter (disabled for now since Bill has no VAT)
+                        HStack {
+                            Text("VAT")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                            Picker("", selection: $vatFilter) {
+                                ForEach(VATFilter.allCases, id: \.self) { filter in
+                                    Text(filter.rawValue).tag(filter)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .disabled(true)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
                     // Summary Cards
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         InventoryStatCard(
@@ -2057,6 +2234,75 @@ struct InventoryExportReportView: View {
             }
             .sheet(item: $selectedBill) { bill in
                 BillDetailView(bill: bill, viewModel: viewModel)
+            }
+            .sheet(isPresented: $showCustomDatePicker) {
+                NavigationStack {
+                    VStack(spacing: 20) {
+                        DatePicker("Từ ngày", selection: $customStartDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .padding(.horizontal)
+                        DatePicker("Đến ngày", selection: $customEndDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .padding(.horizontal)
+                        Spacer()
+                    }
+                    .navigationTitle("Chọn khoảng thời gian")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showCustomDatePicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showCreatorPicker) {
+                NavigationStack {
+                    List {
+                        Button("Tất cả") {
+                            filterCreator = ""
+                            showCreatorPicker = false
+                        }
+                        ForEach(creators, id: \.self) { creator in
+                            Button(creator) {
+                                filterCreator = creator
+                                showCreatorPicker = false
+                            }
+                        }
+                    }
+                    .navigationTitle("Người tạo")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showCreatorPicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showCustomerPicker) {
+                NavigationStack {
+                    List {
+                        Button("Tất cả") {
+                            filterCustomer = ""
+                            showCustomerPicker = false
+                        }
+                        ForEach(customers, id: \.self) { customer in
+                            Button(customer) {
+                                filterCustomer = customer
+                                showCustomerPicker = false
+                            }
+                        }
+                    }
+                    .navigationTitle("Người mua")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showCustomerPicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
             }
         }
     }
