@@ -173,37 +173,13 @@ struct InventoryView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Segmented Control
-                Picker("Chế độ", selection: $selectedTab) {
-                    Text("Hàng hóa").tag(0)
-                    Text("Lịch sử nhập").tag(1)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding()
-                
-                // Search Bar + Print
+                // Segmented Control + Print Button
                 HStack {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.gray)
-                        TextField("Tìm kiếm...", text: $searchText)
-                            .textFieldStyle(.plain)
-                        
-                        if !searchText.isEmpty {
-                            Button(action: { searchText = "" }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.gray)
-                            }
-                        }
-                        
-                        Button(action: { showBarcodeScanner = true }) {
-                            Image(systemName: "barcode.viewfinder")
-                                .foregroundStyle(.gray)
-                        }
+                    Picker("Chế độ", selection: $selectedTab) {
+                        Text("Hàng hóa").tag(0)
+                        Text("Lịch sử nhập").tag(1)
                     }
-                    .padding(10)
-                    .background(Color.white)
-                    .cornerRadius(10)
+                    .pickerStyle(SegmentedPickerStyle())
                     
                     Spacer()
                     
@@ -226,6 +202,32 @@ struct InventoryView: View {
                         }
                         Button("Hủy", role: .cancel) { }
                     }
+                }
+                .padding()
+                
+                // Search Bar
+                HStack {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.gray)
+                        TextField("Tìm kiếm...", text: $searchText)
+                            .textFieldStyle(.plain)
+                        
+                        if !searchText.isEmpty {
+                            Button(action: { searchText = "" }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                        
+                        Button(action: { showBarcodeScanner = true }) {
+                            Image(systemName: "barcode.viewfinder")
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                    .padding(10)
+                    .background(Color.white)
+                    .cornerRadius(10)
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 0)
@@ -827,14 +829,30 @@ private extension InventoryView {
 }
 
 // MARK: - Print Views
+private func formatDateTimeForPrint(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "vi_VN")
+    formatter.dateFormat = "dd/MM/yyyy HH:mm"
+    return formatter.string(from: date)
+}
+
 struct InventoryFullPrintView: View {
     let products: [Product]
+    let printDate: Date = Date()
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Danh sách sản phẩm")
                 .font(.headline)
                 .foregroundStyle(Color.themeTextDark)
                 .frame(maxWidth: .infinity, alignment: .center)
+            
+            HStack {
+                Text("Ngày giờ: \(formatDateTimeForPrint(printDate))")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+            }
             
             HStack {
                 Text("Sản phẩm").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
@@ -875,12 +893,8 @@ struct InventoryFullPrintView: View {
 
 struct InventoryBlankPrintView: View {
     let products: [Product]
-    private var todayString: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
-        formatter.dateFormat = "dd/MM/yyyy"
-        return formatter.string(from: Date())
-    }
+    let printDate: Date = Date()
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Phiếu nhập trống")
@@ -888,8 +902,15 @@ struct InventoryBlankPrintView: View {
                 .foregroundStyle(Color.themeTextDark)
                 .frame(maxWidth: .infinity, alignment: .center)
             
+            HStack {
+                Text("Ngày giờ: \(formatDateTimeForPrint(printDate))")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+            }
+            
             HStack(spacing: 8) {
-                Text("Ngày:")
+                Text("Ngày điền:")
                     .font(.subheadline)
                     .foregroundStyle(.gray)
                 Spacer()
