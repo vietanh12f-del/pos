@@ -405,14 +405,14 @@ struct ProductionManagementView: View {
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ProductionScrollToTx"))) { notif in
                 guard let txId = notif.userInfo?["txId"] as? UUID,
                       let mode = notif.userInfo?["mode"] as? String else { return }
-                // Chuyển sang đúng mode và tab lịch sử
+                // Set mode trước
                 if let m = Mode(rawValue: mode) { selectedMode = m }
-                materialTab = 1
-                Task {
-                    await viewModel.loadProductionHistory(mode: mode)
-                    await MainActor.run {
+                // Đợi UI render mode mới xong rồi mới chuyển tab
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    withAnimation { materialTab = 1 }
+                    // Highlight sau khi history đã load
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                         highlightedTxId = txId
-                        // Tự xóa highlight sau 3 giây
                         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                             highlightedTxId = nil
                         }

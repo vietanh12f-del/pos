@@ -162,7 +162,8 @@ struct ContentView: View {
                         showCustomerManagement = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                             showProductionManagement = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            // Đợi sheet present xong (~0.5s) rồi mới gửi notification
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                                 NotificationCenter.default.post(
                                     name: NSNotification.Name("ProductionScrollToTx"),
                                     object: nil,
