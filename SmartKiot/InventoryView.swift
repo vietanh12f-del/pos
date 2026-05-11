@@ -450,160 +450,29 @@ struct InventoryView: View {
                     } else {
                         List {
                             ForEach(filteredRestockHistory) { bill in
-                                VStack(alignment: .leading, spacing: 10) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("Nhập hàng")
-                                                .font(.subheadline)
-                                                .fontWeight(.medium)
-                                                .foregroundStyle(Color.themeTextDark)
-                                            Text(formatDate(bill.createdAt))
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
-                                            
-                                            if let stt = bill.sequenceNumber {
-                                                Text("STT: \(stt)")
-                                                    .font(.caption)
-                                                    .fontWeight(.bold)
-                                                    .foregroundStyle(Color.themePrimary)
-                                            }
-                                            if let name = bill.creatorName, !name.isEmpty {
-                                                Text(name)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.gray)
-                                            }
-                                            if viewModel.editedRestockBillIds.contains(bill.id) {
-                                                Text("Đã sửa")
-                                                    .font(.caption2)
-                                                    .fontWeight(.bold)
-                                                    .foregroundStyle(.white)
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 4)
-                                                    .background(Color.blue.opacity(0.85))
-                                                    .clipShape(Capsule())
-                                            }
-                                            if bill.isDeleted {
-                                                Text("Đã xoá")
-                                                    .font(.caption2)
-                                                    .fontWeight(.bold)
-                                                    .foregroundStyle(.white)
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 4)
-                                                    .background(Color.red.opacity(0.85))
-                                                    .clipShape(Capsule())
-                                            }
+                                InventoryRestockHistoryCard(
+                                    bill: bill,
+                                    viewModel: viewModel,
+                                    onTap: {
+                                        withTransaction(Transaction(animation: nil)) {
+                                            selectedRestockBill = bill
                                         }
-                                        Spacer()
-                                        VStack(alignment: .trailing, spacing: 4) {
-                                            Text("\(bill.items.count) mặt hàng")
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
+                                    },
+                                    onEdit: {
+                                        viewModel.editRestockBill(bill)
+                                        DispatchQueue.main.async {
+                                            showNewRestock = true
                                         }
+                                    },
+                                    onDelete: {
+                                        restockBillToDelete = bill
+                                        showDeleteRestockConfirmation = true
+                                    },
+                                    onShowHistory: {
+                                        restockBillForHistory = bill
+                                        showRestockEditHistory = true
                                     }
-                                    
-                                    Divider()
-                                    
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        ForEach(bill.items.prefix(3)) { item in
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                Text(highlightedInventoryName(item.name))
-                                                    .font(.subheadline)
-                                                    .fontWeight(.medium)
-                                                HStack(spacing: 8) {
-                                                    Text("Giá nhập \(formatCurrency(item.unitPrice))")
-                                                        .font(.caption2)
-                                                        .foregroundStyle(.white)
-                                                        .padding(.horizontal, 10)
-                                                        .padding(.vertical, 6)
-                                                        .background(Color.blue.opacity(0.75))
-                                                        .clipShape(Capsule())
-                                                    Text("Số lượng \(item.quantity)")
-                                                        .font(.caption2)
-                                                        .foregroundStyle(.white)
-                                                        .padding(.horizontal, 10)
-                                                        .padding(.vertical, 6)
-                                                        .background(Color.purple.opacity(0.75))
-                                                        .clipShape(Capsule())
-                                                    if item.additionalCost > 0 {
-                                                        Text("Chi phí \(formatCurrency(item.additionalCost))")
-                                                            .font(.caption2)
-                                                            .foregroundStyle(.white)
-                                                            .padding(.horizontal, 10)
-                                                            .padding(.vertical, 6)
-                                                            .background(Color.orange.opacity(0.75))
-                                                            .clipShape(Capsule())
-                                                    }
-                                                }
-                                            }
-                                            .padding(.vertical, 4)
-                                        }
-                                        if bill.items.count > 3 {
-                                            Text("… xem thêm \(bill.items.count - 3) mặt hàng")
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
-                                        }
-                                    }
-                                    .padding(.leading, 20)
-                                    
-                                    HStack {
-                                        // Label bên trái
-                                        if bill.items.contains(where: { $0.isFinishedGood }) {
-                                            Text("nhập từ thành phẩm")
-                                                .font(.caption2)
-                                                .fontWeight(.bold)
-                                                .foregroundStyle(.white)
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
-                                                .background(Color.purple.opacity(0.85))
-                                                .clipShape(Capsule())
-                                        }
-                                        Spacer()
-                                        if viewModel.editedRestockBillIds.contains(bill.id) {
-                                            Button {
-                                                restockBillForHistory = bill
-                                                showRestockEditHistory = true
-                                            } label: {
-                                                Text("Lịch sử")
-                                                    .font(.headline)
-                                            }
-                                            .buttonStyle(.borderedProminent)
-                                            .tint(.blue)
-                                            .controlSize(.small)
-                                        }
-                                        Button {
-                                            restockBillToDelete = bill
-                                            showDeleteRestockConfirmation = true
-                                        } label: {
-                                            Text("Xóa")
-                                                .font(.headline)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .tint(.red)
-                                        .controlSize(.small)
-                                        .disabled(bill.isDeleted)
-                                        Button {
-                                            viewModel.editRestockBill(bill)
-                                            DispatchQueue.main.async {
-                                                showNewRestock = true
-                                            }
-                                        } label: {
-                                            Text("Sửa")
-                                                .font(.headline)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .tint(.orange)
-                                        .controlSize(.small)
-                                        .disabled(bill.isDeleted)
-                                    }
-                                }
-                                .padding(.vertical, 8)
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    withTransaction(Transaction(animation: nil)) {
-                                        selectedRestockBill = bill
-                                    }
-                                }
-                                .listRowBackground(Color.white)
+                                )
                             }
                         }
                         .listStyle(.insetGrouped)
@@ -718,6 +587,195 @@ struct InventoryView: View {
                 Text("Phiếu sẽ được đánh dấu đã xoá và tồn kho/giá nhập sẽ được khôi phục. Phiếu vẫn còn trong lịch sử.")
             }
         }
+    }
+}
+
+// MARK: - Restock History Card for Inventory
+private struct InventoryRestockHistoryCard: View {
+    let bill: RestockBill
+    let viewModel: OrderViewModel
+    let onTap: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    let onShowHistory: () -> Void
+    
+    private func highlightedInventoryName(_ name: String) -> AttributedString {
+        var s = AttributedString(name)
+        if let r = s.range(of: "sữa", options: .caseInsensitive) {
+            s[r].foregroundColor = .red
+            s[r].backgroundColor = .yellow
+            s[r].font = .subheadline
+        }
+        return s
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yy HH:mm"
+        return f.string(from: date)
+    }
+    
+    private func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "VND"
+        return formatter.string(from: NSNumber(value: amount)) ?? "0 đ"
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header row: Thời gian + STT nhỏ
+            HStack(spacing: 8) {
+                Text(formatDate(bill.createdAt))
+                    .font(.subheadline)
+                    .foregroundStyle(bill.isDeleted ? Color.gray : Color.themeTextDark)
+                
+                if let stt = bill.sequenceNumber {
+                    Text("STT: \(stt)")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(bill.isDeleted ? Color.gray : Color.themePrimary)
+                }
+                
+                Spacer()
+            }
+            
+            // Badge row: Badges, Tên nhân viên, Nút Sửa/Xóa/Lịch sử
+            HStack(spacing: 8) {
+                if bill.isDeleted {
+                    Text("Đã xoá")
+                        .font(.caption2)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.red.opacity(0.75))
+                        .clipShape(Capsule())
+                } else {
+                    if viewModel.editedRestockBillIds.contains(bill.id) {
+                        Text("Đã sửa")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.85))
+                            .clipShape(Capsule())
+                    }
+                    if bill.items.contains(where: { $0.isFinishedGood }) {
+                        Text("nhập từ thành phẩm")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.purple.opacity(0.85))
+                            .clipShape(Capsule())
+                    }
+                    if let name = bill.creatorName, !name.isEmpty {
+                        Text(name)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                }
+                Spacer()
+                if !bill.isDeleted {
+                    if viewModel.editedRestockBillIds.contains(bill.id) {
+                        Button(action: onShowHistory) {
+                            Text("Lịch sử")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                    }
+                    Button(action: onDelete) {
+                        Text("Xóa")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Color.red))
+                    }
+                    Button(action: onEdit) {
+                        Text("Sửa")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(Color.orange))
+                    }
+                }
+            }
+            
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(bill.items.prefix(3)) { item in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(highlightedInventoryName(item.name))
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        HStack(spacing: 8) {
+                            Text("Giá nhập \(formatCurrency(item.unitPrice))")
+                                .font(.caption2)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.blue.opacity(0.75))
+                                .clipShape(Capsule())
+                            Text("Số lượng \(item.quantity)")
+                                .font(.caption2)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.purple.opacity(0.75))
+                                .clipShape(Capsule())
+                            if item.additionalCost > 0 {
+                                Text("Chi phí \(formatCurrency(item.additionalCost))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.orange.opacity(0.75))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                if bill.items.count > 3 {
+                    Text("… xem thêm \(bill.items.count - 3) mặt hàng")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+            }
+            .padding(.leading, 20)
+            .opacity(bill.isDeleted ? 0.45 : 1)
+            
+            HStack {
+                Spacer()
+                Text("\(bill.items.count) mặt hàng")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+            }
+        }
+        .padding(12)
+        .background(bill.isDeleted ? Color.gray.opacity(0.08) : Color.white)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(bill.isDeleted ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1)
+        )
+        .padding(.horizontal)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
     }
 }
 
