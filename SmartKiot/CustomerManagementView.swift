@@ -443,6 +443,9 @@ struct PartyDetailView: View {
     @State private var isLoading = false
     @State private var showEdit = false
     @State private var currentParty: TradingParty
+    @State private var showBillDetail: Bool = false
+    @State private var selectedBillForDetail: Bill?
+    @StateObject private var orderViewModel = OrderViewModel()
 
     init(party: TradingParty, onDeleted: (() -> Void)? = nil) {
         self.party = party
@@ -489,15 +492,8 @@ struct PartyDetailView: View {
 
                                 ForEach(retailOrders.prefix(30)) { bill in
                                     Button {
-                                        // Dismiss tất cả sheets rồi navigate đến đơn hàng
-                                        dismiss()
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                                            NotificationCenter.default.post(
-                                                name: NSNotification.Name("NavigateToBill"),
-                                                object: nil,
-                                                userInfo: ["billId": bill.id]
-                                            )
-                                        }
+                                        selectedBillForDetail = bill
+                                        showBillDetail = true
                                     } label: {
                                         retailBillCard(bill)
                                     }
@@ -550,6 +546,13 @@ struct PartyDetailView: View {
                     onDeleted?()
                     dismiss()
                 })
+            }
+            .sheet(isPresented: $showBillDetail) {
+                if let bill = selectedBillForDetail {
+                    NavigationStack {
+                        BillDetailView(bill: bill, viewModel: orderViewModel)
+                    }
+                }
             }
         }
     }
