@@ -173,39 +173,15 @@ struct InventoryView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Segmented Control + Print Button
-                HStack {
-                    Picker("Chế độ", selection: $selectedTab) {
-                        Text("Hàng hóa").tag(0)
-                        Text("Lịch sử nhập").tag(1)
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                    
-                    Spacer()
-                    
-                    Button {
-                        showPrintOptions = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "printer")
-                            Text("In")
-                        }
-                        .font(.headline)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .confirmationDialog("Chọn kiểu in", isPresented: $showPrintOptions, titleVisibility: .visible) {
-                        Button("In toàn bộ sản phẩm") {
-                            renderInventoryFullImage()
-                        }
-                        Button("In bill điền tay để scan nhập hàng") {
-                            renderInventoryBlankImage()
-                        }
-                        Button("Hủy", role: .cancel) { }
-                    }
+                // Segmented Control
+                Picker("Chế độ", selection: $selectedTab) {
+                    Text("Hàng hóa").tag(0)
+                    Text("Lịch sử nhập").tag(1)
                 }
+                .pickerStyle(SegmentedPickerStyle())
                 .padding()
                 
-                // Search Bar
+                // Search Bar + Print
                 HStack {
                     HStack {
                         Image(systemName: "magnifyingglass")
@@ -228,6 +204,28 @@ struct InventoryView: View {
                     .padding(10)
                     .background(Color.white)
                     .cornerRadius(10)
+                    
+                    Spacer()
+                    
+                    Button {
+                        showPrintOptions = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "printer")
+                            Text("In")
+                        }
+                        .font(.headline)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .confirmationDialog("Chọn kiểu in", isPresented: $showPrintOptions, titleVisibility: .visible) {
+                        Button("In toàn bộ sản phẩm") {
+                            renderInventoryFullImage()
+                        }
+                        Button("In bill điền tay để scan nhập hàng") {
+                            renderInventoryBlankImage()
+                        }
+                        Button("Hủy", role: .cancel) { }
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 0)
