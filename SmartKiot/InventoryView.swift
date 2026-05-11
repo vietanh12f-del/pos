@@ -1779,6 +1779,8 @@ struct InventoryImportReportView: View {
     let filteredBills: [RestockBill]
     let rangeLabel: String
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedRestockBill: RestockBill? = nil
+    @State private var showNewRestock = false // dummy binding for RestockDetailView
     
     private func formatCurrency(_ amount: Double) -> String {
         let formatter = NumberFormatter()
@@ -1889,6 +1891,10 @@ struct InventoryImportReportView: View {
                                 .background(Color.white)
                                 .cornerRadius(10)
                                 .padding(.horizontal)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedRestockBill = bill
+                                }
                             }
                         }
                     }
@@ -1903,6 +1909,15 @@ struct InventoryImportReportView: View {
                     Button("Đóng") { dismiss() }
                 }
             }
+            .sheet(item: $selectedRestockBill) { bill in
+                RestockDetailView(
+                    bill: bill,
+                    viewModel: viewModel,
+                    showNewRestock: $showNewRestock
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
         }
     }
 }
@@ -1913,6 +1928,7 @@ struct InventoryExportReportView: View {
     let filteredOrders: [Bill]
     let rangeLabel: String
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedBill: Bill? = nil
     
     private func formatCurrency(_ amount: Double) -> String {
         let formatter = NumberFormatter()
@@ -2021,6 +2037,10 @@ struct InventoryExportReportView: View {
                                 .background(Color.white)
                                 .cornerRadius(10)
                                 .padding(.horizontal)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selectedBill = bill
+                                }
                             }
                         }
                     }
@@ -2034,6 +2054,9 @@ struct InventoryExportReportView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+            }
+            .sheet(item: $selectedBill) { bill in
+                BillDetailView(bill: bill, viewModel: viewModel)
             }
         }
     }
