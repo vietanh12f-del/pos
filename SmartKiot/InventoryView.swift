@@ -22,7 +22,9 @@ struct InventoryView: View {
     @State private var restockBillToDelete: RestockBill?
     @State private var showRestockEditHistory = false
     @State private var restockBillForHistory: RestockBill?
+    @State private var showFilterSheet = false
     
+    // Filter states
     enum DateFilterMode: String, CaseIterable, Identifiable {
         case all, today, yesterday, week, month, quarter, year, custom
         var id: String { rawValue }
@@ -31,6 +33,11 @@ struct InventoryView: View {
     @State private var customStartDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var customEndDate: Date = Date()
     @State private var showCustomDateSheet: Bool = false
+    
+    @State private var filterCreator: String = ""
+    @State private var filterSupplierName: String = ""
+    @State private var filterMinCost: String = ""
+    @State private var filterMaxCost: String = ""
     
     private var dateFilterLabel: String {
         switch dateFilterMode {
@@ -160,14 +167,43 @@ struct InventoryView: View {
     }
     
     var filteredRestockHistory: [RestockBill] {
-        let byDate = viewModel.restockHistory.filter { isDateInSelectedRange($0.createdAt) }
-        if searchText.isEmpty {
-            return byDate
-        } else {
-            return byDate.filter { bill in
+        var result = viewModel.restockHistory
+        
+        // Filter by date
+        result = result.filter { isDateInSelectedRange($0.createdAt) }
+        
+        // Filter by creator
+        if !filterCreator.isEmpty {
+            result = result.filter { bill in
+                bill.creatorName?.lowercased().contains(filterCreator.lowercased()) ?? false
+            }
+        }
+        
+        // Filter by supplier name
+        if !filterSupplierName.isEmpty {
+            result = result.filter { bill in
+                bill.supplierName?.lowercased().contains(filterSupplierName.lowercased()) ?? false
+            }
+        }
+        
+        // Filter by min cost
+        if let minCost = Double(filterMinCost), minCost > 0 {
+            result = result.filter { $0.totalCost >= minCost }
+        }
+        
+        // Filter by max cost
+        if let maxCost = Double(filterMaxCost), maxCost > 0 {
+            result = result.filter { $0.totalCost <= maxCost }
+        }
+        
+        // Filter by search text
+        if !searchText.isEmpty {
+            result = result.filter { bill in
                 bill.items.contains { $0.name.lowercased().contains(searchText.lowercased()) }
             }
         }
+        
+        return result
     }
     
     var body: some View {
@@ -405,24 +441,11 @@ struct InventoryView: View {
                 } else {
                     // Restock History List
                     HStack {
-                        Menu {
-                            Button("Hôm nay") { dateFilterMode = .today }
-                            Button("Hôm qua") { dateFilterMode = .yesterday }
-                            Button("Tuần") { dateFilterMode = .week }
-                            Button("Tháng") { dateFilterMode = .month }
-                            Button("Quý") { dateFilterMode = .quarter }
-                            Button("Năm") { dateFilterMode = .year }
-                            Button("Tùy chọn") { dateFilterMode = .custom; showCustomDateSheet = true }
-                            Divider()
-                            Button("Tất cả") { dateFilterMode = .all }
+                        Button {
+                            showFilterSheet = true
                         } label: {
-                            Label("Lọc: \(dateFilterLabel)", systemImage: "calendar")
+                            Label("Lọc", systemImage: "line.3.horizontal.decrease.circle")
                                 .foregroundColor(.orange)
-                        }
-                        if dateFilterMode == .custom {
-                            Text("\(formatDate(customStartDate)) → \(formatDate(customEndDate))")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
                         }
                         Spacer()
                     }
@@ -577,6 +600,20 @@ struct InventoryView: View {
                         .presentationDetents([.medium, .large])
                         .presentationDragIndicator(.visible)
                 }
+            }
+            .sheet(isPresented: $showFilterSheet) {
+                RestockFilterSheet(
+                    dateFilterMode: $dateFilterMode,
+                    customStartDate: $customStartDate,
+                    customEndDate: $customEndDate,
+                    showCustomDateSheet: $showCustomDateSheet,
+                    filterCreator: $filterCreator,
+                    filterSupplierName: $filterSupplierName,
+                    filterMinCost: $filterMinCost,
+                    filterMaxCost: $filterMaxCost
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .alert("Xóa phiếu nhập?", isPresented: $showDeleteRestockConfirmation, presenting: restockBillToDelete) { bill in
                 Button("Hủy", role: .cancel) { }
@@ -1019,5 +1056,93 @@ struct InventoryBlankPrintView: View {
                 .stroke(Color.gray.opacity(0.3), lineWidth: 1)
                 .background(Color.white)
         )
+    }
+}
+
+// MARK: - Filter Sheet for Restock History
+struct RestockFilterSheet: View {
+    @Binding var dateFilterMode: InventoryView.DateFilterMode
+    @Binding var customStartDate: Date
+    @Binding var customEndDate: Date
+    @Binding var showCustomDateSheet: Bool
+    @Binding var filterCreator: String
+    @Binding var filterSupplierName: String
+    @Binding var filterMinCost: String
+    @Binding var filterMaxCost: String
+    
+    @Environment(\.dismiss) var dismiss
+    
+    private func dateFilterLabel(for mode: InventoryView.DateFilterMode) -> String {
+        switch mode {
+        case .all: return "Tất cả"
+        case .today: return "Hôm nay"
+        case .yesterday: return "Hôm qua"
+        case .week: return "Tuần"
+        case .month: return "Tháng"
+        case .quarter: return "Quý"
+        case .year: return "Năm"
+        case .custom: return "Tùy chọn"
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Thời gian") {
+                    Picker("Chọn khoảng thời gian", selection: $dateFilterMode) {
+                        ForEach(InventoryView.DateFilterMode.allCases) { mode in
+                            Text(dateFilterLabel(for: mode)).tag(mode)
+                        }
+                    }
+                    if dateFilterMode == .custom {
+                        HStack {
+                            DatePicker("Từ ngày", selection: $customStartDate, displayedComponents: .date)
+                            DatePicker("Đến ngày", selection: $customEndDate, in: customStartDate..., displayedComponents: .date)
+                        }
+                    }
+                }
+                
+                Section("Người nhập") {
+                    TextField("Nhập tên người nhập...", text: $filterCreator)
+                }
+                
+                Section("Cơ sở cung cấp") {
+                    TextField("Nhập tên cơ sở cung cấp...", text: $filterSupplierName)
+                }
+                
+                Section("Tổng chi phí") {
+                    HStack {
+                        Text("Từ")
+                        TextField("0", text: $filterMinCost)
+                            .keyboardType(.decimalPad)
+                    }
+                    HStack {
+                        Text("Đến")
+                        TextField("0", text: $filterMaxCost)
+                            .keyboardType(.decimalPad)
+                    }
+                }
+                
+                Section {
+                    Button("Đặt lại tất cả") {
+                        dateFilterMode = .all
+                        filterCreator = ""
+                        filterSupplierName = ""
+                        filterMinCost = ""
+                        filterMaxCost = ""
+                    }
+                    .foregroundStyle(.red)
+                }
+            }
+            .navigationTitle("Lọc phiếu nhập")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Xong") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }
