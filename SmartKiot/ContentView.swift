@@ -27,6 +27,7 @@ struct ContentView: View {
     @State private var showProductionManagement: Bool = false
     @State private var showProductionReport: Bool = false
     @State private var showCustomerManagement: Bool = false
+    @State private var navigateToBillId: UUID? = nil
     
     init() {
         // Default TabBar
@@ -50,7 +51,7 @@ struct ContentView: View {
                             }
                             .tag(0)
                         
-                        OrderHistoryView(viewModel: viewModel)
+                        OrderHistoryView(viewModel: viewModel, navigateToBillId: $navigateToBillId)
                             .tabItem {
                                 Label("Đơn hàng", systemImage: "clock.arrow.circlepath")
                             }
@@ -146,7 +147,31 @@ struct ContentView: View {
                     selectedTab = 8
                     showCustomerManagement = true
                 }
-                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToTab"))) { notif in
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToBill"))) { notif in
+                    if let billId = notif.userInfo?["billId"] as? UUID {
+                        showCustomerManagement = false
+                        selectedTab = 1
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            navigateToBillId = billId
+                        }
+                    }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToProductionTx"))) { notif in
+                    if let txId = notif.userInfo?["txId"] as? UUID,
+                       let mode = notif.userInfo?["mode"] as? String {
+                        showCustomerManagement = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            showProductionManagement = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                NotificationCenter.default.post(
+                                    name: NSNotification.Name("ProductionScrollToTx"),
+                                    object: nil,
+                                    userInfo: ["txId": txId, "mode": mode]
+                                )
+                            }
+                        }
+                    }
+                }                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToTab"))) { notif in
                     if let tab = notif.userInfo?["tab"] as? Int {
                         selectedTab = tab
                     }

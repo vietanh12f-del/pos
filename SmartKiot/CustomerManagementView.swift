@@ -488,7 +488,20 @@ struct PartyDetailView: View {
                                     .padding(.horizontal)
 
                                 ForEach(retailOrders.prefix(30)) { bill in
-                                    retailBillCard(bill)
+                                    Button {
+                                        // Dismiss tất cả sheets rồi navigate đến đơn hàng
+                                        dismiss()
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                            NotificationCenter.default.post(
+                                                name: NSNotification.Name("NavigateToBill"),
+                                                object: nil,
+                                                userInfo: ["billId": bill.id]
+                                            )
+                                        }
+                                    } label: {
+                                        retailBillCard(bill)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -637,9 +650,21 @@ struct PartyDetailView: View {
                 .foregroundStyle(.gray)
                 .padding(.horizontal)
 
-            ForEach(txs) { tx in
-                txCard(tx)
-            }
+                ForEach(txs) { tx in
+                    Button {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            NotificationCenter.default.post(
+                                name: NSNotification.Name("NavigateToProductionTx"),
+                                object: nil,
+                                userInfo: ["txId": tx.id, "mode": tx.mode]
+                            )
+                        }
+                    } label: {
+                        txCard(tx)
+                    }
+                    .buttonStyle(.plain)
+                }
         }
     }
 
@@ -728,6 +753,12 @@ struct PartyDetailView: View {
         .background(Color.white)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
+        .overlay(alignment: .trailing) {
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.gray.opacity(0.4))
+                .padding(.trailing, 14)
+        }
         .padding(.horizontal)
     }
 
@@ -795,6 +826,12 @@ struct PartyDetailView: View {
         .background(Color.white)
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
+        .overlay(alignment: .trailing) {
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.gray.opacity(0.4))
+                .padding(.trailing, 14)
+        }
         .padding(.horizontal)
     }
 

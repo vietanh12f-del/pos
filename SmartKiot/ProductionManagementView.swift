@@ -23,6 +23,7 @@ struct ProductionManagementView: View {
     @State private var selectedAutoExportLog: AutoMaterialExportLog?
     @State private var printingTransaction: ProductionTransaction?
     @State private var showPrintSheet = false
+    @State private var highlightedTxId: UUID? = nil
     
     enum Mode: String, CaseIterable {
         case nhapNguyenLieu = "Nhập Nguyên liệu"
@@ -276,40 +277,51 @@ struct ProductionManagementView: View {
                                 }
                                 .frame(maxWidth: .infinity, minHeight: 220)
                             } else {
-                                ScrollView {
-                                    VStack(spacing: 8) {
-                                        ForEach(viewModel.productionHistory, id: \.id) { tx in
-                                            ProductionTransactionHistoryCard(
-                                                tx: tx,
-                                                selectedMode: selectedMode,
-                                                editedIds: viewModel.editedProductionTxIds,
-                                                onShowEditHistory: {
-                                                    Task {
-                                                        self.editHistoryEntries = await viewModel.fetchProductionEdits(for: tx.id)
-                                                        self.showEditHistory = true
-                                                    }
-                                                },
-                                                onShowAutoExportDetail: {
-                                                    Task {
-                                                        let logs = await viewModel.fetchAutoMaterialExportLogsForTransaction(transactionId: tx.id)
-                                                        await MainActor.run {
-                                                            self.selectedAutoExportLog = logs.first
-                                                            self.showAutoExportDetail = (self.selectedAutoExportLog != nil)
+                                ScrollViewReader { proxy in
+                                    ScrollView {
+                                        VStack(spacing: 8) {
+                                            ForEach(viewModel.productionHistory, id: \.id) { tx in
+                                                ProductionTransactionHistoryCard(
+                                                    tx: tx,
+                                                    selectedMode: selectedMode,
+                                                    editedIds: viewModel.editedProductionTxIds,
+                                                    isHighlighted: highlightedTxId == tx.id,
+                                                    onShowEditHistory: {
+                                                        Task {
+                                                            self.editHistoryEntries = await viewModel.fetchProductionEdits(for: tx.id)
+                                                            self.showEditHistory = true
                                                         }
+                                                    },
+                                                    onShowAutoExportDetail: {
+                                                        Task {
+                                                            let logs = await viewModel.fetchAutoMaterialExportLogsForTransaction(transactionId: tx.id)
+                                                            await MainActor.run {
+                                                                self.selectedAutoExportLog = logs.first
+                                                                self.showAutoExportDetail = (self.selectedAutoExportLog != nil)
+                                                            }
+                                                        }
+                                                    },
+                                                    onEdit: {
+                                                        editingTransaction = tx
+                                                        showTransactionEdit = true
+                                                    },
+                                                    onPrint: {
+                                                        printingTransaction = tx
+                                                        showPrintSheet = true
                                                     }
-                                                },
-                                                onEdit: {
-                                                    editingTransaction = tx
-                                                    showTransactionEdit = true
-                                                },
-                                                onPrint: {
-                                                    printingTransaction = tx
-                                                    showPrintSheet = true
-                                                }
-                                            )
+                                                )
+                                                .id(tx.id)
+                                            }
+                                        }
+                                        .padding(.top, 8)
+                                    }
+                                    .onChange(of: highlightedTxId) { _, txId in
+                                        if let txId {
+                                            withAnimation(.easeInOut(duration: 0.5)) {
+                                                proxy.scrollTo(txId, anchor: .center)
+                                            }
                                         }
                                     }
-                                    .padding(.top, 8)
                                 }
                             }
                         }
@@ -388,6 +400,23 @@ struct ProductionManagementView: View {
             .sheet(isPresented: $showPrintSheet) {
                 if let tx = printingTransaction {
                     ProductionBillDetailView(tx: tx, viewModel: viewModel)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ProductionScrollToTx"))) { notif in
+                guard let txId = notif.userInfo?["txId"] as? UUID,
+                      let mode = notif.userInfo?["mode"] as? String else { return }
+                // Chuyển sang đúng mode và tab lịch sử
+                if let m = Mode(rawValue: mode) { selectedMode = m }
+                materialTab = 1
+                Task {
+                    await viewModel.loadProductionHistory(mode: mode)
+                    await MainActor.run {
+                        highlightedTxId = txId
+                        // Tự xóa highlight sau 3 giây
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                            highlightedTxId = nil
+                        }
+                    }
                 }
             }
             .sheet(isPresented: $showAutoMaterialExport, onDismiss: {
@@ -624,6 +653,7 @@ private struct ProductionTransactionHistoryCard: View {
     let tx: ProductionTransaction
     let selectedMode: ProductionManagementView.Mode?
     let editedIds: Set<UUID>
+    var isHighlighted: Bool = false
     let onShowEditHistory: () -> Void
     let onShowAutoExportDetail: () -> Void
     let onEdit: () -> Void
@@ -789,11 +819,14 @@ private struct ProductionTransactionHistoryCard: View {
             }
         }
         .padding(12)
-        .background(tx.isDeleted ? Color.gray.opacity(0.08) : Color.white)
+        .background(tx.isDeleted ? Color.gray.opacity(0.08) : (isHighlighted ? Color.themePrimary.opacity(0.06) : Color.white))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(tx.isDeleted ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1)
+                .stroke(
+                    isHighlighted ? Color.themePrimary : (tx.isDeleted ? Color.red.opacity(0.2) : Color.clear),
+                    lineWidth: isHighlighted ? 2 : 1
+                )
         )
         .padding(.horizontal)
     }

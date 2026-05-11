@@ -2,14 +2,17 @@ import SwiftUI
 
 struct OrderHistoryView: View {
     @ObservedObject var viewModel: OrderViewModel
+    @Binding var navigateToBillId: UUID?
     @State private var selectedBill: Bill?
+    @State private var highlightedBillId: UUID?
     @State private var showSoldSearch: Bool = false
     @State private var soldSearchText: String = ""
     @State private var soldStartDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var soldEndDate: Date = Date()
     
-    init(viewModel: OrderViewModel) {
+    init(viewModel: OrderViewModel, navigateToBillId: Binding<UUID?> = .constant(nil)) {
         self.viewModel = viewModel
+        self._navigateToBillId = navigateToBillId
         // Customize Navigation Bar Title Appearance
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
@@ -44,6 +47,7 @@ struct OrderHistoryView: View {
                             .foregroundStyle(Color.gray)
                     }
                 } else {
+                    ScrollViewReader { proxy in
                     List {
                         ForEach(sections, id: \.title) { section in
                             Section(header: Text(section.title)
@@ -123,7 +127,12 @@ struct OrderHistoryView: View {
                                             }
                                             .padding(.vertical, 8)
                                         }
-                                        .listRowBackground(Color.white)
+                                        .listRowBackground(
+                                            highlightedBillId == bill.id
+                                                ? Color.themePrimary.opacity(0.08)
+                                                : Color.white
+                                        )
+                                        .id(bill.id)
                                         .contextMenu {
                                             Button(action: {
                                                 viewModel.startEditing(bill)
@@ -149,8 +158,16 @@ struct OrderHistoryView: View {
                     }
                     .listStyle(.insetGrouped)
                     .refreshable { await viewModel.loadData(force: true) }
-                    .scrollContentBackground(.hidden) // Hide default list background
-                    .background(Color.themeBackgroundLight) // Use light theme background
+                    .scrollContentBackground(.hidden)
+                    .background(Color.themeBackgroundLight)
+                    .onChange(of: highlightedBillId) { _, billId in
+                        if let billId {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                proxy.scrollTo(billId, anchor: .center)
+                            }
+                        }
+                    }
+                    } // end ScrollViewReader
                 }
             }
             .navigationTitle("Lịch sử đơn hàng")
@@ -166,6 +183,17 @@ struct OrderHistoryView: View {
             }
             .sheet(item: $selectedBill) { bill in
                 BillDetailView(bill: bill, viewModel: viewModel)
+            }
+            .onChange(of: navigateToBillId) { _, billId in
+                guard let billId else { return }
+                if let bill = viewModel.pastOrders.first(where: { $0.id == billId }) {
+                    selectedBill = bill
+                    highlightedBillId = billId
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        highlightedBillId = nil
+                    }
+                }
+                navigateToBillId = nil
             }
             .sheet(isPresented: $showSoldSearch) {
                 NavigationStack {
