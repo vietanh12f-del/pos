@@ -1614,7 +1614,7 @@ struct InventoryReportView: View {
                 InventoryExportReportView(viewModel: viewModel, allOrders: viewModel.pastOrders)
             }
             .sheet(isPresented: $showImportReport) {
-                InventoryImportReportView(viewModel: viewModel, filteredBills: filteredRestockBills, rangeLabel: rangeLabel)
+                InventoryImportReportView(viewModel: viewModel, allBills: viewModel.restockHistory.filter { !$0.isDeleted })
             }
         }
     }
@@ -1773,14 +1773,132 @@ struct InventoryReportView: View {
     }
 }
 
+// MARK: - Product Import Model
+struct ProductImport: Identifiable {
+    let id = UUID()
+    let name: String
+    let quantity: Int
+    let totalCost: Double
+}
+
 // MARK: - Inventory Import Report View
 struct InventoryImportReportView: View {
     @ObservedObject var viewModel: OrderViewModel
-    let filteredBills: [RestockBill]
-    let rangeLabel: String
+    let allBills: [RestockBill]
     @Environment(\.dismiss) private var dismiss
     @State private var selectedRestockBill: RestockBill? = nil
     @State private var showNewRestock = false // dummy binding for RestockDetailView
+    
+    // Filters
+    enum TimeFilter: String, CaseIterable {
+        case today = "Hôm nay"
+        case week = "Tuần này"
+        case month = "Tháng này"
+        case custom = "Tuỳ chọn"
+    }
+    @State private var timeFilter: TimeFilter = .today
+    @State private var customStartDate = Date()
+    @State private var customEndDate = Date()
+    @State private var showCustomDatePicker = false
+    enum VATFilter: String, CaseIterable {
+        case all = "Tất cả"
+        case hasVAT = "Có VAT"
+        case noVAT = "Không VAT"
+    }
+    @State private var vatFilter: VATFilter = .all
+    @State private var filterCreator = ""
+    @State private var filterSupplier = ""
+    @State private var showCreatorPicker = false
+    @State private var showSupplierPicker = false
+    @State private var showTopProducts = false
+    
+    private var creators: [String] {
+        Array(Set(allBills.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
+    }
+    
+    private var suppliers: [String] {
+        Array(Set(allBills.compactMap { $0.supplierName }.filter { !$0.isEmpty })).sorted()
+    }
+    
+    private var dateInterval: (Date, Date) {
+        let cal = Calendar.current
+        let now = Date()
+        switch timeFilter {
+        case .today:
+            let start = cal.startOfDay(for: now)
+            return (start, now)
+        case .week:
+            let start = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))!
+            return (start, now)
+        case .month:
+            let start = cal.date(from: cal.dateComponents([.year, .month], from: now))!
+            return (start, now)
+        case .custom:
+            return (cal.startOfDay(for: customStartDate), cal.date(bySettingHour: 23, minute: 59, second: 59, of: customEndDate) ?? customEndDate)
+        }
+    }
+    
+    private var filteredBills: [RestockBill] {
+        var result = allBills
+        
+        // Time filter
+        let (start, end) = dateInterval
+        result = result.filter { $0.createdAt >= start && $0.createdAt <= end }
+        
+        // Creator filter
+        if !filterCreator.isEmpty {
+            result = result.filter { $0.creatorName == filterCreator }
+        }
+        
+        // Supplier filter
+        if !filterSupplier.isEmpty {
+            result = result.filter { $0.supplierName == filterSupplier }
+        }
+        
+        // VAT filter
+        switch vatFilter {
+        case .all:
+            break
+        case .hasVAT:
+            result = result.filter { bill in bill.items.contains { item in item.hasVAT } }
+        case .noVAT:
+            result = result.filter { bill in !bill.items.contains { item in item.hasVAT } }
+        }
+        
+        return result
+    }
+    
+    private var timeRangeLabel: String {
+        switch timeFilter {
+        case .today: return "Hôm nay"
+        case .week: return "Tuần này"
+        case .month: return "Tháng này"
+        case .custom:
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "vi_VN")
+            df.dateFormat = "dd/MM/yyyy"
+            return "\(df.string(from: customStartDate)) - \(df.string(from: customEndDate))"
+        }
+    }
+    
+    private var productImports: [ProductImport] {
+        var importMap: [String: (quantity: Int, totalCost: Double)] = [:]
+        
+        for bill in filteredBills {
+            for item in bill.items {
+                let key = item.name
+                let current = importMap[key] ?? (0, 0)
+                importMap[key] = (
+                    quantity: current.quantity + item.quantity,
+                    totalCost: current.totalCost + item.unitPrice * Double(item.quantity)
+                )
+            }
+        }
+        
+        return importMap.map { name, data in
+            ProductImport(name: name, quantity: data.quantity, totalCost: data.totalCost)
+        }
+    }
     
     private func formatCurrency(_ amount: Double) -> String {
         let formatter = NumberFormatter()
@@ -1801,6 +1919,95 @@ struct InventoryImportReportView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    // Filters
+                    VStack(spacing: 12) {
+                        // Time filter
+                        HStack {
+                            Text("Thời gian")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                            Picker("", selection: $timeFilter) {
+                                ForEach(TimeFilter.allCases, id: \.self) { filter in
+                                    Text(filter.rawValue).tag(filter)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        if timeFilter == .custom {
+                            HStack {
+                                Text(timeRangeLabel)
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.themePrimary)
+                                Spacer()
+                                Button("Đổi ngày") {
+                                    showCustomDatePicker = true
+                                }
+                                .font(.subheadline)
+                            }
+                        }
+                        
+                        // Creator and Supplier filters
+                        HStack {
+                            Button(action: { showCreatorPicker = true }) {
+                                HStack {
+                                    Text(filterCreator.isEmpty ? "Người tạo" : filterCreator)
+                                        .font(.subheadline)
+                                        .foregroundStyle(filterCreator.isEmpty ? .gray : .primary)
+                                    if !filterCreator.isEmpty {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                .padding(8)
+                                .background(Color.white)
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                            .onLongPressGesture {
+                                filterCreator = ""
+                            }
+                            
+                            Button(action: { showSupplierPicker = true }) {
+                                HStack {
+                                    Text(filterSupplier.isEmpty ? "Cơ sở cung cấp" : filterSupplier)
+                                        .font(.subheadline)
+                                        .foregroundStyle(filterSupplier.isEmpty ? .gray : .primary)
+                                    if !filterSupplier.isEmpty {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                .padding(8)
+                                .background(Color.white)
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
+                            }
+                            .onLongPressGesture {
+                                filterSupplier = ""
+                            }
+                        }
+                        
+                        // VAT filter
+                        HStack {
+                            Text("VAT")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                            Picker("", selection: $vatFilter) {
+                                ForEach(VATFilter.allCases, id: \.self) { filter in
+                                    Text(filter.rawValue).tag(filter)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
                     // Summary Cards
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         InventoryStatCard(
@@ -1835,6 +2042,44 @@ struct InventoryImportReportView: View {
                         )
                     }
                     .padding(.horizontal)
+                    
+                    // Top Products Card
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.green.opacity(0.12))
+                                    .frame(width: 50, height: 50)
+                                Image(systemName: "chart.bar.fill")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Color.green)
+                            }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Top sản phẩm nhập nhiều")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Text("Xem chi tiết top sản phẩm")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.gray.opacity(0.4))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
+                    }
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+                    .padding(.horizontal)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        showTopProducts = true
+                    }
                     
                     Divider()
                         .padding(.horizontal)
@@ -1917,6 +2162,175 @@ struct InventoryImportReportView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showCustomDatePicker) {
+                NavigationStack {
+                    VStack(spacing: 20) {
+                        DatePicker("Từ ngày", selection: $customStartDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .padding(.horizontal)
+                        DatePicker("Đến ngày", selection: $customEndDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .padding(.horizontal)
+                        Spacer()
+                    }
+                    .navigationTitle("Chọn khoảng thời gian")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showCustomDatePicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.large])
+            }
+            .sheet(isPresented: $showCreatorPicker) {
+                NavigationStack {
+                    List {
+                        Button("Tất cả") {
+                            filterCreator = ""
+                            showCreatorPicker = false
+                        }
+                        ForEach(creators, id: \.self) { creator in
+                            Button(creator) {
+                                filterCreator = creator
+                                showCreatorPicker = false
+                            }
+                        }
+                    }
+                    .navigationTitle("Người tạo")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showCreatorPicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showSupplierPicker) {
+                NavigationStack {
+                    List {
+                        Button("Tất cả") {
+                            filterSupplier = ""
+                            showSupplierPicker = false
+                        }
+                        ForEach(suppliers, id: \.self) { supplier in
+                            Button(supplier) {
+                                filterSupplier = supplier
+                                showSupplierPicker = false
+                            }
+                        }
+                    }
+                    .navigationTitle("Cơ sở cung cấp")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showSupplierPicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showTopProducts) {
+                TopImportProductsView(productImports: productImports, formatCurrency: formatCurrency)
+            }
+        }
+    }
+}
+
+// MARK: - Top Import Products View
+struct TopImportProductsView: View {
+    let productImports: [ProductImport]
+    let formatCurrency: (Double) -> String
+    @Environment(\.dismiss) private var dismiss
+    enum SortBy: String, CaseIterable {
+        case totalCost = "Tổng chi phí"
+        case quantity = "Số lượng"
+    }
+    @State private var sortBy: SortBy = .totalCost
+    
+    private var sortedProducts: [ProductImport] {
+        switch sortBy {
+        case .totalCost:
+            return productImports.sorted { $0.totalCost > $1.totalCost }
+        case .quantity:
+            return productImports.sorted { $0.quantity > $1.quantity }
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Sort Picker
+                HStack {
+                    Text("Sắp xếp theo")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                    Picker("", selection: $sortBy) {
+                        ForEach(SortBy.allCases, id: \.self) { sort in
+                            Text(sort.rawValue).tag(sort)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                
+                Divider()
+                
+                ScrollView {
+                    VStack(spacing: 8) {
+                        if sortedProducts.isEmpty {
+                            Text("Không có dữ liệu")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 40)
+                        } else {
+                            ForEach(Array(sortedProducts.enumerated()), id: \.element.id) { index, product in
+                                HStack(spacing: 12) {
+                                    Text("\(index + 1)")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(index < 3 ? Color.themePrimary : .gray)
+                                        .frame(width: 30, alignment: .center)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(product.name)
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        Text("\(product.quantity) sản phẩm")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Text(formatCurrency(product.totalCost))
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .padding(.horizontal)
+                            }
+                        }
+                    }
+                    .padding(.vertical)
+                }
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Top sản phẩm nhập nhiều")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
             }
         }
     }
