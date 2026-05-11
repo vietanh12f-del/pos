@@ -1448,29 +1448,22 @@ struct InventoryReportView: View {
             }
     }
     
-    // MARK: - Export Report (Xuất kho - from ProductionTransactions mode "Xuất Thành Phẩm")
+    // MARK: - Export Report (Xuất kho - from sales orders (pastOrders))
     @State private var showExportReport = false
-    @State private var finishedExportTx: [ProductionTransaction] = []
     
-    private var filteredExportTx: [ProductionTransaction] {
+    private var filteredExportOrders: [Bill] {
         let (start, end) = dateInterval(for: activeRange)
-        return finishedExportTx.filter { tx in tx.createdAt >= start && tx.createdAt <= end }
+        return viewModel.pastOrders.filter { bill in bill.createdAt >= start && bill.createdAt <= end }
     }
     
-    private var exportBillCount: Int { filteredExportTx.count }
+    private var exportBillCount: Int { filteredExportOrders.count }
     private var exportRevenue: Double { 
-        filteredExportTx.reduce(0.0) { acc, tx in
-            acc + (tx.grandTotal ?? 0.0)
+        filteredExportOrders.reduce(0.0) { acc, bill in
+            acc + bill.total
         }
     }
-    private var exportVatCount: Int { 
-        filteredExportTx.filter { tx in (tx.vatAmount ?? 0.0) > 0.0 }.count 
-    }
-    private var exportTotalVat: Double { 
-        filteredExportTx.reduce(0.0) { acc, tx in
-            acc + (tx.vatAmount ?? 0.0)
-        }
-    }
+    private var exportVatCount: Int { 0 } // Since Bill doesn't have VAT fields yet
+    private var exportTotalVat: Double { 0.0 }
     
     // MARK: - Import Report (Nhập kho - from RestockBill)
     @State private var showImportReport = false
@@ -1591,9 +1584,7 @@ struct InventoryReportView: View {
                     Button("Đóng") { dismiss() }
                 }
             }
-            .task {
-                finishedExportTx = await viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
-            }
+
             .sheet(isPresented: $showCustomPicker) {
                 NavigationStack {
                     Form {
@@ -1620,13 +1611,7 @@ struct InventoryReportView: View {
                 .presentationDetents([.medium])
             }
             .sheet(isPresented: $showExportReport) {
-                GenericProductionReportView(
-                    viewModel: viewModel,
-                    mode: "Xuất Thành Phẩm",
-                    title: "Xuất kho hàng hóa",
-                    accentColor: .orange,
-                    reportKind: .finishedExport
-                )
+                InventoryExportReportView(viewModel: viewModel, filteredOrders: filteredExportOrders, rangeLabel: rangeLabel)
             }
             .sheet(isPresented: $showImportReport) {
                 InventoryImportReportView(viewModel: viewModel, filteredBills: filteredRestockBills, rangeLabel: rangeLabel)
@@ -1654,7 +1639,7 @@ struct InventoryReportView: View {
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundStyle(Color.themeTextDark)
-                    Text("Xuất hàng hóa / bán sỉ")
+                    Text("Xuất hàng hóa / bán lẻ")
                         .font(.caption)
                         .foregroundStyle(.gray)
                 }
@@ -1675,7 +1660,7 @@ struct InventoryReportView: View {
                 Divider().frame(height: 40)
                 summaryCol(label: "Giá trị tồn kho", value: formatCurrency(currentInventoryValue))
                 Divider().frame(height: 40)
-                summaryCol(label: "Số phiếu xuất", value: "\(exportBillCount)")
+                summaryCol(label: "Số đơn hàng", value: "\(exportBillCount)")
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 12)
@@ -1685,9 +1670,9 @@ struct InventoryReportView: View {
             HStack(spacing: 0) {
                 summaryCol(label: "Doanh thu", value: formatCurrency(exportRevenue))
                 Divider().frame(height: 40)
-                summaryCol(label: "Phiếu có VAT", value: "\(exportVatCount)")
+                summaryCol(label: "Phiếu có VAT", value: "—")
                 Divider().frame(height: 40)
-                summaryCol(label: "Giá trị VAT", value: formatCurrency(exportTotalVat))
+                summaryCol(label: "Giá trị VAT", value: "—")
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 12)
@@ -1912,6 +1897,138 @@ struct InventoryImportReportView: View {
             }
             .background(Color.themeBackgroundLight)
             .navigationTitle("Báo cáo nhập kho")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Inventory Export Report View (Sales Orders)
+struct InventoryExportReportView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    let filteredOrders: [Bill]
+    let rangeLabel: String
+    @Environment(\.dismiss) private var dismiss
+    
+    private func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "VND"
+        return formatter.string(from: NSNumber(value: amount)) ?? "0 đ"
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd/MM/yyyy HH:mm"
+        return df.string(from: date)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Summary Cards
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        InventoryStatCard(
+                            title: "Số đơn hàng",
+                            value: "\(filteredOrders.count)",
+                            icon: "doc.text",
+                            color: .orange
+                        )
+                        InventoryStatCard(
+                            title: "Tổng doanh thu",
+                            value: formatCurrency(filteredOrders.reduce(0.0) { acc, bill in
+                                acc + bill.total
+                            }),
+                            icon: "creditcard",
+                            color: .blue
+                        )
+                        InventoryStatCard(
+                            title: "Số hàng hóa hiện tại",
+                            value: "\(viewModel.products.filter { !$0.isFinishedGood }.count)",
+                            icon: "cube.box",
+                            color: .green
+                        )
+                        InventoryStatCard(
+                            title: "Giá trị tồn kho",
+                            value: formatCurrency(viewModel.products.filter { !$0.isFinishedGood }.reduce(0.0) { acc, product in
+                                acc + Double(product.stockQuantity) * product.costPrice
+                            }),
+                            icon: "banknote",
+                            color: .purple
+                        )
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                    
+                    // Order List
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Danh sách đơn hàng")
+                            .font(.headline)
+                            .foregroundStyle(Color.themeTextDark)
+                            .padding(.horizontal)
+                        
+                        if filteredOrders.isEmpty {
+                            Text("Không có dữ liệu")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 20)
+                        } else {
+                            ForEach(filteredOrders.sorted(by: { $0.createdAt > $1.createdAt })) { bill in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text(formatDate(bill.createdAt))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.gray)
+                                        Spacer()
+                                        Text(formatCurrency(bill.total))
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.themePrimary)
+                                    }
+                                    
+                                    if let creator = bill.creatorName, !creator.isEmpty {
+                                        HStack {
+                                            Text(creator)
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                            if let customer = bill.customerName, !customer.isEmpty {
+                                                Text("• \(customer)")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray.opacity(0.7))
+                                            }
+                                        }
+                                    } else if let customer = bill.customerName, !customer.isEmpty {
+                                        Text(customer)
+                                            .font(.caption)
+                                            .foregroundStyle(.gray.opacity(0.7))
+                                    }
+                                    
+                                    Text("\(bill.items.count) mặt hàng")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .padding(.horizontal)
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical)
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Báo cáo xuất kho (bán lẻ)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
