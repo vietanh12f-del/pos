@@ -325,9 +325,10 @@ struct RestockEntryView: View {
                                                         viewModel.restockItems[idx].quantity += 1
                                                         viewModel.restockItems[idx].unitPrice = unit
                                                         viewModel.restockItems[idx].category = p.category
+                                                        viewModel.restockItems[idx].hasVAT = p.hasVAT
                                                         lastAddedItemId = viewModel.restockItems[idx].id
                                                     } else {
-                                                        viewModel.addRestockItem(p.name, unitPrice: unit, quantity: 1, additionalCost: 0, suggestedPrice: nil, category: p.category)
+                                                        viewModel.addRestockItem(p.name, unitPrice: unit, quantity: 1, additionalCost: 0, suggestedPrice: nil, category: p.category, hasVAT: p.hasVAT)
                                                         if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == p.name.lowercased() }) {
                                                             lastAddedItemId = viewModel.restockItems[newIdx].id
                                                         }
@@ -2758,6 +2759,7 @@ struct ManualRestockItemView: View {
             // no selling price wheel
         } else if let product = prefilledProduct {
             name = product.name
+            hasVAT = product.hasVAT
             // Use last known cost price as default import price
             // If costPrice is 0, use 70% of selling price as a heuristic guess
             let defaultCost = product.costPrice > 0 ? product.costPrice : product.price * 0.7
