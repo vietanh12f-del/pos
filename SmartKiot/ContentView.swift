@@ -272,6 +272,7 @@ struct ContentView: View {
         @State private var showNotificationCenter = false
         @ObservedObject private var notifService = AppNotificationService.shared
         @State private var showLeaveApprovalFromNotif = false
+        @State private var showAttendance = false
 
         // MARK: - Date range selection
         enum QuickRange: String, CaseIterable {
@@ -736,24 +737,6 @@ struct ContentView: View {
                                         showNewOrder = true
                                     }
                                     
-                                    if StoreManager.shared.hasPermission(.viewOrders) {
-                                        
-                                        QuickActionButton(icon: "clock", title: "Lịch sử", isPrimary: false) {
-                                            selectedTab = 1
-                                        }
-                                    }
-                                    
-                                    if StoreManager.shared.hasPermission(.viewInventory) {
-                                        QuickActionButton(icon: "cube.box.fill", title: "Kho hàng hóa", isPrimary: false) {
-                                            selectedTab = 3
-                                        }
-                                    }
-                                    
-                                    // Messages might be open to all? Let's keep it open for now
-                                    QuickActionButton(icon: "message", title: "Tin nhắn", isPrimary: false) {
-                                        selectedTab = 5
-                                    }
-                                    
                                     QuickActionButton(icon: "gearshape", title: "Cài Đặt", isPrimary: false) {
                                         selectedTab = 6
                                     }
@@ -765,25 +748,36 @@ struct ContentView: View {
                                     }
                                     
                                     if productionEnabledGlobal {
-                                        QuickActionButton(icon: "gearshape.2.fill", title: "Quản Lý Sản Xuất", isPrimary: false) {
+                                        QuickActionButton(icon: "gearshape.2.fill", title: "Quản lý SX", isPrimary: false) {
                                             showProductionManagement = true
                                         }
                                     }
                                     
                                     if StoreManager.shared.hasPermission(.viewExpenses) {
-                                        QuickActionButton(icon: "banknote.fill", title: "Chi Phí", isPrimary: false) {
+                                        QuickActionButton(icon: "banknote.fill", title: "Chi phí", isPrimary: false) {
                                             selectedTab = 4
                                         }
                                     }
                                     
                                     if productionEnabledGlobal {
-                                        QuickActionButton(icon: "doc.text.magnifyingglass", title: "Báo Cáo SX", isPrimary: false) {
+                                        QuickActionButton(icon: "doc.text.magnifyingglass", title: "Báo cáo SX", isPrimary: false) {
+                                            selectedTab = 8
                                             showProductionReport = true
                                         }
                                     }
                                     
-                                    QuickActionButton(icon: "person.2.fill", title: "Khách Hàng", isPrimary: false) {
+                                    QuickActionButton(icon: "person.2.fill", title: "Khách hàng", isPrimary: false) {
                                         showCustomerManagement = true
+                                    }
+                                    
+                                    if StoreManager.shared.hasPermission(.viewInventory) {
+                                        QuickActionButton(icon: "cube.box.fill", title: "Báo cáo kho", isPrimary: false) {
+                                            selectedTab = 3
+                                        }
+                                    }
+                                    
+                                    QuickActionButton(icon: "calendar.badge.checkmark", title: "Điểm danh", isPrimary: false) {
+                                        showAttendance = true
                                     }
                                 }
                                 .padding(.horizontal)
@@ -821,6 +815,9 @@ struct ContentView: View {
                         }
                         .sheet(isPresented: $showLeaveApprovalFromNotif) {
                             LeaveApprovalView()
+                        }
+                        .sheet(isPresented: $showAttendance) {
+                            AttendanceView()
                         }
                     }
                     .refreshable {
