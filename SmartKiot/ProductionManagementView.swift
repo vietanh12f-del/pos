@@ -24,6 +24,9 @@ struct ProductionManagementView: View {
     @State private var printingTransaction: ProductionTransaction?
     @State private var showPrintSheet = false
     @State private var highlightedTxId: UUID? = nil
+    @State private var showPrintOptions = false
+    @State private var printImage: UIImage?
+    @State private var showPrintShareSheet = false
     
     enum Mode: String, CaseIterable {
         case nhapNguyenLieu = "Nhập Nguyên liệu"
@@ -131,19 +134,55 @@ struct ProductionManagementView: View {
                         
                         if materialTab == 0 {
                             HStack {
-                                Image(systemName: "magnifyingglass").foregroundStyle(.gray)
-                                TextField((mode == .nhapThanhPham || mode == .xuatThanhPham) ? "Tìm thành phẩm có sẵn..." : "Tìm nguyên liệu có sẵn...", text: $searchText)
-                                    .textInputAutocapitalization(.never)
-                                    .disableAutocorrection(true)
-                                if !searchText.isEmpty {
-                                    Button { searchText = "" } label: {
-                                        Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                                HStack {
+                                    Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                                    TextField((mode == .nhapThanhPham || mode == .xuatThanhPham) ? "Tìm thành phẩm có sẵn..." : "Tìm nguyên liệu có sẵn...", text: $searchText)
+                                        .textInputAutocapitalization(.never)
+                                        .disableAutocorrection(true)
+                                    if !searchText.isEmpty {
+                                        Button { searchText = "" } label: {
+                                            Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                                        }
                                     }
                                 }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                
+                                Spacer()
+                                
+                                Button {
+                                    showPrintOptions = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "printer")
+                                        Text("In")
+                                    }
+                                    .font(.headline)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .confirmationDialog("Chọn kiểu in", isPresented: $showPrintOptions, titleVisibility: .visible) {
+                                    if mode == .nhapThanhPham || mode == .xuatThanhPham {
+                                        Button("In toàn bộ thành phẩm") {
+                                            renderFinishedGoodsFullImage()
+                                        }
+                                    } else {
+                                        Button("In toàn bộ nguyên liệu") {
+                                            renderMaterialsFullImage()
+                                        }
+                                    }
+                                    if mode == .nhapThanhPham || mode == .xuatThanhPham {
+                                        Button("In bill điền tay để scan nhập thành phẩm") {
+                                            renderFinishedGoodsBlankImage()
+                                        }
+                                    } else {
+                                        Button("In bill điền tay để scan nhập nguyên liệu") {
+                                            renderMaterialsBlankImage()
+                                        }
+                                    }
+                                    Button("Hủy", role: .cancel) { }
+                                }
                             }
-                            .padding(12)
-                            .background(Color.white)
-                            .cornerRadius(12)
                             .padding(.horizontal)
                             
                             if mode == .nhapThanhPham || mode == .xuatThanhPham {
@@ -444,6 +483,11 @@ struct ProductionManagementView: View {
             }
             .sheet(item: $editingFinishedProduct) { product in
                 ProductEditView(viewModel: viewModel, mode: .edit(product))
+            }
+            .sheet(isPresented: $showPrintShareSheet) {
+                if let image = printImage {
+                    ShareSheet(items: [image])
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 if let mode = selectedMode {
@@ -913,5 +957,390 @@ struct ProductionModeTile: View {
                     .stroke(selected ? color : Color.gray.opacity(0.15), lineWidth: selected ? 2 : 1)
             )
         }
+    }
+}
+
+// MARK: - Print Helpers
+private func formatDateTimeForPrint(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "vi_VN")
+    formatter.dateFormat = "dd/MM/yyyy HH:mm"
+    return formatter.string(from: date)
+}
+
+private extension ProductionManagementView {
+    func renderMaterialsFullImage() {
+        let view = MaterialsFullPrintView(materials: viewModel.materials)
+            .frame(width: 375)
+            .background(Color.white)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        if let image = renderer.uiImage {
+            printImage = image
+            showPrintShareSheet = true
+        }
+    }
+    
+    func renderMaterialsBlankImage() {
+        let view = MaterialsBlankPrintView(materials: viewModel.materials)
+            .frame(width: 375)
+            .background(Color.white)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        if let image = renderer.uiImage {
+            printImage = image
+            showPrintShareSheet = true
+        }
+    }
+    
+    func renderFinishedGoodsFullImage() {
+        let view = FinishedGoodsFullPrintView(products: viewModel.finishedGoods)
+            .frame(width: 375)
+            .background(Color.white)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        if let image = renderer.uiImage {
+            printImage = image
+            showPrintShareSheet = true
+        }
+    }
+    
+    func renderFinishedGoodsBlankImage() {
+        let view = FinishedGoodsBlankPrintView(products: viewModel.finishedGoods)
+            .frame(width: 375)
+            .background(Color.white)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        if let image = renderer.uiImage {
+            printImage = image
+            showPrintShareSheet = true
+        }
+    }
+}
+
+// MARK: - Materials Print Views
+struct MaterialsFullPrintView: View {
+    let materials: [MaterialItem]
+    let printDate: Date = Date()
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Danh sách nguyên liệu")
+                .font(.headline)
+                .foregroundStyle(Color.themeTextDark)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            HStack {
+                Text("Ngày giờ: \(formatDateTimeForPrint(printDate))")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+            }
+            
+            HStack {
+                Text("STT").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 30, alignment: .trailing)
+                Text("Nguyên liệu").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Giá nhập").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 90, alignment: .trailing)
+                Text("Kho").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 60, alignment: .trailing)
+            }
+            
+            ForEach(Array(materials.enumerated()), id: \.element.id) { index, m in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .frame(width: 30, alignment: .trailing)
+                    Text(m.name)
+                        .foregroundStyle(Color.themeTextDark)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(formatCurrency(m.lastUnitPrice))
+                        .foregroundStyle(Color.themeTextDark)
+                        .frame(width: 90, alignment: .trailing)
+                    Text("\(Int(m.stockQuantity))")
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding()
+    }
+}
+
+struct MaterialsBlankPrintView: View {
+    let materials: [MaterialItem]
+    let printDate: Date = Date()
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Phiếu nhập nguyên liệu trống")
+                .font(.headline)
+                .foregroundStyle(Color.themeTextDark)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            HStack {
+                Text("Ngày giờ: \(formatDateTimeForPrint(printDate))")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+            }
+            
+            HStack(spacing: 0) {
+                Text("STT")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 30, alignment: .trailing)
+                Divider()
+                Text("Nguyên liệu")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                Text("Số lượng")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 80, alignment: .trailing)
+                Divider()
+                Text("Đơn giá")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 80, alignment: .trailing)
+                Divider()
+                Text("Chi phí")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .frame(width: 80, alignment: .trailing)
+            }
+            .overlay(alignment: .bottom) {
+                GeometryReader { geo in
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: geo.size.height - 0.5))
+                        p.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - 0.5))
+                    }
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                    .foregroundStyle(Color.gray.opacity(0.4))
+                }
+            }
+            
+            ForEach(Array(materials.enumerated()), id: \.element.id) { index, m in
+                HStack(alignment: .top, spacing: 0) {
+                    Text("\(index + 1)")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .frame(width: 30, alignment: .trailing)
+                    Divider()
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        Text(m.name)
+                            .foregroundStyle(Color.themeTextDark)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 6)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                }
+                .overlay(alignment: .bottom) {
+                    GeometryReader { geo in
+                        Path { p in
+                            p.move(to: CGPoint(x: 0, y: geo.size.height - 0.5))
+                            p.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - 0.5))
+                        }
+                        .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                        .foregroundStyle(Color.gray.opacity(0.3))
+                    }
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+// MARK: - Finished Goods Print Views
+struct FinishedGoodsFullPrintView: View {
+    let products: [Product]
+    let printDate: Date = Date()
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Danh sách thành phẩm")
+                .font(.headline)
+                .foregroundStyle(Color.themeTextDark)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            HStack {
+                Text("Ngày giờ: \(formatDateTimeForPrint(printDate))")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+            }
+            
+            HStack {
+                Text("STT").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 30, alignment: .trailing)
+                Text("Thành phẩm").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("Giá bán").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 90, alignment: .trailing)
+                Text("Giá vốn").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 90, alignment: .trailing)
+                Text("Kho").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 60, alignment: .trailing)
+            }
+            
+            ForEach(Array(products.enumerated()), id: \.element.id) { index, p in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .frame(width: 30, alignment: .trailing)
+                    Text(p.name)
+                        .foregroundStyle(Color.themeTextDark)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(formatCurrency(p.price))
+                        .foregroundStyle(Color.themeTextDark)
+                        .frame(width: 90, alignment: .trailing)
+                    Text(formatCurrency(p.costPrice))
+                        .foregroundStyle(.gray)
+                        .frame(width: 90, alignment: .trailing)
+                    Text("\(p.stockQuantity)")
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                        .frame(width: 60, alignment: .trailing)
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding()
+    }
+}
+
+struct FinishedGoodsBlankPrintView: View {
+    let products: [Product]
+    let printDate: Date = Date()
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Phiếu nhập thành phẩm trống")
+                .font(.headline)
+                .foregroundStyle(Color.themeTextDark)
+                .frame(maxWidth: .infinity, alignment: .center)
+            
+            HStack {
+                Text("Ngày giờ: \(formatDateTimeForPrint(printDate))")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Spacer()
+            }
+            
+            HStack(spacing: 0) {
+                Text("STT")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 30, alignment: .trailing)
+                Divider()
+                Text("Thành phẩm")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Divider()
+                Text("Số lượng")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 80, alignment: .trailing)
+                Divider()
+                Text("Đơn giá")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .frame(width: 80, alignment: .trailing)
+                Divider()
+                Text("Chi phí")
+                    .font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .frame(width: 80, alignment: .trailing)
+            }
+            .overlay(alignment: .bottom) {
+                GeometryReader { geo in
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: geo.size.height - 0.5))
+                        p.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - 0.5))
+                    }
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                    .foregroundStyle(Color.gray.opacity(0.4))
+                }
+            }
+            
+            ForEach(Array(products.enumerated()), id: \.element.id) { index, p in
+                HStack(alignment: .top, spacing: 0) {
+                    Text("\(index + 1)")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .frame(width: 30, alignment: .trailing)
+                    Divider()
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        Text(p.name)
+                            .foregroundStyle(Color.themeTextDark)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 6)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                    
+                    Divider()
+                    
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 80, height: 24)
+                }
+                .overlay(alignment: .bottom) {
+                    GeometryReader { geo in
+                        Path { p in
+                            p.move(to: CGPoint(x: 0, y: geo.size.height - 0.5))
+                            p.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height - 0.5))
+                        }
+                        .stroke(style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                        .foregroundStyle(Color.gray.opacity(0.3))
+                    }
+                }
+            }
+        }
+        .padding()
     }
 }
