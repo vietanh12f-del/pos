@@ -224,9 +224,10 @@ struct RestockEntryView: View {
                                                     viewModel.restockItems[idx].unitPrice = m.lastUnitPrice
                                                     viewModel.restockItems[idx].category = m.category
                                                     viewModel.restockItems[idx].unit = m.unit
+                                                    viewModel.restockItems[idx].hasVAT = m.hasVAT
                                                     lastAddedItemId = viewModel.restockItems[idx].id
                                                 } else {
-                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: quickAddQty, additionalCost: 0, suggestedPrice: nil, category: m.category, unit: m.unit)
+                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: quickAddQty, additionalCost: 0, suggestedPrice: nil, category: m.category, unit: m.unit, hasVAT: m.hasVAT)
                                                     if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
                                                         lastAddedItemId = viewModel.restockItems[newIdx].id
                                                     }
@@ -237,9 +238,10 @@ struct RestockEntryView: View {
                                                     viewModel.restockItems[idx].unitPrice = m.lastUnitPrice
                                                     viewModel.restockItems[idx].category = m.category
                                                     viewModel.restockItems[idx].unit = m.unit
+                                                    viewModel.restockItems[idx].hasVAT = m.hasVAT
                                                     lastAddedItemId = viewModel.restockItems[idx].id
                                                 } else {
-                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: quickAddQty, additionalCost: 0, suggestedPrice: nil, category: m.category, unit: m.unit)
+                                                    viewModel.addRestockItem(m.name, unitPrice: m.lastUnitPrice, quantity: quickAddQty, additionalCost: 0, suggestedPrice: nil, category: m.category, unit: m.unit, hasVAT: m.hasVAT)
                                                     if let newIdx = viewModel.restockItems.lastIndex(where: { $0.name.lowercased() == m.name.lowercased() }) {
                                                         lastAddedItemId = viewModel.restockItems[newIdx].id
                                                     }
