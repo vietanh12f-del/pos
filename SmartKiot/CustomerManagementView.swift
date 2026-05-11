@@ -137,7 +137,7 @@ struct CustomerManagementView: View {
                 $0.address.lowercased().contains(q)
             }
         }
-        return list.sorted { $0.name < $1.name }
+        return list.sorted { $0.updatedAt > $1.updatedAt }
     }
 
     private var filteredLeads: [WebsiteLead] {
