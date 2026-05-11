@@ -21,6 +21,8 @@ struct ProductionManagementView: View {
     @State private var autoExportPulse = false
     @State private var showAutoExportDetail = false
     @State private var selectedAutoExportLog: AutoMaterialExportLog?
+    @State private var printingTransaction: ProductionTransaction?
+    @State private var showPrintSheet = false
     
     enum Mode: String, CaseIterable {
         case nhapNguyenLieu = "Nhập Nguyên liệu"
@@ -299,6 +301,10 @@ struct ProductionManagementView: View {
                                                 onEdit: {
                                                     editingTransaction = tx
                                                     showTransactionEdit = true
+                                                },
+                                                onPrint: {
+                                                    printingTransaction = tx
+                                                    showPrintSheet = true
                                                 }
                                             )
                                         }
@@ -377,6 +383,11 @@ struct ProductionManagementView: View {
             .sheet(isPresented: $showTransactionEdit) {
                 if let tx = editingTransaction {
                     TransactionEditView(viewModel: viewModel, original: tx)
+                }
+            }
+            .sheet(isPresented: $showPrintSheet) {
+                if let tx = printingTransaction {
+                    ProductionBillDetailView(tx: tx, viewModel: viewModel)
                 }
             }
             .sheet(isPresented: $showAutoMaterialExport, onDismiss: {
@@ -616,6 +627,7 @@ private struct ProductionTransactionHistoryCard: View {
     let onShowEditHistory: () -> Void
     let onShowAutoExportDetail: () -> Void
     let onEdit: () -> Void
+    let onPrint: () -> Void
 
     @State private var showDeleteInfo = false
 
@@ -753,6 +765,20 @@ private struct ProductionTransactionHistoryCard: View {
                         .background(Capsule().fill(Color.purple.opacity(0.85)))
                 }
                 Spacer()
+                // Nút In đơn
+                if !tx.isDeleted {
+                    Button(action: onPrint) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "printer")
+                                .font(.caption)
+                            Text("In đơn")
+                                .font(.subheadline).fontWeight(.bold)
+                        }
+                        .foregroundStyle(Color.themePrimary)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(Color.themePrimary.opacity(0.1)))
+                    }
+                }
                 // Nút Sửa — luôn hiện để có thể xoá từ đây
                 Button(action: onEdit) {
                     Text("Sửa")
