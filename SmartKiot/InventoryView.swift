@@ -77,6 +77,41 @@ struct InventoryView: View {
         }
     }
     
+    private var hasActiveFilters: Bool {
+        dateFilterMode != .all ||
+        !filterCreator.isEmpty ||
+        !filterSupplierName.isEmpty ||
+        vatFilterMode != .all ||
+        !filterProductName.isEmpty ||
+        !filterMinCost.isEmpty ||
+        !filterMaxCost.isEmpty
+    }
+    
+    private var activeFilterSummary: String {
+        var parts: [String] = []
+        if dateFilterMode != .all {
+            parts.append(dateFilterLabel)
+        }
+        if !filterCreator.isEmpty {
+            parts.append("Người nhập: \(filterCreator)")
+        }
+        if !filterSupplierName.isEmpty {
+            parts.append("NCC: \(filterSupplierName)")
+        }
+        if vatFilterMode != .all {
+            parts.append(vatFilterMode == .hasVAT ? "Có VAT" : "Không VAT")
+        }
+        if !filterProductName.isEmpty {
+            parts.append("Sản phẩm: \(filterProductName)")
+        }
+        if !filterMinCost.isEmpty || !filterMaxCost.isEmpty {
+            let min = filterMinCost.isEmpty ? "0" : filterMinCost
+            let max = filterMaxCost.isEmpty ? "∞" : filterMaxCost
+            parts.append("Giá: \(min) - \(max)")
+        }
+        return parts.joined(separator: " • ")
+    }
+    
     private func selectedDateRange(now: Date = Date()) -> (Date, Date)? {
         let cal = Calendar.current
         switch dateFilterMode {
@@ -492,6 +527,16 @@ struct InventoryView: View {
                         } label: {
                             Label("Lọc", systemImage: "line.3.horizontal.decrease.circle")
                                 .foregroundColor(.orange)
+                        }
+                        if hasActiveFilters {
+                            Text(activeFilterSummary)
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .lineLimit(1)
+                        } else {
+                            Text("Tất cả")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
                         }
                         Spacer()
                     }
