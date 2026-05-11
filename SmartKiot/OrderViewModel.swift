@@ -3174,13 +3174,13 @@ class OrderViewModel: ObservableObject {
         let paid         = exports.reduce(0) { $0 + ($1.paidAmount ?? 0) }
         let debt         = exports.reduce(0) { $0 + ($1.debtAmount ?? 0) }
 
-        // Chi phí nguyên liệu: tổng chi phí các phiếu Xuất Nguyên Liệu trong kỳ
+        // Chi phí nguyên liệu: tổng chi phí các phiếu Nhập Nguyên Liệu trong kỳ
         // Tính theo quantity × unitPrice của từng item (grams/1000 × giá/kg cho nguyên liệu)
-        let materialExports = inRange.filter {
-            $0.mode.lowercased().contains("xuất") &&
+        let materialImports = inRange.filter {
+            $0.mode.lowercased().contains("nhập") &&
             $0.mode.lowercased().contains("nguyên liệu")
         }
-        let materialCost = materialExports.reduce(0.0) { txSum, tx in
+        let materialCost = materialImports.reduce(0.0) { txSum, tx in
             txSum + tx.items.reduce(0.0) { itemSum, item in
                 // Nguyên liệu: quantity là grams, unitPrice là giá/kg
                 let cat = item.category?.lowercased() ?? ""
