@@ -9,6 +9,7 @@ struct OrderHistoryView: View {
     @State private var soldSearchText: String = ""
     @State private var soldStartDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var soldEndDate: Date = Date()
+    @State private var showInventoryReport: Bool = false
     
     init(viewModel: OrderViewModel, navigateToBillId: Binding<UUID?> = .constant(nil)) {
         self.viewModel = viewModel
@@ -181,8 +182,53 @@ struct OrderHistoryView: View {
                     }
                 }
             }
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    showInventoryReport = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("Báo cáo kho")
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.green, Color.green.opacity(0.55)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.green.opacity(0.95),
+                                            Color.teal.opacity(0.95)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 54, height: 54)
+                                .shadow(color: Color.green.opacity(0.4), radius: 8, x: 0, y: 4)
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .contentShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 16)
+                .padding(.bottom, 16)
+            }
             .sheet(item: $selectedBill) { bill in
                 BillDetailView(bill: bill, viewModel: viewModel)
+            }
+            .sheet(isPresented: $showInventoryReport) {
+                InventoryReportView(viewModel: viewModel)
             }
             .onChange(of: navigateToBillId) { _, billId in
                 guard let billId else { return }
