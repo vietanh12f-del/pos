@@ -109,6 +109,10 @@ struct ProductionReportView: View {
 
     private var finishedExportCount: Int { filteredFinishedExportTx.count }
 
+    /// Thống kê VAT cho xuất thành phẩm
+    private var finishedExportVatCount: Int { filteredFinishedExportTx.filter { ($0.vatAmount ?? 0) > 0 }.count }
+    private var finishedExportTotalVAT: Double { filteredFinishedExportTx.reduce(0.0) { total, tx in total + (tx.vatAmount ?? 0) } }
+
     /// Doanh thu sỉ: tổng grandTotal của các phiếu xuất có grandTotal > 0
     private var finishedExportRevenue: Double {
         filteredFinishedExportTx.reduce(0) { $0 + ($1.grandTotal ?? 0) }
@@ -945,6 +949,39 @@ struct ProductionReportView: View {
                     Text(isLoadingStats ? "..." : formatCurrency(finishedExportRevenue))
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(finishedExportRevenue > 0 ? cfg.color : Color.gray.opacity(0.35))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 8).padding(.top, 6).padding(.bottom, 6)
+            
+            // Divider mỏng giữa hàng 2 và hàng 3
+            HStack {
+                Spacer().frame(width: 16)
+                Divider()
+                Spacer().frame(width: 16)
+            }
+            .frame(height: 1)
+
+            // Hàng 3: Thống kê VAT
+            HStack(spacing: 0) {
+                VStack(spacing: 4) {
+                    Text("Phiếu có VAT")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : "\(finishedExportVatCount) phiếu")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(finishedExportVatCount > 0 ? .blue : Color.gray.opacity(0.35))
+                }
+                .frame(maxWidth: .infinity)
+
+                Divider().frame(height: 32)
+
+                VStack(spacing: 4) {
+                    Text("Giá trị VAT")
+                        .font(.caption2).foregroundStyle(.gray)
+                    Text(isLoadingStats ? "..." : formatCurrency(finishedExportTotalVAT))
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(finishedExportTotalVAT > 0 ? .purple : Color.gray.opacity(0.35))
                         .lineLimit(1).minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
