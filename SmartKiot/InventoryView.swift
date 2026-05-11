@@ -23,6 +23,7 @@ struct InventoryView: View {
     @State private var showRestockEditHistory = false
     @State private var restockBillForHistory: RestockBill?
     @State private var showFilterSheet = false
+    @State private var showInventoryReport = false
     
     // Filter states
     enum DateFilterMode: String, CaseIterable, Identifiable {
@@ -605,6 +606,48 @@ struct InventoryView: View {
             .background(Color.themeBackgroundLight)
             .navigationTitle("Kho hàng hóa")
             .ignoresSafeArea(.keyboard, edges: .bottom)
+            .overlay(alignment: .bottomTrailing) {
+                Button {
+                    showInventoryReport = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Text("Báo cáo kho")
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.green, Color.green.opacity(0.55)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.green.opacity(0.95),
+                                            Color.teal.opacity(0.95)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 54, height: 54)
+                                .shadow(color: Color.green.opacity(0.4), radius: 8, x: 0, y: 4)
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .contentShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 16)
+                .padding(.bottom, 16)
+            }
             .contentShape(Rectangle())
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("InventoryShowHistory"))) { _ in
                 selectedTab = 1
@@ -709,6 +752,11 @@ struct InventoryView: View {
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showInventoryReport) {
+                InventoryReportView(viewModel: viewModel)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
             .alert("Xóa phiếu nhập?", isPresented: $showDeleteRestockConfirmation, presenting: restockBillToDelete) { bill in
                 Button("Hủy", role: .cancel) { }
@@ -1296,5 +1344,293 @@ struct RestockFilterSheet: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Inventory Report View
+struct InventoryReportView: View {
+    @ObservedObject var viewModel: OrderViewModel
+    @Environment(\.dismiss) private var dismiss
+    
+    private static let billDateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd/MM/yyyy HH:mm"
+        return df
+    }()
+    
+    private static func formatBillDate(_ date: Date) -> String {
+        billDateFormatter.string(from: date)
+    }
+    
+    @State private var selectedTab = 0
+    
+    enum ReportTab: Int, CaseIterable {
+        case overview = 0
+        case restockHistory = 1
+        
+        var title: String {
+            switch self {
+            case .overview: return "Tổng quan kho"
+            case .restockHistory: return "Lịch sử nhập hàng"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .overview: return "cube.box"
+            case .restockHistory: return "clock.arrow.circlepath"
+            }
+        }
+    }
+    
+    // Tổng giá trị tồn kho hàng hóa
+    private var totalInventoryValue: Double {
+        viewModel.products.filter { !$0.isFinishedGood }
+            .reduce(0) { $0 + Double($1.stockQuantity) * $1.costPrice }
+    }
+    
+    // Số loại hàng hóa
+    private var productCount: Int {
+        viewModel.products.filter { !$0.isFinishedGood }.count
+    }
+    
+    // Tổng số lượng hàng hóa
+    private var totalStockQuantity: Int {
+        viewModel.products.filter { !$0.isFinishedGood }
+            .reduce(0) { $0 + $1.stockQuantity }
+    }
+    
+    // Thống kê lịch sử nhập hàng
+    private var totalRestockCount: Int {
+        viewModel.restockHistory.filter { !$0.isDeleted }.count
+    }
+    
+    private var totalRestockCost: Double {
+        viewModel.restockHistory.filter { !$0.isDeleted }
+            .reduce(0) { $0 + $1.totalCost }
+    }
+    
+    private func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "VND"
+        return formatter.string(from: NSNumber(value: amount)) ?? "0 đ"
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Tab selector
+                Picker("Loại báo cáo", selection: $selectedTab) {
+                    ForEach(ReportTab.allCases, id: \.rawValue) { tab in
+                        Label(tab.title, systemImage: tab.icon).tag(tab.rawValue)
+                    }
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding()
+                
+                TabView(selection: $selectedTab) {
+                    // Tab 1: Tổng quan kho
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Tổng quan kho hàng hóa")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themeTextDark)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                InventoryStatCard(
+                                    title: "Số loại hàng hóa",
+                                    value: "\(productCount)",
+                                    icon: "square.stack.3d.up",
+                                    color: .blue
+                                )
+                                InventoryStatCard(
+                                    title: "Tổng số lượng",
+                                    value: "\(totalStockQuantity)",
+                                    icon: "number.circle",
+                                    color: .purple
+                                )
+                                InventoryStatCard(
+                                    title: "Tổng giá trị kho",
+                                    value: formatCurrency(totalInventoryValue),
+                                    icon: "banknote",
+                                    color: .green
+                                )
+                                InventoryStatCard(
+                                    title: "Số phiếu nhập",
+                                    value: "\(totalRestockCount)",
+                                    icon: "doc.text",
+                                    color: .orange
+                                )
+                            }
+                            .padding(.horizontal)
+                            
+                            Divider()
+                                .padding(.horizontal)
+                            
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Top 5 hàng hóa giá trị cao nhất")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.themeTextDark)
+                                
+                                let filteredProducts = viewModel.products.filter { !$0.isFinishedGood }
+                                let sortedProducts = filteredProducts.sorted { lhs, rhs in
+                                    let lhsValue = Double(lhs.stockQuantity) * lhs.costPrice
+                                    let rhsValue = Double(rhs.stockQuantity) * rhs.costPrice
+                                    return lhsValue > rhsValue
+                                }
+                                let topProducts = sortedProducts.prefix(5)
+                                
+                                ForEach(Array(topProducts.enumerated()), id: \.element.id) { index, product in
+                                    HStack {
+                                        Text("\(index + 1).")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.gray)
+                                            .frame(width: 24)
+                                        Text(product.name)
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.themeTextDark)
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text(formatCurrency(Double(product.stockQuantity) * product.costPrice))
+                                            .font(.subheadline)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(Color.themePrimary)
+                                    }
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                    .background(Color.white)
+                                    .cornerRadius(10)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        .padding(.vertical)
+                    }
+                    .tag(ReportTab.overview.rawValue)
+                    
+                    // Tab 2: Lịch sử nhập hàng
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Thống kê lịch sử nhập hàng")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themeTextDark)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                            
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                                InventoryStatCard(
+                                    title: "Số phiếu nhập",
+                                    value: "\(totalRestockCount)",
+                                    icon: "doc.text.fill",
+                                    color: .orange
+                                )
+                                InventoryStatCard(
+                                    title: "Tổng chi phí nhập",
+                                    value: formatCurrency(totalRestockCost),
+                                    icon: "creditcard",
+                                    color: .green
+                                )
+                            }
+                            .padding(.horizontal)
+                            
+                            Divider()
+                                .padding(.horizontal)
+                            
+                            if !viewModel.restockHistory.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Phiếu nhập gần đây (mới nhất 5)")
+                                        .font(.headline)
+                                        .foregroundStyle(Color.themeTextDark)
+                                    
+                                    let activeBills = viewModel.restockHistory.filter { !$0.isDeleted }
+                                    let sortedBills = activeBills.sorted { $0.createdAt > $1.createdAt }
+                                    let recentBills = sortedBills.prefix(5)
+                                    
+                                    ForEach(Array(recentBills), id: \.id) { bill in
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(Self.formatBillDate(bill.createdAt))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                                Text("\(bill.items.count) mặt hàng")
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(Color.themeTextDark)
+                                            }
+                                            Spacer()
+                                            Text(formatCurrency(bill.totalCost))
+                                                .font(.subheadline)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(Color.themePrimary)
+                                        }
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 12)
+                                        .background(Color.white)
+                                        .cornerRadius(10)
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                        .padding(.vertical)
+                    }
+                    .tag(ReportTab.restockHistory.rawValue)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Báo cáo kho")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Stat Card for Report
+private struct InventoryStatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundStyle(color)
+                Spacer()
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Text(value)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themeTextDark)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
     }
 }
