@@ -273,6 +273,7 @@ struct ContentView: View {
         @ObservedObject private var notifService = AppNotificationService.shared
         @State private var showLeaveApprovalFromNotif = false
         @State private var showAttendance = false
+        @State private var showGuide = false
 
         // MARK: - Date range selection
         enum QuickRange: String, CaseIterable {
@@ -781,6 +782,27 @@ struct ContentView: View {
                                     }
                                 }
                                 .padding(.horizontal)
+                                
+                                Button {
+                                    showGuide = true
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "questionmark.circle.fill")
+                                            .font(.title3)
+                                        Text("Hướng dẫn sử dụng & Tính năng")
+                                            .font(.headline)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 14)
+                                    .background(Color.white)
+                                    .cornerRadius(14)
+                                    .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal)
                             }
                             
                             Spacer(minLength: 100)
@@ -818,6 +840,170 @@ struct ContentView: View {
                         }
                         .sheet(isPresented: $showAttendance) {
                             AttendanceView()
+                        }
+                        .sheet(isPresented: $showGuide) {
+                            NavigationStack {
+                                ScrollView {
+                                    VStack(alignment: .leading, spacing: 20) {
+                                        Group {
+                                            Text("📖 Hướng dẫn sử dụng & Tính năng")
+                                                .font(.title)
+                                                .fontWeight(.bold)
+                                            
+                                            Text("Chào mừng bạn đến với hệ thống quản lý cửa hàng! Dưới đây là tổng hợp tất cả tính năng và cách sử dụng:")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Divider()
+                                        
+                                        Group {
+                                            Text("🏠 Tab Tổng quan")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Xem doanh thu, lợi nhuận theo thời gian thực")
+                                                Text("• Xem lợi nhuận bán lẻ và bán sỉ")
+                                                Text("• Tác vụ nhanh để truy cập các chức năng quan trọng")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("🛒 Tab Đơn hàng")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Tạo đơn hàng bán lẻ nhanh chóng")
+                                                Text("• Quét mã vạch sản phẩm")
+                                                Text("• Nhập bằng giọng nói AI")
+                                                Text("• Xem lịch sử tất cả đơn hàng")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("📦 Tab Kho hàng")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Quản lý danh sách sản phẩm")
+                                                Text("• Nhập hàng (Restock)")
+                                                Text("• Xem lịch sử nhập kho")
+                                                Text("• Quản lý kho nguyên vật liệu (nếu bật chế độ sản xuất)")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("💰 Tab Chi phí")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Quản lý chi phí vận hành (thuê mặt bằng, lương, điện nước...)")
+                                                Text("• Xem lịch sử chi phí")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("💬 Tab Chat")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Chat với khách hàng")
+                                                Text("• Nhận thông báo từ website")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("📊 Tab Thống kê")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Xem doanh thu, lợi nhuận chi tiết theo ngày/tuần/tháng/quý")
+                                                Text("• Xem lợi nhuận bán lẻ và bán sỉ")
+                                                Text("• Xuất báo cáo CSV")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("⚙️ Tab Cài đặt")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Cài đặt cửa hàng")
+                                                Text("• Quản lý nhân viên và quyền hạn")
+                                                Text("• Tuỳ chỉnh tab bar")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("➕ Tab Thêm")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Quản lý sản xuất (nếu bật)")
+                                                Text("• Báo cáo sản xuất")
+                                                Text("• Quản lý khách hàng")
+                                                Text("• Điểm danh nhân viên")
+                                                Text("• Chat")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("🏭 Tính năng sản xuất")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Xuất thành phẩm (bán sỉ)")
+                                                Text("• Nhập nguyên liệu")
+                                                Text("• Xuất nguyên liệu tự động theo template")
+                                                Text("• Xem báo cáo sản xuất")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Group {
+                                            Text("👥 Quản lý nhân viên")
+                                                .font(.headline)
+                                                .fontWeight(.semibold)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text("• Mời nhân viên vào cửa hàng")
+                                                Text("• Phân quyền truy cập")
+                                                Text("• Điểm danh và xem lịch sử làm việc")
+                                                Text("• Quản lý nghỉ phép")
+                                            }
+                                            .font(.subheadline)
+                                        }
+                                        .padding(.horizontal)
+                                        
+                                        Spacer()
+                                    }
+                                    .padding(.vertical)
+                                }
+                                .navigationTitle("Hướng dẫn")
+                                .navigationBarTitleDisplayMode(.inline)
+                                .toolbar {
+                                    ToolbarItem(placement: .confirmationAction) {
+                                        Button("Đóng") { showGuide = false }
+                                    }
+                                }
+                            }
                         }
                     }
                     .refreshable {
