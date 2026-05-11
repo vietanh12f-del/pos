@@ -12,6 +12,11 @@ struct ProductionReportView: View {
     // MARK: - Material import stats
     @State private var materialImportTx: [ProductionTransaction] = []
     @State private var isLoadingStats = false
+    
+    // MARK: - Info popup for material import card
+    @State private var showInfoPopup = false
+    @State private var currentInfoTitle = ""
+    @State private var currentInfoMessage = ""
 
     // MARK: - Material export stats
     @State private var materialExportTx: [ProductionTransaction] = []
@@ -43,7 +48,11 @@ struct ProductionReportView: View {
     }
 
     private var importTxCount: Int { filteredImportTx.count }
-    private var importTxTotal: Double { filteredImportTx.reduce(0) { $0 + $1.totalCost } }
+    private var importTxTotal: Double { filteredImportTx.reduce(0.0) { total, tx in total + tx.totalCost } }
+    
+    // Thống kê VAT cho nhập nguyên liệu
+    private var importTxVatCount: Int { filteredImportTx.filter { ($0.vatAmount ?? 0) > 0 }.count }
+    private var importTxTotalVAT: Double { filteredImportTx.reduce(0.0) { total, tx in total + (tx.vatAmount ?? 0) } }
 
     // MARK: - Export NL computed
     private var filteredExportTx: [ProductionTransaction] {
@@ -653,8 +662,42 @@ struct ProductionReportView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(cfg.color.opacity(0.15), lineWidth: 1))
     }
 
-    // MARK: - Material Import Card (số liệu thực)
+    // MARK: - Helper View for Stat Tile with Info Icon
+    private struct StatTileWithInfo: View {
+        let label: String
+        let value: String
+        let color: Color
+        let infoTitle: String
+        let infoMessage: String
+        let onShowInfo: (String, String) -> Void
+        
+        var body: some View {
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Text(label)
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                    Button {
+                        onShowInfo(infoTitle, infoMessage)
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.caption2)
+                            .foregroundStyle(Color.gray.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text(value)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(value == "..." || value.contains("—") ? Color.gray.opacity(0.35) : color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
 
+    // MARK: - Material Import Card (số liệu thực)
     @ViewBuilder
     private func materialImportCard(_ cfg: CardConfig) -> some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -695,25 +738,33 @@ struct ProductionReportView: View {
 
             // Hàng 1: Tồn kho hiện tại (không phụ thuộc range)
             HStack(spacing: 0) {
-                VStack(spacing: 4) {
-                    Text("Tồn kho hiện tại")
-                        .font(.caption2).foregroundStyle(.gray)
-                    Text("\(viewModel.materials.count) nguyên liệu")
-                        .font(.caption).fontWeight(.semibold).foregroundStyle(Color.themeTextDark)
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                }
-                .frame(maxWidth: .infinity)
-
+                StatTileWithInfo(
+                    label: "Tồn kho hiện tại",
+                    value: "\(viewModel.materials.count) nguyên liệu",
+                    color: Color.themeTextDark,
+                    infoTitle: "Tồn kho hiện tại",
+                    infoMessage: "Số lượng loại nguyên liệu đang có trong kho của cửa hàng hiện tại.",
+                    onShowInfo: { title, message in
+                        currentInfoTitle = title
+                        currentInfoMessage = message
+                        showInfoPopup = true
+                    }
+                )
+                
                 Divider().frame(height: 32)
-
-                VStack(spacing: 4) {
-                    Text("Giá trị tồn kho")
-                        .font(.caption2).foregroundStyle(.gray)
-                    Text(formatCurrency(totalMaterialStockValue))
-                        .font(.caption).fontWeight(.semibold).foregroundStyle(cfg.color)
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                }
-                .frame(maxWidth: .infinity)
+                
+                StatTileWithInfo(
+                    label: "Giá trị tồn kho",
+                    value: formatCurrency(totalMaterialStockValue),
+                    color: cfg.color,
+                    infoTitle: "Giá trị tồn kho",
+                    infoMessage: "Tổng giá trị của toàn bộ nguyên liệu trong kho, tính theo giá nhập cuối cùng của mỗi loại.",
+                    onShowInfo: { title, message in
+                        currentInfoTitle = title
+                        currentInfoMessage = message
+                        showInfoPopup = true
+                    }
+                )
             }
             .padding(.horizontal, 8)
             .padding(.top, 10)
@@ -729,26 +780,75 @@ struct ProductionReportView: View {
 
             // Hàng 2: Nhập trong kỳ (theo range)
             HStack(spacing: 0) {
-                VStack(spacing: 4) {
-                    Text("Số phiếu nhập")
-                        .font(.caption2).foregroundStyle(.gray)
-                    Text(isLoadingStats ? "..." : "\(importTxCount) phiếu")
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(importTxCount > 0 ? cfg.color : Color.gray.opacity(0.35))
-                }
-                .frame(maxWidth: .infinity)
-
+                StatTileWithInfo(
+                    label: "Số phiếu nhập",
+                    value: isLoadingStats ? "..." : "\(importTxCount) phiếu",
+                    color: cfg.color,
+                    infoTitle: "Số phiếu nhập",
+                    infoMessage: "Tổng số phiếu nhập nguyên liệu trong khoảng thời gian đã chọn.",
+                    onShowInfo: { title, message in
+                        currentInfoTitle = title
+                        currentInfoMessage = message
+                        showInfoPopup = true
+                    }
+                )
+                
                 Divider().frame(height: 32)
+                
+                StatTileWithInfo(
+                    label: "Tổng chi phí",
+                    value: isLoadingStats ? "..." : formatCurrency(importTxTotal),
+                    color: cfg.color,
+                    infoTitle: "Tổng chi phí",
+                    infoMessage: "Tổng số tiền đã chi để nhập nguyên liệu trong khoảng thời gian đã chọn.",
+                    onShowInfo: { title, message in
+                        currentInfoTitle = title
+                        currentInfoMessage = message
+                        showInfoPopup = true
+                    }
+                )
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 6)
+            .padding(.bottom, 6)
+            
+            // Divider mỏng giữa hàng 2 và hàng 3
+            HStack {
+                Spacer().frame(width: 16)
+                Divider()
+                Spacer().frame(width: 16)
+            }
+            .frame(height: 1)
 
-                VStack(spacing: 4) {
-                    Text("Tổng chi phí")
-                        .font(.caption2).foregroundStyle(.gray)
-                    Text(isLoadingStats ? "..." : formatCurrency(importTxTotal))
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(importTxTotal > 0 ? cfg.color : Color.gray.opacity(0.35))
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                }
-                .frame(maxWidth: .infinity)
+            // Hàng 3: Thống kê VAT
+            HStack(spacing: 0) {
+                StatTileWithInfo(
+                    label: "Phiếu có VAT",
+                    value: isLoadingStats ? "..." : "\(importTxVatCount) phiếu",
+                    color: .blue,
+                    infoTitle: "Phiếu có VAT",
+                    infoMessage: "Số phiếu nhập nguyên liệu có tính thuế GTGT (VAT) trong khoảng thời gian đã chọn.",
+                    onShowInfo: { title, message in
+                        currentInfoTitle = title
+                        currentInfoMessage = message
+                        showInfoPopup = true
+                    }
+                )
+                
+                Divider().frame(height: 32)
+                
+                StatTileWithInfo(
+                    label: "Giá trị VAT",
+                    value: isLoadingStats ? "..." : formatCurrency(importTxTotalVAT),
+                    color: .purple,
+                    infoTitle: "Giá trị VAT",
+                    infoMessage: "Tổng số tiền VAT trả thêm cho các phiếu nhập nguyên liệu có VAT trong khoảng thời gian đã chọn.",
+                    onShowInfo: { title, message in
+                        currentInfoTitle = title
+                        currentInfoMessage = message
+                        showInfoPopup = true
+                    }
+                )
             }
             .padding(.horizontal, 8)
             .padding(.top, 6)
@@ -761,6 +861,11 @@ struct ProductionReportView: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(cfg.color.opacity(0.15), lineWidth: 1)
         )
+        .alert(currentInfoTitle, isPresented: $showInfoPopup) {
+            Button("Đóng", role: .cancel) { }
+        } message: {
+            Text(currentInfoMessage)
+        }
     }
 
     // MARK: - Finished Export Card (số liệu thực)
@@ -2455,6 +2560,7 @@ struct GenericProductionReportView: View {
     private func summaryCard(txs: [ProductionTransaction]) -> some View {
         let s = stats(for: txs)
         let currentStockValue = viewModel.products.filter { $0.isFinishedGood }.reduce(0.0) { $0 + Double($1.stockQuantity) * $1.costPrice }
+        
         return VStack(alignment: .leading, spacing: 10) {
             Text("Tổng kết")
                 .font(.headline).fontWeight(.bold)
