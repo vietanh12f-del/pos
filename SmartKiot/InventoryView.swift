@@ -39,6 +39,29 @@ struct InventoryView: View {
     @State private var filterMinCost: String = ""
     @State private var filterMaxCost: String = ""
     
+    enum VATFilterMode: String, CaseIterable, Identifiable {
+        case all, hasVAT, noVAT
+        var id: String { rawValue }
+    }
+    @State private var vatFilterMode: VATFilterMode = .all
+    
+    @State private var filterProductName: String = ""
+    
+    // Get unique creator names and supplier names from restock history
+    private var uniqueCreators: [String] {
+        Array(Set(viewModel.restockHistory.compactMap { $0.creatorName })).sorted()
+    }
+    
+    private var uniqueSuppliers: [String] {
+        Array(Set(viewModel.restockHistory.compactMap { $0.supplierName })).sorted()
+    }
+    
+    // Get unique product names from all restock items
+    private var uniqueProductNames: [String] {
+        let allNames = viewModel.restockHistory.flatMap { $0.items.map { $0.name } }
+        return Array(Set(allNames)).sorted()
+    }
+    
     private var dateFilterLabel: String {
         switch dateFilterMode {
         case .all: return "Tất cả"
@@ -175,14 +198,35 @@ struct InventoryView: View {
         // Filter by creator
         if !filterCreator.isEmpty {
             result = result.filter { bill in
-                bill.creatorName?.lowercased().contains(filterCreator.lowercased()) ?? false
+                bill.creatorName == filterCreator
             }
         }
         
         // Filter by supplier name
         if !filterSupplierName.isEmpty {
             result = result.filter { bill in
-                bill.supplierName?.lowercased().contains(filterSupplierName.lowercased()) ?? false
+                bill.supplierName == filterSupplierName
+            }
+        }
+        
+        // Filter by VAT
+        switch vatFilterMode {
+        case .hasVAT:
+            result = result.filter { bill in
+                bill.items.contains { $0.hasVAT }
+            }
+        case .noVAT:
+            result = result.filter { bill in
+                !bill.items.contains { $0.hasVAT }
+            }
+        case .all:
+            break
+        }
+        
+        // Filter by product name
+        if !filterProductName.isEmpty {
+            result = result.filter { bill in
+                bill.items.contains { $0.name == filterProductName }
             }
         }
         
@@ -606,11 +650,15 @@ struct InventoryView: View {
                     dateFilterMode: $dateFilterMode,
                     customStartDate: $customStartDate,
                     customEndDate: $customEndDate,
-                    showCustomDateSheet: $showCustomDateSheet,
                     filterCreator: $filterCreator,
                     filterSupplierName: $filterSupplierName,
                     filterMinCost: $filterMinCost,
-                    filterMaxCost: $filterMaxCost
+                    filterMaxCost: $filterMaxCost,
+                    vatFilterMode: $vatFilterMode,
+                    filterProductName: $filterProductName,
+                    uniqueCreators: uniqueCreators,
+                    uniqueSuppliers: uniqueSuppliers,
+                    uniqueProductNames: uniqueProductNames
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -1064,11 +1112,16 @@ struct RestockFilterSheet: View {
     @Binding var dateFilterMode: InventoryView.DateFilterMode
     @Binding var customStartDate: Date
     @Binding var customEndDate: Date
-    @Binding var showCustomDateSheet: Bool
     @Binding var filterCreator: String
     @Binding var filterSupplierName: String
     @Binding var filterMinCost: String
     @Binding var filterMaxCost: String
+    @Binding var vatFilterMode: InventoryView.VATFilterMode
+    @Binding var filterProductName: String
+    
+    let uniqueCreators: [String]
+    let uniqueSuppliers: [String]
+    let uniqueProductNames: [String]
     
     @Environment(\.dismiss) var dismiss
     
@@ -1082,6 +1135,14 @@ struct RestockFilterSheet: View {
         case .quarter: return "Quý"
         case .year: return "Năm"
         case .custom: return "Tùy chọn"
+        }
+    }
+    
+    private func vatFilterLabel(for mode: InventoryView.VATFilterMode) -> String {
+        switch mode {
+        case .all: return "Tất cả"
+        case .hasVAT: return "Có VAT"
+        case .noVAT: return "Không VAT"
         }
     }
     
@@ -1103,11 +1164,53 @@ struct RestockFilterSheet: View {
                 }
                 
                 Section("Người nhập") {
-                    TextField("Nhập tên người nhập...", text: $filterCreator)
+                    if uniqueCreators.isEmpty {
+                        Text("Không có dữ liệu")
+                            .foregroundStyle(.gray)
+                    } else {
+                        Picker("Chọn người nhập", selection: $filterCreator) {
+                            Text("Tất cả").tag("")
+                            ForEach(uniqueCreators, id: \.self) { creator in
+                                Text(creator).tag(creator)
+                            }
+                        }
+                    }
                 }
                 
                 Section("Cơ sở cung cấp") {
-                    TextField("Nhập tên cơ sở cung cấp...", text: $filterSupplierName)
+                    if uniqueSuppliers.isEmpty {
+                        Text("Không có dữ liệu")
+                            .foregroundStyle(.gray)
+                    } else {
+                        Picker("Chọn cơ sở cung cấp", selection: $filterSupplierName) {
+                            Text("Tất cả").tag("")
+                            ForEach(uniqueSuppliers, id: \.self) { supplier in
+                                Text(supplier).tag(supplier)
+                            }
+                        }
+                    }
+                }
+                
+                Section("VAT") {
+                    Picker("Chọn VAT", selection: $vatFilterMode) {
+                        ForEach(InventoryView.VATFilterMode.allCases) { mode in
+                            Text(vatFilterLabel(for: mode)).tag(mode)
+                        }
+                    }
+                }
+                
+                Section("Sản phẩm") {
+                    if uniqueProductNames.isEmpty {
+                        Text("Không có dữ liệu")
+                            .foregroundStyle(.gray)
+                    } else {
+                        Picker("Chọn sản phẩm", selection: $filterProductName) {
+                            Text("Tất cả").tag("")
+                            ForEach(uniqueProductNames, id: \.self) { productName in
+                                Text(productName).tag(productName)
+                            }
+                        }
+                    }
                 }
                 
                 Section("Tổng chi phí") {
@@ -1128,6 +1231,8 @@ struct RestockFilterSheet: View {
                         dateFilterMode = .all
                         filterCreator = ""
                         filterSupplierName = ""
+                        vatFilterMode = .all
+                        filterProductName = ""
                         filterMinCost = ""
                         filterMaxCost = ""
                     }
