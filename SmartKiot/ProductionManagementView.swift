@@ -683,28 +683,23 @@ private struct ProductionTransactionHistoryCard: View {
     var body: some View {
         let dateText = formatTxDate(tx.createdAt)
         VStack(alignment: .leading, spacing: 8) {
-            // Header row
-            HStack {
+            // Header row: Thời gian + STT nhỏ
+            HStack(spacing: 8) {
                 Text(dateText)
                     .font(.subheadline)
                     .foregroundStyle(tx.isDeleted ? Color.gray : Color.themeTextDark)
-
+                
                 if let stt = tx.sequenceNumber {
-                    Text("• \(stt)")
-                        .font(.subheadline)
+                    Text("STT: \(stt)")
+                        .font(.caption)
                         .fontWeight(.bold)
                         .foregroundStyle(tx.isDeleted ? Color.gray : Color.themePrimary)
                 }
-
-                if let name = tx.creatorName, !name.isEmpty {
-                    Text("• \(name)")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
+                
                 Spacer()
             }
 
-            // Badge row
+            // Badge row: Badges, Tên nhân viên, Lịch sử chỉnh sửa
             HStack(spacing: 8) {
                 if tx.isDeleted {
                     // Badge "Đã xoá" — bấm để xem thông tin
@@ -767,6 +762,11 @@ private struct ProductionTransactionHistoryCard: View {
                             Text("Chi tiết tự động")
                                 .font(.caption).fontWeight(.bold).foregroundStyle(Color.themePrimary)
                         }
+                    }
+                    if let name = tx.creatorName, !name.isEmpty {
+                        Text(name)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
                     }
                 }
                 Spacer()
