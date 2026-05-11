@@ -1515,12 +1515,22 @@ class OrderViewModel: ObservableObject {
         // Reset STT ngay lập tức để đơn tiếp theo có STT mới
         currentSequenceNumber = nil
         
+        // Snapshot trước khi clear (phải làm trước khi gán cho bill)
+        let itemsSnapshot = restockItems
+        let exportInfoSnapshot = pendingExportInfo
+        
         bill.creatorId = original?.creatorId ?? AuthManager.shared.currentUserProfile?.id
         bill.creatorName = original?.creatorName ?? AuthManager.shared.currentUserProfile?.fullName
         
-        // Snapshot trước khi clear
-        let itemsSnapshot = restockItems
-        let exportInfoSnapshot = pendingExportInfo
+        if let original = original {
+            bill.supplierName = original.supplierName
+            bill.supplierPhone = original.supplierPhone
+            bill.supplierAddress = original.supplierAddress
+        } else if let info = exportInfoSnapshot {
+            bill.supplierName = info.buyerName
+            bill.supplierPhone = info.buyerPhone
+            bill.supplierAddress = info.buyerAddress
+        }
         
         pendingExportNote = nil
         pendingExportPaymentReceiptURL = nil

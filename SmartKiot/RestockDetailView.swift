@@ -6,6 +6,7 @@ struct RestockDetailView: View {
     @Binding var showNewRestock: Bool
     @Environment(\.dismiss) var dismiss
     @State private var showEditHistory = false
+    @State private var showDeleteConfirmation = false
     
     // Computed properties for cost breakdown
     var totalMerchandiseCost: Double {
@@ -46,6 +47,35 @@ struct RestockDetailView: View {
                                 .fontWeight(.medium)
                         }
                     }
+                    if let supplierName = bill.supplierName, !supplierName.isEmpty {
+                        HStack {
+                            Text("Cơ sở cung cấp")
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(supplierName)
+                                .fontWeight(.medium)
+                        }
+                    }
+                    if let supplierPhone = bill.supplierPhone, !supplierPhone.isEmpty {
+                        HStack {
+                            Text("Số điện thoại")
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(supplierPhone)
+                                .fontWeight(.medium)
+                        }
+                    }
+                    if let supplierAddress = bill.supplierAddress, !supplierAddress.isEmpty {
+                        HStack {
+                            Text("Địa chỉ")
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(supplierAddress)
+                                .fontWeight(.medium)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                     if bill.isDeleted {
                         HStack {
                             Text("Trạng thái")
@@ -55,15 +85,6 @@ struct RestockDetailView: View {
                                 .fontWeight(.bold)
                                 .foregroundStyle(.red)
                         }
-                    }
-                    
-                    HStack {
-                        Text("Mã phiếu")
-                            .foregroundStyle(.gray)
-                        Spacer()
-                        Text(bill.id.uuidString.prefix(8).uppercased())
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.gray)
                     }
                 } header: {
                     Text("Thông tin chung")
@@ -164,6 +185,19 @@ struct RestockDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     if !bill.isDeleted {
                         Button {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Text("Xóa")
+                                .font(.headline)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .controlSize(.large)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    if !bill.isDeleted {
+                        Button {
                             dismiss()
                             viewModel.editRestockBill(bill)
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -200,7 +234,33 @@ struct RestockDetailView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .alert("Xóa phiếu nhập?", isPresented: $showDeleteConfirmation) {
+                Button("Hủy", role: .cancel) { }
+                Button("Xóa", role: .destructive) {
+                    Task {
+                        await viewModel.softDeleteRestockBill(bill)
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text("Phiếu sẽ được đánh dấu đã xoá và tồn kho/giá nhập sẽ được khôi phục. Phiếu vẫn còn trong lịch sử.")
+            }
         }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yy HH:mm"
+        return f.string(from: date)
+    }
+    
+    private func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "VND"
+        return formatter.string(from: NSNumber(value: amount)) ?? "0 đ"
     }
     
     private func highlightedName(_ name: String) -> AttributedString {

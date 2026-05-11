@@ -675,9 +675,20 @@ private struct InventoryRestockHistoryCard: View {
                             .clipShape(Capsule())
                     }
                     if let name = bill.creatorName, !name.isEmpty {
-                        Text(name)
+                        HStack(spacing: 4) {
+                            Text(name)
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            if let supplierName = bill.supplierName, !supplierName.isEmpty {
+                                Text("• \(supplierName)")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray.opacity(0.7))
+                            }
+                        }
+                    } else if let supplierName = bill.supplierName, !supplierName.isEmpty {
+                        Text(supplierName)
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.gray.opacity(0.7))
                     }
                 }
                 Spacer()
