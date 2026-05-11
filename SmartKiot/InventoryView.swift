@@ -1922,6 +1922,14 @@ struct InventoryImportReportView: View {
     }
 }
 
+// MARK: - Product Sale Model
+struct ProductSale: Identifiable {
+    let id = UUID()
+    let name: String
+    let quantity: Int
+    let revenue: Double
+}
+
 // MARK: - Inventory Export Report View (Sales Orders)
 struct InventoryExportReportView: View {
     @ObservedObject var viewModel: OrderViewModel
@@ -1950,6 +1958,7 @@ struct InventoryExportReportView: View {
     @State private var filterCustomer = ""
     @State private var showCreatorPicker = false
     @State private var showCustomerPicker = false
+    @State private var showTopProducts = false
     
     private var creators: [String] {
         Array(Set(allOrders.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
@@ -2014,6 +2023,25 @@ struct InventoryExportReportView: View {
             df.locale = Locale(identifier: "vi_VN")
             df.dateFormat = "dd/MM/yyyy"
             return "\(df.string(from: customStartDate)) - \(df.string(from: customEndDate))"
+        }
+    }
+    
+    private var productSales: [ProductSale] {
+        var salesMap: [String: (quantity: Int, revenue: Double)] = [:]
+        
+        for order in filteredOrders {
+            for item in order.items {
+                let key = item.name
+                let current = salesMap[key] ?? (0, 0)
+                salesMap[key] = (
+                    quantity: current.quantity + item.quantity,
+                    revenue: current.revenue + item.price * Double(item.quantity)
+                )
+            }
+        }
+        
+        return salesMap.map { name, data in
+            ProductSale(name: name, quantity: data.quantity, revenue: data.revenue)
         }
     }
     
@@ -2159,6 +2187,44 @@ struct InventoryExportReportView: View {
                     }
                     .padding(.horizontal)
                     
+                    // Top Products Card
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 14) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.blue.opacity(0.12))
+                                    .frame(width: 50, height: 50)
+                                Image(systemName: "chart.bar.fill")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Color.blue)
+                            }
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Top sản phẩm bán chạy")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Text("Xem chi tiết top sản phẩm")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.gray.opacity(0.4))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
+                    }
+                    .background(Color.white)
+                    .cornerRadius(16)
+                    .shadow(color: .black.opacity(0.06), radius: 6, x: 0, y: 2)
+                    .padding(.horizontal)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        showTopProducts = true
+                    }
+                    
                     Divider()
                         .padding(.horizontal)
                     
@@ -2303,6 +2369,106 @@ struct InventoryExportReportView: View {
                     }
                 }
                 .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showTopProducts) {
+                TopProductsView(productSales: productSales, formatCurrency: formatCurrency)
+            }
+        }
+    }
+}
+
+// MARK: - Top Products View
+struct TopProductsView: View {
+    let productSales: [ProductSale]
+    let formatCurrency: (Double) -> String
+    @Environment(\.dismiss) private var dismiss
+    enum SortBy: String, CaseIterable {
+        case revenue = "Doanh số"
+        case quantity = "Số lượng"
+    }
+    @State private var sortBy: SortBy = .revenue
+    
+    private var sortedProducts: [ProductSale] {
+        switch sortBy {
+        case .revenue:
+            return productSales.sorted { $0.revenue > $1.revenue }
+        case .quantity:
+            return productSales.sorted { $0.quantity > $1.quantity }
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Sort Picker
+                HStack {
+                    Text("Sắp xếp theo")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                    Picker("", selection: $sortBy) {
+                        ForEach(SortBy.allCases, id: \.self) { sort in
+                            Text(sort.rawValue).tag(sort)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                
+                Divider()
+                
+                ScrollView {
+                    VStack(spacing: 8) {
+                        if sortedProducts.isEmpty {
+                            Text("Không có dữ liệu")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 40)
+                        } else {
+                            ForEach(Array(sortedProducts.enumerated()), id: \.element.id) { index, product in
+                                HStack(spacing: 12) {
+                                    Text("\(index + 1)")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(index < 3 ? Color.themePrimary : .gray)
+                                        .frame(width: 30, alignment: .center)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(product.name)
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        Text("\(product.quantity) sản phẩm")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Text(formatCurrency(product.revenue))
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .padding(.horizontal)
+                            }
+                        }
+                    }
+                    .padding(.vertical)
+                }
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Top sản phẩm bán chạy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
             }
         }
     }
