@@ -580,6 +580,10 @@ enum StorePermission: String, Codable, CaseIterable, Hashable {
     case viewCustomization = "view_customization"
     case manageEmployees = "manage_employees"
     case deleteEmployee = "delete_employee"
+    case viewStatistics = "view_statistics"
+    case viewInventoryReports = "view_inventory_reports"
+    case manageProduction = "manage_production"
+    case manageCustomers = "manage_customers"
     
     var displayName: String {
         switch self {
@@ -591,6 +595,10 @@ enum StorePermission: String, Codable, CaseIterable, Hashable {
         case .viewCustomization: return "Xem Tuỳ chỉnh"
         case .manageEmployees: return "Quản lý Nhân viên"
         case .deleteEmployee: return "Xóa Nhân viên"
+        case .viewStatistics: return "Xem Thống kê & Doanh thu lợi nhuận"
+        case .viewInventoryReports: return "Xem Báo cáo kho"
+        case .manageProduction: return "Báo cáo & Quản lý sản xuất"
+        case .manageCustomers: return "Quản lý khách hàng"
         }
     }
 }
