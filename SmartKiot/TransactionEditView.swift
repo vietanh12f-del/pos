@@ -459,6 +459,7 @@ struct TransactionEditView: View {
                 isPaid = original.isPaid
                 expectedPayDate = original.expectedPayDate
                 paymentReceiptURL = original.paymentReceiptURL
+                customVATRate = original.vatRate
                 if let paid = original.paidAmount, let grand = original.grandTotal {
                     if paid < grand {
                         payFullAmount = false

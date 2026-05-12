@@ -50,7 +50,7 @@ struct ProductionBillDetailView: View {
     }
 
     private var vatEnabled: Bool { StoreManager.shared.currentStoreVATEnabled() }
-    private var vatRate: Double   { StoreManager.shared.currentStoreVATRate() }
+    private var vatRate: Double   { tx.vatRate ?? StoreManager.shared.currentStoreVATRate() }
 
     private var subtotal: Double {
         tx.items.reduce(0) { acc, it in
@@ -62,7 +62,7 @@ struct ProductionBillDetailView: View {
             }
         }
     }
-    private var vatAmount: Double  { vatEnabled ? subtotal * (vatRate / 100.0) : 0 }
+    private var vatAmount: Double  { tx.vatAmount ?? (vatEnabled ? subtotal * (vatRate / 100.0) : 0) }
     private var grandTotal: Double { tx.grandTotal ?? (subtotal + vatAmount) }
     private var paidAmount: Double { tx.paidAmount ?? grandTotal }
     private var debtAmount: Double { tx.debtAmount ?? 0 }
