@@ -2099,6 +2099,7 @@ struct TreatmentSession: Identifiable, Codable, Equatable {
     var name: String = ""
     var time: Date?
     var status: String = "pending"  // "pending" | "completed" | "cancelled"
+    var feedback: String = ""
 }
 
 struct TradingParty: Identifiable, Codable, Equatable {
@@ -2124,12 +2125,14 @@ struct TreatmentSessionDTO: Codable {
     let name: String?
     let time: Date?
     let status: String?
+    let feedback: String?
     
     init(from domain: TreatmentSession) {
         self.id = domain.id
         self.name = domain.name.isEmpty ? nil : domain.name
         self.time = domain.time
         self.status = domain.status
+        self.feedback = domain.feedback.isEmpty ? nil : domain.feedback
     }
     
     func toDomain() -> TreatmentSession {
@@ -2137,7 +2140,8 @@ struct TreatmentSessionDTO: Codable {
             id: id,
             name: name ?? "",
             time: time,
-            status: status ?? "pending"
+            status: status ?? "pending",
+            feedback: feedback ?? ""
         )
     }
 }

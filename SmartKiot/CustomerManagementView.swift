@@ -448,6 +448,7 @@ struct PartyDetailView: View {
     @StateObject private var orderViewModel = OrderViewModel()
     @State private var showProductionDetail: Bool = false
     @State private var selectedProductionTx: ProductionTransaction?
+    @State private var showFeatureInDevelopment = false
 
     init(party: TradingParty, onDeleted: (() -> Void)? = nil) {
         self.party = party
@@ -563,6 +564,11 @@ struct PartyDetailView: View {
                     }
                 }
             }
+            .alert("Tính năng đang phát triển", isPresented: $showFeatureInDevelopment) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Tính năng gửi email lấy ý kiến khách hàng sẽ được cập nhật trong phiên bản tới!")
+            }
         }
     }
 
@@ -644,40 +650,64 @@ struct PartyDetailView: View {
                         }
                         if !currentParty.treatmentSessions.isEmpty {
                             ForEach(Array(currentParty.treatmentSessions.enumerated()), id: \.element.id) { index, session in
-                                HStack(spacing: 12) {
-                                    let statusColor: Color = switch session.status {
-                                        case "completed": .green
-                                        case "cancelled": .red
-                                        default: .orange
-                                    }
-                                    Circle().fill(statusColor).frame(width: 8, height: 8)
-                                    Text("Buổi \(index + 1)")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.gray)
-                                    if let time = session.time {
-                                        Text(formatDateTime(time))
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack(spacing: 12) {
+                                        let statusColor: Color = switch session.status {
+                                            case "completed": .green
+                                            case "cancelled": .red
+                                            default: .orange
+                                        }
+                                        Circle().fill(statusColor).frame(width: 8, height: 8)
+                                        Text("Buổi \(index + 1)")
                                             .font(.subheadline)
                                             .foregroundStyle(.gray)
+                                        if let time = session.time {
+                                            Text(formatDateTime(time))
+                                                .font(.subheadline)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        Spacer()
+                                        if !session.name.isEmpty {
+                                            Text(session.name)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.primary)
+                                        }
+                                        let statusLabel: String = switch session.status {
+                                            case "completed": "Hoàn thành"
+                                            case "cancelled": "Đã huỷ"
+                                            default: "Chờ"
+                                        }
+                                        Text(statusLabel)
+                                            .font(.caption)
+                                            .foregroundStyle(statusColor)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(statusColor.opacity(0.1))
+                                            .clipShape(Capsule())
                                     }
-                                    Spacer()
-                                    if !session.name.isEmpty {
-                                        Text(session.name)
-                                            .font(.subheadline)
-                                            .foregroundStyle(.primary)
+                                    if session.status == "completed" {
+                                        HStack {
+                                            Button {
+                                                showFeatureInDevelopment = true
+                                            } label: {
+                                                Label("Gửi email lấy ý kiến", systemImage: "envelope.fill")
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            Spacer()
+                                        }
+                                        if !session.feedback.isEmpty {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text("Ý kiến khách hàng:")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray.opacity(0.7))
+                                                Text(session.feedback)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(.gray)
+                                            }
+                                        }
                                     }
-                                    let statusLabel: String = switch session.status {
-                                        case "completed": "Hoàn thành"
-                                        case "cancelled": "Đã huỷ"
-                                        default: "Chờ"
-                                    }
-                                    Text(statusLabel)
-                                        .font(.caption)
-                                        .foregroundStyle(statusColor)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(statusColor.opacity(0.1))
-                                        .clipShape(Capsule())
                                 }
+                                .padding(.vertical, 4)
                             }
                         }
                     }
@@ -1430,6 +1460,18 @@ struct PartyEditSheet: View {
                                     Text("Chờ").tag("pending")
                                     Text("Hoàn thành").tag("completed")
                                     Text("Đã huỷ").tag("cancelled")
+                                }
+                            }
+                            if tempSession.status == "completed" {
+                                Section(header: Text("Ý kiến khách hàng")) {
+                                    TextEditor(text: $tempSession.feedback)
+                                        .frame(minHeight: 100)
+                                        .overlay(
+                                            Text("Nhập ý kiến khách hàng")
+                                                .foregroundColor(tempSession.feedback.isEmpty ? .gray.opacity(0.5) : .clear)
+                                                .padding(.top, 8),
+                                            alignment: .topLeading
+                                        )
                                 }
                             }
                         }
