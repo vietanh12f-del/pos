@@ -1308,6 +1308,10 @@ struct OrderDTO: Codable {
     let vat_rate: Double?
     let vat_amount: Double?
     
+    enum CodingKeys: String, CodingKey {
+        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, receipt_image_url, sequence_number, vat_rate, vat_amount
+    }
+    
     init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?) {
         self.id = id
         self.total_amount = total_amount
@@ -1322,6 +1326,40 @@ struct OrderDTO: Codable {
         self.sequence_number = sequence_number
         self.vat_rate = vat_rate
         self.vat_amount = vat_amount
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        total_amount = try container.decode(Double.self, forKey: .total_amount)
+        created_at = try container.decode(Date.self, forKey: .created_at)
+        order_items = try container.decodeIfPresent([OrderItemDTO].self, forKey: .order_items)
+        store_id = try container.decodeIfPresent(UUID.self, forKey: .store_id)
+        is_paid = try container.decodeIfPresent(Bool.self, forKey: .is_paid)
+        creator_id = try container.decodeIfPresent(UUID.self, forKey: .creator_id)
+        creator_name = try container.decodeIfPresent(String.self, forKey: .creator_name)
+        customer_name = try container.decodeIfPresent(String.self, forKey: .customer_name)
+        receipt_image_url = try container.decodeIfPresent(String.self, forKey: .receipt_image_url)
+        sequence_number = try container.decodeIfPresent(String.self, forKey: .sequence_number)
+        vat_rate = try container.decodeIfPresent(Double.self, forKey: .vat_rate)
+        vat_amount = try container.decodeIfPresent(Double.self, forKey: .vat_amount)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(total_amount, forKey: .total_amount)
+        try container.encode(created_at, forKey: .created_at)
+        try container.encodeIfPresent(order_items, forKey: .order_items)
+        try container.encodeIfPresent(store_id, forKey: .store_id)
+        try container.encodeIfPresent(is_paid, forKey: .is_paid)
+        try container.encodeIfPresent(creator_id, forKey: .creator_id)
+        try container.encodeIfPresent(creator_name, forKey: .creator_name)
+        try container.encodeIfPresent(customer_name, forKey: .customer_name)
+        try container.encodeIfPresent(receipt_image_url, forKey: .receipt_image_url)
+        try container.encodeIfPresent(sequence_number, forKey: .sequence_number)
+        try container.encodeIfPresent(vat_rate, forKey: .vat_rate)
+        try container.encodeIfPresent(vat_amount, forKey: .vat_amount)
     }
     
     init(from domain: Bill) {
