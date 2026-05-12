@@ -380,10 +380,21 @@ struct ContentView: View {
                                     }
                                     
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(product.name)
-                                            .font(.body)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(Color.themeTextDark)
+                                        HStack(spacing: 4) {
+                                            Text(product.name)
+                                                .font(.body)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(Color.themeTextDark)
+                                            if product.hasVAT {
+                                                Text("VAT")
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.green.opacity(0.85))
+                                                    .clipShape(Capsule())
+                                            }
+                                        }
                                         
                                         Text(product.category)
                                             .font(.caption)
@@ -974,10 +985,21 @@ struct ContentView: View {
                                     }
                                     
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(product.name)
-                                            .font(.body)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(Color.themeTextDark)
+                                        HStack(spacing: 4) {
+                                            Text(product.name)
+                                                .font(.body)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(Color.themeTextDark)
+                                            if product.hasVAT {
+                                                Text("VAT")
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.green.opacity(0.85))
+                                                    .clipShape(Capsule())
+                                            }
+                                        }
                                         
                                         Text(product.category)
                                             .font(.caption)
@@ -2219,16 +2241,28 @@ struct ContentView: View {
                         .padding(8)
                 }
                 
-                HStack {
-                    Text(product.name)
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themeTextDark)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(spacing: 6) {
+                    HStack(spacing: 4) {
+                        Text(product.name)
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themeTextDark)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if product.hasVAT {
+                            Text("VAT")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.green.opacity(0.85))
+                                .clipShape(Capsule())
+                        }
+                    }
                     
                     Text("Tồn: \(stockLevel)")
                         .font(.caption)
                         .foregroundStyle(stockLevel > 0 ? .gray : .red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .background(Color.white)
