@@ -2254,7 +2254,6 @@ struct ContentView: View {
         @State private var receiptImage: UIImage?
         @State private var isUploadingReceipt = false
         @State private var showDiscountSheet = false
-        @State private var customVATRate: Double? = nil
         @State private var showVATRatePicker = false
         @State private var vatRateInputText: String = ""
         @State private var isPrinting = false
@@ -2318,9 +2317,9 @@ struct ContentView: View {
                             },
                             onEditDiscount: { showDiscountSheet = true },
                             sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber,
-                            customVATRate: customVATRate,
+                            customVATRate: viewModel.vatRate,
                             onEditVAT: {
-                                vatRateInputText = String(format: "%.0f", customVATRate ?? StoreManager.shared.currentStoreVATRate())
+                                vatRateInputText = String(format: "%.0f", viewModel.vatRate ?? StoreManager.shared.currentStoreVATRate())
                                 showVATRatePicker = true
                             }
                         )
@@ -2438,8 +2437,8 @@ struct ContentView: View {
                 VATRatePickerSheet(
                     rateText: $vatRateInputText,
                     defaultRate: StoreManager.shared.currentStoreVATRate(),
-                    onSave: { newRate in customVATRate = newRate },
-                    onReset: { customVATRate = nil }
+                    onSave: { newRate in viewModel.vatRate = newRate },
+                    onReset: { viewModel.vatRate = nil }
                 )
             }
         }
@@ -2477,7 +2476,8 @@ struct ContentView: View {
                     receiptImageURL: nil,
                     onPickedReceiptImage: nil,
                     onEditDiscount: nil,
-                    sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber
+                    sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber,
+                    customVATRate: viewModel.vatRate
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -2517,7 +2517,8 @@ struct ContentView: View {
                 receiptImageURL: nil,
                 onPickedReceiptImage: nil,
                 onEditDiscount: nil,
-                sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber
+                sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber,
+                customVATRate: viewModel.vatRate
             )
             .frame(width: 375)
             let renderer = ImageRenderer(content: renderView)

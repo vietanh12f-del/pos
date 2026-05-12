@@ -361,6 +361,15 @@ class OrderViewModel: ObservableObject {
         updatedBill.sequenceNumber = original.sequenceNumber
         updatedBill.customerName = walkInName
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? original.paymentReceiptURL
+        updatedBill.isPaid = original.isPaid
+        updatedBill.vatRate = vatRate
+        updatedBill.creatorId = original.creatorId
+        updatedBill.creatorName = original.creatorName
+        
+        // Calculate VAT amount
+        let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
+        let rate = vatRate ?? StoreManager.shared.currentStoreVATRate()
+        updatedBill.vatAmount = vatEnabled ? (totalAmount * rate / 100.0) : 0
         if let index = pastOrders.firstIndex(where: { $0.id == original.id }) {
             pastOrders[index] = updatedBill
         }
@@ -851,6 +860,7 @@ class OrderViewModel: ObservableObject {
     @Published var discountPercent: Int = 0            // 0...100
     @Published var discountAmountValue: Double = 0     // VND
     @Published var discountFinalPriceTarget: Double? = nil // VND
+    @Published var vatRate: Double? = nil               // Custom VAT rate for the order
     
     var subtotalAmount: Double {
         items.reduce(0) { $0 + $1.total }
@@ -2917,6 +2927,9 @@ class OrderViewModel: ObservableObject {
         editingBill = bill
         items = bill.items
         currentInput = ""
+        vatRate = bill.vatRate
+        walkInName = bill.customerName ?? "Khách lẻ"
+        paymentReceiptImageURL = bill.paymentReceiptURL
     }
     
     func saveEditedOrder() {
@@ -2928,6 +2941,16 @@ class OrderViewModel: ObservableObject {
         var updatedBill = Bill(id: originalBill.id, createdAt: originalBill.createdAt, items: items, total: newTotal)
         updatedBill.customerName = walkInName
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? originalBill.paymentReceiptURL
+        updatedBill.sequenceNumber = originalBill.sequenceNumber
+        updatedBill.isPaid = originalBill.isPaid
+        updatedBill.vatRate = vatRate
+        updatedBill.creatorId = originalBill.creatorId
+        updatedBill.creatorName = originalBill.creatorName
+        
+        // Calculate VAT amount
+        let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
+        let rate = vatRate ?? StoreManager.shared.currentStoreVATRate()
+        updatedBill.vatAmount = vatEnabled ? (totalAmount * rate / 100.0) : 0
 
         // Replace in history
         if let index = pastOrders.firstIndex(where: { $0.id == originalBill.id }) {
@@ -3002,6 +3025,7 @@ class OrderViewModel: ObservableObject {
         discountPercent = 0
         discountAmountValue = 0
         discountFinalPriceTarget = nil
+        vatRate = nil
     }
     
     // MARK: - Calendar Stats
@@ -3212,6 +3236,12 @@ class OrderViewModel: ObservableObject {
         bill.customerName = walkInName
         bill.paymentReceiptURL = paymentReceiptImageURL
         bill.sequenceNumber = currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
+        bill.vatRate = vatRate
+        
+        // Calculate VAT amount
+        let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
+        let rate = vatRate ?? StoreManager.shared.currentStoreVATRate()
+        bill.vatAmount = vatEnabled ? (totalAmount * rate / 100.0) : 0
         
         // Populate creator info
         if let profile = AuthManager.shared.currentUserProfile {

@@ -41,22 +41,23 @@ struct BillDetailView: View {
             
             ScrollView {
                 BillReceiptView(
-                    items: bill.items,
-                    totalAmount: bill.total,
-                    dateString: formatDate(bill.createdAt),
-                    qrURL: generateQRURL(for: bill),
-                    qrImage: nil,
-                    billPayload: nil,
-                    showButtons: true,
-                    onComplete: nil,
-                    customerName: bill.customerName ?? "Khách lẻ",
-                    onOpenBankSettings: nil,
-                    onCaptureReceipt: { showReceiptCamera = true },
-                    receiptImageURL: receiptImageURLString,
-                    onPickedReceiptImage: { img in receiptImage = img },
-                    onEditDiscount: nil,
-                    sequenceNumber: bill.sequenceNumber
-                )
+                items: bill.items,
+                totalAmount: bill.total,
+                dateString: formatDate(bill.createdAt),
+                qrURL: generateQRURL(for: bill),
+                qrImage: nil,
+                billPayload: nil,
+                showButtons: true,
+                onComplete: nil,
+                customerName: bill.customerName ?? "Khách lẻ",
+                onOpenBankSettings: nil,
+                onCaptureReceipt: { showReceiptCamera = true },
+                receiptImageURL: receiptImageURLString,
+                onPickedReceiptImage: { img in receiptImage = img },
+                onEditDiscount: nil,
+                sequenceNumber: bill.sequenceNumber,
+                customVATRate: bill.vatRate
+            )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                 
@@ -241,7 +242,8 @@ struct BillDetailView: View {
                 receiptImageURL: bill.paymentReceiptURL,
                 onPickedReceiptImage: nil,
                 onEditDiscount: nil,
-                sequenceNumber: bill.sequenceNumber
+                sequenceNumber: bill.sequenceNumber,
+                customVATRate: bill.vatRate
             )
             .frame(width: 375)
             .background(Color.white)

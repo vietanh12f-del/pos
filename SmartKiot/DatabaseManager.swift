@@ -1305,8 +1305,10 @@ struct OrderDTO: Codable {
     let customer_name: String?
     let receipt_image_url: String?
     let sequence_number: String?
+    let vat_rate: Double?
+    let vat_amount: Double?
     
-    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?) {
+    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?) {
         self.id = id
         self.total_amount = total_amount
         self.created_at = created_at
@@ -1318,6 +1320,8 @@ struct OrderDTO: Codable {
         self.customer_name = customer_name
         self.receipt_image_url = receipt_image_url
         self.sequence_number = sequence_number
+        self.vat_rate = vat_rate
+        self.vat_amount = vat_amount
     }
     
     init(from domain: Bill) {
@@ -1332,6 +1336,8 @@ struct OrderDTO: Codable {
         self.customer_name = domain.customerName
         self.receipt_image_url = domain.paymentReceiptURL
         self.sequence_number = domain.sequenceNumber
+        self.vat_rate = domain.vatRate
+        self.vat_amount = domain.vatAmount
     }
     
     func toDomain() -> Bill {
@@ -1345,11 +1351,13 @@ struct OrderDTO: Codable {
         bill.customerName = customer_name
         bill.paymentReceiptURL = receipt_image_url
         bill.sequenceNumber = sequence_number
+        bill.vatRate = vat_rate
+        bill.vatAmount = vat_amount ?? 0
         return bill
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url, sequence_number: sequence_number)
+        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount)
     }
 }
 

@@ -87,6 +87,8 @@ struct Bill: Identifiable, Codable, Equatable {
     var customerName: String? = nil // Walk-in customer name (edited in order)
     var paymentReceiptURL: String? = nil // URL to payment receipt image
     var sequenceNumber: String? = nil // Unique order number
+    var vatRate: Double? = nil // VAT rate percentage (e.g., 10 for 10%)
+    var vatAmount: Double = 0 // VAT amount
     
     var profit: Double {
         total - totalCost
