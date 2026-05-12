@@ -1491,8 +1491,14 @@ struct InventoryReportView: View {
             acc + bill.total
         }
     }
-    private var exportVatCount: Int { 0 } // Since Bill doesn't have VAT fields yet
-    private var exportTotalVat: Double { 0.0 }
+    private var exportVatCount: Int { 
+        filteredExportOrders.filter { $0.vatAmount > 0 }.count 
+    }
+    private var exportTotalVat: Double { 
+        filteredExportOrders.reduce(0.0) { acc, bill in
+            acc + bill.vatAmount
+        }
+    }
     
     // MARK: - Import Report (Nhập kho - from RestockBill)
     @State private var showImportReport = false
@@ -1769,9 +1775,9 @@ struct InventoryReportView: View {
             HStack(spacing: 0) {
                 summaryCol(label: "Doanh thu", value: formatCurrency(exportRevenue))
                 Divider().frame(height: 40)
-                summaryCol(label: "Phiếu có VAT", value: "—")
+                summaryCol(label: "Phiếu có VAT", value: "\(exportVatCount)")
                 Divider().frame(height: 40)
-                summaryCol(label: "Giá trị VAT", value: "—")
+                summaryCol(label: "Giá trị VAT", value: formatCurrency(exportTotalVat))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 12)
@@ -2528,12 +2534,12 @@ struct InventoryExportReportView: View {
             result = result.filter { $0.customerName == filterCustomer }
         }
         
-        // VAT filter - Note: currently Bill has no VAT fields, so we skip this for now
-        // switch vatFilter {
-        // case .all: break
-        // case .hasVAT: result = result.filter { ... }
-        // case .noVAT: result = result.filter { ... }
-        // }
+        // VAT filter
+        switch vatFilter {
+        case .all: break
+        case .hasVAT: result = result.filter { $0.vatAmount > 0 }
+        case .noVAT: result = result.filter { $0.vatAmount <= 0 }
+        }
         
         return result
     }
@@ -2663,7 +2669,7 @@ struct InventoryExportReportView: View {
                             }
                         }
                         
-                        // VAT filter (disabled for now since Bill has no VAT)
+                        // VAT filter
                         HStack {
                             Text("VAT")
                                 .font(.subheadline)
@@ -2674,7 +2680,6 @@ struct InventoryExportReportView: View {
                                 }
                             }
                             .pickerStyle(.segmented)
-                            .disabled(true)
                         }
                     }
                     .padding(.horizontal)
@@ -2708,6 +2713,14 @@ struct InventoryExportReportView: View {
                             }),
                             icon: "banknote",
                             color: .purple
+                        )
+                        InventoryStatCard(
+                            title: "Tổng VAT",
+                            value: formatCurrency(filteredOrders.reduce(0.0) { acc, bill in
+                                acc + bill.vatAmount
+                            }),
+                            icon: "indianrupeesign.arrow.counterclockwise",
+                            color: .green
                         )
                     }
                     .padding(.horizontal)
@@ -2797,9 +2810,26 @@ struct InventoryExportReportView: View {
                                             .foregroundStyle(.gray.opacity(0.7))
                                     }
                                     
-                                    Text("\(bill.items.count) mặt hàng")
-                                        .font(.caption)
-                                        .foregroundStyle(.gray)
+                                    HStack(spacing: 12) {
+                                        Text("\(bill.items.count) mặt hàng")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        if bill.vatAmount > 0 {
+                                            HStack(spacing: 4) {
+                                                Text("VAT")
+                                                    .font(.caption)
+                                                    .fontWeight(.bold)
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.green.opacity(0.85))
+                                                    .clipShape(Capsule())
+                                                Text(formatCurrency(bill.vatAmount))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                            }
+                                        }
+                                    }
                                 }
                                 .padding(12)
                                 .background(Color.white)
