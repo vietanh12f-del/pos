@@ -600,6 +600,89 @@ struct PartyDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.gray)
             }
+            if !currentParty.email.isEmpty {
+                Label(currentParty.email, systemImage: "envelope.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+            }
+            if let birthday = currentParty.birthday {
+                Label(formatDateOnly(birthday), systemImage: "birthday.cake.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+            }
+            if !isSupplier {
+                let categoryLabel: String = {
+                    switch currentParty.customerCategory {
+                    case "patient": return "Bệnh nhân"
+                    case "partner": return "Đối tác"
+                    default: return "Khách mua sản phẩm"
+                    }
+                }()
+                Label(categoryLabel, systemImage: currentParty.customerCategory == "patient" ? "heart.text.square.fill" : currentParty.customerCategory == "partner" ? "handshake.fill" : "cart.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+            }
+            if currentParty.customerCategory == "patient" {
+                Divider()
+                if !currentParty.diseaseDescription.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Mô tả bệnh:").font(.caption).foregroundStyle(.gray.opacity(0.7))
+                        Text(currentParty.diseaseDescription).font(.subheadline).foregroundStyle(.gray)
+                    }
+                }
+                if !currentParty.patientNote.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Ghi chú:").font(.caption).foregroundStyle(.gray.opacity(0.7))
+                        Text(currentParty.patientNote).font(.subheadline).foregroundStyle(.gray)
+                    }
+                }
+                if !currentParty.treatmentName.isEmpty || !currentParty.treatmentSessions.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Liệu trình đang sử dụng:").font(.caption).foregroundStyle(.gray.opacity(0.7))
+                        if !currentParty.treatmentName.isEmpty {
+                            Text(currentParty.treatmentName).font(.subheadline).foregroundStyle(.gray)
+                        }
+                        if !currentParty.treatmentSessions.isEmpty {
+                            ForEach(Array(currentParty.treatmentSessions.enumerated()), id: \.element.id) { index, session in
+                                HStack(spacing: 12) {
+                                    let statusColor: Color = switch session.status {
+                                        case "completed": .green
+                                        case "cancelled": .red
+                                        default: .orange
+                                    }
+                                    Circle().fill(statusColor).frame(width: 8, height: 8)
+                                    Text("Buổi \(index + 1)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray)
+                                    if let time = session.time {
+                                        Text(formatDateTime(time))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.gray)
+                                    }
+                                    Spacer()
+                                    if !session.name.isEmpty {
+                                        Text(session.name)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.primary)
+                                    }
+                                    let statusLabel: String = switch session.status {
+                                        case "completed": "Hoàn thành"
+                                        case "cancelled": "Đã huỷ"
+                                        default: "Chờ"
+                                    }
+                                    Text(statusLabel)
+                                        .font(.caption)
+                                        .foregroundStyle(statusColor)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(statusColor.opacity(0.1))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             // Ảnh khách hàng
             if !currentParty.imageURLs.isEmpty {
                 Divider()
@@ -927,6 +1010,14 @@ struct PartyDetailView: View {
         f.dateFormat = "dd/MM/yyyy"
         return f.string(from: date)
     }
+    
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "dd/MM/yyyy HH:mm"
+        return f.string(from: date)
+    }
 }
 
 // MARK: - Party Edit Sheet
@@ -940,6 +1031,17 @@ struct PartyEditSheet: View {
     @State private var name: String
     @State private var phone: String
     @State private var address: String
+    @State private var email: String
+    @State private var birthday: Date?
+    @State private var showBirthdayPicker = false
+    @State private var customerCategory: String
+    @State private var diseaseDescription: String
+    @State private var patientNote: String
+    @State private var treatmentName: String
+    @State private var treatmentSessions: [TreatmentSession]
+    @State private var showSessionEditor = false
+    @State private var editingSessionIndex: Int? = nil
+    @State private var tempSession: TreatmentSession = TreatmentSession()
     @State private var imageURLs: [String]
     @State private var pendingImages: [UIImage] = []
     @State private var isSaving = false
@@ -964,6 +1066,13 @@ struct PartyEditSheet: View {
         _name      = State(initialValue: party.name)
         _phone     = State(initialValue: party.phone)
         _address   = State(initialValue: party.address)
+        _email     = State(initialValue: party.email)
+        _birthday  = State(initialValue: party.birthday)
+        _customerCategory = State(initialValue: party.customerCategory)
+        _diseaseDescription = State(initialValue: party.diseaseDescription)
+        _patientNote = State(initialValue: party.patientNote)
+        _treatmentName = State(initialValue: party.treatmentName)
+        _treatmentSessions = State(initialValue: party.treatmentSessions)
         _imageURLs = State(initialValue: party.imageURLs)
     }
 
@@ -976,6 +1085,13 @@ struct PartyEditSheet: View {
         return name.trimmingCharacters(in: .whitespacesAndNewlines) != party.name ||
         phone.trimmingCharacters(in: .whitespacesAndNewlines) != party.phone ||
         address.trimmingCharacters(in: .whitespacesAndNewlines) != party.address ||
+        email.trimmingCharacters(in: .whitespacesAndNewlines) != party.email ||
+        birthday != party.birthday ||
+        customerCategory != party.customerCategory ||
+        diseaseDescription.trimmingCharacters(in: .whitespacesAndNewlines) != party.diseaseDescription ||
+        patientNote.trimmingCharacters(in: .whitespacesAndNewlines) != party.patientNote ||
+        treatmentName.trimmingCharacters(in: .whitespacesAndNewlines) != party.treatmentName ||
+        treatmentSessions != party.treatmentSessions ||
         imageURLs != party.imageURLs ||
         !pendingImages.isEmpty
     }
@@ -1004,6 +1120,102 @@ struct PartyEditSheet: View {
                             .foregroundStyle(.gray)
                             .frame(width: 22)
                         TextField("Địa chỉ", text: $address)
+                    }
+                    HStack {
+                        Image(systemName: "envelope.fill")
+                            .foregroundStyle(.gray)
+                            .frame(width: 22)
+                        TextField("Email", text: $email)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                    }
+                    HStack {
+                        Image(systemName: "birthday.cake.fill")
+                            .foregroundStyle(.gray)
+                            .frame(width: 22)
+                        Button {
+                            showBirthdayPicker.toggle()
+                        } label: {
+                            if let birthday = birthday {
+                                Text(formatDateOnly(birthday))
+                                    .foregroundStyle(.primary)
+                            } else {
+                                Text("Chọn ngày sinh")
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                    }
+                    if !isSupplier {
+                        Picker("Phân loại khách hàng", selection: $customerCategory) {
+                            Text("Khách mua sản phẩm").tag("buyer")
+                            Text("Bệnh nhân").tag("patient")
+                            Text("Đối tác").tag("partner")
+                        }
+                    }
+                }
+                
+                if customerCategory == "patient" {
+                    Section(header: Text("Thông tin bệnh nhân")) {
+                        TextEditor(text: $diseaseDescription)
+                            .frame(minHeight: 80)
+                            .overlay(
+                                Text("Mô tả bệnh")
+                                    .foregroundColor(diseaseDescription.isEmpty ? .gray.opacity(0.5) : .clear)
+                                    .padding(.top, 8),
+                                alignment: .topLeading
+                            )
+                        TextEditor(text: $patientNote)
+                            .frame(minHeight: 80)
+                            .overlay(
+                                Text("Ghi chú")
+                                    .foregroundColor(patientNote.isEmpty ? .gray.opacity(0.5) : .clear)
+                                    .padding(.top, 8),
+                                alignment: .topLeading
+                            )
+                    }
+                    
+                    Section(header: Text("Liệu trình đang sử dụng")) {
+                        TextField("Tên liệu trình", text: $treatmentName)
+                        ForEach(Array(treatmentSessions.enumerated()), id: \.element.id) { index, session in
+                            HStack(spacing: 8) {
+                                Text("Buổi \(index + 1)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray)
+                                if let time = session.time {
+                                    Text(formatDateTime(time))
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray)
+                                }
+                                Spacer()
+                                let statusColor: Color = switch session.status {
+                                    case "completed": .green
+                                    case "cancelled": .red
+                                    default: .orange
+                                }
+                                Text(session.status == "pending" ? "Chờ" : session.status == "completed" ? "Hoàn thành" : "Đã huỷ")
+                                    .font(.caption)
+                                    .foregroundStyle(statusColor)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(statusColor.opacity(0.1))
+                                    .clipShape(Capsule())
+                                Button {
+                                    editingSessionIndex = index
+                                    tempSession = treatmentSessions[index]
+                                    showSessionEditor = true
+                                } label: {
+                                    Image(systemName: "pencil")
+                                }
+                            }
+                        }
+                        .onDelete(perform: { offsets in
+                            treatmentSessions.remove(atOffsets: offsets)
+                        })
+                        Button {
+                            treatmentSessions.append(TreatmentSession(name: "Buổi \(treatmentSessions.count + 1)", time: Date(), status: "pending"))
+                        } label: {
+                            Label("Thêm buổi", systemImage: "plus.circle.fill")
+                        }
                     }
                 }
 
@@ -1189,6 +1401,56 @@ struct PartyEditSheet: View {
                     }
                 }
             }
+            .sheet(isPresented: $showBirthdayPicker) {
+                BirthdayPickerSheet(
+                    birthday: $birthday,
+                    isPresented: $showBirthdayPicker
+                )
+            }
+            .sheet(isPresented: $showSessionEditor) {
+                if let index = editingSessionIndex, index < treatmentSessions.count {
+                    NavigationStack {
+                        Form {
+                            Section(header: Text("Thông tin buổi")) {
+                                HStack {
+                                    Text("Buổi \(index + 1)")
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                }
+                                TextField("Tên buổi", text: $tempSession.name)
+                                DatePicker(
+                                    "Thời gian",
+                                    selection: Binding(
+                                        get: { tempSession.time ?? Date() },
+                                        set: { tempSession.time = $0 }
+                                    ),
+                                    displayedComponents: [.date, .hourAndMinute]
+                                )
+                                Picker("Trạng thái", selection: $tempSession.status) {
+                                    Text("Chờ").tag("pending")
+                                    Text("Hoàn thành").tag("completed")
+                                    Text("Đã huỷ").tag("cancelled")
+                                }
+                            }
+                        }
+                        .navigationTitle("Chỉnh sửa buổi")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Huỷ") { showSessionEditor = false }
+                            }
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Lưu") {
+                                    treatmentSessions[index] = tempSession
+                                    showSessionEditor = false
+                                }
+                            }
+                        }
+                    }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+                }
+            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -1216,6 +1478,13 @@ struct PartyEditSheet: View {
         updated.name      = name.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.phone     = phone.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.address   = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.email     = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.birthday  = birthday
+        updated.customerCategory = customerCategory
+        updated.diseaseDescription = diseaseDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.patientNote = patientNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.treatmentName = treatmentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.treatmentSessions = treatmentSessions
         updated.imageURLs = imageURLs + newURLs
         updated.updatedAt = Date()
 
@@ -1240,6 +1509,111 @@ struct PartyEditSheet: View {
             errorMessage = error.localizedDescription
             showError = true
         }
+    }
+    
+    private func formatDateOnly(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
+    }
+    
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.timeZone = .current
+        f.dateFormat = "dd/MM/yyyy HH:mm"
+        return f.string(from: date)
+    }
+}
+
+private struct BirthdayPickerSheet: View {
+    @Binding var birthday: Date?
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        NavigationStack {
+            DatePicker(
+                "Ngày sinh",
+                selection: Binding(
+                    get: { birthday ?? Date() },
+                    set: { birthday = $0 }
+                ),
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .padding()
+            .navigationTitle("Chọn ngày sinh")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Huỷ") { isPresented = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Xong") { isPresented = false }
+                }
+                if birthday != nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(role: .destructive) { 
+                            birthday = nil
+                            isPresented = false
+                        } label: {
+                            Text("Xoá")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct SessionIndexWrapper: Identifiable {
+    let id: UUID = UUID()
+    let index: Int
+}
+
+private struct TreatmentSessionEditSheet: View {
+    @Binding var session: TreatmentSession
+    @Binding var isPresented: Bool
+    let index: Int
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Thông tin buổi")) {
+                    HStack {
+                        Text("Buổi \(index + 1)")
+                            .foregroundStyle(.gray)
+                        Spacer()
+                    }
+                    TextField("Tên buổi", text: $session.name)
+                    DatePicker(
+                        "Thời gian",
+                        selection: Binding(
+                            get: { session.time ?? Date() },
+                            set: { session.time = $0 }
+                        ),
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    Picker("Trạng thái", selection: $session.status) {
+                        Text("Chờ").tag("pending")
+                        Text("Hoàn thành").tag("completed")
+                        Text("Đã huỷ").tag("cancelled")
+                    }
+                }
+            }
+            .navigationTitle("Chỉnh sửa buổi")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Huỷ") { isPresented = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Lưu") { isPresented = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

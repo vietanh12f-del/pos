@@ -2094,6 +2094,13 @@ struct ProductionEditDTO: Codable {
 
 // MARK: - TradingParty Model & DTO
 
+struct TreatmentSession: Identifiable, Codable, Equatable {
+    var id: UUID = UUID()
+    var name: String = ""
+    var time: Date?
+    var status: String = "pending"  // "pending" | "completed" | "cancelled"
+}
+
 struct TradingParty: Identifiable, Codable, Equatable {
     var id: UUID = UUID()
     var partyType: String  // "buyer" | "supplier"
@@ -2103,6 +2110,36 @@ struct TradingParty: Identifiable, Codable, Equatable {
     var totalDebt: Double = 0
     var updatedAt: Date = Date()
     var imageURLs: [String] = []
+    var email: String = ""
+    var birthday: Date? = nil
+    var customerCategory: String = "buyer"  // "buyer" (khách mua sản phẩm) | "patient" (bệnh nhân) | "partner" (đối tác)
+    var diseaseDescription: String = ""
+    var patientNote: String = ""
+    var treatmentName: String = ""
+    var treatmentSessions: [TreatmentSession] = []
+}
+
+struct TreatmentSessionDTO: Codable {
+    let id: UUID
+    let name: String?
+    let time: Date?
+    let status: String?
+    
+    init(from domain: TreatmentSession) {
+        self.id = domain.id
+        self.name = domain.name.isEmpty ? nil : domain.name
+        self.time = domain.time
+        self.status = domain.status
+    }
+    
+    func toDomain() -> TreatmentSession {
+        TreatmentSession(
+            id: id,
+            name: name ?? "",
+            time: time,
+            status: status ?? "pending"
+        )
+    }
 }
 
 struct TradingPartyDTO: Codable {
@@ -2115,6 +2152,13 @@ struct TradingPartyDTO: Codable {
     let total_debt: Double?
     let updated_at: Date?
     let image_urls: [String]?
+    let email: String?
+    let birthday: Date?
+    let customer_category: String?
+    let disease_description: String?
+    let patient_note: String?
+    let treatment_name: String?
+    let treatment_sessions: [TreatmentSessionDTO]?
 
     init(from domain: TradingParty, storeId: UUID) {
         self.id = domain.id
@@ -2126,6 +2170,13 @@ struct TradingPartyDTO: Codable {
         self.total_debt = domain.totalDebt
         self.updated_at = domain.updatedAt
         self.image_urls = domain.imageURLs.isEmpty ? nil : domain.imageURLs
+        self.email = domain.email.isEmpty ? nil : domain.email
+        self.birthday = domain.birthday
+        self.customer_category = domain.customerCategory
+        self.disease_description = domain.diseaseDescription.isEmpty ? nil : domain.diseaseDescription
+        self.patient_note = domain.patientNote.isEmpty ? nil : domain.patientNote
+        self.treatment_name = domain.treatmentName.isEmpty ? nil : domain.treatmentName
+        self.treatment_sessions = domain.treatmentSessions.isEmpty ? nil : domain.treatmentSessions.map { TreatmentSessionDTO(from: $0) }
     }
 
     func toDomain() -> TradingParty {
@@ -2137,7 +2188,14 @@ struct TradingPartyDTO: Codable {
             address: address ?? "",
             totalDebt: total_debt ?? 0,
             updatedAt: updated_at ?? Date(),
-            imageURLs: image_urls ?? []
+            imageURLs: image_urls ?? [],
+            email: email ?? "",
+            birthday: birthday,
+            customerCategory: customer_category ?? "buyer",
+            diseaseDescription: disease_description ?? "",
+            patientNote: patient_note ?? "",
+            treatmentName: treatment_name ?? "",
+            treatmentSessions: treatment_sessions?.map { $0.toDomain() } ?? []
         )
     }
 }
