@@ -263,6 +263,7 @@ struct FinishedGoodsExportView: View {
                 billNavTitle: billNavTitle,
                 billPartyHeader: billPartyHeader,
                 isRegularRestock: isRegularRestock,
+                isFinishedGoodsExport: !isImport && !isExportMaterials && !isRegularRestock,
                 sequenceNumber: resolvedSTT ?? viewModel.currentSequenceNumber,
                 onConfirmAfterShare: {
                     // Share sheet đã đóng → tự động confirm và lưu phiếu
@@ -1100,6 +1101,7 @@ struct ExportBillPrintView: View {
     var billNavTitle: String = "Bill xuất thành phẩm"
     var billPartyHeader: String = "THÔNG TIN BÊN MUA"
     var isRegularRestock: Bool = false
+    var isFinishedGoodsExport: Bool = false
     var sequenceNumber: String? = nil
     var onConfirmAfterShare: (() -> Void)? = nil
 
@@ -1301,28 +1303,56 @@ struct ExportBillPrintView: View {
 
             // Chữ ký
             Divider()
-            HStack(alignment: .top) {
-                VStack(spacing: 4) {
-                    Text("Người thực hiện")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.gray)
-                    Text(creatorName.isEmpty ? " " : creatorName)
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
+            Group {
+                if isFinishedGoodsExport {
+                    HStack(alignment: .top) {
+                        VStack(spacing: 8) {
+                            Text("Đại diện bên bán")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
+                            Text("Ký và ghi rõ họ tên")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        .frame(maxWidth: .infinity)
 
-                VStack(spacing: 4) {
-                    Text("Người xác nhận")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.gray)
-                    Text(" ")
-                        .font(.caption)
+                        VStack(spacing: 8) {
+                            Text("Đại diện bên mua")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
+                            Text("Ký và ghi rõ họ tên")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                } else {
+                    HStack(alignment: .top) {
+                        VStack(spacing: 4) {
+                            Text("Người thực hiện")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
+                            Text(creatorName.isEmpty ? " " : creatorName)
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+
+                        VStack(spacing: 4) {
+                            Text("Người xác nhận")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
+                            Text(" ")
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
                 }
-                .frame(maxWidth: .infinity)
             }
             .padding(.top, 8)
         }
