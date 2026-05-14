@@ -273,29 +273,6 @@ struct ProductionBillDetailView: View {
                 }
             }
 
-            // QR code (chỉ khi xuất và có thông tin ngân hàng)
-            if let url = qrURL {
-                Divider()
-                VStack(spacing: 8) {
-                    Text("Quét mã QR để thanh toán")
-                        .font(.caption).foregroundStyle(.gray)
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let img):
-                            img.resizable().scaledToFit()
-                                .frame(width: 160, height: 160).cornerRadius(10)
-                        case .empty:
-                            ProgressView().frame(width: 160, height: 160)
-                        default:
-                            Image(systemName: "qrcode")
-                                .font(.system(size: 50)).foregroundStyle(.gray)
-                                .frame(width: 160, height: 160)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-
             // Chữ ký
             Divider()
             HStack(alignment: .top) {
