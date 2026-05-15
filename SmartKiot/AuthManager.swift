@@ -273,6 +273,39 @@ class AuthManager: ObservableObject {
     }
     
     @MainActor
+    func deleteAccount() async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+        
+        do {
+            guard let userId = client.auth.currentUser?.id else {
+                self.isLoading = false
+                self.errorMessage = "Không tìm thấy người dùng hiện tại"
+                return false
+            }
+            
+            try await client
+                .from("profiles")
+                .delete()
+                .eq("id", value: userId)
+                .execute()
+            
+            try await client.auth.signOut()
+            self.isAuthenticated = false
+            self.currentUserProfile = nil
+            self.needsProfileCreation = false
+            self.selectedRole = AccountRole.owner.rawValue
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Lỗi xóa tài khoản: \(error.localizedDescription)"
+            print("❌ Error deleting account: \(error)")
+            return false
+        }
+    }
+    
+    @MainActor
     func signInWithGoogle() async -> Bool {
         self.isLoading = true
         self.errorMessage = nil

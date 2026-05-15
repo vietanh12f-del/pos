@@ -372,7 +372,7 @@ struct NewChatView: View {
                     if showToast {
                         VStack {
                             Spacer()
-                            Text("User not found in the organization.")
+                            Text("Không tìm thấy người dùng.")
                                 .foregroundStyle(.white)
                                 .padding()
                                 .background(Color.black.opacity(0.8))

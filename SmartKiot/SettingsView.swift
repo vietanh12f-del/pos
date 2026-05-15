@@ -713,6 +713,7 @@ struct EditProfileView: View {
     @State private var name: String
     @State private var email: String
     @State private var address: String
+    @State private var showDeleteAccountAlert = false
     
     
     init(authManager: AuthManager) {
@@ -741,6 +742,18 @@ struct EditProfileView: View {
                         .textInputAutocapitalization(.never)
                     TextField("Địa chỉ", text: $address)
                 }
+                
+                Section {
+                    Button(role: .destructive) {
+                        showDeleteAccountAlert = true
+                    } label: {
+                        HStack {
+                            Text("Xóa tài khoản")
+                            Spacer()
+                            Image(systemName: "trash")
+                        }
+                    }
+                }
             }
             .navigationTitle("Chỉnh sửa hồ sơ")
             .navigationBarTitleDisplayMode(.inline)
@@ -768,6 +781,19 @@ struct EditProfileView: View {
                         ProgressView()
                     }
                 }
+            }
+            .alert("Xóa tài khoản?", isPresented: $showDeleteAccountAlert) {
+                Button("Huỷ", role: .cancel) { }
+                Button("Xóa", role: .destructive) {
+                    Task {
+                        let success = await authManager.deleteAccount()
+                        if success {
+                            // Account deleted, auth state handled by AuthManager
+                        }
+                    }
+                }
+            } message: {
+                Text("Tài khoản của bạn sẽ bị xóa vĩnh viễn và không thể khôi phục lại.")
             }
         }
     }
