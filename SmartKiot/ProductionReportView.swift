@@ -2225,9 +2225,18 @@ struct GenericProductionReportView: View {
         Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
     }
     
-    // Danh sách tên thành phẩm (từ items của các transaction)
+    // Danh sách tên thành phẩm (từ items của các transaction, lọc theo VAT)
     private var allFinishedGoodNames: [String] {
-        let names = allLoadedTxs.flatMap { $0.items.map { $0.name } }
+        let filteredTxsForNames: [ProductionTransaction]
+        switch selectedVATFilter {
+        case .all:
+            filteredTxsForNames = allLoadedTxs
+        case .withVAT:
+            filteredTxsForNames = allLoadedTxs.filter { ($0.vatAmount ?? 0) > 0 }
+        case .withoutVAT:
+            filteredTxsForNames = allLoadedTxs.filter { ($0.vatAmount ?? 0) == 0 }
+        }
+        let names = filteredTxsForNames.flatMap { $0.items.map { $0.name } }
         return Array(Set(names)).sorted()
     }
 
@@ -2444,6 +2453,12 @@ struct GenericProductionReportView: View {
                         ForEach(VATFilter.allCases, id: \.self) { option in
                             Button {
                                 selectedVATFilter = option
+                                if let selected = selectedFinishedGoodName {
+                                    let newNames = allFinishedGoodNames
+                                    if !newNames.contains(selected) {
+                                        selectedFinishedGoodName = nil
+                                    }
+                                }
                             } label: {
                                 Text(option.rawValue)
                                     .font(.caption)

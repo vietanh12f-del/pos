@@ -4,7 +4,7 @@ import Combine
 enum TabType: String, CaseIterable, Codable, Identifiable {
     case home = "Trang chủ"
     case orders = "Đơn hàng"
-    case inventory = "Kho hàng hóa" // Merged Inventory & Goods
+    case inventory = "Kho hàng hóa & Dịch vụ" // Merged Inventory & Goods
     case costs = "Chi Phí & Nhập Hàng"
     case analytics = "Thống Kê"
     case chat = "Chat"

@@ -604,7 +604,7 @@ struct InventoryView: View {
                 }
             }
             .background(Color.themeBackgroundLight)
-            .navigationTitle("Kho hàng hóa")
+            .navigationTitle("Kho hàng hóa & Dịch vụ")
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .overlay(alignment: .bottomTrailing) {
                 Button {
