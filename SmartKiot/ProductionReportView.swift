@@ -2157,8 +2157,10 @@ struct GenericProductionReportView: View {
     @State private var selectedVATFilter: VATFilter = .all
     @State private var selectedCreatorName: String? = nil
     @State private var selectedStoreName: String? = nil
+    @State private var selectedFinishedGoodName: String? = nil
     @State private var showCreatorPicker = false
     @State private var showStorePicker = false
+    @State private var showFinishedGoodPicker = false
     @State private var showTransactionDetail = false
     @State private var selectedTransaction: ProductionTransaction?
 
@@ -2218,11 +2220,15 @@ struct GenericProductionReportView: View {
         Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
     }
 
-    // Danh sách tên cơ sở nhập (store) - giả định chúng ta dùng storeName nếu có, hoặc dùng một trường nào đó
+    // Danh sách tên cơ sở (nhập/xuất)
     private var allStoreNames: [String] {
-        // Nếu ProductionTransaction có trường storeName, dùng nó, hiện tại ta dùng creator làm ví dụ
-        // Hoặc nếu không có, ta sẽ để trống
         Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
+    }
+    
+    // Danh sách tên thành phẩm (từ items của các transaction)
+    private var allFinishedGoodNames: [String] {
+        let names = allLoadedTxs.flatMap { $0.items.map { $0.name } }
+        return Array(Set(names)).sorted()
     }
 
     // Lọc giao dịch theo các bộ lọc
@@ -2247,15 +2253,23 @@ struct GenericProductionReportView: View {
                 creatorMatch = true
             }
 
-            // Lọc store name (hiện tại dùng creator làm ví dụ, nếu sau này có trường storeName thì thay thế)
+            // Lọc store name
             let storeMatch: Bool
             if let selected = selectedStoreName {
                 storeMatch = tx.creatorName == selected
             } else {
                 storeMatch = true
             }
+            
+            // Lọc thành phẩm
+            let finishedGoodMatch: Bool
+            if let selected = selectedFinishedGoodName {
+                finishedGoodMatch = tx.items.contains(where: { $0.name == selected })
+            } else {
+                finishedGoodMatch = true
+            }
 
-            return vatMatch && creatorMatch && storeMatch && !tx.isDeleted
+            return vatMatch && creatorMatch && storeMatch && finishedGoodMatch && !tx.isDeleted
         }
     }
 
@@ -2479,7 +2493,7 @@ struct GenericProductionReportView: View {
                         }
 
                         // Store Filter
-                        Text("Cơ sở nhập:")
+                        Text(reportKind == .finishedExport ? "Cơ sở xuất:" : "Cơ sở nhập:")
                             .font(.caption)
                             .foregroundStyle(.gray)
                         Button {
@@ -2508,6 +2522,41 @@ struct GenericProductionReportView: View {
                             .buttonStyle(.plain)
                         }
                         Spacer()
+                    }
+                    
+                    // Finished Goods Filter (only for finishedExport)
+                    if reportKind == .finishedExport {
+                        HStack(spacing: 6) {
+                            Text("Thành phẩm:")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Button {
+                                showFinishedGoodPicker = true
+                            } label: {
+                                Text(selectedFinishedGoodName ?? "Tất cả")
+                                    .font(.caption)
+                                    .fontWeight(selectedFinishedGoodName != nil ? .semibold : .regular)
+                                    .foregroundStyle(selectedFinishedGoodName != nil ? .white : Color.themeTextDark)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        Capsule()
+                                            .fill(selectedFinishedGoodName != nil ? accentColor : Color.gray.opacity(0.1))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            if selectedFinishedGoodName != nil {
+                                Button {
+                                    selectedFinishedGoodName = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            Spacer()
+                        }
                     }
                 }
                 .padding(12)
@@ -2583,12 +2632,21 @@ struct GenericProductionReportView: View {
             }
             Button("Huỷ", role: .cancel) { }
         }
-        .confirmationDialog("Chọn cơ sở nhập", isPresented: $showStorePicker, titleVisibility: .visible) {
+        .confirmationDialog(reportKind == .finishedExport ? "Chọn cơ sở xuất" : "Chọn cơ sở nhập", isPresented: $showStorePicker, titleVisibility: .visible) {
             ForEach(allStoreNames, id: \.self) { name in
                 Button(name) { selectedStoreName = name }
             }
             if selectedStoreName != nil {
                 Button("Tất cả", role: .destructive) { selectedStoreName = nil }
+            }
+            Button("Huỷ", role: .cancel) { }
+        }
+        .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
+            ForEach(allFinishedGoodNames, id: \.self) { name in
+                Button(name) { selectedFinishedGoodName = name }
+            }
+            if selectedFinishedGoodName != nil {
+                Button("Tất cả", role: .destructive) { selectedFinishedGoodName = nil }
             }
             Button("Huỷ", role: .cancel) { }
         }
