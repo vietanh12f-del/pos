@@ -73,23 +73,62 @@ struct InvoiceScannerView: View {
                 } else {
                     // Review List
                     List {
-                        Section(header: Text("Sản phẩm tìm thấy")) {
+                        Section {
+                            // Header row with column titles
+                            HStack {
+                                Text("Tên sản phẩm")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.gray)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                Text("SL")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.gray)
+                                    .frame(width: 50, alignment: .center)
+                                
+                                Text("Giá nhập")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.gray)
+                                    .frame(width: 100, alignment: .trailing)
+                                
+                                Text("Giá bán")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.gray)
+                                    .frame(width: 100, alignment: .trailing)
+                            }
+                            .padding(.vertical, 4)
+                        } header: {
+                            Text("Sản phẩm tìm thấy")
+                        }
+                        
+                        Section {
                             ForEach($recognizedItems) { $item in
                                 HStack {
-                                    TextField("Tên", text: $item.name)
+                                    TextField("Tên sản phẩm", text: $item.name)
                                         .fontWeight(.medium)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     
                                     Divider()
                                     
                                     TextField("SL", value: $item.quantity, format: .number)
                                         .keyboardType(.numberPad)
-                                        .frame(width: 50)
+                                        .frame(width: 50, alignment: .center)
                                     
                                     Divider()
                                     
-                                    TextField("Giá", value: $item.unitPrice, format: .currency(code: "VND"))
+                                    TextField("Giá nhập", value: $item.unitPrice, format: .currency(code: "VND"))
                                         .keyboardType(.decimalPad)
-                                        .frame(width: 100)
+                                        .frame(width: 100, alignment: .trailing)
+                                    
+                                    Divider()
+                                    
+                                    TextField("Giá bán", value: $item.suggestedPrice, format: .currency(code: "VND"))
+                                        .keyboardType(.decimalPad)
+                                        .frame(width: 100, alignment: .trailing)
                                 }
                             }
                             .onDelete { indexSet in
