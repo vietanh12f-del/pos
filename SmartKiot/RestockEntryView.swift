@@ -1728,10 +1728,10 @@ struct ManualRestockItemView: View {
                     }
                     
                     if !isSimpleFinishedGoodsEdit {
-                        let p = parseDouble(price) ?? (unitPriceWheelSelection > 0 ? Double(unitPriceWheelSelection) : nil)
+                        let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
                         let isMatExport = (!isFinishedGoods) && addTitle.lowercased().contains("xuất")
                         // Chỉ hiện block tổng chi phí + giá bán dự kiến cho hàng hoá thông thường (không FG, không export, không nguyên liệu)
-                        if !isFinishedGoods && !isMatExport && !addTitle.lowercased().contains("nguyên liệu"), let p = p {
+                        if !isFinishedGoods && !isMatExport && !addTitle.lowercased().contains("nguyên liệu") {
                         let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : quantityWheelSelection
                         if q > 0 {
                             let extra = parseDouble(incurredCost) ?? 0
