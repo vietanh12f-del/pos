@@ -1312,6 +1312,8 @@ struct ManualRestockItemView: View {
     @State private var gramsWheelRangeBase = 0
     @State private var showQuantityKgRangePicker = false
     @State private var showGramsRangePicker = false
+    @State private var quantityRangeBase = 0
+    @State private var showQuantityRangePicker = false
     @State private var unitPriceWheelSelection = 0
     @State private var unitPriceWheelMax = 5000000
     @State private var unitPriceBaseSelection = 0
@@ -1560,7 +1562,6 @@ struct ManualRestockItemView: View {
                                 
                                 HStack(spacing: 6) {
                                     Text("Giá bán dự kiến:")
-                                        .font(.caption)
                                         .foregroundStyle(.gray)
                                     Spacer()
                                     if fgPVal != 0 {
@@ -1661,7 +1662,6 @@ struct ManualRestockItemView: View {
                                 
                                 HStack(spacing: 6) {
                                     Text("Giá bán dự kiến:")
-                                        .font(.caption)
                                         .foregroundStyle(.gray)
                                     
                                     Spacer()
@@ -1769,7 +1769,6 @@ struct ManualRestockItemView: View {
                                 
                                 HStack(spacing: 6) {
                                     Text("Giá bán dự kiến:")
-                                        .font(.caption)
                                         .foregroundStyle(.gray)
                                     
                                     Spacer()
@@ -2062,8 +2061,22 @@ struct ManualRestockItemView: View {
                         }
                     }
                 } else {
+                    HStack {
+                        Button {
+                            showQuantityRangePicker = true
+                        } label: {
+                            Text(quantityRangeBase <= 0 ? ">0" : ">\(quantityRangeBase)")
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
                     Picker("", selection: $quantityWheelSelection) {
-                        ForEach(Array(1...quantityWheelMax), id: \.self) { v in
+                        let minValue = Swift.max(1, quantityRangeBase)
+                        ForEach(Array(minValue...quantityWheelMax), id: \.self) { v in
                             Text("\(v)").tag(v)
                         }
                     }
@@ -2085,6 +2098,12 @@ struct ManualRestockItemView: View {
             }
             .padding()
             .presentationDetents([.height(useKgGram ? 380 : 340)])
+            .onAppear {
+                let useKgGram = addTitle.lowercased().contains("nguyên liệu") || addTitle.lowercased().contains("thành phẩm")
+                if !useKgGram || selectedUnit.lowercased() == "cái" {
+                    quantityRangeBase = (quantityWheelSelection / 100) * 100
+                }
+            }
             .sheet(isPresented: $showQuantityKgRangePicker) {
                 VStack(spacing: 12) {
                     Text("Chọn vùng giá trị").font(.headline)
@@ -2126,6 +2145,32 @@ struct ManualRestockItemView: View {
                         Button("Đóng") { showGramsRangePicker = false }
                         Spacer()
                         Button("Xong") { showGramsRangePicker = false }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(300)])
+            }
+            .sheet(isPresented: $showQuantityRangePicker) {
+                VStack(spacing: 12) {
+                    Text("Chọn vùng giá trị").font(.headline)
+                    Picker("", selection: $quantityRangeBase) {
+                        ForEach(Array(stride(from: 0, through: quantityWheelMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: quantityRangeBase) { newValue in
+                        if newValue >= quantityWheelMax - 100 {
+                            quantityWheelMax += 500
+                        }
+                        let minValue = Swift.max(1, newValue)
+                        if quantityWheelSelection < minValue { quantityWheelSelection = minValue }
+                    }
+                    HStack {
+                        Button("Đóng") { showQuantityRangePicker = false }
+                        Spacer()
+                        Button("Xong") { showQuantityRangePicker = false }
                     }
                     .font(.headline)
                 }
