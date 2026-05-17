@@ -2707,8 +2707,31 @@ struct ManualRestockItemView: View {
     }
 
     private func handleSaveSuggestedPrice() {
-         suggestedPriceWheelSelection = suggestedPriceWheelSelection
          userEditedSuggestedPrice = true
+         
+         let p = parseDouble(price) ?? Double(unitPriceWheelSelection)
+         let useKgGram = addTitle.lowercased().contains("nguyên liệu") || (addTitle.lowercased().contains("thành phẩm") && !treatFinishedGoodsAsUnits)
+         let q: Int
+         if useKgGram && selectedUnit.lowercased() == "kg" {
+             q = FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection
+         } else {
+             q = Int(quantity) ?? quantityWheelSelection
+         }
+         let extra = parseDouble(incurredCost) ?? 0
+         
+         let finalUnitCost: Double
+         if useKgGram && !isFinishedGoods {
+             let kg = Double(q) / 1000.0
+             finalUnitCost = kg > 0 ? p + extra / kg : p
+         } else {
+             finalUnitCost = q > 0 ? p + extra / Double(q) : p
+         }
+         
+         if finalUnitCost > 0 && suggestedPriceWheelSelection > 0 {
+             let calculatedMarkup = ((Double(suggestedPriceWheelSelection) / finalUnitCost) - 1) * 100
+             markupPercent = max(1, calculatedMarkup)
+         }
+         
          showSuggestedPriceWheel = false
      }
 
@@ -2752,6 +2775,12 @@ struct ManualRestockItemView: View {
                 if let sp = item.suggestedPrice {
                     suggestedPriceWheelSelection = Int(sp)
                     userEditedSuggestedPrice = true
+                    
+                    let finalUnitCost = item.finalUnitCost
+                    if finalUnitCost > 0 && sp > 0 {
+                        let calculatedMarkup = ((sp / finalUnitCost) - 1) * 100
+                        markupPercent = max(1, calculatedMarkup)
+                    }
                 } else {
                     suggestedPriceWheelSelection = max(Int(item.finalUnitCost * 1.3), Int(item.unitPrice))
                     userEditedSuggestedPrice = false
