@@ -57,15 +57,20 @@ struct SettingsView: View {
                 }
                 Section(header: Text("Cửa hàng hiện tại")) {
                     if let store = storeManager.currentStore {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(store.name)
-                                    .font(.headline)
+                        NavigationLink(destination: StoreManagementView(store: store)) {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(store.name)
+                                        .font(.headline)
+                                }
+                                Spacer()
+                                Text("Chỉnh sửa")
                             }
-                            Spacer()
-                            Button("Chuyển") {
-                                storeManager.currentStore = nil // Triggers StoreSelectionView in ContentView
-                            }
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button("Chuyển") {
+                            storeManager.currentStore = nil // Triggers StoreSelectionView in ContentView
                         }
 
                         // Store UUID - tap to copy
@@ -292,6 +297,81 @@ struct SettingsView: View {
             .navigationTitle("Cài đặt")
         }
     }
+
+struct StoreManagementView: View {
+    let store: Store
+    @Environment(\.dismiss) var dismiss
+    @State private var storeName: String
+    @State private var isSavingName = false
+    
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
+    }
+    
+    init(store: Store) {
+        self.store = store
+        _storeName = State(initialValue: store.name)
+    }
+    
+    var body: some View {
+        Form {
+            Section(header: Text("Thông tin cơ bản")) {
+                HStack {
+                    Text("Tên cửa hàng")
+                    Spacer()
+                    TextField("Nhập tên cửa hàng", text: $storeName)
+                        .multilineTextAlignment(.trailing)
+                }
+                
+                Button(action: saveStoreName) {
+                    Text("Lưu tên cửa hàng")
+                        .fontWeight(.bold)
+                }
+                .disabled(storeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSavingName)
+            }
+            
+            Section {
+                NavigationLink(destination: StoreBankSettingsView(store: store)) {
+                    Text("Cài đặt tài khoản ngân hàng")
+                }
+            }
+        }
+        .navigationTitle("Quản lý cửa hàng")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Đóng") { dismiss() }
+            }
+        }
+        .overlay {
+            if isSavingName {
+                ZStack {
+                    Color.black.opacity(0.1)
+                        .ignoresSafeArea()
+                    ProgressView()
+                }
+            }
+        }
+    }
+    
+    private func saveStoreName() {
+        isSavingName = true
+        Task {
+            do {
+                try await StoreManager.shared.updateStoreName(storeId: store.id, newName: storeName.trimmingCharacters(in: .whitespacesAndNewlines))
+                await MainActor.run {
+                    isSavingName = false
+                }
+            } catch {
+                print("Error saving store name: \(error)")
+                await MainActor.run {
+                    isSavingName = false
+                }
+            }
+        }
+    }
+}
 
 struct StoreBankSettingsView: View {
     let store: Store

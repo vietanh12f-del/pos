@@ -641,4 +641,21 @@ class StoreManager: ObservableObject {
             currentStore?.bankAccountNumber = accountNumber
         }
     }
+    
+    func updateStoreName(storeId: UUID, newName: String) async throws {
+        try await client
+            .from("stores")
+            .update(["name": newName])
+            .eq("id", value: storeId)
+            .execute()
+            
+        // Update local store
+        if let index = myStores.firstIndex(where: { $0.id == storeId }) {
+            myStores[index].name = newName
+        }
+        
+        if currentStore?.id == storeId {
+            currentStore?.name = newName
+        }
+    }
 }
