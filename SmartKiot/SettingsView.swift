@@ -17,6 +17,8 @@ struct SettingsView: View {
     @State private var showDeleteErrorAlert = false
     @State private var deleteErrorMessage: String = ""
     @State private var showEmployeeManagement = false
+    @State private var showBankSettings = false
+    @State private var showCustomization = false
     private let database = SupabaseDatabaseService()
     @FocusState private var feedbackFocused: Bool
     @State private var keyboardHeight: CGFloat = 0
@@ -115,14 +117,14 @@ struct SettingsView: View {
                         }
                         
                         if storeManager.currentMember?.role == .owner && authManager.selectedRole == "owner" {
-                            NavigationLink(destination: StoreBankSettingsView(store: store)) {
-                                Text("Cài đặt tài khoản ngân hàng")
+                            Button("Cài đặt tài khoản ngân hàng") {
+                                showBankSettings = true
                             }
                         }
                         
                         if storeManager.hasPermission(.viewCustomization) {
-                            NavigationLink(destination: CustomizationSettingsView()) {
-                                Text("Tuỳ chỉnh")
+                            Button("Tuỳ chỉnh") {
+                                showCustomization = true
                             }
                         }
                     } else {
@@ -362,6 +364,18 @@ struct SettingsView: View {
                     EmployeeManagementView(tabBarManager: tabBarManager)
                 }
             }
+            .sheet(isPresented: $showBankSettings) {
+                if let store = storeManager.currentStore {
+                    NavigationStack {
+                        StoreBankSettingsView(store: store)
+                    }
+                }
+            }
+            .sheet(isPresented: $showCustomization) {
+                NavigationStack {
+                    CustomizationSettingsView()
+                }
+            }
             .scrollDismissesKeyboard(.immediately)
             .onChange(of: feedbackFocused) { focused in
                 withAnimation {
@@ -513,15 +527,14 @@ struct StoreBankSettingsView: View {
         .navigationTitle("Cài đặt ngân hàng")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Đóng") {
+                    dismiss()
+                }
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Lưu", action: save)
                     .disabled(isLoading || bankAccountNumber.isEmpty)
-            }
-
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Xong") {
-                    hideKeyboard()
-                }
             }
         }
 
@@ -558,6 +571,8 @@ struct StoreBankSettingsView: View {
 }
 
 struct CustomizationSettingsView: View {
+    @Environment(\.dismiss) var dismiss
+    
     var body: some View {
         List {
             Section {
@@ -577,6 +592,13 @@ struct CustomizationSettingsView: View {
         }
         .navigationTitle("Tuỳ chỉnh")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Đóng") {
+                    dismiss()
+                }
+            }
+        }
     }
 }
 
@@ -608,6 +630,11 @@ struct PriceSettingsView: View {
         .navigationTitle("Khoảng cách giá")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Huỷ") {
+                    dismiss()
+                }
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Lưu") {
                     storeManager.setPriceStep(selectedStep)
@@ -685,6 +712,11 @@ struct ReceiptHeaderSettingsView: View {
         .navigationTitle("Tên cửa hàng")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Huỷ") {
+                    dismiss()
+                }
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Lưu") {
                     save()
@@ -821,6 +853,11 @@ struct VATSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadCurrent() }
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Huỷ") {
+                    dismiss()
+                }
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button {
                     save()
