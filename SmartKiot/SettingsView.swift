@@ -330,12 +330,6 @@ struct StoreManagementView: View {
                 }
                 .disabled(storeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSavingName)
             }
-            
-            Section {
-                NavigationLink(destination: StoreBankSettingsView(store: store)) {
-                    Text("Cài đặt tài khoản ngân hàng")
-                }
-            }
         }
         .navigationTitle("Quản lý cửa hàng")
         .navigationBarTitleDisplayMode(.inline)
