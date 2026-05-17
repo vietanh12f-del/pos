@@ -14,6 +14,8 @@ struct SettingsView: View {
     @State private var feedbackText: String = ""
     @State private var isSubmittingFeedback: Bool = false
     @State private var feedbackStatus: String?
+    @State private var showDeleteErrorAlert = false
+    @State private var deleteErrorMessage: String = ""
     private let database = SupabaseDatabaseService()
     @FocusState private var feedbackFocused: Bool
     @State private var keyboardHeight: CGFloat = 0
@@ -331,15 +333,25 @@ struct SettingsView: View {
                         Button("Xóa", role: .destructive) {
                             Task {
                                 if let store = storeManager.currentStore {
-                                    _ = await storeManager.deleteStore(store)
+                                    let success = await storeManager.deleteStore(store)
                                     await MainActor.run {
-                                        showEditStoreName = false
+                                        if success {
+                                            showEditStoreName = false
+                                        } else {
+                                            deleteErrorMessage = storeManager.errorMessage ?? "Không thể xóa cửa hàng. Vui lòng thử lại sau."
+                                            showDeleteErrorAlert = true
+                                        }
                                     }
                                 }
                             }
                         }
                     } message: {
                         Text("Toàn bộ dữ liệu của cửa hàng sẽ bị xóa vĩnh viễn. Bạn có chắc chắn muốn xóa?")
+                    }
+                    .alert("Lỗi xóa cửa hàng", isPresented: $showDeleteErrorAlert) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text(deleteErrorMessage)
                     }
                 }
                 .presentationDetents([.medium])

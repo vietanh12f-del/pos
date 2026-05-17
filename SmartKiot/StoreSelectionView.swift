@@ -5,6 +5,8 @@ struct StoreSelectionView: View {
     @ObservedObject private var storeManager = StoreManager.shared
     @ObservedObject private var authManager = AuthManager.shared
     @State private var showCreateStore = false
+    @State private var showDeleteErrorAlert = false
+    @State private var deleteErrorMessage: String = ""
     
     private var isReviewOwnerLocked: Bool {
         let email = authManager.currentUserProfile?.email?.lowercased()
@@ -84,7 +86,13 @@ struct StoreSelectionView: View {
                                                 }
                                             } onDelete: {
                                                 Task {
-                                                    _ = await storeManager.deleteStore(store)
+                                                    let success = await storeManager.deleteStore(store)
+                                                    await MainActor.run {
+                                                        if !success {
+                                                            deleteErrorMessage = storeManager.errorMessage ?? "Không thể xóa cửa hàng. Vui lòng thử lại sau."
+                                                            showDeleteErrorAlert = true
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -184,6 +192,11 @@ struct StoreSelectionView: View {
             Task {
                 await storeManager.fetchStores()
             }
+        }
+        .alert("Lỗi xóa cửa hàng", isPresented: $showDeleteErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(deleteErrorMessage)
         }
     }
 }
