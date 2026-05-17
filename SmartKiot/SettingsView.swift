@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var showEditProfile = false
     @State private var showEditStoreName = false
     @State private var newStoreName = ""
+    @State private var showDeleteStoreConfirmation = false
     @State private var feedbackText: String = ""
     @State private var isSubmittingFeedback: Bool = false
     @State private var feedbackStatus: String?
@@ -288,8 +289,18 @@ struct SettingsView: View {
                         Section(header: Text("Tên cửa hàng")) {
                             TextField("Nhập tên cửa hàng mới", text: $newStoreName)
                         }
+                        
+                        if storeManager.currentMember?.role == .owner && authManager.selectedRole == "owner" {
+                            Section {
+                                Button(role: .destructive) {
+                                    showDeleteStoreConfirmation = true
+                                } label: {
+                                    Text("Xóa cửa hàng này")
+                                }
+                            }
+                        }
                     }
-                    .navigationTitle("Chỉnh sửa tên cửa hàng")
+                    .navigationTitle("Chỉnh sửa cửa hàng")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
@@ -314,6 +325,21 @@ struct SettingsView: View {
                             }
                             .disabled(newStoreName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
+                    }
+                    .alert("Xóa cửa hàng", isPresented: $showDeleteStoreConfirmation) {
+                        Button("Hủy", role: .cancel) { }
+                        Button("Xóa", role: .destructive) {
+                            Task {
+                                if let store = storeManager.currentStore {
+                                    _ = await storeManager.deleteStore(store)
+                                    await MainActor.run {
+                                        showEditStoreName = false
+                                    }
+                                }
+                            }
+                        }
+                    } message: {
+                        Text("Toàn bộ dữ liệu của cửa hàng sẽ bị xóa vĩnh viễn. Bạn có chắc chắn muốn xóa?")
                     }
                 }
                 .presentationDetents([.medium])
