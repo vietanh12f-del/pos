@@ -1563,19 +1563,21 @@ struct ManualRestockItemView: View {
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                     Spacer()
-                                    Button {
-                                        showMarkupPicker = true
-                                    } label: {
-                                        Text("+\(Int(markupPercent))%")
-                                            .font(.caption2)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 4)
-                                            .background(Color.orange.opacity(0.85))
-                                            .clipShape(Capsule())
+                                    if fgPVal != 0 {
+                                        Button {
+                                            showMarkupPicker = true
+                                        } label: {
+                                            Text("+\(Int(markupPercent))%")
+                                                .font(.caption2)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background(Color.orange.opacity(0.85))
+                                                .clipShape(Capsule())
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                     Button {
                                         suggestedPriceWheelSelection = Int(fgDisplayedSuggestedPrice)
                                         showSuggestedPriceWheel = true
@@ -1664,19 +1666,21 @@ struct ManualRestockItemView: View {
                                     
                                     Spacer()
                                     
-                                    Button {
-                                        showMarkupPicker = true
-                                    } label: {
-                                        Text("+\(Int(markupPercent))%")
-                                            .font(.caption2)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 4)
-                                            .background(Color.orange.opacity(0.85))
-                                            .clipShape(Capsule())
+                                    if pVal != 0 {
+                                        Button {
+                                            showMarkupPicker = true
+                                        } label: {
+                                            Text("+\(Int(markupPercent))%")
+                                                .font(.caption2)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background(Color.orange.opacity(0.85))
+                                                .clipShape(Capsule())
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                     
                                     Button {
                                         suggestedPriceWheelSelection = Int(displayedSuggestedPrice)
@@ -1771,19 +1775,21 @@ struct ManualRestockItemView: View {
                                     Spacer()
                                     
                                     // Button % — tap mở popup bánh xe
-                                    Button {
-                                        showMarkupPicker = true
-                                    } label: {
-                                        Text("+\(Int(markupPercent))%")
-                                            .font(.caption2)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 4)
-                                            .background(Color.orange.opacity(0.85))
-                                            .clipShape(Capsule())
+                                    if p != 0 {
+                                        Button {
+                                            showMarkupPicker = true
+                                        } label: {
+                                            Text("+\(Int(markupPercent))%")
+                                                .font(.caption2)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background(Color.orange.opacity(0.85))
+                                                .clipShape(Capsule())
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                     
                                     // Giá bán — tap để chỉnh thủ công
                                     Button {
