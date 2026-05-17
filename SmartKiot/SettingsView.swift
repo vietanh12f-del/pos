@@ -77,7 +77,7 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                         
-                        Button("Chuyển") {
+                        Button("Chuyển cửa hàng khác") {
                             storeManager.currentStore = nil // Triggers StoreSelectionView in ContentView
                         }
 
