@@ -109,7 +109,7 @@ struct StoreSelectionView: View {
                                                         .foregroundColor(.green)
                                                 }
                                                 .frame(maxWidth: .infinity)
-                                                .frame(height: 180)
+                                                .frame(minHeight: 180)
                                                 .background(Color.white)
                                                 .cornerRadius(16)
                                                 .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
@@ -260,7 +260,7 @@ struct StoreCardView: View {
                     Text(store.name)
                         .font(.headline)
                         .foregroundColor(.primary)
-                        .lineLimit(2)
+                        .lineLimit(nil)
                         .multilineTextAlignment(.leading)
                     
                     if let address = store.address, !address.isEmpty {
@@ -292,7 +292,7 @@ struct StoreCardView: View {
                 }
             }
             .padding(16)
-            .frame(height: 180)
+            .frame(minHeight: 180)
             .background(Color.white)
             .cornerRadius(16)
             .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
@@ -330,12 +330,14 @@ struct StoreRowCard: View {
                     Text(store.name)
                         .font(.headline)
                         .foregroundColor(.primary)
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
                     
                     if let address = store.address, !address.isEmpty {
                         Text(address)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                            .lineLimit(1)
+                            .lineLimit(2)
                     }
                 }
                 

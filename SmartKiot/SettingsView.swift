@@ -58,13 +58,17 @@ struct SettingsView: View {
                 Section(header: Text("Cửa hàng hiện tại")) {
                     if let store = storeManager.currentStore {
                         NavigationLink(destination: StoreManagementView(store: store)) {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(store.name)
-                                        .font(.headline)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(store.name)
+                                    .font(.headline)
+                                    .lineLimit(nil)
+                                    .multilineTextAlignment(.leading)
+                                HStack {
+                                    Spacer()
+                                    Text("Chỉnh sửa")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.themePrimary)
                                 }
-                                Spacer()
-                                Text("Chỉnh sửa")
                             }
                         }
                         .buttonStyle(.plain)
