@@ -317,11 +317,12 @@ struct StoreManagementView: View {
     var body: some View {
         Form {
             Section(header: Text("Thông tin cơ bản")) {
-                HStack {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("Tên cửa hàng")
-                    Spacer()
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
                     TextField("Nhập tên cửa hàng", text: $storeName)
-                        .multilineTextAlignment(.trailing)
+                        .textFieldStyle(.roundedBorder)
                 }
                 
                 Button(action: saveStoreName) {
