@@ -2352,7 +2352,7 @@ struct ManualRestockItemView: View {
                     Button("Đóng") { showSuggestedPriceWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        showSuggestedPriceWheel = false
+                        handleSaveSuggestedPrice()
                     }
                 }
                 .font(.headline)
@@ -2751,11 +2751,12 @@ struct ManualRestockItemView: View {
             if !isFinishedGoods {
                 if let sp = item.suggestedPrice {
                     suggestedPriceWheelSelection = Int(sp)
+                    userEditedSuggestedPrice = true
                 } else {
                     suggestedPriceWheelSelection = max(Int(item.finalUnitCost * 1.3), Int(item.unitPrice))
+                    userEditedSuggestedPrice = false
                 }
             }
-            userEditedSuggestedPrice = false // reset: chưa chỉnh, sẽ tính lại khi lưu
             // no selling price wheel
         } else if let product = prefilledProduct {
             name = product.name
