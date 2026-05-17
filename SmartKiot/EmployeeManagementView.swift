@@ -9,6 +9,7 @@ struct EmployeeViewModel: Identifiable {
 
 struct EmployeeManagementView: View {
     @ObservedObject var tabBarManager: CustomTabBarManager
+    @Environment(\.dismiss) var dismiss
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var employees: [EmployeeViewModel] = []
     @State private var showAddEmployee = false
@@ -116,6 +117,11 @@ struct EmployeeManagementView: View {
         }
         .navigationTitle("Quản lý nhân viên")
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Đóng") {
+                    dismiss()
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button(action: { showAddEmployee = true }) {
                     Image(systemName: "plus")

@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var feedbackStatus: String?
     @State private var showDeleteErrorAlert = false
     @State private var deleteErrorMessage: String = ""
+    @State private var showEmployeeManagement = false
     private let database = SupabaseDatabaseService()
     @FocusState private var feedbackFocused: Bool
     @State private var keyboardHeight: CGFloat = 0
@@ -108,8 +109,8 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                         
                         if storeManager.hasPermission(.manageEmployees) {
-                             NavigationLink(destination: EmployeeManagementView(tabBarManager: tabBarManager)) {
-                                Text("Quản lý nhân viên")
+                             Button("Quản lý nhân viên") {
+                                showEmployeeManagement = true
                             }
                         }
                         
@@ -355,6 +356,11 @@ struct SettingsView: View {
                     }
                 }
                 .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showEmployeeManagement) {
+                NavigationStack {
+                    EmployeeManagementView(tabBarManager: tabBarManager)
+                }
             }
             .scrollDismissesKeyboard(.immediately)
             .onChange(of: feedbackFocused) { focused in
