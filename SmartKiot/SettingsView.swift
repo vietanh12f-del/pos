@@ -8,6 +8,8 @@ struct SettingsView: View {
     @StateObject private var authManager = AuthManager.shared
     @ObservedObject private var storeManager = StoreManager.shared
     @State private var showEditProfile = false
+    @State private var showEditStoreName = false
+    @State private var newStoreName = ""
     @State private var feedbackText: String = ""
     @State private var isSubmittingFeedback: Bool = false
     @State private var feedbackStatus: String?
@@ -57,18 +59,20 @@ struct SettingsView: View {
                 }
                 Section(header: Text("Cửa hàng hiện tại")) {
                     if let store = storeManager.currentStore {
-                        NavigationLink(destination: StoreManagementView(store: store)) {
+                        HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(store.name)
                                     .font(.headline)
                                     .lineLimit(nil)
                                     .multilineTextAlignment(.leading)
-                                HStack {
-                                    Spacer()
-                                    Text("Chỉnh sửa")
-                                        .font(.subheadline)
-                                        .foregroundStyle(Color.themePrimary)
-                                }
+                            }
+                            Spacer()
+                            Button {
+                                newStoreName = store.name
+                                showEditStoreName = true
+                            } label: {
+                                Image(systemName: "pencil")
+                                    .foregroundStyle(Color.themePrimary)
                             }
                         }
                         .buttonStyle(.plain)
@@ -277,6 +281,42 @@ struct SettingsView: View {
                 NavigationStack {
                     EditProfileView(authManager: authManager)
                 }
+            }
+            .sheet(isPresented: $showEditStoreName) {
+                NavigationStack {
+                    Form {
+                        Section(header: Text("Tên cửa hàng")) {
+                            TextField("Nhập tên cửa hàng mới", text: $newStoreName)
+                        }
+                    }
+                    .navigationTitle("Chỉnh sửa tên cửa hàng")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Hủy") {
+                                showEditStoreName = false
+                            }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Lưu") {
+                                Task {
+                                    if let storeId = storeManager.currentStore?.id, !newStoreName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        do {
+                                            try await storeManager.updateStoreName(storeId: storeId, newName: newStoreName.trimmingCharacters(in: .whitespacesAndNewlines))
+                                            await MainActor.run {
+                                                showEditStoreName = false
+                                            }
+                                        } catch {
+                                            print("Error updating store name: \(error)")
+                                        }
+                                    }
+                                }
+                            }
+                            .disabled(newStoreName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
             }
             .scrollDismissesKeyboard(.immediately)
             .onChange(of: feedbackFocused) { focused in
