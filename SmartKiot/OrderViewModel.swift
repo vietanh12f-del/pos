@@ -3180,7 +3180,8 @@ class OrderViewModel: ObservableObject {
         var revenue: Double       // ∑ grandTotal của Xuất Thành Phẩm có grandTotal > 0
         var paid: Double          // ∑ paidAmount
         var debt: Double          // ∑ debtAmount
-        var materialCost: Double  // ∑ (quantity × unitPrice) của các item trong phiếu Xuất Nguyên Liệu
+        var materialCost: Double  // ∑ (quantity × unitPrice) của các item trong phiếu Nhập Nguyên Liệu
+        var materialExportCost: Double // ∑ (quantity × unitPrice) của các item trong phiếu Xuất Nguyên Liệu
         var transactions: [ProductionTransaction]
     }
 
@@ -3218,12 +3219,33 @@ class OrderViewModel: ObservableObject {
                 }
             }
         }
+        
+        // Tổng giá trị xuất nguyên liệu: tổng giá trị các phiếu Xuất Nguyên Liệu trong kỳ
+        let materialExports = inRange.filter {
+            $0.mode.lowercased().contains("xuất") &&
+            $0.mode.lowercased().contains("nguyên liệu")
+        }
+        let materialExportCost = materialExports.reduce(0.0) { txSum, tx in
+            txSum + tx.items.reduce(0.0) { itemSum, item in
+                // Tính giá trị xuất nguyên liệu theo cùng cách như nhập
+                let cat = item.category?.lowercased() ?? ""
+                let unit = item.unit?.lowercased() ?? ""
+                if unit == "cái" {
+                    return itemSum + (Double(item.quantity) * item.unitPrice)
+                } else if cat == Category.materials.rawValue.lowercased() || unit == "kg" || unit.isEmpty {
+                    return itemSum + (item.unitPrice * (Double(item.quantity) / 1000.0))
+                } else {
+                    return itemSum + (Double(item.quantity) * item.unitPrice)
+                }
+            }
+        }
 
         return WholesaleStats(
             revenue: revenue,
             paid: paid,
             debt: debt,
             materialCost: materialCost,
+            materialExportCost: materialExportCost,
             transactions: exports.sorted { $0.createdAt > $1.createdAt }
         )
     }

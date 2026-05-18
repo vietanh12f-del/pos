@@ -625,7 +625,7 @@ struct ContentView: View {
                                         // Ô lợi nhuận bán sỉ — chỉ hiện khi production enabled
                                         if productionEnabledGlobal {
                                             let ws = viewModel.wholesaleStats(for: activeRange, allTransactions: allProductionTx)
-                                            let wsProfit = ws.paid - ws.materialCost
+                                            let wsProfit = ws.revenue - ws.materialExportCost
                                             Button {
                                                 selectedTab = 7
                                             } label: {
