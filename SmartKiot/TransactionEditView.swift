@@ -85,7 +85,16 @@ struct TransactionEditView: View {
     @State private var vatRateInputText: String = ""
 
     private var subtotal: Double {
-        items.reduce(0) { $0 + $1.totalCost }
+        items.reduce(0) { sum, item in
+            let qtyForCalculation: Double
+            if let unit = item.unit, unit.lowercased() == "kg" {
+                qtyForCalculation = Double(item.quantity) / 1000.0
+            } else {
+                qtyForCalculation = Double(item.quantity)
+            }
+            let itemTotal = (qtyForCalculation * item.unitPrice) + item.additionalCost
+            return sum + itemTotal
+        }
     }
     private var vatAmount: Double { vatEnabled ? subtotal * (vatRate / 100.0) : 0 }
     private var grandTotal: Double { subtotal + vatAmount }
