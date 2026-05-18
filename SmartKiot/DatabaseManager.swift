@@ -469,7 +469,7 @@ class SupabaseDatabaseService: DatabaseService {
         let orderDTO = OrderDTO(from: bill)
         try await client.database.from("orders").insert(orderDTO.withStore(storeId)).execute()
         
-        let itemsDTOs = bill.items.map { OrderItemDTO(from: $0, orderId: bill.id) }
+        let itemsDTOs = bill.items.map { OrderItemDTO(from: $0, orderId: bill.id, storeId: storeId) }
         try await client.database.from("order_items").insert(itemsDTOs).execute()
     }
     
@@ -1407,13 +1407,14 @@ struct OrderItemDTO: Codable {
     let price: Double
     let cost_price: Double?
     let discount: Double?
+    let store_id: UUID?
     
     enum CodingKeys: String, CodingKey {
-        case id, order_id, product_name, quantity, price, cost_price, discount
+        case id, order_id, product_name, quantity, price, cost_price, discount, store_id
         case costPrice // Fallback
     }
     
-    init(from domain: OrderItem, orderId: UUID) {
+    init(from domain: OrderItem, orderId: UUID, storeId: UUID? = nil) {
         self.id = UUID()
         self.order_id = orderId
         self.product_name = domain.name
@@ -1421,6 +1422,7 @@ struct OrderItemDTO: Codable {
         self.price = domain.price
         self.cost_price = domain.costPrice
         self.discount = domain.discount
+        self.store_id = storeId
     }
     
     init(from decoder: Decoder) throws {
@@ -1431,6 +1433,7 @@ struct OrderItemDTO: Codable {
         quantity = try container.decode(Int.self, forKey: .quantity)
         price = try container.decode(Double.self, forKey: .price)
         discount = try container.decodeIfPresent(Double.self, forKey: .discount)
+        store_id = try container.decodeIfPresent(UUID.self, forKey: .store_id)
         
         if let cp = try container.decodeIfPresent(Double.self, forKey: .cost_price) {
             cost_price = cp
@@ -1448,6 +1451,7 @@ struct OrderItemDTO: Codable {
         try container.encode(price, forKey: .price)
         try container.encode(cost_price, forKey: .cost_price)
         try container.encode(discount, forKey: .discount)
+        try container.encodeIfPresent(store_id, forKey: .store_id)
     }
     
     func toDomain() -> OrderItem {

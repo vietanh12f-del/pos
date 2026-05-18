@@ -105,8 +105,22 @@ CREATE POLICY "Secure Orders Policy" ON orders
 -- 3. ORDER ITEMS
 CREATE POLICY "Secure Order Items Policy" ON order_items
     FOR ALL
-    USING (check_is_member_or_owner(store_id))
-    WITH CHECK (check_is_member_or_owner(store_id));
+    USING (
+        check_is_member_or_owner(store_id) OR 
+        EXISTS (
+            SELECT 1 FROM orders 
+            WHERE orders.id = order_items.order_id 
+            AND check_is_member_or_owner(orders.store_id)
+        )
+    )
+    WITH CHECK (
+        check_is_member_or_owner(store_id) OR 
+        EXISTS (
+            SELECT 1 FROM orders 
+            WHERE orders.id = order_items.order_id 
+            AND check_is_member_or_owner(orders.store_id)
+        )
+    );
 
 -- 4. RESTOCK BILLS
 CREATE POLICY "Secure Restock Bills Policy" ON restock_bills
