@@ -144,12 +144,17 @@ class FinancialReportService {
             }
 
             let wsNetProfit = ws.paid - ws.materialCost
+            let wsDashboardProfit = ws.revenue - ws.materialExportCost
+            let inventoryValue = ws.materialCost - ws.materialExportCost
             csv += "\n"
             csv += "Tổng doanh thu sỉ,\(fmt(ws.revenue))\n"
             csv += "Tổng đã thu,\(fmt(ws.paid))\n"
             csv += "Tổng còn nợ,\(fmt(ws.debt))\n"
-            csv += "Chi phí nguyên liệu,\(fmt(ws.materialCost))\n"
+            csv += "Chi phí nguyên liệu (nhập),\(fmt(ws.materialCost))\n"
+            csv += "Giá trị nguyên liệu đã xuất,\(fmt(ws.materialExportCost))\n"
             csv += "Lợi nhuận ròng bán sỉ (đã thu - chi phí NL),\(fmt(wsNetProfit))\n"
+            csv += "Lợi nhuận (giống Tổng quan - doanh thu sỉ - giá trị xuất NL),\(fmt(wsDashboardProfit))\n"
+            csv += "Tổng giá trị tồn kho nguyên liệu (nhập - xuất),\(fmt(inventoryValue))\n"
             csv += "\n"
 
             // ── PHẦN 3: TỔNG HỢP ──────────────────────────────────────

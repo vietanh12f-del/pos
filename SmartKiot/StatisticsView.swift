@@ -26,6 +26,8 @@ struct StatisticsView: View {
     @State private var showWholesaleProfitInfo = false
     @State private var showRetailProfitInfo = false
     @State private var showTotalProfitInfo = false
+    @State private var showWholesaleDashboardProfitInfo = false
+    @State private var showInventoryValueInfo = false
     
     enum StatType {
         case today, week, month, quarter
@@ -281,6 +283,84 @@ struct StatisticsView: View {
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundStyle(wsNetProfit >= 0 ? .green : .red)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                    .padding(.horizontal)
+                    
+                    // Lợi nhuận (giống tab Tổng quan)
+                    let wsDashboardProfit = ws.revenue - ws.materialExportCost
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text("Lợi nhuận")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Button {
+                                    showWholesaleDashboardProfitInfo = true
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray.opacity(0.6))
+                                }
+                                .buttonStyle(.plain)
+                                .alert("Lợi nhuận (Bán sỉ - giống Tổng quan)", isPresented: $showWholesaleDashboardProfitInfo) {
+                                    Button("Đã hiểu", role: .cancel) {}
+                                } message: {
+                                    Text("Lợi nhuận = Doanh thu sỉ − Tổng giá trị xuất nguyên liệu\n\nDoanh thu sỉ: tổng grandTotal của các phiếu Xuất Thành Phẩm.\nTổng giá trị xuất nguyên liệu: tổng giá trị các phiếu Xuất Nguyên Liệu trong cùng kỳ.")
+                                }
+                            }
+                            Text("= Doanh thu sỉ − Tổng giá trị xuất nguyên liệu")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        Spacer()
+                        Text(formatCurrency(wsDashboardProfit))
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundStyle(wsDashboardProfit >= 0 ? .green : .red)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+                    .padding(.horizontal)
+                    
+                    // Tổng giá trị tồn kho
+                    let inventoryValue = ws.materialCost - ws.materialExportCost
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text("Tổng giá trị tồn kho")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.themeTextDark)
+                                Button {
+                                    showInventoryValueInfo = true
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray.opacity(0.6))
+                                }
+                                .buttonStyle(.plain)
+                                .alert("Tổng giá trị tồn kho nguyên liệu", isPresented: $showInventoryValueInfo) {
+                                    Button("Đã hiểu", role: .cancel) {}
+                                } message: {
+                                    Text("Tổng giá trị tồn kho = Giá trị nguyên liệu nhập − Giá trị nguyên liệu đã xuất\n\nGiá trị nguyên liệu nhập: tổng các phiếu Nhập Nguyên Liệu trong kỳ.\nGiá trị nguyên liệu đã xuất: tổng các phiếu Xuất Nguyên Liệu trong kỳ.")
+                                }
+                            }
+                            Text("= Giá trị nguyên liệu nhập − Giá trị nguyên liệu đã xuất")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        Spacer()
+                        Text(formatCurrency(inventoryValue))
+                            .font(.title3)
+                            .fontWeight(.bold)
+                            .foregroundStyle(inventoryValue >= 0 ? .blue : .red)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
