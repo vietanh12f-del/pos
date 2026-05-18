@@ -274,6 +274,8 @@ struct ContentView: View {
         @State private var showLeaveApprovalFromNotif = false
         @State private var showAttendance = false
         @State private var showGuide = false
+        @State private var showRetailProfitInfo = false
+        @State private var showWholesaleProfitInfo = false
 
         // MARK: - Date range selection
         enum QuickRange: String, CaseIterable {
@@ -596,45 +598,73 @@ struct ContentView: View {
                                         }
 
                                         let profit = viewModel.grossProfit(for: activeRange)
-                                        Button {
-                                            selectedTab = 7
-                                        } label: {
-                                        HStack {
-                                            VStack(alignment: .leading) {
-                                                Text("LỢI NHUẬN GỘP")
-                                                    .font(.caption)
-                                                    .fontWeight(.bold)
-                                                    .foregroundStyle(.white.opacity(0.8))
-                                                Text(formatCurrency(profit))
+                                        HStack(spacing: 12) {
+                                            Button {
+                                                selectedTab = 7
+                                            } label: {
+                                            HStack {
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    HStack(spacing: 6) {
+                                                        Text("LỢI NHUẬN BÁN LẺ")
+                                                            .font(.caption)
+                                                            .fontWeight(.bold)
+                                                            .foregroundStyle(.white.opacity(0.8))
+                                                        Button {
+                                                            showRetailProfitInfo = true
+                                                        } label: {
+                                                            Image(systemName: "info.circle")
+                                                                .font(.subheadline)
+                                                                .foregroundStyle(.white.opacity(0.7))
+                                                        }
+                                                        .buttonStyle(.plain)
+                                                    }
+                                                    Text(formatCurrency(profit))
+                                                        .font(.title)
+                                                        .fontWeight(.bold)
+                                                        .foregroundStyle(.white)
+                                                }
+                                                Spacer()
+                                                Image(systemName: profit >= 0 ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis")
                                                     .font(.title)
-                                                    .fontWeight(.bold)
                                                     .foregroundStyle(.white)
                                             }
-                                            Spacer()
-                                            Image(systemName: profit >= 0 ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis")
-                                                .font(.title)
-                                                .foregroundStyle(.white)
+                                            .padding()
+                                            .background(profit >= 0 ? Color.themePrimary : Color.red)
+                                            .cornerRadius(16)
+                                            .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
+                                            }
+                                            .buttonStyle(.plain)
                                         }
-                                        .padding()
-                                        .background(profit >= 0 ? Color.themePrimary : Color.red)
-                                        .cornerRadius(16)
-                                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
+                                        .alert("Lợi nhuận bán lẻ", isPresented: $showRetailProfitInfo) {
+                                            Button("Đã hiểu", role: .cancel) {}
+                                        } message: {
+                                            Text("Lợi nhuận bán lẻ = Doanh thu − Giá vốn\n\nDoanh thu: tổng đơn đã thanh toán (bán lẻ).\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.")
                                         }
-                                        .buttonStyle(.plain)
 
                                         // Ô lợi nhuận bán sỉ — chỉ hiện khi production enabled
                                         if productionEnabledGlobal {
                                             let ws = viewModel.wholesaleStats(for: activeRange, allTransactions: allProductionTx)
                                             let wsProfit = ws.revenue - ws.materialExportCost
-                                            Button {
-                                                selectedTab = 7
-                                            } label: {
+                                            HStack(spacing: 12) {
+                                                Button {
+                                                    selectedTab = 7
+                                                } label: {
                                                 HStack {
-                                                    VStack(alignment: .leading) {
-                                                        Text("LỢI NHUẬN BÁN SỈ")
-                                                            .font(.caption)
-                                                            .fontWeight(.bold)
-                                                            .foregroundStyle(.white.opacity(0.8))
+                                                    VStack(alignment: .leading, spacing: 4) {
+                                                        HStack(spacing: 6) {
+                                                            Text("LỢI NHUẬN BÁN SỈ")
+                                                                .font(.caption)
+                                                                .fontWeight(.bold)
+                                                                .foregroundStyle(.white.opacity(0.8))
+                                                            Button {
+                                                                showWholesaleProfitInfo = true
+                                                            } label: {
+                                                                Image(systemName: "info.circle")
+                                                                    .font(.subheadline)
+                                                                    .foregroundStyle(.white.opacity(0.7))
+                                                            }
+                                                            .buttonStyle(.plain)
+                                                        }
                                                         Text(formatCurrency(wsProfit))
                                                             .font(.title)
                                                             .fontWeight(.bold)
@@ -649,8 +679,14 @@ struct ContentView: View {
                                                 .background(wsProfit >= 0 ? Color.purple : Color.red)
                                                 .cornerRadius(16)
                                                 .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 5)
+                                                }
+                                                .buttonStyle(.plain)
                                             }
-                                            .buttonStyle(.plain)
+                                            .alert("Lợi nhuận bán sỉ (Tổng quan)", isPresented: $showWholesaleProfitInfo) {
+                                                Button("Đã hiểu", role: .cancel) {}
+                                            } message: {
+                                                Text("Lợi nhuận bán sỉ (Tổng quan) = Doanh thu sỉ − Tổng giá trị xuất nguyên liệu\n\nDoanh thu sỉ: tổng grandTotal của các phiếu Xuất Thành Phẩm.\nTổng giá trị xuất nguyên liệu: tổng giá trị các phiếu Xuất Nguyên Liệu trong cùng kỳ.")
+                                            }
                                         }
                                     }
                                 } else {
