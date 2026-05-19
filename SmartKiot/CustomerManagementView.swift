@@ -439,6 +439,7 @@ struct PartyDetailView: View {
     var onDeleted: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var transactions: [ProductionTransaction] = []
+    @State private var allPartyTxs: [ProductionTransaction] = [] // All transactions for the party (all time)
     @State private var retailOrders: [Bill] = []
     @State private var isLoading = false
     @State private var showEdit = false
@@ -478,7 +479,7 @@ struct PartyDetailView: View {
                     infoCard
 
                     // Debt summary
-                    if currentParty.totalDebt > 0 {
+                    if totalDebt > 0 {
                         debtCard
                     }
 
@@ -743,6 +744,10 @@ struct PartyDetailView: View {
 
     // MARK: - Debt card
 
+    private var totalDebt: Double {
+        allPartyTxs.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+    }
+
     private var debtCard: some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -752,7 +757,7 @@ struct PartyDetailView: View {
                 Text("Công nợ hiện tại")
                     .font(.caption)
                     .foregroundStyle(.gray)
-                Text(formatCurrency(currentParty.totalDebt))
+                Text(formatCurrency(totalDebt))
                     .font(.title3)
                     .fontWeight(.bold)
                     .foregroundStyle(.red)
@@ -1010,15 +1015,24 @@ struct PartyDetailView: View {
             all += txs
         }
 
-        // Filter production by party name + phone + date, and exclude deleted transactions
+        // Filter production by party name + phone, exclude deleted — for total debt (all time)
         let name = currentParty.name.lowercased()
         let phone = currentParty.phone
-        transactions = all.filter { tx in
-            guard tx.createdAt >= since else { return false }
+        let allPartyTxsFiltered = all.filter { tx in
             guard !tx.isDeleted else { return false }
             let matchName = tx.buyerName?.lowercased() == name
             let matchPhone = phone.isEmpty ? false : tx.buyerPhone == phone
             return matchName || matchPhone
+        }
+        
+        await MainActor.run {
+            self.allPartyTxs = allPartyTxsFiltered
+            // For display, use only last 30 days
+            self.transactions = allPartyTxsFiltered.filter { $0.createdAt >= since }
+            
+            // Update currentParty.totalDebt to reflect all-time total (optional, but keeps consistency)
+            let allTimeTotalDebt = allPartyTxsFiltered.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+            self.currentParty.totalDebt = allTimeTotalDebt
         }
 
         // Retail orders — filter by date
