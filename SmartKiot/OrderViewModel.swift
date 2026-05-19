@@ -2037,6 +2037,18 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    func loadEditedProductionTxIds() async {
+        guard let sid = StoreManager.shared.currentStore?.id else { return }
+        do {
+            let ids = try await database.fetchEditedProductionTransactionIds(storeId: sid)
+            await MainActor.run {
+                self.editedProductionTxIds = Set(ids)
+            }
+        } catch {
+            print("⚠️ loadEditedProductionTxIds error: \(error)")
+        }
+    }
+    
     func upsertAutoMaterialExportTemplate(_ template: AutoMaterialExportTemplate) async -> Bool {
         do {
             try await database.upsertAutoMaterialExportTemplate(template)
@@ -2738,6 +2750,22 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    private func formatCurrency(_ amount: Double) -> String {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.numberStyle = .currency
+        f.currencyCode = "VND"
+        f.maximumFractionDigits = 0
+        return f.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) đ"
+    }
+    
+    private func formatDateOnly(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
+    }
+    
     private func buildProductionEditDetails(original: ProductionTransaction, updated: ProductionTransaction) -> [String] {
         var lines: [String] = []
         var origMap: [String: RestockItem] = [:]
@@ -2761,6 +2789,21 @@ class OrderViewModel: ObservableObject {
                 }
             }
         }
+        
+        // Check debt amount changes
+        if original.debtAmount != updated.debtAmount {
+            let oldStr = formatCurrency(original.debtAmount ?? 0)
+            let newStr = formatCurrency(updated.debtAmount ?? 0)
+            lines.append("Sửa số nợ: \(oldStr)→\(newStr)")
+        }
+        
+        // Check expected pay date changes
+        if original.expectedPayDate != updated.expectedPayDate {
+            let oldStr = original.expectedPayDate != nil ? formatDateOnly(original.expectedPayDate!) : "Chưa xác định"
+            let newStr = updated.expectedPayDate != nil ? formatDateOnly(updated.expectedPayDate!) : "Chưa xác định"
+            lines.append("Sửa ngày dự kiến trả: \(oldStr)→\(newStr)")
+        }
+        
         if let note = updated.note, !note.isEmpty {
             lines.append("Ghi chú: \(note)")
         }

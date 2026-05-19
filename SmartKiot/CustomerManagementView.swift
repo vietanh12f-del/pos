@@ -496,6 +496,9 @@ struct PartyDetailView: View {
     @State private var showFeatureInDevelopment = false
     @State private var showDebtEdit = false
     @State private var editedTransactions: [UUID: (debtAmount: Double, expectedPayDate: Date?)] = [:]
+    @State private var showEditHistoryPopover = false
+    @State private var selectedEditHistoryTxId: UUID?
+    @State private var editHistoryEntries: [ProductionEdit] = []
 
     init(party: TradingParty, onDeleted: (() -> Void)? = nil) {
         self.party = party
@@ -588,7 +591,10 @@ struct PartyDetailView: View {
                     }
                 }
             }
-            .task { await loadTransactions() }
+            .task { 
+                await loadTransactions()
+                await orderViewModel.loadEditedProductionTxIds()
+            }
             .sheet(isPresented: $showEdit) {
                 PartyEditSheet(party: currentParty, onSaved: { updated in
                     currentParty = updated
@@ -615,6 +621,17 @@ struct PartyDetailView: View {
                 DebtEditView(
                     transactions: allPartyTxs,
                     isSupplier: isSupplier,
+                    editedTxIds: orderViewModel.editedProductionTxIds,
+                    onShowEditHistory: { txId in
+                        Task {
+                            let edits = await orderViewModel.fetchProductionEdits(for: txId)
+                            await MainActor.run {
+                                selectedEditHistoryTxId = txId
+                                editHistoryEntries = edits
+                                showEditHistoryPopover = true
+                            }
+                        }
+                    },
                     editedTransactions: $editedTransactions,
                     onSave: {
                         Task { await saveDebtEdits() }
@@ -623,6 +640,67 @@ struct PartyDetailView: View {
                         showDebtEdit = false
                     }
                 )
+            }
+            .sheet(isPresented: $showEditHistoryPopover) {
+                NavigationStack {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Lịch sử chỉnh sửa")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        
+                        if editHistoryEntries.isEmpty {
+                            Text("Không có lịch sử chỉnh sửa")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                        } else {
+                            List(editHistoryEntries) { edit in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text(formatDateTime(edit.createdAt))
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        Spacer()
+                                        if let editorName = edit.editorName {
+                                            Text(editorName)
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                    
+                                    if let details = edit.details, !details.isEmpty {
+                                        ForEach(details, id: \.self) { detail in
+                                            Text("• \(detail)")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                    
+                                    if let note = edit.note, !note.isEmpty {
+                                        Text("Ghi chú: \(note)")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                                .padding(.vertical, 8)
+                            }
+                            .listStyle(.plain)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding()
+                    .navigationTitle("Lịch sử chỉnh sửa")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") {
+                                showEditHistoryPopover = false
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
             }
             .alert("Tính năng đang phát triển", isPresented: $showFeatureInDevelopment) {
                 Button("OK", role: .cancel) { }
@@ -633,24 +711,30 @@ struct PartyDetailView: View {
     }
     
     private func saveDebtEdits() async {
-        let db = SupabaseDatabaseService()
+        let viewModel = orderViewModel
+        
         for tx in allPartyTxs {
             guard let edits = editedTransactions[tx.id] else { continue }
+            
+            // Check if anything actually changed
+            let debtChanged = (tx.debtAmount ?? 0) != edits.debtAmount
+            let payDateChanged = tx.expectedPayDate != edits.expectedPayDate
+            
+            guard debtChanged || payDateChanged else { continue }
+            
             var updatedTx = tx
             updatedTx.debtAmount = edits.debtAmount
             updatedTx.expectedPayDate = edits.expectedPayDate
             
-            do {
-                try await db.updateProductionTransaction(updatedTx)
-            } catch {
-                print("❌ Failed to update transaction \(tx.id): \(error)")
-            }
+            await viewModel.updateProductionTransaction(original: tx, updated: updatedTx)
         }
         
         await MainActor.run {
             showDebtEdit = false
-            Task { await loadTransactions() }
         }
+        
+        await loadTransactions()
+        await viewModel.loadEditedProductionTxIds()
     }
 
     // MARK: - Info card
@@ -948,6 +1032,23 @@ struct PartyDetailView: View {
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(debtStatus.color)
+                    if orderViewModel.editedProductionTxIds.contains(tx.id) {
+                        Button {
+                            Task {
+                                let edits = await orderViewModel.fetchProductionEdits(for: tx.id)
+                                await MainActor.run {
+                                    selectedEditHistoryTxId = tx.id
+                                    editHistoryEntries = edits
+                                    showEditHistoryPopover = true
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                        .buttonStyle(.plain)
+                    }
                     Spacer()
                     if let payDate = tx.expectedPayDate {
                         Text("Trả: \(formatDateOnly(payDate))")
@@ -1092,6 +1193,13 @@ struct PartyDetailView: View {
         if m.contains("thành phẩm") && m.contains("nhập") { return .blue }
         return .purple
     }
+    
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "HH:mm dd/MM/yyyy"
+        return f.string(from: date)
+    }
 
     private func loadTransactions() async {
         isLoading = true
@@ -1149,14 +1257,6 @@ struct PartyDetailView: View {
         f.locale = Locale(identifier: "vi_VN")
         f.timeZone = .current
         f.dateFormat = "dd/MM/yyyy"
-        return f.string(from: date)
-    }
-    
-    private func formatDateTime(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "vi_VN")
-        f.timeZone = .current
-        f.dateFormat = "dd/MM/yyyy HH:mm"
         return f.string(from: date)
     }
 }
@@ -2160,6 +2260,8 @@ struct WebsiteLeadDetailView: View {
 private struct DebtEditView: View {
     let transactions: [ProductionTransaction]
     let isSupplier: Bool
+    let editedTxIds: Set<UUID>
+    let onShowEditHistory: (UUID) -> Void
     @Binding var editedTransactions: [UUID: (debtAmount: Double, expectedPayDate: Date?)]
     let onSave: () -> Void
     let onCancel: () -> Void
@@ -2221,6 +2323,16 @@ private struct DebtEditView: View {
                                 HStack {
                                     Text(isSupplier ? "Thiếu nợ" : "Công nợ")
                                         .font(.subheadline).foregroundStyle(.gray)
+                                    if editedTxIds.contains(tx.id) {
+                                        Button {
+                                            onShowEditHistory(tx.id)
+                                        } label: {
+                                            Image(systemName: "clock.arrow.circlepath")
+                                                .font(.caption)
+                                                .foregroundStyle(.orange)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                     Spacer()
                                     TextField("0", text: Binding(
                                         get: {
