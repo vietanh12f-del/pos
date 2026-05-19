@@ -667,13 +667,6 @@ struct PartyDetailView: View {
                                                 .foregroundStyle(.gray)
                                         }
                                     }
-                                    
-                                    if let note = edit.note, !note.isEmpty {
-                                        Text("Ghi chú: \(note)")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(.orange)
-                                    }
                                 }
                                 .padding(.vertical, 8)
                             }
@@ -2455,13 +2448,6 @@ private struct DebtEditView: View {
                                                 .font(.caption)
                                                 .foregroundStyle(.gray)
                                         }
-                                    }
-                                    
-                                    if let note = edit.note, !note.isEmpty {
-                                        Text("Ghi chú: \(note)")
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(.orange)
                                     }
                                 }
                                 .padding(.vertical, 8)
