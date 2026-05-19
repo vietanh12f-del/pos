@@ -46,6 +46,13 @@ struct TransactionEditView: View {
     // Payment (for xuất thành phẩm)
     @State private var payFullAmount: Bool = true
     @State private var partialAmountText: String = ""
+    @State private var showPartialAmountWheel = false
+    @State private var partialAmountSelection = 0
+    @State private var partialAmountBaseSelection = 0
+    @State private var partialAmountHundredsSelection = 0
+    @State private var partialAmountMax = 5_000_000
+    @State private var partialAmountRangeBase = 0
+    @State private var showPartialAmountRangePicker = false
     @State private var expectedPayDate: Date? = nil
     @State private var showDatePicker = false
     @State private var isPaid: Bool = false
@@ -103,7 +110,7 @@ struct TransactionEditView: View {
     private var grandTotal: Double { subtotal + vatAmount }
     private var paidAmount: Double {
         if payFullAmount { return grandTotal }
-        return Double(partialAmountText.replacingOccurrences(of: ",", with: "")) ?? 0
+        return Double(partialAmountSelection)
     }
     private var debtAmount: Double { max(0, grandTotal - paidAmount) }
 
@@ -273,11 +280,12 @@ struct TransactionEditView: View {
                             HStack {
                                 Text("Số tiền trả").foregroundStyle(.gray)
                                 Spacer()
-                                TextField("0", text: $partialAmountText)
-                                    .keyboardType(.numberPad)
-                                    .multilineTextAlignment(.trailing)
-                                    .fontWeight(.semibold)
-                                Text("đ").foregroundStyle(.gray)
+                                Button {
+                                    showPartialAmountWheel = true
+                                } label: {
+                                    Text(formatCurrency(Double(partialAmountSelection)))
+                                        .fontWeight(.semibold)
+                                }
                             }
                             if debtAmount > 0 {
                                 HStack {
@@ -475,7 +483,7 @@ struct TransactionEditView: View {
                 if let paid = original.paidAmount, let grand = original.grandTotal {
                     if paid < grand {
                         payFullAmount = false
-                        partialAmountText = String(Int(paid))
+                        partialAmountSelection = Int(paid)
                     }
                 }
             }
@@ -521,6 +529,111 @@ struct TransactionEditView: View {
                 onSave: { newRate in customVATRate = newRate },
                 onReset: { customVATRate = nil }
             )
+        }
+        .sheet(isPresented: $showPartialAmountWheel) {
+            NavigationStack {
+                VStack(spacing: 12) {
+                    Text("Số tiền trả").font(.headline)
+                    let step = StoreManager.shared.priceStep
+                    let rangeMin = max(0, (partialAmountRangeBase / step) * step)
+                    HStack {
+                        Button {
+                            showPartialAmountRangePicker = true
+                        } label: {
+                            Text(partialAmountRangeBase <= 0 ? ">0" : ">\(partialAmountRangeBase / 1000)k")
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    HStack {
+                        VStack {
+                            Text("Giá")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Picker("", selection: $partialAmountBaseSelection) {
+                                ForEach(Array(stride(from: rangeMin, through: partialAmountMax, by: step)), id: \.self) { v in
+                                    Text(formatCurrency(Double(v))).tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: partialAmountBaseSelection) { _, newValue in
+                                partialAmountSelection = newValue + partialAmountHundredsSelection
+                                if newValue > partialAmountMax - (step * 5) {
+                                    partialAmountMax += step * 100
+                                }
+                            }
+                        }
+                        VStack {
+                            Text("Trăm")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Picker("", selection: $partialAmountHundredsSelection) {
+                                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: partialAmountHundredsSelection) { _, newValue in
+                                partialAmountSelection = partialAmountBaseSelection + newValue
+                            }
+                        }
+                        .frame(width: 110)
+                    }
+                    HStack {
+                        Button("Đóng") { showPartialAmountWheel = false }
+                        Spacer()
+                        Button("Lưu") { showPartialAmountWheel = false }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(300)])
+                .onAppear {
+                    let step = StoreManager.shared.priceStep
+                    let current = max(0, partialAmountSelection)
+                    partialAmountRangeBase = (current / 100000) * 100000
+                    partialAmountBaseSelection = (current / step) * step
+                    let remainder = max(0, current - partialAmountBaseSelection)
+                    partialAmountHundredsSelection = min(900, (remainder / 100) * 100)
+                }
+                .sheet(isPresented: $showPartialAmountRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng giá trị").font(.headline)
+                        let step = StoreManager.shared.priceStep
+                        Picker("", selection: $partialAmountRangeBase) {
+                            ForEach(Array(stride(from: 0, through: min(partialAmountMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                                Text(v == 0 ? ">0" : ">\(v / 1000)k").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: partialAmountRangeBase) { _, newValue in
+                            if newValue >= partialAmountMax - 200_000 {
+                                partialAmountMax += 1_000_000
+                            }
+                        }
+                        
+                        Button {
+                            let rangeMin = max(0, (partialAmountRangeBase / step) * step)
+                            if partialAmountBaseSelection < rangeMin { partialAmountBaseSelection = rangeMin }
+                            showPartialAmountRangePicker = false
+                        } label: {
+                            Text("Xong")
+                                .font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary)
+                                .cornerRadius(10)
+                        }
+                    }
+                    .padding()
+                    .presentationDetents([.height(300)])
+                }
+            }
         }
         .sheet(item: $editingItem) { item in
             ProductionTransactionItemEditView(
