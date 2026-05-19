@@ -2774,8 +2774,8 @@ class OrderViewModel: ObservableObject {
         
         // Check expected pay date changes
         if original.expectedPayDate != updated.expectedPayDate {
-            let oldStr = original.expectedPayDate != nil ? formatDateOnly(original.expectedPayDate!) : "Chưa xác định"
-            let newStr = updated.expectedPayDate != nil ? formatDateOnly(updated.expectedPayDate!) : "Chưa xác định"
+            let oldStr = original.expectedPayDate != nil ? formatDateOnly(original.expectedPayDate!) : "Không đổi"
+            let newStr = updated.expectedPayDate != nil ? formatDateOnly(updated.expectedPayDate!) : "Không đổi"
             lines.append("Sửa ngày dự kiến trả: \(oldStr)→\(newStr)")
         }
         
