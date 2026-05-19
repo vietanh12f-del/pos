@@ -366,14 +366,56 @@ struct CustomerManagementView: View {
         }
     }
 
+    private func calculateTotalDebt(for party: TradingParty, allProductionTxs: [ProductionTransaction]) -> Double {
+        let name = party.name.lowercased()
+        let phone = party.phone
+        return allProductionTxs.filter { tx in
+            guard !tx.isDeleted else { return false }
+            let matchName = tx.buyerName?.lowercased() == name
+            let matchPhone = phone.isEmpty ? false : tx.buyerPhone == phone
+            return matchName || matchPhone
+        }.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+    }
+
     private func loadAll() async {
         isLoading = true
         defer { isLoading = false }
-        async let buyers = (try? SupabaseDatabaseService().fetchTradingParties(type: "buyer")) ?? []
-        async let suppliers = (try? SupabaseDatabaseService().fetchTradingParties(type: "supplier")) ?? []
-        async let fetchedLeads = (try? SupabaseDatabaseService().fetchWebsiteLeads()) ?? []
+        
+        // Fetch all production transactions first
+        let db = SupabaseDatabaseService()
+        let modes = ["Nhập Nguyên liệu", "Xuất Nguyên liệu", "Nhập Thành Phẩm", "Xuất Thành Phẩm"]
+        var allProductionTxs: [ProductionTransaction] = []
+        for mode in modes {
+            let txs = (try? await db.fetchProductionTransactions(mode: mode)) ?? []
+            allProductionTxs += txs
+        }
+        
+        // Then fetch buyers and suppliers
+        async let buyers = (try? db.fetchTradingParties(type: "buyer")) ?? []
+        async let suppliers = (try? db.fetchTradingParties(type: "supplier")) ?? []
+        async let fetchedLeads = (try? db.fetchWebsiteLeads()) ?? []
         let (b, s, l) = await (buyers, suppliers, fetchedLeads)
-        parties = b + s
+        
+        // Calculate total debt for each party
+        var updatedParties: [TradingParty] = []
+        for party in b + s {
+            var updated = party
+            let newTotalDebt = calculateTotalDebt(for: party, allProductionTxs: allProductionTxs)
+            updated.totalDebt = newTotalDebt
+            
+            // Only upsert if totalDebt has changed
+            if party.totalDebt != newTotalDebt {
+                do {
+                    try await db.upsertTradingParty(updated)
+                } catch {
+                    print("❌ Failed to update totalDebt for \(party.name): \(error)")
+                }
+            }
+            
+            updatedParties.append(updated)
+        }
+        
+        parties = updatedParties
         leads = l
     }
 }
