@@ -756,13 +756,26 @@ struct RestockEntryView: View {
                 isFinishedGoodsImport: isFinishedGoodsContext() && !isFinishedGoodsExportContext() && !isExportMaterialsContext(),
                 isExportMaterials: isExportMaterialsContext()
             ) {
+                print("🔍 [DEBUG] onConfirm called!")
+                print("🔍 [DEBUG] titleText = '\(titleText)'")
+                print("🔍 [DEBUG] useMaterialsList = \(useMaterialsList)")
+                print("🔍 [DEBUG] isImportMaterialsContext = \(isImportMaterialsContext())")
+                print("🔍 [DEBUG] isExportMaterialsContext = \(isExportMaterialsContext())")
+                print("🔍 [DEBUG] isFinishedGoodsContext = \(isFinishedGoodsContext())")
+                print("🔍 [DEBUG] isFinishedGoodsExportContext = \(isFinishedGoodsExportContext())")
+                print("🔍 [DEBUG] isUnitFinishedGoodsImport = \(isUnitFinishedGoodsImport)")
+                print("🔍 [DEBUG] inventorySubTab = \(inventorySubTab)")
+                
+                let hasProductionKeywords = titleText.lowercased().contains("nguyên liệu") || titleText.lowercased().contains("thành phẩm")
+                
                 if let cb = onComplete {
+                    print("🔍 [DEBUG] calling onComplete")
                     cb(viewModel.restockItems)
-                } else if isUnitFinishedGoodsImport {
-                    viewModel.completeRestockSession()
-                } else if isImportMaterialsContext() || isExportMaterialsContext() || isFinishedGoodsExportContext() || isFinishedGoodsContext() {
+                } else if hasProductionKeywords {
+                    print("🔍 [DEBUG] has production keywords → calling completeProductionTransaction")
                     viewModel.completeProductionTransaction(mode: titleText)
                 } else {
+                    print("🔍 [DEBUG] no production keywords → calling completeRestockSession()")
                     viewModel.completeRestockSession()
                 }
                 dismiss()

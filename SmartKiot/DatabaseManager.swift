@@ -705,12 +705,17 @@ class SupabaseDatabaseService: DatabaseService {
     }
 
     func saveRestockBill(_ bill: RestockBill) async throws {
+        print("🔍 [DEBUG] DatabaseManager.saveRestockBill() called!")
         guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        print("🔍 [DEBUG] Store ID for restock bill is: \(storeId)")
         let billDTO = RestockBillDTO(from: bill)
+        print("🔍 [DEBUG] Inserting billDTO with store_id: \(storeId)")
         try await client.database.from("restock_bills").insert(billDTO.withStore(storeId)).execute()
         
         let itemsDTOs = bill.items.map { RestockItemDTO(from: $0, billId: bill.id) }
+        print("🔍 [DEBUG] Inserting \(itemsDTOs.count) restock_items")
         try await client.database.from("restock_items").insert(itemsDTOs).execute()
+        print("🔍 [DEBUG] Successfully saved restock_bill and restock_items!")
     }
     
     func deleteRestockBill(_ id: UUID) async throws {

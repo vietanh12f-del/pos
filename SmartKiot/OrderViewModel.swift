@@ -1524,6 +1524,7 @@ class OrderViewModel: ObservableObject {
     }
     
     func completeRestockSession() {
+        print("🔍 [DEBUG] completeRestockSession() called! Will save to restock_bills table!")
         guard !restockItems.isEmpty else { return }
         
         let total = restockItems.reduce(0) { $0 + $1.totalCost }
@@ -1557,7 +1558,7 @@ class OrderViewModel: ObservableObject {
         pendingExportPaymentReceiptURL = nil
         pendingExportInfo = nil
         
-        Task { @MainActor in
+                Task { @MainActor in
             do {
                 if let original {
                     await revertInventoryForRestockBill(original)
@@ -1578,6 +1579,7 @@ class OrderViewModel: ObservableObject {
                         editedRestockBillIds.insert(bill.id)
                     }
                 } else {
+                    print("🔍 [DEBUG] About to call database.saveRestockBill with bill.id = \(bill.id)")
                     try await database.saveRestockBill(bill)
                     // Gán STT đầy đủ NBL — chỉ fetch N nếu STT chưa có suffix type
                     let existingSTT = bill.sequenceNumber ?? ""
@@ -1684,6 +1686,18 @@ class OrderViewModel: ObservableObject {
                 // Success - clean up
                 editingRestockBill = nil
                 await loadProducts() // Ensure everything is in sync
+                
+                // Reload restock history from database to ensure latest
+                do {
+                    let freshRestocks = try await database.fetchRestockHistory()
+                    await MainActor.run {
+                        self.restockHistory = freshRestocks
+                    }
+                    print("🔄 [OrderViewModel] Successfully reloaded restockHistory from DB! Count: \(freshRestocks.count)")
+                } catch {
+                    print("❌ [OrderViewModel] Failed to reload restockHistory from DB: \(error)")
+                }
+                
                 recalculateStats()
                 restockItems.removeAll()
                 isRestockMode = false
@@ -2267,6 +2281,7 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Production Management
     func completeProductionTransaction(mode: String) {
+        print("🔍 [DEBUG] completeProductionTransaction() called! Will save to production_transactions table! mode = '\(mode)'")
         guard !restockItems.isEmpty else { return }
         let total = restockItems.reduce(0) { $0 + $1.totalCost }
         var tx = ProductionTransaction(id: UUID(), createdAt: Date(), mode: mode, items: restockItems, totalCost: total)
