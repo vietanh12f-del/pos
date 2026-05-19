@@ -64,6 +64,10 @@ struct TransactionEditView: View {
 
     // QR
     @State private var loadedQRImage: UIImage? = nil
+    
+    // Edit history
+    @State private var showEditHistory = false
+    @State private var editHistoryEntries: [ProductionEdit] = []
 
     private var isExportFinishedGoods: Bool {
         let t = original.mode.lowercased()
@@ -399,14 +403,29 @@ struct TransactionEditView: View {
                     Button("Hủy") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(role: .destructive) {
-                        deleteNoteText = ""
-                        showDeleteAlert = true
-                    } label: {
-                        Label("Xoá", systemImage: "trash")
-                            .foregroundStyle(.red)
+                    HStack {
+                        if viewModel.editedProductionTxIds.contains(original.id) {
+                            Button {
+                                Task {
+                                    self.editHistoryEntries = await viewModel.fetchProductionEdits(for: original.id)
+                                    self.showEditHistory = true
+                                }
+                            } label: {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Button(role: .destructive) {
+                            deleteNoteText = ""
+                            showDeleteAlert = true
+                        } label: {
+                            Label("Xoá", systemImage: "trash")
+                                .foregroundStyle(.red)
+                        }
+                        .disabled(original.isDeleted || isDeletingTx)
                     }
-                    .disabled(original.isDeleted || isDeletingTx)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
@@ -473,15 +492,20 @@ struct TransactionEditView: View {
                     await MainActor.run { buyerHistory = parties }
                 }
             }
-            if isExportFinishedGoods {                buyerName = original.buyerName ?? ""
+            if isExportFinishedGoods {                
+                buyerName = original.buyerName ?? ""
                 buyerPhone = original.buyerPhone ?? ""
                 buyerAddress = original.buyerAddress ?? ""
                 isPaid = original.isPaid
                 expectedPayDate = original.expectedPayDate
                 paymentReceiptURL = original.paymentReceiptURL
                 customVATRate = original.vatRate
-                if let paid = original.paidAmount, let grand = original.grandTotal {
-                    if paid < grand {
+                
+                if let grand = original.grandTotal {
+                    if let debt = original.debtAmount, debt > 0, debt < grand {
+                        payFullAmount = false
+                        partialAmountSelection = Int(grand - debt)
+                    } else if let paid = original.paidAmount, paid < grand {
                         payFullAmount = false
                         partialAmountSelection = Int(paid)
                     }
@@ -529,6 +553,9 @@ struct TransactionEditView: View {
                 onSave: { newRate in customVATRate = newRate },
                 onReset: { customVATRate = nil }
             )
+        }
+        .sheet(isPresented: $showEditHistory) {
+            EditHistorySheet(entries: editHistoryEntries)
         }
         .sheet(isPresented: $showPartialAmountWheel) {
             NavigationStack {
