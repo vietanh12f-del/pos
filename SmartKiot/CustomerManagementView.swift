@@ -859,7 +859,7 @@ struct PartyDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.gray)
                     Spacer()
-                    Text(isSupplier ? FormatUtils.formatWeight(item.quantity) : "\(item.quantity) kg")
+                    Text(FormatUtils.formatWeight(item.quantity, unit: item.unit))
                         .font(.caption)
                         .fontWeight(.semibold)
                 }

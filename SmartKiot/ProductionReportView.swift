@@ -2011,7 +2011,7 @@ private struct GenericTxCard: View {
                         Text(item.name).font(.subheadline)
                             .foregroundStyle(tx.isDeleted ? .gray : Color.themeTextDark)
                         Spacer()
-                        Text(isMaterial ? FormatUtils.formatWeight(item.quantity, unit: item.unit) : "\(item.quantity) kg")
+                        Text(FormatUtils.formatWeight(item.quantity, unit: item.unit))
                             .font(.subheadline).fontWeight(.semibold)
                             .foregroundStyle(tx.isDeleted ? .gray : accentColor)
                         Text(formatCurrency(item.unitPrice) + (isMaterial ? (item.unit?.lowercased() == "cái" ? "/cái" : "/kg") : ""))
