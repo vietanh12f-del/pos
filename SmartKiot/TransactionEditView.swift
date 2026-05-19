@@ -86,8 +86,11 @@ struct TransactionEditView: View {
 
     private var subtotal: Double {
         items.reduce(0) { sum, item in
+            let isCai = item.unit?.lowercased() == "cái"
             let qtyForCalculation: Double
-            if let unit = item.unit, unit.lowercased() == "kg" {
+            if isExportFinishedGoods && !isCai {
+                qtyForCalculation = Double(item.quantity) / 1000.0
+            } else if let unit = item.unit, unit.lowercased() == "kg" {
                 qtyForCalculation = Double(item.quantity) / 1000.0
             } else {
                 qtyForCalculation = Double(item.quantity)
