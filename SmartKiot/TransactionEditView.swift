@@ -242,6 +242,22 @@ struct TransactionEditView: View {
                     }
 
                     Section(header: Text("Thanh toán")) {
+                        HStack {
+                            Text("Thanh toán")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            if !editHistoryEntries.isEmpty {
+                                Button {
+                                    showEditHistory = true
+                                } label: {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
                         // Totals
                         if vatEnabled {
                             HStack {
@@ -294,6 +310,16 @@ struct TransactionEditView: View {
                             if debtAmount > 0 {
                                 HStack {
                                     Text(original.mode.lowercased().contains("nhập") ? "Thiếu nợ còn lại" : "Công nợ còn lại").foregroundStyle(.red)
+                                    if !editHistoryEntries.isEmpty {
+                                        Button {
+                                            showEditHistory = true
+                                        } label: {
+                                            Image(systemName: "clock.arrow.circlepath")
+                                                .font(.caption)
+                                                .foregroundStyle(.orange)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                     Spacer()
                                     Text(formatCurrency(debtAmount)).fontWeight(.bold).foregroundStyle(.red)
                                 }
@@ -403,29 +429,14 @@ struct TransactionEditView: View {
                     Button("Hủy") { dismiss() }
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    HStack {
-                        if viewModel.editedProductionTxIds.contains(original.id) {
-                            Button {
-                                Task {
-                                    self.editHistoryEntries = await viewModel.fetchProductionEdits(for: original.id)
-                                    self.showEditHistory = true
-                                }
-                            } label: {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .font(.caption)
-                                    .foregroundStyle(.orange)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        Button(role: .destructive) {
-                            deleteNoteText = ""
-                            showDeleteAlert = true
-                        } label: {
-                            Label("Xoá", systemImage: "trash")
-                                .foregroundStyle(.red)
-                        }
-                        .disabled(original.isDeleted || isDeletingTx)
+                    Button(role: .destructive) {
+                        deleteNoteText = ""
+                        showDeleteAlert = true
+                    } label: {
+                        Label("Xoá", systemImage: "trash")
+                            .foregroundStyle(.red)
                     }
+                    .disabled(original.isDeleted || isDeletingTx)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
@@ -490,6 +501,11 @@ struct TransactionEditView: View {
             Task {
                 if let parties = try? await viewModel.databaseService.fetchTradingParties(type: partyType) {
                     await MainActor.run { buyerHistory = parties }
+                }
+                // Fetch edit history for this transaction
+                let edits = await viewModel.fetchProductionEdits(for: original.id)
+                await MainActor.run {
+                    self.editHistoryEntries = edits
                 }
             }
             if isExportFinishedGoods {                
