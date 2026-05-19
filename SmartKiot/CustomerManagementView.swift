@@ -2255,6 +2255,14 @@ private struct DebtEditView: View {
     @State private var showEditHistory = false
     @State private var selectedEditHistoryTxId: UUID?
     @State private var editHistoryEntries: [ProductionEdit] = []
+    @State private var showDebtAmountWheel = false
+    @State private var selectedDebtTxId: UUID?
+    @State private var debtAmountSelection = 0
+    @State private var debtAmountBaseSelection = 0
+    @State private var debtAmountHundredsSelection = 0
+    @State private var debtAmountMax = 5_000_000
+    @State private var debtAmountRangeBase = 0
+    @State private var showDebtAmountRangePicker = false
     
     private func formatDateTime(_ date: Date) -> String {
         let f = DateFormatter()
@@ -2337,28 +2345,16 @@ private struct DebtEditView: View {
                                         .buttonStyle(.plain)
                                     }
                                     Spacer()
-                                    TextField("0", text: Binding(
-                                        get: {
-                                            guard let edits = editedTransactions[tx.id] else { return "0" }
-                                            let numberFormatter = NumberFormatter()
-                                            numberFormatter.locale = Locale(identifier: "vi_VN")
-                                            numberFormatter.numberStyle = .decimal
-                                            return numberFormatter.string(from: NSNumber(value: edits.debtAmount)) ?? "\(Int(edits.debtAmount))"
-                                        },
-                                        set: { newValue in
-                                            let clean = newValue.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: "")
-                                            let number = Double(clean) ?? 0
-                                            if var edits = editedTransactions[tx.id] {
-                                                edits.debtAmount = number
-                                                editedTransactions[tx.id] = edits
-                                            } else {
-                                                editedTransactions[tx.id] = (debtAmount: number, expectedPayDate: tx.expectedPayDate)
-                                            }
-                                        }
-                                    ))
-                                    .keyboardType(.numberPad)
-                                    .multilineTextAlignment(.trailing)
-                                    .font(.subheadline).fontWeight(.semibold)
+                                    Button {
+                                        selectedDebtTxId = tx.id
+                                        let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
+                                        debtAmountSelection = Int(currentDebt)
+                                        showDebtAmountWheel = true
+                                    } label: {
+                                        let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
+                                        Text(formatCurrency(currentDebt))
+                                            .font(.subheadline).fontWeight(.semibold)
+                                    }
                                     Text("đ").font(.subheadline).foregroundStyle(.gray)
                                 }
                                 
@@ -2469,6 +2465,121 @@ private struct DebtEditView: View {
                     }
                 }
                 .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showDebtAmountWheel) {
+                NavigationStack {
+                    VStack(spacing: 12) {
+                        Text(isSupplier ? "Sửa thiếu nợ" : "Sửa công nợ").font(.headline)
+                        let step = StoreManager.shared.priceStep
+                        let rangeMin = max(0, (debtAmountRangeBase / step) * step)
+                        HStack {
+                            Button {
+                                showDebtAmountRangePicker = true
+                            } label: {
+                                Text(debtAmountRangeBase <= 0 ? ">0" : ">\(debtAmountRangeBase / 1000)k")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                            Spacer()
+                        }
+                        HStack {
+                            VStack {
+                                Text("Giá")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $debtAmountBaseSelection) {
+                                    ForEach(Array(stride(from: rangeMin, through: debtAmountMax, by: step)), id: \.self) { v in
+                                        Text(formatCurrency(Double(v))).tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: debtAmountBaseSelection) { _, newValue in
+                                    debtAmountSelection = newValue + debtAmountHundredsSelection
+                                    if newValue > debtAmountMax - (step * 5) {
+                                        debtAmountMax += step * 100
+                                    }
+                                }
+                            }
+                            VStack {
+                                Text("Trăm")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $debtAmountHundredsSelection) {
+                                    ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: debtAmountHundredsSelection) { _, newValue in
+                                    debtAmountSelection = debtAmountBaseSelection + newValue
+                                }
+                            }
+                            .frame(width: 110)
+                        }
+                        HStack {
+                            Button("Đóng") { showDebtAmountWheel = false }
+                            Spacer()
+                            Button("Lưu") {
+                                if let txId = selectedDebtTxId {
+                                    if var edits = editedTransactions[txId] {
+                                        edits.debtAmount = Double(debtAmountSelection)
+                                        editedTransactions[txId] = edits
+                                    } else if let tx = transactions.first(where: { $0.id == txId }) {
+                                        editedTransactions[txId] = (debtAmount: Double(debtAmountSelection), expectedPayDate: tx.expectedPayDate)
+                                    }
+                                }
+                                showDebtAmountWheel = false
+                            }
+                        }
+                        .font(.headline)
+                    }
+                    .padding()
+                    .presentationDetents([.height(300)])
+                    .onAppear {
+                        let step = StoreManager.shared.priceStep
+                        let current = max(0, debtAmountSelection)
+                        debtAmountRangeBase = (current / 100000) * 100000
+                        debtAmountBaseSelection = (current / step) * step
+                        let remainder = max(0, current - debtAmountBaseSelection)
+                        debtAmountHundredsSelection = min(900, (remainder / 100) * 100)
+                    }
+                    .sheet(isPresented: $showDebtAmountRangePicker) {
+                        VStack(spacing: 16) {
+                            Text("Chọn vùng giá trị").font(.headline)
+                            let step = StoreManager.shared.priceStep
+                            Picker("", selection: $debtAmountRangeBase) {
+                                ForEach(Array(stride(from: 0, through: min(debtAmountMax, 10_000_000), by: 100_000)), id: \.self) { v in
+                                    Text(v == 0 ? ">0" : ">\(v / 1000)k").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: debtAmountRangeBase) { _, newValue in
+                                if newValue >= debtAmountMax - 200_000 {
+                                    debtAmountMax += 1_000_000
+                                }
+                            }
+                            
+                            Button {
+                                let rangeMin = max(0, (debtAmountRangeBase / step) * step)
+                                if debtAmountBaseSelection < rangeMin { debtAmountBaseSelection = rangeMin }
+                                showDebtAmountRangePicker = false
+                            } label: {
+                                Text("Xong")
+                                    .font(.subheadline).fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.themePrimary)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding()
+                        .presentationDetents([.height(300)])
+                    }
+                }
             }
         }
     }
