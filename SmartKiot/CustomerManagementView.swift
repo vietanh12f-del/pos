@@ -494,6 +494,8 @@ struct PartyDetailView: View {
     @State private var showProductionDetail: Bool = false
     @State private var selectedProductionTx: ProductionTransaction?
     @State private var showFeatureInDevelopment = false
+    @State private var showDebtEdit = false
+    @State private var editedTransactions: [UUID: (debtAmount: Double, expectedPayDate: Date?)] = [:]
 
     init(party: TradingParty, onDeleted: (() -> Void)? = nil) {
         self.party = party
@@ -609,11 +611,45 @@ struct PartyDetailView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showDebtEdit) {
+                DebtEditView(
+                    transactions: allPartyTxs,
+                    isSupplier: isSupplier,
+                    editedTransactions: $editedTransactions,
+                    onSave: {
+                        Task { await saveDebtEdits() }
+                    },
+                    onCancel: {
+                        showDebtEdit = false
+                    }
+                )
+            }
             .alert("Tính năng đang phát triển", isPresented: $showFeatureInDevelopment) {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Tính năng gửi email lấy ý kiến khách hàng sẽ được cập nhật trong phiên bản tới!")
             }
+        }
+    }
+    
+    private func saveDebtEdits() async {
+        let db = SupabaseDatabaseService()
+        for tx in allPartyTxs {
+            guard let edits = editedTransactions[tx.id] else { continue }
+            var updatedTx = tx
+            updatedTx.debtAmount = edits.debtAmount
+            updatedTx.expectedPayDate = edits.expectedPayDate
+            
+            do {
+                try await db.updateProductionTransaction(updatedTx)
+            } catch {
+                print("❌ Failed to update transaction \(tx.id): \(error)")
+            }
+        }
+        
+        await MainActor.run {
+            showDebtEdit = false
+            Task { await loadTransactions() }
         }
     }
 
@@ -807,6 +843,22 @@ struct PartyDetailView: View {
                     .foregroundStyle(.red)
             }
             Spacer()
+            Button {
+                // Initialize editedTransactions with current values
+                var initialEdits: [UUID: (debtAmount: Double, expectedPayDate: Date?)] = [:]
+                for tx in allPartyTxs {
+                    initialEdits[tx.id] = (
+                        debtAmount: tx.debtAmount ?? 0,
+                        expectedPayDate: tx.expectedPayDate
+                    )
+                }
+                editedTransactions = initialEdits
+                showDebtEdit = true
+            } label: {
+                Image(systemName: "pencil.circle.fill")
+                    .font(.title)
+                    .foregroundStyle(Color.themePrimary)
+            }
         }
         .padding(14)
         .background(Color.red.opacity(0.06))
@@ -2102,5 +2154,153 @@ struct WebsiteLeadDetailView: View {
         f.timeZone = .current
         f.dateFormat = "HH:mm dd/MM/yyyy"
         return f.string(from: date)
+    }
+}
+
+private struct DebtEditView: View {
+    let transactions: [ProductionTransaction]
+    let isSupplier: Bool
+    @Binding var editedTransactions: [UUID: (debtAmount: Double, expectedPayDate: Date?)]
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    
+    private var totalEditedDebt: Double {
+        editedTransactions.values.reduce(0) { $0 + $1.debtAmount }
+    }
+    
+    private func formatDateOnly(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
+    }
+    
+    private func formatCurrency(_ amount: Double) -> String {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.numberStyle = .currency
+        f.currencyCode = "VND"
+        f.maximumFractionDigits = 0
+        return f.string(from: NSNumber(value: amount)) ?? "\(amount) đ"
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if totalEditedDebt > 0 {
+                    HStack {
+                        Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
+                        Text("Tổng \(isSupplier ? "thiếu nợ" : "công nợ"): \(formatCurrency(totalEditedDebt))")
+                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(.orange)
+                        Spacer()
+                    }
+                    .padding(.horizontal).padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.06))
+                }
+                
+                List {
+                    ForEach(transactions) { tx in
+                        Section {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text(tx.mode)
+                                        .font(.subheadline).fontWeight(.semibold)
+                                    Spacer()
+                                    Text(formatDateOnly(tx.createdAt))
+                                        .font(.caption).foregroundStyle(.gray)
+                                }
+                                
+                                if !tx.items.isEmpty {
+                                    Text(tx.items.map { $0.name }.joined(separator: ", "))
+                                        .font(.caption).foregroundStyle(.gray)
+                                }
+                                
+                                Divider()
+                                
+                                HStack {
+                                    Text(isSupplier ? "Thiếu nợ" : "Công nợ")
+                                        .font(.subheadline).foregroundStyle(.gray)
+                                    Spacer()
+                                    TextField("0", text: Binding(
+                                        get: {
+                                            guard let edits = editedTransactions[tx.id] else { return "0" }
+                                            let numberFormatter = NumberFormatter()
+                                            numberFormatter.locale = Locale(identifier: "vi_VN")
+                                            numberFormatter.numberStyle = .decimal
+                                            return numberFormatter.string(from: NSNumber(value: edits.debtAmount)) ?? "\(Int(edits.debtAmount))"
+                                        },
+                                        set: { newValue in
+                                            let clean = newValue.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: "")
+                                            let number = Double(clean) ?? 0
+                                            if var edits = editedTransactions[tx.id] {
+                                                edits.debtAmount = number
+                                                editedTransactions[tx.id] = edits
+                                            } else {
+                                                editedTransactions[tx.id] = (debtAmount: number, expectedPayDate: tx.expectedPayDate)
+                                            }
+                                        }
+                                    ))
+                                    .keyboardType(.numberPad)
+                                    .multilineTextAlignment(.trailing)
+                                    .font(.subheadline).fontWeight(.semibold)
+                                    Text("đ").font(.subheadline).foregroundStyle(.gray)
+                                }
+                                
+                                HStack {
+                                    Text("Dự kiến trả")
+                                        .font(.subheadline).foregroundStyle(.gray)
+                                    Spacer()
+                                    let currentDate = editedTransactions[tx.id]?.expectedPayDate ?? tx.expectedPayDate
+                                    Button {
+                                        if var edits = editedTransactions[tx.id] {
+                                            edits.expectedPayDate = edits.expectedPayDate == nil ? Date() : nil
+                                            editedTransactions[tx.id] = edits
+                                        } else {
+                                            editedTransactions[tx.id] = (debtAmount: tx.debtAmount ?? 0, expectedPayDate: Date())
+                                        }
+                                    } label: {
+                                        Text(currentDate == nil ? "Chưa xác định" : formatDateOnly(currentDate!))
+                                            .font(.subheadline).fontWeight(.semibold)
+                                            .foregroundStyle(currentDate == nil ? .gray : Color.themePrimary)
+                                    }
+                                    if currentDate != nil {
+                                        DatePicker(
+                                            "",
+                                            selection: Binding(
+                                                get: { currentDate! },
+                                                set: { newDate in
+                                                    if var edits = editedTransactions[tx.id] {
+                                                        edits.expectedPayDate = newDate
+                                                        editedTransactions[tx.id] = edits
+                                                    } else {
+                                                        editedTransactions[tx.id] = (debtAmount: tx.debtAmount ?? 0, expectedPayDate: newDate)
+                                                    }
+                                                }
+                                            ),
+                                            displayedComponents: [.date]
+                                        )
+                                        .labelsHidden()
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 8)
+                        }
+                    }
+                }
+                .listStyle(.plain)
+            }
+            .navigationTitle(isSupplier ? "Chỉnh sửa thiếu nợ" : "Chỉnh sửa công nợ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Hủy") { onCancel() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Lưu") { onSave() }
+                        .fontWeight(.bold)
+                }
+            }
+        }
     }
 }
