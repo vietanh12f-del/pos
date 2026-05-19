@@ -2557,9 +2557,6 @@ class OrderViewModel: ObservableObject {
     func updateProductionTransaction(original: ProductionTransaction, updated: ProductionTransaction) async -> Bool {
         do {
             var updatedTx = updated
-            if updatedTx.note == nil || updatedTx.note?.isEmpty == true {
-                updatedTx.note = "Đã chỉnh sửa"
-            }
             try await database.updateProductionTransaction(updatedTx)
             if updatedTx.mode.lowercased().contains("thành phẩm") {
                 await adjustProductsForEditedTransaction(original: original, updated: updatedTx)
@@ -2573,7 +2570,6 @@ class OrderViewModel: ObservableObject {
             let editorId = AuthManager.shared.currentUserProfile?.id
             let editorName = AuthManager.shared.currentUserProfile?.fullName
             let details = buildProductionEditDetails(original: original, updated: updatedTx)
-            let note = updatedTx.note?.isEmpty == false ? updatedTx.note : "Đã chỉnh sửa"
             let edit = ProductionEdit(
                 id: UUID(),
                 transactionId: original.id,
@@ -2582,7 +2578,7 @@ class OrderViewModel: ObservableObject {
                 newTotal: updatedTx.totalCost,
                 editorId: editorId,
                 editorName: editorName,
-                note: note,
+                note: nil,
                 details: details
             )
             Task {
@@ -2768,27 +2764,6 @@ class OrderViewModel: ObservableObject {
     
     private func buildProductionEditDetails(original: ProductionTransaction, updated: ProductionTransaction) -> [String] {
         var lines: [String] = []
-        var origMap: [String: RestockItem] = [:]
-        var updMap: [String: RestockItem] = [:]
-        for it in original.items { origMap[it.name] = it }
-        for it in updated.items { updMap[it.name] = it }
-        for name in Set(origMap.keys).union(updMap.keys) {
-            let o = origMap[name]
-            let n = updMap[name]
-            if o == nil, let n {
-                lines.append("Thêm \(name): SL \(n.quantity), giá \(Int(n.unitPrice)), chi phí \(Int(n.additionalCost))")
-            } else if let o, n == nil {
-                lines.append("Xoá \(name): SL \(o.quantity)")
-            } else if let o, let n {
-                var parts: [String] = []
-                if o.quantity != n.quantity { parts.append("SL \(o.quantity)→\(n.quantity)") }
-                if Int(o.unitPrice) != Int(n.unitPrice) { parts.append("Giá \(Int(o.unitPrice))→\(Int(n.unitPrice))") }
-                if Int(o.additionalCost) != Int(n.additionalCost) { parts.append("Chi phí \(Int(o.additionalCost))→\(Int(n.additionalCost))") }
-                if !parts.isEmpty {
-                    lines.append("Sửa \(name): " + parts.joined(separator: ", "))
-                }
-            }
-        }
         
         // Check debt amount changes
         if original.debtAmount != updated.debtAmount {
@@ -2804,9 +2779,6 @@ class OrderViewModel: ObservableObject {
             lines.append("Sửa ngày dự kiến trả: \(oldStr)→\(newStr)")
         }
         
-        if let note = updated.note, !note.isEmpty {
-            lines.append("Ghi chú: \(note)")
-        }
         return lines
     }
     // MARK: - Product Catalog Management
