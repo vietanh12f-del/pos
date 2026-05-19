@@ -1010,11 +1010,12 @@ struct PartyDetailView: View {
             all += txs
         }
 
-        // Filter production by party name + phone + date
+        // Filter production by party name + phone + date, and exclude deleted transactions
         let name = currentParty.name.lowercased()
         let phone = currentParty.phone
         transactions = all.filter { tx in
             guard tx.createdAt >= since else { return false }
+            guard !tx.isDeleted else { return false }
             let matchName = tx.buyerName?.lowercased() == name
             let matchPhone = phone.isEmpty ? false : tx.buyerPhone == phone
             return matchName || matchPhone

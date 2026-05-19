@@ -881,6 +881,8 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
             .value
         var txs = rows.map { $0.toDomain() }
+        // Filter out deleted transactions
+        txs = txs.filter { !$0.isDeleted }
         if let m = mode {
             let target = m.lowercased()
             txs = txs.filter { $0.mode.lowercased() == target }
