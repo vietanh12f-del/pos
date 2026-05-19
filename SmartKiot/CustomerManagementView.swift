@@ -187,9 +187,11 @@ struct CustomerManagementView: View {
                 } else {
                     // Buyers / Suppliers
                     if totalDebt > 0 {
+                        let debtLabel = selectedType == .supplier ? "Tổng thiếu nợ" : "Tổng công nợ"
+                        let formattedDebt = formatCurrency(totalDebt)
                         HStack {
                             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
-                            Text("Tổng công nợ: \(formatCurrency(totalDebt))")
+                            Text("\(debtLabel): \(formattedDebt)")
                                 .font(.subheadline).fontWeight(.semibold).foregroundStyle(.orange)
                             Spacer()
                         }
