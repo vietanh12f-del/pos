@@ -796,7 +796,7 @@ struct PartyDetailView: View {
                 .font(.title2)
                 .foregroundStyle(.red)
             VStack(alignment: .leading, spacing: 4) {
-                Text("Công nợ hiện tại")
+                Text(isSupplier ? "Thiếu nợ hiện tại" : "Công nợ hiện tại")
                     .font(.caption)
                     .foregroundStyle(.gray)
                 Text(formatCurrency(totalDebt))

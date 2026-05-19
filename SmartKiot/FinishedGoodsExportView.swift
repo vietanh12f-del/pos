@@ -403,7 +403,7 @@ struct FinishedGoodsExportView: View {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text("Công nợ cũ: \(formatCurrency(pastDebt))")
+                    Text(isImport ? "Thiếu nợ cũ: \(formatCurrency(pastDebt))" : "Công nợ cũ: \(formatCurrency(pastDebt))")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(.orange)
