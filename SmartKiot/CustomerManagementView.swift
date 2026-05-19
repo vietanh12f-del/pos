@@ -622,15 +622,8 @@ struct PartyDetailView: View {
                     transactions: allPartyTxs,
                     isSupplier: isSupplier,
                     editedTxIds: orderViewModel.editedProductionTxIds,
-                    onShowEditHistory: { txId in
-                        Task {
-                            let edits = await orderViewModel.fetchProductionEdits(for: txId)
-                            await MainActor.run {
-                                selectedEditHistoryTxId = txId
-                                editHistoryEntries = edits
-                                showEditHistoryPopover = true
-                            }
-                        }
+                    fetchEdits: { txId in
+                        await orderViewModel.fetchProductionEdits(for: txId)
                     },
                     editedTransactions: $editedTransactions,
                     onSave: {
@@ -2261,11 +2254,21 @@ private struct DebtEditView: View {
     let transactions: [ProductionTransaction]
     let isSupplier: Bool
     let editedTxIds: Set<UUID>
-    let onShowEditHistory: (UUID) -> Void
+    let fetchEdits: (UUID) async -> [ProductionEdit]
     @Binding var editedTransactions: [UUID: (debtAmount: Double, expectedPayDate: Date?)]
     let onSave: () -> Void
     let onCancel: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var showEditHistory = false
+    @State private var selectedEditHistoryTxId: UUID?
+    @State private var editHistoryEntries: [ProductionEdit] = []
+    
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "HH:mm dd/MM/yyyy"
+        return f.string(from: date)
+    }
     
     private var totalEditedDebt: Double {
         editedTransactions.values.reduce(0) { $0 + $1.debtAmount }
@@ -2325,7 +2328,14 @@ private struct DebtEditView: View {
                                         .font(.subheadline).foregroundStyle(.gray)
                                     if editedTxIds.contains(tx.id) {
                                         Button {
-                                            onShowEditHistory(tx.id)
+                                            Task {
+                                                let edits = await fetchEdits(tx.id)
+                                                await MainActor.run {
+                                                    selectedEditHistoryTxId = tx.id
+                                                    editHistoryEntries = edits
+                                                    showEditHistory = true
+                                                }
+                                            }
                                         } label: {
                                             Image(systemName: "clock.arrow.circlepath")
                                                 .font(.caption)
@@ -2412,6 +2422,67 @@ private struct DebtEditView: View {
                     Button("Lưu") { onSave() }
                         .fontWeight(.bold)
                 }
+            }
+            .sheet(isPresented: $showEditHistory) {
+                NavigationStack {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Lịch sử chỉnh sửa")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        
+                        if editHistoryEntries.isEmpty {
+                            Text("Không có lịch sử chỉnh sửa")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                        } else {
+                            List(editHistoryEntries) { edit in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text(formatDateTime(edit.createdAt))
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        Spacer()
+                                        if let editorName = edit.editorName {
+                                            Text(editorName)
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                    
+                                    if let details = edit.details, !details.isEmpty {
+                                        ForEach(details, id: \.self) { detail in
+                                            Text("• \(detail)")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                    
+                                    if let note = edit.note, !note.isEmpty {
+                                        Text("Ghi chú: \(note)")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                                .padding(.vertical, 8)
+                            }
+                            .listStyle(.plain)
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding()
+                    .navigationTitle("Lịch sử chỉnh sửa")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") {
+                                showEditHistory = false
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
             }
         }
     }
