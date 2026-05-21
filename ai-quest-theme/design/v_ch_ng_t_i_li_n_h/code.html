@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Be+Vietnam+Pro:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-tertiary-fixed": "#281900",
+              "primary": "#870500",
+              "on-surface-variant": "#5c403b",
+              "error": "#ba1a1a",
+              "surface-bright": "#fbf9f8",
+              "tertiary-fixed": "#ffdead",
+              "background": "#fbf9f8",
+              "surface-container": "#f0eded",
+              "on-tertiary-fixed-variant": "#604100",
+              "on-secondary": "#ffffff",
+              "on-secondary-fixed": "#351000",
+              "surface-container-low": "#f6f3f2",
+              "primary-container": "#b20f03",
+              "on-error": "#ffffff",
+              "outline-variant": "#e5beb7",
+              "secondary-fixed": "#ffdbcd",
+              "secondary-fixed-dim": "#ffb595",
+              "on-tertiary": "#ffffff",
+              "on-primary": "#ffffff",
+              "on-tertiary-container": "#ffc665",
+              "surface": "#fbf9f8",
+              "inverse-on-surface": "#f3f0f0",
+              "surface-container-highest": "#e4e2e1",
+              "on-primary-container": "#ffc0b6",
+              "on-primary-fixed": "#400100",
+              "surface-container-high": "#eae8e7",
+              "primary-fixed-dim": "#ffb4a7",
+              "surface-variant": "#e4e2e1",
+              "surface-dim": "#dcd9d9",
+              "on-secondary-fixed-variant": "#7c2e00",
+              "surface-container-lowest": "#ffffff",
+              "on-primary-fixed-variant": "#920600",
+              "inverse-surface": "#303030",
+              "tertiary-fixed-dim": "#ffba39",
+              "on-surface": "#1b1c1c",
+              "on-background": "#1b1c1c",
+              "on-error-container": "#93000a",
+              "on-secondary-container": "#5c2000",
+              "secondary-container": "#fc7127",
+              "surface-tint": "#bb1809",
+              "secondary": "#a23f00",
+              "tertiary": "#583c00",
+              "error-container": "#ffdad6",
+              "inverse-primary": "#ffb4a7",
+              "outline": "#906f6a",
+              "primary-fixed": "#ffdad4",
+              "tertiary-container": "#775100"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Be Vietnam Pro"],
+              "label": ["Be Vietnam Pro"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .asymmetric-clip {
+        clip-path: polygon(0 0, 100% 5%, 100% 100%, 0 95%);
+      }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface antialiased">
+<!-- TopNavBar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 dark:bg-zinc-900/80 backdrop-blur-md shadow-sm dark:shadow-none">
+<nav class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+<div class="text-xl font-bold tracking-tighter text-red-950 dark:text-red-50 font-headline">Tiệm Khô Thủ Công</div>
+<div class="hidden md:flex items-center gap-8">
+<a class="font-plus-jakarta-sans text-sm tracking-tight text-zinc-600 dark:text-zinc-400 hover:text-red-900 dark:hover:text-red-200 transition-colors" href="#">Gà Khô</a>
+<a class="font-plus-jakarta-sans text-sm tracking-tight text-zinc-600 dark:text-zinc-400 hover:text-red-900 dark:hover:text-red-200 transition-colors" href="#">Bò Khô</a>
+<a class="font-plus-jakarta-sans text-sm tracking-tight text-zinc-600 dark:text-zinc-400 hover:text-red-900 dark:hover:text-red-200 transition-colors" href="#">Hộp Quà Tặng</a>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden lg:block relative">
+<input class="bg-surface-container-low border-none rounded-sm py-1.5 pl-4 pr-10 text-sm focus:ring-1 focus:ring-primary/40 w-64" placeholder="Tìm kiếm sản phẩm..." type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-lg" data-icon="search">search</span>
+</div>
+<div class="flex gap-4">
+<button class="p-2 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 rounded-lg transition-all duration-300 ease-in-out">
+<span class="material-symbols-outlined text-red-900 dark:text-red-500" data-icon="shopping_cart">shopping_cart</span>
+</button>
+<button class="p-2 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 rounded-lg transition-all duration-300 ease-in-out">
+<span class="material-symbols-outlined text-red-900 dark:text-red-500" data-icon="person">person</span>
+</button>
+</div>
+</div>
+</nav>
+</header>
+<main class="pt-24">
+<!-- Hero Section: Editorial Storytelling -->
+<section class="max-w-7xl mx-auto px-8 py-20 grid grid-cols-1 md:grid-cols-12 gap-12 items-center">
+<div class="md:col-span-7">
+<span class="font-label text-secondary uppercase tracking-[0.2em] text-xs font-semibold mb-4 block">Di Sản Của Chúng Tôi</span>
+<h1 class="font-headline text-5xl md:text-7xl font-extrabold tracking-tighter text-on-surface leading-none mb-8">
+                    Kế Thừa Lửa &amp; <br/><span class="text-primary italic">Thời Gian Từ 1978.</span>
+</h1>
+<p class="font-body text-lg text-on-surface-variant max-w-xl leading-relaxed">
+                    Tại Tiệm Khô Thủ Công, chúng tôi tin rằng những hương vị tuyệt vời nhất không được tạo ra từ máy móc — chúng được khơi dậy từ sự kiên trì. Sử dụng phương pháp sấy củi truyền thống và các hỗn hợp gia vị di sản, chúng tôi biến những tảng thịt hảo hạng thành một hành trình ẩm thực.
+                </p>
+</div>
+<div class="md:col-span-5 relative">
+<div class="aspect-[4/5] bg-surface-container-highest rounded-xl overflow-hidden shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-700">
+<img class="w-full h-full object-cover" data-alt="Cận cảnh thịt bò khô thủ công thái lát với gia vị" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAlaF1VdrLsF6X_Mo6qVM7BU2-1sHkjKsq60S9ujke-pOn9zz5YWNS8tbEDC5diZr3Hy0VATaX6s67DgkUJhBj0nx8H1gr_K1uKRbD41mPQWbMJ1WRqxQoAz2yVaoWFuRlWXD5VXmKbkRqDRTcFg2mnojPdQK0Q2N7KpvA7Z6C4KkzkardX8cisEMhRh1wPUmr_bXzZHLc2bHkreX3AnIMUhmQtFf0wmKicSBZm-mbKtUjOeW2CNsGgbmJzES5UMTmlFfo-lUKfhXk"/>
+</div>
+<div class="absolute -bottom-6 -left-6 bg-secondary-container p-6 rounded-lg shadow-xl max-w-[200px]">
+<p class="text-on-secondary-container font-headline font-bold text-sm">Mỗi miếng thịt được cắt tay và ủ trong 21 ngày.</p>
+</div>
+</div>
+</section>
+<!-- Process Bento Grid -->
+<section class="bg-surface-container-low py-24">
+<div class="max-w-7xl mx-auto px-8">
+<div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-4">
+<div class="max-w-2xl">
+<h2 class="font-headline text-4xl font-bold tracking-tight text-on-surface">Triết Lý Sống Chậm</h2>
+<p class="mt-4 text-on-surface-variant">Chúng tôi từ chối tốc độ công nghiệp của các món ăn nhẹ hiện đại. Chất lượng cần có thời gian, và chúng tôi luôn sẵn lòng dành thời gian cho điều đó.</p>
+</div>
+<a class="text-primary font-bold flex items-center gap-2 group" href="#">
+                        Xem quy trình của chúng tôi 
+                        <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform" data-icon="arrow_forward">arrow_forward</span>
+</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+<!-- Bento Item 1 -->
+<div class="md:col-span-2 md:row-span-2 bg-surface-container-lowest p-10 rounded-xl flex flex-col justify-between group overflow-hidden relative">
+<div>
+<span class="font-headline text-5xl font-extrabold text-outline-variant/30 mb-4 block">01</span>
+<h3 class="text-2xl font-bold font-headline mb-4">Lựa chọn</h3>
+<p class="text-on-surface-variant">Chúng tôi chỉ sử dụng thịt bò thả vườn, ăn cỏ tự nhiên và gia cầm hữu cơ từ các trang trại gia đình địa phương.</p>
+</div>
+<img class="mt-8 rounded-lg object-cover h-48 w-full group-hover:scale-105 transition-transform duration-500" data-alt="Thịt bò tươi đang được kiểm tra" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzlL545fhjgamUr2NkkDiU5m4voJpX8MUjVUh6pTLTo8IuhtpzFWlW0RKG7VTZHXWUtHB_HLvWdHg7uB333Xe3oSaJoVBoa6VkOQM_Xjm8CABCwNM7Xho6G8VHQlKSXOIPq1wz4nJKavF42lzvHGjeEBoiUtJWIznmWsKDeatEzCaqFCifade2CK6arhM_ZQtuD70FBGXvrsfcPo_TARcX2WhUGSjBVySycsZs4sE3q5o7Vaopcsz4MMplrcMAneoYfe8Uf6wymU4"/>
+</div>
+<!-- Bento Item 2 -->
+<div class="md:col-span-2 bg-primary text-on-primary p-10 rounded-xl flex items-center gap-8">
+<span class="material-symbols-outlined text-6xl opacity-50" data-icon="local_fire_department">local_fire_department</span>
+<div>
+<h3 class="text-xl font-bold font-headline mb-2">Tâm Hồn Sấy Củi</h3>
+<p class="text-on-primary-container text-sm">Chúng tôi sử dụng gỗ sồi và gỗ táo để mang lại hương khói sâu lắng, điều mà các loại hương liệu không bao giờ có được.</p>
+</div>
+</div>
+<!-- Bento Item 3 -->
+<div class="bg-surface-container-highest p-10 rounded-xl flex flex-col justify-center text-center">
+<span class="material-symbols-outlined text-primary text-4xl mb-4" data-icon="eco">eco</span>
+<h3 class="font-bold text-lg mb-2">Không Chất Tổng Hợp</h3>
+<p class="text-xs text-on-surface-variant font-mono">HƯƠNG VỊ TỰ NHIÊN</p>
+</div>
+<!-- Bento Item 4 -->
+<div class="bg-secondary-fixed p-10 rounded-xl flex flex-col justify-center text-center">
+<span class="material-symbols-outlined text-secondary text-4xl mb-4" data-icon="history_edu">history_edu</span>
+<h3 class="font-bold text-lg mb-2">Công Thức Di Sản</h3>
+<p class="text-xs text-on-secondary-fixed-variant font-mono">TỪ NĂM 1978</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Contact & Map Section -->
+<section class="max-w-7xl mx-auto px-8 py-24 grid grid-cols-1 lg:grid-cols-2 gap-20">
+<!-- Contact Form -->
+<div class="order-2 lg:order-1">
+<h2 class="font-headline text-4xl font-bold tracking-tight text-on-surface mb-4">Cùng Chia Sẻ Hương Vị</h2>
+<p class="text-on-surface-variant mb-12">Cho dù bạn là đầu bếp đang tìm kiếm nguồn sỉ hay là một khách hàng có thắc mắc, chúng tôi luôn sẵn sàng lắng nghe.</p>
+<form class="space-y-6">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Họ tên</label>
+<input class="w-full bg-surface-container-low border-none rounded-sm p-4 focus:ring-1 focus:ring-primary/40" placeholder="Nguyễn Văn A" type="text"/>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Địa chỉ email</label>
+<input class="w-full bg-surface-container-low border-none rounded-sm p-4 focus:ring-1 focus:ring-primary/40" placeholder="email@vi-du.com" type="email"/>
+</div>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Chủ đề</label>
+<select class="w-full bg-surface-container-low border-none rounded-sm p-4 focus:ring-1 focus:ring-primary/40 text-on-surface-variant">
+<option>Yêu cầu bán sỉ</option>
+<option>Phản hồi sản phẩm</option>
+<option>Câu hỏi vận chuyển</option>
+<option>Lời chào chung</option>
+</select>
+</div>
+<div class="space-y-2">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Lời nhắn</label>
+<textarea class="w-full bg-surface-container-low border-none rounded-sm p-4 focus:ring-1 focus:ring-primary/40" placeholder="Chúng tôi có thể giúp gì cho bạn?" rows="5"></textarea>
+</div>
+<button class="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-4 rounded-md font-headline font-bold text-lg hover:shadow-lg transition-all active:scale-[0.98]" type="submit">
+                        Gửi lời nhắn
+                    </button>
+</form>
+</div>
+<!-- Contact Info & Map -->
+<div class="order-1 lg:order-2 space-y-12">
+<div class="bg-surface-container-high rounded-2xl overflow-hidden h-[400px] relative">
+<!-- Map Placeholder -->
+<div class="absolute inset-0 bg-zinc-300">
+<img class="w-full h-full object-cover grayscale opacity-50" data-alt="Bản đồ vị trí xưởng sản xuất" data-location="Hudson Valley, NY" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCN1o0GAtHrJlGEkJIGm1XZJrA7TSe5yVn8MGN6oEN7Gkcv4WdsXQQZgI0Hep3Ay4naXCRSWTA81upfATYTEG55rt70uy7iXReL1-nWB9yQ9v6KXDuhiGiNEhGFhSPK6qHKoq0AJcGm8ZhzjqTzFBXTsrZrP8To6ghe2L8QvXZ5LE-LB9TgR-t0ZSAPzMtsWLkU_rkVerDJyjSOYdnfI0VIohkUj1mgNtBhhRf3unJk5P6fPf1SUQsuwY1Jxw1-dINrftcLGnolm2s"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="bg-primary p-4 rounded-full shadow-2xl flex items-center justify-center text-on-primary animate-bounce">
+<span class="material-symbols-outlined" data-icon="location_on" style="font-variation-settings: 'FILL' 1;">location_on</span>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="space-y-4">
+<h3 class="font-headline font-bold text-xl">Xưởng Sản Xuất</h3>
+<p class="text-on-surface-variant leading-relaxed">
+                            128 Heritage Way<br/>
+                            Hudson Valley, NY 12534
+                        </p>
+<div class="flex items-center gap-3 text-primary">
+<span class="material-symbols-outlined text-sm" data-icon="call">call</span>
+<span class="font-mono text-sm">+1 (845) 555-0192</span>
+</div>
+</div>
+<div class="space-y-4">
+<h3 class="font-headline font-bold text-xl">Theo Dấu Khói</h3>
+<p class="text-on-surface-variant leading-relaxed">Tham gia hành trình phía sau hậu trường trên mạng xã hội.</p>
+<div class="flex gap-4">
+<a class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center hover:bg-primary hover:text-on-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="share">share</span>
+</a>
+<a class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center hover:bg-primary hover:text-on-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="camera">camera</span>
+</a>
+<a class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center hover:bg-primary hover:text-on-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="video_library">video_library</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-zinc-100 dark:bg-zinc-950 w-full rounded-none">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-12 px-8 py-16 max-w-7xl mx-auto opacity-90 hover:opacity-100 transition-all duration-300">
+<div class="md:col-span-1">
+<div class="text-lg font-bold text-red-950 dark:text-red-50 font-headline mb-4">Tiệm Khô Thủ Công</div>
+<p class="font-be-vietnam-pro text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                    Tôn vinh nghệ thuật bảo quản thịt truyền thống với tiêu chuẩn ẩm thực hiện đại.
+                </p>
+</div>
+<div>
+<h4 class="font-headline text-xs font-bold uppercase tracking-widest text-red-900 dark:text-red-500 mb-6">Khám Phá</h4>
+<ul class="space-y-4">
+<li><a class="text-zinc-500 dark:text-zinc-500 hover:text-red-700 dark:hover:text-red-300 hover:translate-x-1 transition-transform duration-200 inline-block" href="#">Quy trình sản xuất</a></li>
+<li><a class="text-zinc-500 dark:text-zinc-500 hover:text-red-700 dark:hover:text-red-300 hover:translate-x-1 transition-transform duration-200 inline-block" href="#">Phát triển bền vững</a></li>
+<li><a class="text-zinc-500 dark:text-zinc-500 hover:text-red-700 dark:hover:text-red-300 hover:translate-x-1 transition-transform duration-200 inline-block" href="#">Công thức nấu ăn</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-headline text-xs font-bold uppercase tracking-widest text-red-900 dark:text-red-500 mb-6">Hỗ Trợ</h4>
+<ul class="space-y-4">
+<li><a class="text-zinc-500 dark:text-zinc-500 hover:text-red-700 dark:hover:text-red-300 hover:translate-x-1 transition-transform duration-200 inline-block" href="#">Liên hệ</a></li>
+<li><a class="text-zinc-500 dark:text-zinc-500 hover:text-red-700 dark:hover:text-red-300 hover:translate-x-1 transition-transform duration-200 inline-block" href="#">Thông tin giao hàng</a></li>
+<li><a class="text-zinc-500 dark:text-zinc-500 hover:text-red-700 dark:hover:text-red-300 hover:translate-x-1 transition-transform duration-200 inline-block" href="#">Chính sách đổi trả</a></li>
+</ul>
+</div>
+<div>
+<h4 class="font-headline text-xs font-bold uppercase tracking-widest text-red-900 dark:text-red-500 mb-6">Bản Tin</h4>
+<p class="text-xs text-zinc-500 mb-4">Tham gia cộng đồng để nhận thông tin về các đợt ra mắt và câu chuyện mới nhất.</p>
+<div class="flex">
+<input class="bg-surface-container rounded-l-sm border-none text-xs p-3 w-full" placeholder="Email" type="email"/>
+<button class="bg-primary text-on-primary px-4 rounded-r-sm transition-opacity hover:opacity-90">
+<span class="material-symbols-outlined text-sm" data-icon="send">send</span>
+</button>
+</div>
+</div>
+</div>
+<div class="max-w-7xl mx-auto px-8 pb-8 text-center md:text-left">
+<p class="font-be-vietnam-pro text-sm text-zinc-500">© 2024 Tiệm Khô Thủ Công. Tinh hoa di sản hiện đại.</p>
+</div>
+</footer>
+</body></html>

@@ -1,0 +1,30 @@
+// ============================================
+// THÊM CODE NÀY VÀO FILE wp-config.php
+// Vị trí: TRƯỚC dòng /* That's all, stop editing! Happy publishing. */
+// ============================================
+
+// Force HTTPS for WordPress Admin
+define('FORCE_SSL_ADMIN', true);
+
+// Force WordPress to use HTTPS URLs
+define('WP_HOME', 'https://henieskinlab.com');
+define('WP_SITEURL', 'https://henieskinlab.com');
+
+// Fix for sites behind reverse proxy/load balancer (Cloudflare, etc.)
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+}
+
+// Ensure HTTPS is detected correctly
+if (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] === 'on') {
+    $_SERVER['HTTPS'] = 'on';
+}
+
+// ============================================
+// SAU KHI THÊM CODE NÀY:
+// 1. Save file wp-config.php
+// 2. Upload lại lên server (nếu edit local)
+// 3. Vào WordPress Admin → Settings → General
+// 4. Kiểm tra 2 URL đã là https:// chưa
+// 5. Upload ảnh mới để test
+// ============================================
