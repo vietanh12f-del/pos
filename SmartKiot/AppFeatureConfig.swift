@@ -1,5 +1,5 @@
 import Foundation
 
-enum AppReviewConfig {
+enum AppFeatureConfig {
     static let isStoreCreationEnabledOnIOS = false
 }

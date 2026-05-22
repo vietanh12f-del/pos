@@ -104,7 +104,7 @@ struct StoreSelectionView: View {
                                         }
                                         
                                         // Add Store Button as a Card
-                                        if AppReviewConfig.isStoreCreationEnabledOnIOS {
+                                        if AppFeatureConfig.isStoreCreationEnabledOnIOS {
                                             Button(action: {
                                                 showCreateStore = true
                                             }) {

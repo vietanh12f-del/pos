@@ -324,12 +324,17 @@ class AuthManager: ObservableObject {
                 return false
             }
             
+            // 1) Call Edge Function to permanently delete the auth user
+            _ = try await client.functions.invoke("delete-account")
+            
+            // 2) Delete profile row
             try await client
                 .from("profiles")
                 .delete()
                 .eq("id", value: userId)
                 .execute()
             
+            // 3) Sign out locally
             try await client.auth.signOut()
             self.isAuthenticated = false
             self.currentUserProfile = nil
