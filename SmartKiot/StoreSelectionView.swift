@@ -8,16 +8,6 @@ struct StoreSelectionView: View {
     @State private var showDeleteErrorAlert = false
     @State private var deleteErrorMessage: String = ""
     
-    private var isReviewOwnerLocked: Bool {
-        let email = authManager.currentUserProfile?.email?.lowercased()
-        if email == "review-owner@smartkiot.com" { return true }
-        if let id = authManager.currentUserProfile?.id,
-           id.uuidString.lowercased() == "4e9d120b-ac72-4cea-bcbe-3355ab2864bf" {
-            return true
-        }
-        return false
-    }
-    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -49,32 +39,13 @@ struct StoreSelectionView: View {
                                 // Owner View
                                 if storeManager.myStores.isEmpty {
                                     VStack(spacing: 24) {
-                                        EmptyStoreStateView(message: AppReviewConfig.isStoreCreationEnabledOnIOS ? "Bạn chưa có cửa hàng nào.\nHãy tạo cửa hàng đầu tiên ngay!" : "Bạn chưa có cửa hàng nào.")
+                                        EmptyStoreStateView(message: "Bạn chưa có cửa hàng nào.")
                                         
-                                        if !AppReviewConfig.isStoreCreationEnabledOnIOS || isReviewOwnerLocked {
-                                            Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào. Vui lòng đăng ký cửa hàng trên website SmartKiot hoặc liên hệ quản trị viên.")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                                .multilineTextAlignment(.center)
-                                                .padding(.horizontal, 40)
-                                        } else {
-                                            Button(action: {
-                                                showCreateStore = true
-                                            }) {
-                                                HStack {
-                                                    Image(systemName: "plus.circle.fill")
-                                                    Text("Tạo cửa hàng mới")
-                                                }
-                                                .font(.headline)
-                                                .foregroundColor(.white)
-                                                .padding()
-                                                .frame(maxWidth: .infinity)
-                                                .background(Color.green)
-                                                .cornerRadius(12)
-                                                .shadow(color: .green.opacity(0.3), radius: 5, x: 0, y: 3)
-                                            }
+                                        Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.\nVui lòng liên hệ quản trị viên hoặc đăng ký cửa hàng tại website SmartKiot.")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                            .multilineTextAlignment(.center)
                                             .padding(.horizontal, 40)
-                                        }
                                     }
                                 } else {
                                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
@@ -98,7 +69,7 @@ struct StoreSelectionView: View {
                                         }
                                         
                                         // Add Store Button as a Card
-                                        if AppReviewConfig.isStoreCreationEnabledOnIOS && !isReviewOwnerLocked {
+                                        if AppReviewConfig.isStoreCreationEnabledOnIOS {
                                             Button(action: {
                                                 showCreateStore = true
                                             }) {
@@ -137,7 +108,13 @@ struct StoreSelectionView: View {
                                 VStack(spacing: 20) {
                                 if storeManager.memberStores.isEmpty && storeManager.invitedStores.isEmpty {
                                     VStack(spacing: 24) {
-                                        EmptyStoreStateView(message: "Bạn chưa là nhân viên của cửa hàng nào. Hãy nói chủ cửa hàng thêm bạn vào nhé")
+                                        EmptyStoreStateView(message: "Bạn chưa là nhân viên của cửa hàng nào.")
+                                        
+                                        Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.\nVui lòng liên hệ quản trị viên hoặc đăng ký cửa hàng tại website SmartKiot.")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                            .multilineTextAlignment(.center)
+                                            .padding(.horizontal, 40)
                                         
                                         Button {
                                             Task { await authManager.signOut() }
