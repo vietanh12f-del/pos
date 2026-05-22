@@ -52,13 +52,22 @@ struct StoreSelectionView: View {
                                                 .font(.subheadline)
                                                 .foregroundColor(Color.themeTextDark.opacity(0.7))
                                                 .multilineTextAlignment(.center)
-                                            Text("Vui lòng đăng ký cửa hàng tại ")
-                                                .font(.subheadline)
-                                                .foregroundColor(Color.themeTextDark.opacity(0.7))
-                                            + Text("website SmartKiot")
-                                                .font(.subheadline)
-                                                .fontWeight(.bold)
-                                                .foregroundColor(Color.themePrimary)
+                                            HStack(spacing: 0) {
+                                                Text("Vui lòng đăng ký cửa hàng tại ")
+                                                    .font(.subheadline)
+                                                    .foregroundColor(Color.themeTextDark.opacity(0.7))
+                                                Button {
+                                                    if let url = URL(string: "https://smartkiot.com") {
+                                                        UIApplication.shared.open(url)
+                                                    }
+                                                } label: {
+                                                    Text("SmartKiot.com")
+                                                        .font(.subheadline)
+                                                        .fontWeight(.bold)
+                                                        .foregroundColor(Color.themePrimary)
+                                                        .underline()
+                                                }
+                                            }
                                         }
                                         .padding(20)
                                         .background(Color.themePrimary.opacity(0.08))
@@ -254,8 +263,8 @@ struct EmptyStoreStateView: View {
                 .foregroundColor(Color.themeTextDark)
                 .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 32)
     }
 }
 
