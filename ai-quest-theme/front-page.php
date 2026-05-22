@@ -177,6 +177,8 @@ $features_enabled = (int) ai_quest_get_setting('ai_quest_features_enabled', 1);
 $testimonials_enabled = (int) ai_quest_get_setting('ai_quest_testimonials_enabled', 1);
 $banner_enabled       = (int) ai_quest_get_setting('ai_quest_banner_enabled', 1);
 $partners_enabled     = (int) ai_quest_get_setting('ai_quest_partners_enabled', 1);
+$home_services_enabled = (int) ai_quest_get_setting('ai_quest_home_services_enabled', 1);
+$booking_button_enabled = (int) ai_quest_get_setting('ai_quest_booking_button_enabled', 1);
 $partners_title       = ai_quest_get_setting('ai_quest_partners_title', 'Đối Tác');
 $partners_subtitle    = ai_quest_get_setting('ai_quest_partners_subtitle', '');
 $partners = array();
@@ -273,6 +275,7 @@ $fb_reels = array_merge($fb_reels_pinned, $fb_reels_normal_rev);
         </section>
     <?php endif; ?>
 
+    <?php if ($home_services_enabled) : ?>
     <section class="section container" id="services">
         <div class="section-title-center">
             <h2>Dịch Vụ Của Henie Skinlab</h2>
@@ -328,6 +331,7 @@ $fb_reels = array_merge($fb_reels_pinned, $fb_reels_normal_rev);
             <?php endforeach; ?>
         </div>
     </section>
+    <?php endif; ?>
 
     <?php if ($before_after_enabled) : ?>
         <section class="section container">

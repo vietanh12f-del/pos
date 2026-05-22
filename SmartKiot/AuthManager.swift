@@ -241,65 +241,6 @@ class AuthManager: ObservableObject {
     }
     
     @MainActor
-    func sendOTP(phone: String) async -> Bool {
-        self.isLoading = true
-        self.errorMessage = nil
-        
-        // Format phone number to E.164 (Vietnamese)
-        // e.g. 0912345678 -> +84912345678
-        let formattedPhone = formatPhoneNumber(phone)
-        
-        do {
-            try await client.auth.signInWithOTP(
-                phone: formattedPhone,
-                channel: .sms
-            )
-            self.isLoading = false
-            return true
-        } catch {
-            self.isLoading = false
-            
-            // Handle specific errors for better user feedback
-            let errorString = String(describing: error)
-            if errorString.contains("Invalid From Number") {
-                self.errorMessage = "Lỗi cấu hình server: Sai số điện thoại gửi (Invalid From Number). Vui lòng kiểm tra cấu hình Twilio."
-            } else if errorString.contains("sms_send_failed") {
-                 self.errorMessage = "Gửi SMS thất bại. Vui lòng kiểm tra cấu hình Twilio hoặc giới hạn gửi tin."
-            } else {
-                self.errorMessage = error.localizedDescription
-            }
-            
-            print("❌ Error sending OTP: \(error)")
-            return false
-        }
-    }
-    
-    @MainActor
-    func verifyOTP(phone: String, token: String) async -> Bool {
-        self.isLoading = true
-        self.errorMessage = nil
-        
-        let formattedPhone = formatPhoneNumber(phone)
-        
-        do {
-            let session = try await client.auth.verifyOTP(
-                phone: formattedPhone,
-                token: token,
-                type: .sms
-            )
-            self.isAuthenticated = true
-            self.isLoading = false
-            print("✅ OTP Verified. User ID: \(session.user.id)")
-            return true
-        } catch {
-            self.isLoading = false
-            self.errorMessage = "Mã OTP không đúng hoặc đã hết hạn."
-            print("❌ Error verifying OTP: \(error)")
-            return false
-        }
-    }
-    
-    @MainActor
     func signOut() async {
         do {
             try await client.auth.signOut()
@@ -559,20 +500,4 @@ class AuthManager: ObservableObject {
         }
     }
     
-    private func formatPhoneNumber(_ phone: String) -> String {
-        var p = phone.replacingOccurrences(of: " ", with: "")
-        p = p.replacingOccurrences(of: "-", with: "")
-        
-        if p.hasPrefix("0") {
-            p = String(p.dropFirst())
-            return "+84" + p
-        } else if p.hasPrefix("84") {
-            return "+" + p
-        } else if p.hasPrefix("+84") {
-            return p
-        }
-        
-        // Fallback (might fail if invalid)
-        return "+84" + p
-    }
 }

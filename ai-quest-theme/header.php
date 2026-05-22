@@ -41,6 +41,7 @@
     $booking_page_url = ai_quest_page_url('dat-lich');
     $registration_page_url = ai_quest_page_url('dang-ky');
     $partners_page_url = ai_quest_page_url('doi-tac');
+    $booking_button_enabled = (int) ai_quest_get_setting('ai_quest_booking_button_enabled', 1);
 
     // Get logo URL (from custom URL or uploaded logo)
     $logo_image_url = ai_quest_get_logo_url();
@@ -219,9 +220,11 @@
                     </div>
 
                     <!-- Button phải -->
+                    <?php if ($booking_button_enabled) : ?>
                     <div class="header-actions">
                         <a href="<?php echo esc_url($booking_page_url); ?>" class="consult-tab hide-for-small"><?php echo esc_html(ai_quest_get_menu_text('dat_lich', 'ĐẶT LỊCH')); ?></a>
                     </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -269,7 +272,9 @@
             <li><a href="#" data-open-consult-popup><?php echo esc_html(ai_quest_get_menu_text('tu_van', 'Tư Vấn')); ?></a></li>
             <?php endif; ?>
             
+            <?php if ($booking_button_enabled) : ?>
             <li><a href="<?php echo esc_url($booking_page_url); ?>" style="color:var(--primary-spa);font-weight:800;"><?php echo esc_html(ai_quest_get_menu_text('dat_lich', 'ĐẶT LỊCH')); ?></a></li>
+            <?php endif; ?>
         </ul>
     </nav>
 
@@ -342,8 +347,10 @@
             </nav>
 
             <!-- Button phải -->
+            <?php if ($booking_button_enabled) : ?>
             <div class="mini-header-actions">
                 <a href="<?php echo esc_url($booking_page_url); ?>" class="consult-tab mini-booking"><?php echo esc_html(ai_quest_get_menu_text('dat_lich', 'ĐẶT LỊCH')); ?></a>
             </div>
+            <?php endif; ?>
         </div>
     </div>

@@ -1347,6 +1347,31 @@ function ai_quest_customize_register($wp_customize) {
     ai_quest_add_customizer_field($wp_customize, 'ai_quest_sticky_zalo', __('Zalo URL', 'ai-quest'), 'ai_quest_sticky_contact', 'https://zalo.me/0962359465', 'url', 'esc_url_raw');
     ai_quest_add_customizer_field($wp_customize, 'ai_quest_sticky_messenger', __('Messenger URL', 'ai-quest'), 'ai_quest_sticky_contact', 'https://m.me/henieskinlab', 'url', 'esc_url_raw');
     ai_quest_add_customizer_field($wp_customize, 'ai_quest_sticky_facebook', __('Facebook URL', 'ai-quest'), 'ai_quest_sticky_contact', 'https://facebook.com/henieskinlab', 'url', 'esc_url_raw');
+
+    // Toggle sections visibility
+    $wp_customize->add_setting('ai_quest_home_services_enabled', array(
+        'default'           => 1,
+        'sanitize_callback' => 'absint',
+        'type'              => 'option',
+    ));
+    $wp_customize->add_control('ai_quest_home_services_enabled', array(
+        'label'       => __('Hiện Section Dịch Vụ ở Trang Chủ', 'ai-quest'),
+        'description' => __('Bật/tắt hiển thị phần Dịch Vụ trên trang chủ.', 'ai-quest'),
+        'section'     => 'ai_quest_theme_options',
+        'type'        => 'checkbox',
+    ));
+
+    $wp_customize->add_setting('ai_quest_booking_button_enabled', array(
+        'default'           => 1,
+        'sanitize_callback' => 'absint',
+        'type'              => 'option',
+    ));
+    $wp_customize->add_control('ai_quest_booking_button_enabled', array(
+        'label'       => __('Hiện Nút Đặt Lịch', 'ai-quest'),
+        'description' => __('Bật/tắt hiển thị nút Đặt Lịch trên Header và Menu.', 'ai-quest'),
+        'section'     => 'ai_quest_theme_options',
+        'type'        => 'checkbox',
+    ));
 }
 add_action('customize_register', 'ai_quest_customize_register');
 
