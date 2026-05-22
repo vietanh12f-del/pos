@@ -41,11 +41,29 @@ struct StoreSelectionView: View {
                                     VStack(spacing: 24) {
                                         EmptyStoreStateView(message: "Bạn chưa có cửa hàng nào.")
                                         
-                                        Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.\nVui lòng liên hệ quản trị viên hoặc đăng ký cửa hàng tại website SmartKiot.")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                            .multilineTextAlignment(.center)
-                                            .padding(.horizontal, 40)
+                                        VStack(spacing: 10) {
+                                            Image(systemName: "info.circle.fill")
+                                                .font(.title2)
+                                                .foregroundColor(Color.themePrimary)
+                                            Text("Bước tiếp theo")
+                                                .font(.headline)
+                                                .foregroundColor(Color.themeTextDark)
+                                            Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.")
+                                                .font(.subheadline)
+                                                .foregroundColor(Color.themeTextDark.opacity(0.7))
+                                                .multilineTextAlignment(.center)
+                                            Text("Vui lòng đăng ký cửa hàng tại ")
+                                                .font(.subheadline)
+                                                .foregroundColor(Color.themeTextDark.opacity(0.7))
+                                            + Text("website SmartKiot")
+                                                .font(.subheadline)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(Color.themePrimary)
+                                        }
+                                        .padding(20)
+                                        .background(Color.themePrimary.opacity(0.08))
+                                        .cornerRadius(16)
+                                        .padding(.horizontal, 24)
                                     }
                                 } else {
                                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
@@ -110,11 +128,29 @@ struct StoreSelectionView: View {
                                     VStack(spacing: 24) {
                                         EmptyStoreStateView(message: "Bạn chưa là nhân viên của cửa hàng nào.")
                                         
-                                        Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.\nVui lòng liên hệ quản trị viên hoặc đăng ký cửa hàng tại website SmartKiot.")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                            .multilineTextAlignment(.center)
-                                            .padding(.horizontal, 40)
+                                        VStack(spacing: 10) {
+                                            Image(systemName: "info.circle.fill")
+                                                .font(.title2)
+                                                .foregroundColor(Color.themePrimary)
+                                            Text("Bước tiếp theo")
+                                                .font(.headline)
+                                                .foregroundColor(Color.themeTextDark)
+                                            Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.")
+                                                .font(.subheadline)
+                                                .foregroundColor(Color.themeTextDark.opacity(0.7))
+                                                .multilineTextAlignment(.center)
+                                            Text("Vui lòng liên hệ quản trị viên hoặc đăng ký tại ")
+                                                .font(.subheadline)
+                                                .foregroundColor(Color.themeTextDark.opacity(0.7))
+                                            + Text("website SmartKiot")
+                                                .font(.subheadline)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(Color.themePrimary)
+                                        }
+                                        .padding(20)
+                                        .background(Color.themePrimary.opacity(0.08))
+                                        .cornerRadius(16)
+                                        .padding(.horizontal, 24)
                                         
                                         Button {
                                             Task { await authManager.signOut() }
@@ -196,11 +232,12 @@ struct EmptyStoreStateView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "storefront")
-                .font(.system(size: 60))
-                .foregroundColor(.gray.opacity(0.5))
+                .font(.system(size: 72, weight: .light))
+                .foregroundColor(Color.themePrimary.opacity(0.8))
             Text(message)
-                .font(.body)
-                .foregroundColor(.gray)
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(Color.themeTextDark)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
