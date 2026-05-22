@@ -152,7 +152,7 @@ struct StoreSelectionView: View {
                                             Text("Bước tiếp theo")
                                                 .font(.headline)
                                                 .foregroundColor(Color.themeTextDark)
-                                            Text("Liên hệ chủ cửa hàng để được mời vào làm việc qua email hoặc số điện thoại.")
+                                            Text("Liên hệ chủ cửa hàng để được mời vào làm việc qua email.")
                                                 .font(.subheadline)
                                                 .foregroundColor(Color.themeTextDark.opacity(0.7))
                                                 .multilineTextAlignment(.center)
