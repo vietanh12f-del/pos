@@ -614,7 +614,8 @@ enum MemberStatus: String, Codable {
 struct StoreMember: Identifiable, Codable, Hashable {
     let id: UUID
     let storeId: UUID
-    let userId: UUID
+    let userId: UUID?
+    var email: String?
     var role: StoreRole
     var permissions: [StorePermission]?
     var positionTitle: String?
@@ -625,6 +626,7 @@ struct StoreMember: Identifiable, Codable, Hashable {
         case id
         case storeId = "store_id"
         case userId = "user_id"
+        case email
         case role
         case permissions
         case positionTitle = "position_title"

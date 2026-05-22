@@ -1026,10 +1026,6 @@ body .header-topbar .topbar-location-menu span.topbar-location-address {
     padding: 0 40px;
     margin: 0 auto;
 }
-    border-radius: 0;
-    padding: 0;
-    margin: 0 auto;
-}
 
 .icons-grid {
     display: grid !important;
@@ -5540,4 +5536,235 @@ a.partner-card-link span {
 
 .service-article-body .size-full {
     max-width: 100%;
+}
+
+.smartkiot-register-page {
+    padding-top: 72px;
+}
+
+.smartkiot-service-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 24px;
+    max-width: 860px;
+    margin: 36px auto;
+}
+
+.smartkiot-service-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 28px;
+    border: 1px solid rgba(107, 125, 58, 0.18);
+    border-radius: 24px;
+    background: #fff;
+    box-shadow: 0 18px 45px rgba(21, 31, 20, 0.08);
+    cursor: pointer;
+    text-align: left;
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+
+.smartkiot-service-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(107, 125, 58, 0.45);
+    box-shadow: 0 24px 60px rgba(21, 31, 20, 0.12);
+}
+
+.smartkiot-service-icon {
+    display: inline-flex;
+    width: 52px;
+    height: 52px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: rgba(107, 125, 58, 0.12);
+    color: var(--primary-spa);
+    font-size: 28px;
+    font-weight: 800;
+}
+
+.smartkiot-service-title {
+    color: var(--text-dark);
+    font-size: 1.35rem;
+    font-weight: 800;
+}
+
+.smartkiot-service-desc {
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.smartkiot-registration-panel {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 30px;
+    border: 1px solid rgba(107, 125, 58, 0.14);
+    border-radius: 28px;
+    background: linear-gradient(180deg, #fff, rgba(250, 249, 245, .92));
+    box-shadow: 0 24px 70px rgba(21, 31, 20, 0.10);
+}
+
+.smartkiot-panel-header,
+.smartkiot-employees-header {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.smartkiot-panel-header h3,
+.smartkiot-employees-header h4 {
+    margin: 0 0 6px;
+    color: var(--text-dark);
+}
+
+.smartkiot-panel-header p,
+.smartkiot-employees-header p {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.smartkiot-auth-state,
+.smartkiot-alert {
+    margin-top: 18px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    font-weight: 600;
+}
+
+.smartkiot-auth-state {
+    background: rgba(107, 125, 58, 0.08);
+    color: var(--primary-spa);
+}
+
+.smartkiot-alert-success {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid rgba(46, 125, 50, .25);
+}
+
+.smartkiot-alert-error {
+    background: #ffebee;
+    color: #c62828;
+    border: 1px solid rgba(198, 40, 40, .25);
+}
+
+.smartkiot-store-form {
+    margin-top: 24px;
+}
+
+.smartkiot-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.smartkiot-store-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--text-dark);
+    font-weight: 700;
+}
+
+.smartkiot-store-form input {
+    width: 100%;
+    padding: 13px 15px;
+    border: 1px solid rgba(21, 31, 20, .14);
+    border-radius: 14px;
+    background: #fff;
+    font-size: 15px;
+    outline: none;
+}
+
+.smartkiot-store-form input:focus {
+    border-color: rgba(107, 125, 58, .55);
+    box-shadow: 0 0 0 4px rgba(107, 125, 58, .10);
+}
+
+.smartkiot-employees-block {
+    margin-top: 28px;
+    padding: 22px;
+    border-radius: 22px;
+    background: rgba(107, 125, 58, 0.06);
+}
+
+.smartkiot-secondary-btn,
+.smartkiot-remove-employee {
+    border: 1px solid rgba(107, 125, 58, .22);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--primary-spa);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.smartkiot-secondary-btn {
+    padding: 10px 18px;
+}
+
+.smartkiot-employee-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.smartkiot-employee-row {
+    padding: 16px;
+    border-radius: 18px;
+    background: #fff;
+    border: 1px solid rgba(21, 31, 20, .08);
+}
+
+.smartkiot-employee-main {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.smartkiot-remove-employee {
+    padding: 9px 14px;
+}
+
+.smartkiot-permissions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.smartkiot-permissions label {
+    flex-direction: row;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.smartkiot-permissions input {
+    width: auto;
+}
+
+.smartkiot-submit-btn {
+    margin-top: 24px;
+    width: 100%;
+}
+
+@media (max-width: 720px) {
+    .smartkiot-registration-panel {
+        padding: 20px;
+    }
+
+    .smartkiot-panel-header,
+    .smartkiot-employees-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .smartkiot-form-grid,
+    .smartkiot-employee-main {
+        grid-template-columns: 1fr;
+    }
 }

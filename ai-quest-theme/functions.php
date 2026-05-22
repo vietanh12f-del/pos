@@ -1455,6 +1455,7 @@ function ai_quest_register_virtual_pages_rewrite_rules() {
     add_rewrite_rule('^bang-gia/?$', 'index.php?aiq_page=bang-gia', 'top');
     add_rewrite_rule('^gioi-thieu/?$', 'index.php?aiq_page=gioi-thieu', 'top');
     add_rewrite_rule('^dat-lich/?$', 'index.php?aiq_page=dat-lich', 'top');
+    add_rewrite_rule('^dang-ky/?$', 'index.php?aiq_page=dang-ky', 'top');
     add_rewrite_rule('^tat-ca-dich-vu/?$', 'index.php?aiq_page=tat-ca-dich-vu', 'top');
     add_rewrite_rule('^khuyen-mai/?$', 'index.php?aiq_page=khuyen-mai', 'top');
     add_rewrite_rule('^doi-tac/?$', 'index.php?aiq_page=doi-tac', 'top');
@@ -1465,12 +1466,12 @@ function ai_quest_register_virtual_pages_rewrite_rules() {
 add_action('init', 'ai_quest_register_virtual_pages_rewrite_rules');
 
 function ai_quest_maybe_flush_virtual_pages_rewrite_rules() {
-    if (get_option('aiq_virtual_pages_rewrite_flushed_v4') === '1') {
+    if (get_option('aiq_virtual_pages_rewrite_flushed_v6') === '1') {
         return;
     }
 
     flush_rewrite_rules(false);
-    update_option('aiq_virtual_pages_rewrite_flushed_v4', '1');
+    update_option('aiq_virtual_pages_rewrite_flushed_v6', '1');
 }
 add_action('admin_init', 'ai_quest_maybe_flush_virtual_pages_rewrite_rules');
 
@@ -1517,6 +1518,7 @@ function ai_quest_template_for_virtual_pages($template) {
         'bang-gia' => 'page-bang-gia.php',
         'gioi-thieu' => 'page-gioi-thieu.php',
         'dat-lich' => 'page-dat-lich.php',
+        'dang-ky' => 'page-dang-ky.php',
         'tat-ca-dich-vu' => 'page-tat-ca-dich-vu.php',
         'khuyen-mai' => 'page-khuyen-mai.php',
         'doi-tac'    => 'page-doi-tac.php',
@@ -1552,6 +1554,7 @@ function ai_quest_add_rewrite_rules() {
         'bang-gia',
         'gioi-thieu',
         'dat-lich',
+        'dang-ky',
         'khuyen-mai',
         'doi-tac',
         'chia-se',

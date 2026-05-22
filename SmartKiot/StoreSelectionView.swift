@@ -49,10 +49,10 @@ struct StoreSelectionView: View {
                                 // Owner View
                                 if storeManager.myStores.isEmpty {
                                     VStack(spacing: 24) {
-                                        EmptyStoreStateView(message: "Bạn chưa có cửa hàng nào.\nHãy tạo cửa hàng đầu tiên ngay!")
+                                        EmptyStoreStateView(message: AppReviewConfig.isStoreCreationEnabledOnIOS ? "Bạn chưa có cửa hàng nào.\nHãy tạo cửa hàng đầu tiên ngay!" : "Bạn chưa có cửa hàng nào.")
                                         
-                                        if isReviewOwnerLocked {
-                                            Text("Tài khoản review không hỗ trợ tạo cửa hàng mới.")
+                                        if !AppReviewConfig.isStoreCreationEnabledOnIOS || isReviewOwnerLocked {
+                                            Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào. Vui lòng đăng ký cửa hàng trên website SmartKiot hoặc liên hệ quản trị viên.")
                                                 .font(.caption)
                                                 .foregroundColor(.secondary)
                                                 .multilineTextAlignment(.center)
@@ -98,7 +98,7 @@ struct StoreSelectionView: View {
                                         }
                                         
                                         // Add Store Button as a Card
-                                        if !isReviewOwnerLocked {
+                                        if AppReviewConfig.isStoreCreationEnabledOnIOS && !isReviewOwnerLocked {
                                             Button(action: {
                                                 showCreateStore = true
                                             }) {

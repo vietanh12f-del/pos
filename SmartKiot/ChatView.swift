@@ -233,15 +233,17 @@ struct EmployeePickerChatView: View {
                         ForEach(employees, id: \.0.id) { item in
                             HStack {
                                 Button(action: {
-                                    if selectedIds.contains(item.0.userId) {
-                                        selectedIds.remove(item.0.userId)
+                                    guard let userId = item.0.userId else { return }
+                                    if selectedIds.contains(userId) {
+                                        selectedIds.remove(userId)
                                     } else {
-                                        selectedIds.insert(item.0.userId)
+                                        selectedIds.insert(userId)
                                     }
                                 }) {
-                                    Image(systemName: selectedIds.contains(item.0.userId) ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(selectedIds.contains(item.0.userId) ? Color.themePrimary : Color.gray)
+                                    Image(systemName: (item.0.userId.flatMap { selectedIds.contains($0) } ?? false) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle((item.0.userId.flatMap { selectedIds.contains($0) } ?? false) ? Color.themePrimary : Color.gray)
                                 }
+                                .disabled(item.0.userId == nil)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.1)
                                         .foregroundStyle(Color.themeTextDark)
@@ -292,9 +294,12 @@ struct EmployeePickerChatView: View {
     }
     
     private func createChats() {
-        let selected = employees.filter { selectedIds.contains($0.0.userId) }
+        let selected = employees.compactMap { item -> (member: StoreMember, name: String, userId: UUID)? in
+            guard let uid = item.0.userId else { return nil }
+            return (item.0, item.1, uid)
+        }.filter { selectedIds.contains($0.userId) }
         if selected.count >= 2 {
-            let ids = selected.map { $0.0.userId }
+            let ids = selected.map { $0.userId }
             Task {
                 let gid = await viewModel.createGroupChat(memberIds: ids, name: nil)
                 if gid != nil {
@@ -304,7 +309,7 @@ struct EmployeePickerChatView: View {
             isPresented = false
         } else if selected.count == 1 {
             if let item = selected.first {
-                let emp = Employee(id: item.0.userId, name: item.1, phoneNumber: "", avatar: "", isOnline: false, role: "employee")
+                let emp = Employee(id: item.userId, name: item.1, phoneNumber: "", avatar: "", isOnline: false, role: "employee")
                 let conv = viewModel.startChat(with: emp)
                 NotificationCenter.default.post(name: NSNotification.Name("OpenConversation"), object: ["conversation": conv, "employee": emp])
                 isPresented = false

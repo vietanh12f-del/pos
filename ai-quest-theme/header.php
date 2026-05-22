@@ -39,6 +39,7 @@
     $pricing_page_url = ai_quest_page_url('bang-gia');
     $about_page_url = ai_quest_page_url('gioi-thieu');
     $booking_page_url = ai_quest_page_url('dat-lich');
+    $registration_page_url = ai_quest_page_url('dang-ky');
     $partners_page_url = ai_quest_page_url('doi-tac');
 
     // Get logo URL (from custom URL or uploaded logo)
@@ -197,6 +198,8 @@
                                 <?php if (ai_quest_is_menu_visible('doi_tac')) : ?>
                                 <li<?php echo aiq_nav_class($current_page === 'doi-tac'); ?>><a href="<?php echo esc_url($partners_page_url); ?>"><?php echo esc_html(ai_quest_get_menu_text('doi_tac', 'Đối Tác')); ?></a></li>
                                 <?php endif; ?>
+
+                                <li<?php echo aiq_nav_class($current_page === 'dang-ky'); ?>><a href="<?php echo esc_url($registration_page_url); ?>">Đăng ký</a></li>
                                 
                                 <?php if (ai_quest_is_menu_visible('chia_se')) : ?>
                                 <li class="nav-has-dropdown<?php echo in_array($current_page, array('chia-se', 'tu-chuyen-gia', 'tu-khach-hang')) ? ' nav-active' : ''; ?>">
@@ -253,6 +256,8 @@
             <?php if (ai_quest_is_menu_visible('doi_tac')) : ?>
             <li><a href="<?php echo esc_url($partners_page_url); ?>"><?php echo esc_html(ai_quest_get_menu_text('doi_tac', 'Đối Tác')); ?></a></li>
             <?php endif; ?>
+
+            <li><a href="<?php echo esc_url($registration_page_url); ?>">Đăng ký</a></li>
             
             <?php if (ai_quest_is_menu_visible('chia_se')) : ?>
             <li><a href="<?php echo esc_url(ai_quest_page_url('chia-se')); ?>"><?php echo esc_html(ai_quest_get_menu_text('chia_se', 'Chia Sẻ')); ?></a></li>

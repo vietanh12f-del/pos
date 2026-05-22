@@ -110,6 +110,7 @@ class StoreManager: ObservableObject {
         self.errorMessage = nil
         
         do {
+            await linkPendingInvitationsForCurrentUser(userId: userId)
             // Determine role to fetch relevant stores
             // If user explicitly chose "employee", we might NOT want to show owned stores
             // BUT, the user's data (myStores) should probably still be fetched for correctness,
@@ -204,6 +205,23 @@ class StoreManager: ObservableObject {
             self.isLoading = false
         }
     }
+
+    private func linkPendingInvitationsForCurrentUser(userId: UUID) async {
+        guard let email = AuthManager.shared.currentUserProfile?.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !email.isEmpty else { return }
+
+        do {
+            try await client
+                .from("store_members")
+                .update(["user_id": userId])
+                .eq("email", value: email)
+                .is("user_id", value: nil)
+                .eq("status", value: "invited")
+                .execute()
+        } catch {
+            print("Error linking pending invitations: \(error)")
+        }
+    }
     
     func createStore(name: String, address: String?) async -> Bool {
         guard let userId = SupabaseConfig.client.auth.currentUser?.id else { return false }
@@ -250,6 +268,7 @@ class StoreManager: ObservableObject {
                 id: UUID(), 
                 storeId: store.id, 
                 userId: store.ownerId, 
+                email: AuthManager.shared.currentUserProfile?.email,
                 role: .owner, 
                 permissions: StorePermission.allCases, 
                 status: .active, 
@@ -274,6 +293,7 @@ class StoreManager: ObservableObject {
                             id: UUID(),
                             storeId: store.id,
                             userId: store.ownerId,
+                            email: AuthManager.shared.currentUserProfile?.email,
                             role: .owner,
                             permissions: StorePermission.allCases,
                             status: .active,
@@ -299,7 +319,9 @@ class StoreManager: ObservableObject {
                     .execute()
                     .value
                 self.currentMember = membership
-                await setupMemberRealtimeSubscription(storeId: store.id, userId: membership.userId)
+                if let membershipUserId = membership.userId {
+                    await setupMemberRealtimeSubscription(storeId: store.id, userId: membershipUserId)
+                }
             } catch {
                 print("Error fetching membership: \(error)")
             }
@@ -380,6 +402,7 @@ class StoreManager: ObservableObject {
                 id: UUID(),
                 storeId: storeId,
                 userId: user.id,
+                email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
                 role: .employee,
                 permissions: permissions,
                 status: .invited,
@@ -408,33 +431,33 @@ class StoreManager: ObservableObject {
             
             var result: [(StoreMember, String)] = []
             
-            // Fetch names for each member
             if !members.isEmpty {
-                let userIds = members.map { $0.userId }
+                let userIds = members.compactMap { $0.userId }
+                var nameMap: [UUID: String] = [:]
                 
-                // Fetch profiles for these users
-                struct ProfileName: Decodable {
-                    let id: UUID
-                    let fullName: String
-                    
-                    enum CodingKeys: String, CodingKey {
-                        case id
-                        case fullName = "full_name"
+                if !userIds.isEmpty {
+                    struct ProfileName: Decodable {
+                        let id: UUID
+                        let fullName: String
+                        
+                        enum CodingKeys: String, CodingKey {
+                            case id
+                            case fullName = "full_name"
+                        }
                     }
+                    
+                    let profiles: [ProfileName] = try await client
+                        .from("profiles")
+                        .select("id, full_name")
+                        .in("id", values: userIds)
+                        .execute()
+                        .value
+                    
+                    nameMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0.fullName) })
                 }
                 
-                let profiles: [ProfileName] = try await client
-                    .from("profiles")
-                    .select("id, full_name")
-                    .in("id", values: userIds)
-                    .execute()
-                    .value
-                
-                // Create a map for quick lookup
-                let nameMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0.fullName) })
-                
                 for member in members {
-                    let name = nameMap[member.userId] ?? "Nhân viên (Chưa cập nhật tên)"
+                    let name = member.userId.flatMap { nameMap[$0] } ?? member.email ?? "Nhân viên (Chưa cập nhật tên)"
                     result.append((member, name))
                 }
             }

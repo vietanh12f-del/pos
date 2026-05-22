@@ -435,21 +435,23 @@ struct EmployeeDetailView: View {
                                         Label("Part-time", systemImage: employeeType == "parttime" ? "checkmark" : "")
                                     }
                                 } label: {
+                                    let isPartTime = employeeType == "parttime"
+                                    let statusColor = isPartTime ? Color.orange : Color.green
+                                    let iconName = isPartTime ? "clock.badge.questionmark" : "briefcase.fill"
+                                    let labelText = isPartTime ? "Part-time" : "Chính thức"
                                     HStack(spacing: 4) {
-                                        Image(systemName: employeeType == "parttime" ? "clock.badge.questionmark" : "briefcase.fill")
+                                        Image(systemName: iconName)
                                             .font(.caption2)
-                                        Text(employeeType == "parttime" ? "Part-time" : "Chính thức")
+                                        Text(labelText)
                                             .font(.caption2)
                                             .fontWeight(.semibold)
                                         Image(systemName: "chevron.up.chevron.down")
                                             .font(.system(size: 8))
                                     }
-                                    .foregroundStyle(employeeType == "parttime" ? Color.orange : Color.green)
+                                    .foregroundStyle(statusColor)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Capsule().fill(
-                                        (employeeType == "parttime" ? Color.orange : Color.green).opacity(0.12)
-                                    ))
+                                    .background(Capsule().fill(statusColor.opacity(0.12)))
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -567,13 +569,19 @@ struct EmployeeDetailView: View {
         }
         .task {
             // Load attendance mới nhất của nhân viên
-            latestAttendance = try? await SupabaseDatabaseService().fetchTodayAttendance(userId: member.userId)
+            if let userId = member.userId {
+                latestAttendance = try? await SupabaseDatabaseService().fetchTodayAttendance(userId: userId)
+            }
         }
         .sheet(isPresented: $showSalarySheet) {
             EmployeeSalarySheet(memberId: member.id, memberName: name)
         }
         .sheet(isPresented: $showAttendanceReport) {
-            EmployeeAttendanceReport(memberId: member.userId, memberName: name)
+            if let userId = member.userId {
+                EmployeeAttendanceReport(memberId: userId, memberName: name)
+            } else {
+                Text("Nhân viên chưa có tài khoản")
+            }
         }
         .sheet(isPresented: $showEditPosition) {
             NavigationStack {
