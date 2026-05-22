@@ -324,23 +324,48 @@ class AuthManager: ObservableObject {
                 return false
             }
             
-            // 1) Call Edge Function to permanently delete the auth user
-            _ = try await client.functions.invoke("delete-account")
+            // 1) Call Edge Function to permanently delete auth user + all related data
+            print("🗑️ Calling delete-account Edge Function...")
             
-            // 2) Delete profile row
-            try await client
-                .from("profiles")
-                .delete()
-                .eq("id", value: userId)
-                .execute()
+            guard let session = try? await client.auth.session,
+                  let url = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/delete-account") else {
+                throw NSError(domain: "DeleteAccount", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không thể tạo request xóa tài khoản"])
+            }
             
-            // 3) Sign out locally
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue(SupabaseConfig.key, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+            
+            if let http = httpResponse as? HTTPURLResponse {
+                let bodyString = String(data: data, encoding: .utf8) ?? ""
+                print("📡 Edge Function status: \(http.statusCode), body: \(bodyString)")
+                if http.statusCode >= 400 {
+                    let body = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+                    let err = body["error"] as? String ?? "HTTP \(http.statusCode)"
+                    print("❌ Edge Function returned error: \(err)")
+                    throw NSError(domain: "DeleteAccount", code: 1, userInfo: [NSLocalizedDescriptionKey: err])
+                }
+            }
+            
+            print("✅ Auth user and all data deleted via Edge Function")
+            
+            // 2) Clear all local data (session, keychain, preferences)
             try await client.auth.signOut()
+            UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier ?? "")
+            UserDefaults.standard.synchronize()
+            clearAllKeychainData()
+            
+            // 3) Reset local state
             self.isAuthenticated = false
             self.currentUserProfile = nil
             self.needsProfileCreation = false
             self.selectedRole = AccountRole.owner.rawValue
             self.isLoading = false
+            print("✅ Account fully deleted and local data cleared")
             return true
         } catch {
             self.isLoading = false
@@ -348,6 +373,15 @@ class AuthManager: ObservableObject {
             print("❌ Error deleting account: \(error)")
             return false
         }
+    }
+    
+    private func clearAllKeychainData() {
+        let secClasses = [kSecClassGenericPassword, kSecClassInternetPassword, kSecClassCertificate, kSecClassKey, kSecClassIdentity]
+        for secClass in secClasses {
+            let query: [String: Any] = [kSecClass as String: secClass]
+            SecItemDelete(query as CFDictionary)
+        }
+        print("🧹 Keychain cleared")
     }
     
     @MainActor
