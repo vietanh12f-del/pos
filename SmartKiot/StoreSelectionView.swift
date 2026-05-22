@@ -64,6 +64,23 @@ struct StoreSelectionView: View {
                                         .background(Color.themePrimary.opacity(0.08))
                                         .cornerRadius(16)
                                         .padding(.horizontal, 24)
+                                        
+                                        Button {
+                                            Task { await authManager.signOut() }
+                                        } label: {
+                                            HStack {
+                                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                                Text("Đăng xuất")
+                                            }
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .padding()
+                                            .frame(maxWidth: .infinity)
+                                            .background(Color.red)
+                                            .cornerRadius(12)
+                                            .shadow(color: .red.opacity(0.3), radius: 5, x: 0, y: 3)
+                                        }
+                                        .padding(.horizontal, 40)
                                     }
                                 } else {
                                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
@@ -135,17 +152,14 @@ struct StoreSelectionView: View {
                                             Text("Bước tiếp theo")
                                                 .font(.headline)
                                                 .foregroundColor(Color.themeTextDark)
-                                            Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.")
+                                            Text("Liên hệ chủ cửa hàng để được mời vào làm việc qua email hoặc số điện thoại.")
                                                 .font(.subheadline)
                                                 .foregroundColor(Color.themeTextDark.opacity(0.7))
                                                 .multilineTextAlignment(.center)
-                                            Text("Vui lòng liên hệ quản trị viên hoặc đăng ký tại ")
+                                            Text("Sau khi được mời, đăng nhập lại để nhận lời mời.")
                                                 .font(.subheadline)
                                                 .foregroundColor(Color.themeTextDark.opacity(0.7))
-                                            + Text("website SmartKiot")
-                                                .font(.subheadline)
-                                                .fontWeight(.bold)
-                                                .foregroundColor(Color.themePrimary)
+                                                .multilineTextAlignment(.center)
                                         }
                                         .padding(20)
                                         .background(Color.themePrimary.opacity(0.08))

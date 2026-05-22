@@ -3,15 +3,6 @@ import SwiftUI
 struct AuthenticationView: View {
     @StateObject private var authManager = AuthManager.shared
     
-    private enum LoginMethod: String, CaseIterable {
-        case email = "Gmail"
-        case phone = "SĐT"
-    }
-    
-    @State private var loginMethod: LoginMethod = .email
-    @State private var phoneNumber: String = ""
-    @State private var otpCode: String = ""
-    @State private var isOtpSent: Bool = false
     @State private var email: String = ""
     @State private var password: String = ""
     
@@ -37,148 +28,56 @@ struct AuthenticationView: View {
             Spacer()
             
             VStack(alignment: .leading, spacing: 16) {
-                Picker("Phương thức", selection: $loginMethod) {
-                    ForEach(LoginMethod.allCases, id: \.self) { method in
-                        Text(method.rawValue).tag(method)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: loginMethod) { _, _ in
-                    isOtpSent = false
-                    otpCode = ""
-                }
-                
-                if loginMethod == .phone {
-                    if !isOtpSent {
-                        VStack(alignment: .leading) {
-                            Text("Số điện thoại")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            
-                            HStack {
-                                Text("🇻🇳 +84")
-                                    .fontWeight(.medium)
-                                
-                                TextField("0912345678", text: $phoneNumber)
-                                    .keyboardType(.numberPad)
-                            }
-                            .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(12)
-                        }
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading) {
+                        Text("Email")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
                         
-                        Button(action: sendOTP) {
-                            if authManager.isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Đăng nhập bằng SĐT")
-                                    .fontWeight(.bold)
+                        ZStack(alignment: .leading) {
+                            if email.isEmpty {
+                                Text("••••••••")
+                                    .foregroundStyle(Color.gray.opacity(0.45))
+                                    .allowsHitTesting(false)
                             }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.themePrimary)
-                        .foregroundStyle(.white)
-                        .cornerRadius(12)
-                        .disabled(phoneNumber.count < 9 || authManager.isLoading)
-                    } else {
-                        VStack(alignment: .leading) {
-                            Text("Nhập mã OTP")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            
-                            TextField("6 số", text: $otpCode)
-                                .keyboardType(.numberPad)
-                                .padding()
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(12)
-                                .font(.title2)
-                                .multilineTextAlignment(.center)
-                                .onChange(of: otpCode) { _, newValue in
-                                    if newValue.count == 6 {
-                                        verifyOTP()
-                                    }
-                                }
-                        }
-                        
-                        Button(action: verifyOTP) {
-                            if authManager.isLoading {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Xác nhận")
-                                    .fontWeight(.bold)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.themePrimary)
-                        .foregroundStyle(.white)
-                        .cornerRadius(12)
-                        .disabled(otpCode.count < 6 || authManager.isLoading)
-                        
-                        Button("Gửi lại mã") {
-                            isOtpSent = false
-                            otpCode = ""
-                        }
-                        .font(.caption)
-                        .foregroundStyle(Color.themePrimary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top)
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
-                        VStack(alignment: .leading) {
-                            Text("Email")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            
-                            ZStack(alignment: .leading) {
-                                if email.isEmpty {
-                                    Text("••••••••")
-                                        .foregroundStyle(Color.gray.opacity(0.45))
-                                        .allowsHitTesting(false)
-                                }
-                                TextField("", text: $email)
-                                    .keyboardType(.emailAddress)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                            }
-                            .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(12)
-                        }
-                        
-                        VStack(alignment: .leading) {
-                            Text("Mật khẩu")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            
-                            SecureField("••••••••", text: $password)
+                            TextField("", text: $email)
+                                .keyboardType(.emailAddress)
                                 .textInputAutocapitalization(.never)
-                                .padding()
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(12)
+                                .autocorrectionDisabled()
                         }
+                        .padding()
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(12)
                     }
                     
-                    Button(action: signInWithEmail) {
-                        if authManager.isLoading {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Đăng nhập bằng Email")
-                                .fontWeight(.bold)
-                        }
+                    VStack(alignment: .leading) {
+                        Text("Mật khẩu")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        
+                        SecureField("••••••••", text: $password)
+                            .textInputAutocapitalization(.never)
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(12)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.themePrimary)
-                    .foregroundStyle(.white)
-                    .cornerRadius(12)
-                    .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty || authManager.isLoading)
                 }
+                
+                Button(action: signInWithEmail) {
+                    if authManager.isLoading {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text("Đăng nhập bằng Email")
+                            .fontWeight(.bold)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.themePrimary)
+                .foregroundStyle(.white)
+                .cornerRadius(12)
+                .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || password.isEmpty || authManager.isLoading)
                 
                 HStack {
                     Rectangle().fill(Color.gray.opacity(0.3)).frame(height: 1)
@@ -242,23 +141,6 @@ struct AuthenticationView: View {
             Spacer()
         }
         .padding()
-    }
-    
-    func sendOTP() {
-        Task {
-            let success = await authManager.sendOTP(phone: phoneNumber)
-            if success {
-                withAnimation {
-                    isOtpSent = true
-                }
-            }
-        }
-    }
-    
-    func verifyOTP() {
-        Task {
-            _ = await authManager.verifyOTP(phone: phoneNumber, token: otpCode)
-        }
     }
     
     func signInWithEmail() {
