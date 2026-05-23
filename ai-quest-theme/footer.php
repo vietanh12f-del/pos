@@ -79,6 +79,8 @@
     }
     $locations_website_host = parse_url($locations_website_url ? $locations_website_url : home_url('/'), PHP_URL_HOST);
     $locations_website_display = $locations_website_label ? $locations_website_label : ($locations_website_host ? $locations_website_host : $footer_brand_name);
+    $footer_google_maps_enabled = (int) ai_quest_get_setting('ai_quest_footer_google_maps_enabled', 1);
+    $consult_popup_enabled = (int) ai_quest_get_setting('ai_quest_consult_popup_enabled', 1);
     $location_1_title = ai_quest_get_setting('ai_quest_location_1_title', 'Chi nhánh 1');
     $location_1_address = ai_quest_get_setting('ai_quest_location_1_address', '18 Thống Nhất, Phường 10, Gò Vấp, Thành phố Hồ Chí Minh');
     $location_2_title = ai_quest_get_setting('ai_quest_location_2_title', 'Chi nhánh 2');
@@ -152,6 +154,7 @@
                             <?php endif; ?>
                         </div>
                     </div>
+                    <?php if ($footer_google_maps_enabled) : ?>
                     <div class="store-branch">
                         <h4 style="margin-bottom: 6px;">Chi nhánh 1</h4>
                         <div class="branch-meta">
@@ -178,6 +181,7 @@
                             <iframe class="maps-iframe" src="<?php echo esc_url($location_2_embed_src); ?>" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </section>
@@ -190,6 +194,7 @@
         </svg>
     </button>
 
+    <?php if ($consult_popup_enabled) : ?>
     <!-- Popup Tư Vấn -->
     <?php
     $consult_service_options = ai_quest_get_all_services_from_categories();
@@ -222,6 +227,7 @@
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- Service Detail Modal -->
     <div id="service-modal" class="service-modal">

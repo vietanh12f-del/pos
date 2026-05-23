@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var showEmployeeManagement = false
     @State private var showBankSettings = false
     @State private var showCustomization = false
+    @State private var showDeleteAccountAlert = false
     private let database = SupabaseDatabaseService()
     @FocusState private var feedbackFocused: Bool
     @State private var keyboardHeight: CGFloat = 0
@@ -175,6 +176,30 @@ struct SettingsView: View {
                             Image(systemName: "rectangle.portrait.and.arrow.right")
                         }
                     }
+                    
+                    Button(role: .destructive) {
+                        showDeleteAccountAlert = true
+                    } label: {
+                        HStack {
+                            Text("Xóa tài khoản")
+                            Spacer()
+                            Image(systemName: "trash")
+                        }
+                    }
+                }
+                .alert("Xóa tài khoản?", isPresented: $showDeleteAccountAlert) {
+                    Button("Huỷ", role: .cancel) { }
+                    Button("Xóa", role: .destructive) {
+                        Task {
+                            let success = await authManager.deleteAccount()
+                            if !success {
+                                deleteErrorMessage = authManager.errorMessage ?? "Không thể xóa tài khoản. Vui lòng thử lại sau."
+                                showDeleteErrorAlert = true
+                            }
+                        }
+                    }
+                } message: {
+                    Text("Tài khoản của bạn sẽ bị xóa vĩnh viễn và không thể khôi phục lại. Bao gồm tất cả dữ liệu cửa hàng và hồ sơ.")
                 }
                 
                 Section(header: Text("Ứng dụng")) {

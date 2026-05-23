@@ -42,6 +42,7 @@
     $registration_page_url = ai_quest_page_url('dang-ky');
     $partners_page_url = ai_quest_page_url('doi-tac');
     $booking_button_enabled = (int) ai_quest_get_setting('ai_quest_booking_button_enabled', 1);
+    $topbar_location_enabled = (int) ai_quest_get_setting('ai_quest_topbar_location_enabled', 1);
 
     // Get logo URL (from custom URL or uploaded logo)
     $logo_image_url = ai_quest_get_logo_url();
@@ -72,28 +73,30 @@
         <div class="header-topbar">
             <div class="container header-topbar-inner">
                 <div class="topbar-left">
-                    <?php if ($location_1_maps_url || $location_2_maps_url) : ?>
-                        <div class="topbar-location">
-                            <span class="topbar-link topbar-location-trigger" aria-haspopup="true" aria-expanded="false">LOCATION</span>
-                            <div class="topbar-location-menu" role="menu">
-                                <?php if ($location_1_maps_url) : ?>
-                                    <a class="topbar-location-item" role="menuitem" href="<?php echo esc_url($location_1_maps_url); ?>" target="_blank" rel="noopener">
-                                        <span class="topbar-location-name">Cơ sở 1: <?php echo esc_html($location_1_title); ?></span>
-                                        <span class="topbar-location-address"><?php echo esc_html($location_1_address); ?></span>
-                                    </a>
-                                <?php endif; ?>
-                                <?php if ($location_2_maps_url) : ?>
-                                    <a class="topbar-location-item" role="menuitem" href="<?php echo esc_url($location_2_maps_url); ?>" target="_blank" rel="noopener">
-                                        <span class="topbar-location-name">Cơ sở 2: <?php echo esc_html($location_2_title); ?></span>
-                                        <span class="topbar-location-address"><?php echo esc_html($location_2_address); ?></span>
-                                    </a>
-                                <?php endif; ?>
+                    <?php if ($topbar_location_enabled) : ?>
+                        <?php if ($location_1_maps_url || $location_2_maps_url) : ?>
+                            <div class="topbar-location">
+                                <span class="topbar-link topbar-location-trigger" aria-haspopup="true" aria-expanded="false">LOCATION</span>
+                                <div class="topbar-location-menu" role="menu">
+                                    <?php if ($location_1_maps_url) : ?>
+                                        <a class="topbar-location-item" role="menuitem" href="<?php echo esc_url($location_1_maps_url); ?>" target="_blank" rel="noopener">
+                                            <span class="topbar-location-name">Cơ sở 1: <?php echo esc_html($location_1_title); ?></span>
+                                            <span class="topbar-location-address"><?php echo esc_html($location_1_address); ?></span>
+                                        </a>
+                                    <?php endif; ?>
+                                    <?php if ($location_2_maps_url) : ?>
+                                        <a class="topbar-location-item" role="menuitem" href="<?php echo esc_url($location_2_maps_url); ?>" target="_blank" rel="noopener">
+                                            <span class="topbar-location-name">Cơ sở 2: <?php echo esc_html($location_2_title); ?></span>
+                                            <span class="topbar-location-address"><?php echo esc_html($location_2_address); ?></span>
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                        </div>
-                    <?php else : ?>
-                        <span class="topbar-item">LOCATION</span>
+                        <?php else : ?>
+                            <span class="topbar-item">LOCATION</span>
+                        <?php endif; ?>
+                        <span class="topbar-sep">•</span>
                     <?php endif; ?>
-                    <span class="topbar-sep">•</span>
                     <span class="topbar-phones">
                         <?php 
                         if (count($header_phones) === 1) {

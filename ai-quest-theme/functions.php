@@ -1372,6 +1372,42 @@ function ai_quest_customize_register($wp_customize) {
         'section'     => 'ai_quest_theme_options',
         'type'        => 'checkbox',
     ));
+
+    $wp_customize->add_setting('ai_quest_footer_google_maps_enabled', array(
+        'default'           => 1,
+        'sanitize_callback' => 'absint',
+        'type'              => 'option',
+    ));
+    $wp_customize->add_control('ai_quest_footer_google_maps_enabled', array(
+        'label'       => __('Hiện Google Maps ở Footer', 'ai-quest'),
+        'description' => __('Bật/tắt hiển thị 2 bản đồ Google Maps ở phần Chi Nhánh cuối trang.', 'ai-quest'),
+        'section'     => 'ai_quest_theme_options',
+        'type'        => 'checkbox',
+    ));
+
+    $wp_customize->add_setting('ai_quest_topbar_location_enabled', array(
+        'default'           => 1,
+        'sanitize_callback' => 'absint',
+        'type'              => 'option',
+    ));
+    $wp_customize->add_control('ai_quest_topbar_location_enabled', array(
+        'label'       => __('Hiện Dropdown Location ở Header', 'ai-quest'),
+        'description' => __('Bật/tắt hiển thị dropdown LOCATION ở góc trên đầu trang.', 'ai-quest'),
+        'section'     => 'ai_quest_theme_options',
+        'type'        => 'checkbox',
+    ));
+
+    $wp_customize->add_setting('ai_quest_consult_popup_enabled', array(
+        'default'           => 1,
+        'sanitize_callback' => 'absint',
+        'type'              => 'option',
+    ));
+    $wp_customize->add_control('ai_quest_consult_popup_enabled', array(
+        'label'       => __('Hiện Popup Tư Vấn', 'ai-quest'),
+        'description' => __('Bật/tắt popup tư vấn tự động hiện khi mới vào trang.', 'ai-quest'),
+        'section'     => 'ai_quest_theme_options',
+        'type'        => 'checkbox',
+    ));
 }
 add_action('customize_register', 'ai_quest_customize_register');
 
