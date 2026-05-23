@@ -37,8 +37,6 @@ struct ContentView: View {
     var body: some View {
         if !authManager.isAuthenticated {
             AuthenticationView()
-        } else if authManager.needsProfileCreation {
-            ProfileCreationView()
         } else if storeManager.currentStore == nil {
             StoreSelectionView()
         } else {

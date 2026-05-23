@@ -11,7 +11,6 @@ class AuthManager: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var currentUserProfile: UserProfile?
-    @Published var needsProfileCreation: Bool = false
     @Published var selectedRole: String = AccountRole.owner.rawValue
     
     private let client = SupabaseConfig.client
@@ -32,7 +31,6 @@ class AuthManager: ObservableObject {
             if session.isExpired {
                 self.isAuthenticated = false
                 self.currentUserProfile = nil
-                self.needsProfileCreation = false
                 self.selectedRole = AccountRole.owner.rawValue
                 print("ℹ️ Stored session expired")
             } else {
@@ -43,7 +41,6 @@ class AuthManager: ObservableObject {
         } catch {
             self.isAuthenticated = false
             self.currentUserProfile = nil
-            self.needsProfileCreation = false
             self.selectedRole = AccountRole.owner.rawValue
             print("ℹ️ User is not authenticated")
         }
@@ -61,7 +58,6 @@ class AuthManager: ObservableObject {
             
             if let profile = response.first {
                 var p = profile
-                self.needsProfileCreation = false
                 
                 if let role = p.accountRole {
                     self.selectedRole = role.rawValue
@@ -161,7 +157,6 @@ class AuthManager: ObservableObject {
         do {
             try await client.from("profiles").upsert(newProfile).execute()
             self.currentUserProfile = newProfile
-            self.needsProfileCreation = false
             self.selectedRole = role.rawValue
             self.isLoading = false
             return true
@@ -209,7 +204,6 @@ class AuthManager: ObservableObject {
             try await client.auth.signOut()
             self.isAuthenticated = false
             self.currentUserProfile = nil
-            self.needsProfileCreation = false
             self.selectedRole = AccountRole.owner.rawValue
         } catch {
             print("❌ Error signing out: \(error)")
@@ -266,7 +260,6 @@ class AuthManager: ObservableObject {
             // 3) Reset local state
             self.isAuthenticated = false
             self.currentUserProfile = nil
-            self.needsProfileCreation = false
             self.selectedRole = AccountRole.owner.rawValue
             self.isLoading = false
             print("✅ Account fully deleted and local data cleared")
