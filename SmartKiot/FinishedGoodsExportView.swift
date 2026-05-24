@@ -138,13 +138,7 @@ struct FinishedGoodsExportView: View {
 
     // Computed totals
     private var subtotal: Double {
-        if isRegularRestock {
-            // Hàng hoá nhập: quantity là số nguyên, unitPrice là giá/đơn vị
-            return items.reduce(0) { $0 + (Double($1.quantity) * $1.unitPrice) + $1.additionalCost }
-        } else {
-            // Nguyên liệu / thành phẩm: quantity là gram, unitPrice là giá/kg
-            return items.reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) + $1.additionalCost }
-        }
+        return items.reduce(0) { $0 + $1.totalCost }
     }
     private var vatAmount: Double { vatEnabled ? subtotal * (vatRate / 100.0) : 0 }
     private var grandTotal: Double { subtotal + vatAmount }
@@ -557,7 +551,8 @@ struct FinishedGoodsExportView: View {
             Divider()
 
             ForEach(items) { item in
-                let isCai = item.unit?.lowercased() == "cái"
+                let isLegacyGramAsCai = !isRegularRestock && item.unit?.lowercased() == "cái" && item.quantity >= 1000
+                let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
                 let lineTotal: Double = {
                     if isRegularRestock || isCai {
                         return Double(item.quantity) * item.unitPrice + item.additionalCost
@@ -567,7 +562,7 @@ struct FinishedGoodsExportView: View {
                 }()
                 let qtyText: String = {
                     if isRegularRestock { return "\(item.quantity)" }
-                    return FormatUtils.formatWeight(item.quantity, unit: item.unit)
+                    return FormatUtils.formatWeight(item.quantity, unit: isLegacyGramAsCai ? nil : item.unit)
                 }()
                 let unitLabel = isCai ? "/cái" : (isRegularRestock ? "/đv" : "/kg")
 

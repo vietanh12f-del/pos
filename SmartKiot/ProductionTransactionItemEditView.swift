@@ -64,11 +64,17 @@ struct ProductionTransactionItemEditView: View {
         self.onSave = onSave
         
         _name = State(initialValue: initialItem.name)
-        let useKgGram = modeTitle.lowercased().contains("nguyên liệu") || modeTitle.lowercased().contains("thành phẩm")
-        let initialUnit = initialItem.unit ?? (useKgGram ? "kg" : "cái")
+        let modeLower = modeTitle.lowercased()
+        let categoryLower = initialItem.category?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let materialsLower = Category.materials.rawValue.lowercased()
+        let useKgGram = modeLower.contains("nguyên liệu") || modeLower.contains("material") || modeLower.contains("thành phẩm") || modeLower.contains("finished") || categoryLower == materialsLower
+        let storedUnit = initialItem.unit ?? (useKgGram ? "kg" : "cái")
+        let initialUnit = storedUnit
         _selectedUnit = State(initialValue: initialUnit)
         if useKgGram && initialUnit.lowercased() == "kg" {
             _quantityText = State(initialValue: FormatUtils.formatKgDecimal(fromGrams: initialItem.quantity))
+        } else if useKgGram && initialUnit.lowercased() == "cái" && initialItem.quantity >= 1000 {
+            _quantityText = State(initialValue: String(initialItem.quantity / 1000))
         } else {
             _quantityText = State(initialValue: String(initialItem.quantity))
         }
@@ -81,7 +87,8 @@ struct ProductionTransactionItemEditView: View {
     
     private var useKgGram: Bool {
         let t = modeTitle.lowercased()
-        return t.contains("nguyên liệu") || t.contains("thành phẩm")
+        let categoryLower = selectedCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return t.contains("nguyên liệu") || t.contains("material") || t.contains("thành phẩm") || t.contains("finished") || categoryLower == Category.materials.rawValue.lowercased()
     }
     
     private var unitPriceTitle: String {
@@ -90,7 +97,8 @@ struct ProductionTransactionItemEditView: View {
     }
     
     private var isMaterialsCtx: Bool {
-        modeTitle.lowercased().contains("nguyên liệu")
+        let t = modeTitle.lowercased()
+        return t.contains("nguyên liệu") || t.contains("material") || selectedCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == Category.materials.rawValue.lowercased()
     }
     
     var body: some View {
@@ -158,8 +166,13 @@ struct ProductionTransactionItemEditView: View {
                         } label: {
                             let gramsVal = FormatUtils.parseKgDecimalToGrams(quantityText) ?? quantityWheelSelection
                             if useKgGram {
-                                Text(FormatUtils.formatWeight(gramsVal, unit: selectedUnit))
-                                    .fontWeight(.semibold)
+                                if selectedUnit.lowercased() == "cái" {
+                                    Text("\(quantityText.isEmpty ? String(quantityWheelSelection) : quantityText) cái")
+                                        .fontWeight(.semibold)
+                                } else {
+                                    Text(FormatUtils.formatWeight(gramsVal, unit: selectedUnit))
+                                        .fontWeight(.semibold)
+                                }
                             } else {
                                 Text(quantityText.isEmpty ? String(quantityWheelSelection) : quantityText)
                                     .fontWeight(.semibold)
@@ -329,6 +342,9 @@ struct ProductionTransactionItemEditView: View {
             }
             .navigationTitle("Sửa mặt hàng")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                normalizeLegacyMaterialQuantityIfNeeded()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
@@ -338,6 +354,8 @@ struct ProductionTransactionItemEditView: View {
                         let q: Int
                         if useKgGram && selectedUnit.lowercased() == "kg" {
                             q = FormatUtils.parseKgDecimalToGrams(quantityText) ?? quantityWheelSelection
+                        } else if useKgGram && selectedUnit.lowercased() == "cái" && initialItem.quantity >= 1000 {
+                            q = (Int(quantityText) ?? quantityWheelSelection) * 1000
                         } else {
                             q = Int(quantityText) ?? quantityWheelSelection
                         }
@@ -764,6 +782,18 @@ struct ProductionTransactionItemEditView: View {
     private func parseInt(_ input: String) -> Int? {
         let clean = input.replacingOccurrences(of: ",", with: "")
         return Int(clean)
+    }
+    
+    private func normalizeLegacyMaterialQuantityIfNeeded() {
+        guard useKgGram else { return }
+        guard selectedUnit.lowercased() == "cái" else { return }
+        guard initialItem.quantity >= 1000 else { return }
+        let pieces = initialItem.quantity / 1000
+        quantityText = String(pieces)
+        quantityWheelSelection = max(1, pieces)
+        if quantityWheelSelection > quantityWheelMax {
+            quantityWheelMax = max(quantityWheelMax, quantityWheelSelection + 200)
+        }
     }
 }
 

@@ -31,6 +31,7 @@ struct MaterialEditView: View {
     @State private var stockKgRangeBase = 0
     @State private var showStockKgRangePicker = false
     @State private var selectedCategoryName: String = Category.materials.rawValue
+    @State private var selectedUnit: String = "kg"
     @State private var barcode: String = ""
     @State private var showBarcodeScanner = false
     @State private var showPrintBarcode = false
@@ -91,11 +92,11 @@ struct MaterialEditView: View {
                                 if let v = Int(stock) { stockWheelSelection = v }
                                 showStockWheel = true
                             } label: {
-                                Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)))
+                                Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0), unit: selectedUnit))
                                     .fontWeight(.semibold)
                             }
                         } else {
-                            Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)))
+                            Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0), unit: selectedUnit))
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.gray)
                         }
@@ -250,38 +251,52 @@ struct MaterialEditView: View {
                     .buttonStyle(.plain)
                     Spacer()
                 }
-                HStack {
-                    VStack {
-                        Text("Kg").font(.caption).foregroundStyle(.gray)
-                        Picker("", selection: $stockKgSelection) {
-                            ForEach(Array(stockKgRangeBase...stockWheelMax), id: \.self) { kg in
-                                Text("\(kg)").tag(kg)
-                            }
+                if selectedUnit.lowercased() == "cái" {
+                    Picker("", selection: $stockWheelSelection) {
+                        ForEach(Array(0...stockWheelMax), id: \.self) { v in
+                            Text("\(v)").tag(v)
                         }
-                        .pickerStyle(.wheel)
                     }
-                    VStack {
-                        Text("Gam").font(.caption).foregroundStyle(.gray)
-                        Picker("", selection: $stockGramsSelection) {
-                            ForEach(Array(stride(from: 0, through: stockGramsMax, by: 10)), id: \.self) { g in
-                                Text("\(g)").tag(g)
-                            }
+                    .pickerStyle(.wheel)
+                    .onChange(of: stockWheelSelection) { _, newValue in
+                        if newValue >= stockWheelMax - 10 {
+                            stockWheelMax += 200
                         }
-                        .pickerStyle(.wheel)
                     }
-                }
-                .onAppear {
-                    let current = stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)
-                    stockKgSelection = max(0, current / 1000)
-                    let remainder = max(0, current % 1000)
-                    stockGramsSelection = (remainder / 10) * 10
-                    stockKgRangeBase = (stockKgSelection / 100) * 100
+                } else {
+                    HStack {
+                        VStack {
+                            Text("Kg").font(.caption).foregroundStyle(.gray)
+                            Picker("", selection: $stockKgSelection) {
+                                ForEach(Array(stockKgRangeBase...stockWheelMax), id: \.self) { kg in
+                                    Text("\(kg)").tag(kg)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                        }
+                        VStack {
+                            Text("Gam").font(.caption).foregroundStyle(.gray)
+                            Picker("", selection: $stockGramsSelection) {
+                                ForEach(Array(stride(from: 0, through: stockGramsMax, by: 10)), id: \.self) { g in
+                                    Text("\(g)").tag(g)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                        }
+                    }
+                    .onAppear {
+                        let current = stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)
+                        stockKgSelection = max(0, current / 1000)
+                        let remainder = max(0, current % 1000)
+                        stockGramsSelection = (remainder / 10) * 10
+                        stockKgRangeBase = (stockKgSelection / 100) * 100
+                    }
                 }
                 HStack {
                     Button("Đóng") { showStockWheel = false }
                     Spacer()
                     Button("Lưu") {
-                        let total = stockKgSelection * 1000 + stockGramsSelection
+                        let total = selectedUnit.lowercased() == "cái" ? stockWheelSelection : stockKgSelection * 1000 + stockGramsSelection
                         stockWheelSelection = total
                         stock = String(total)
                         showStockWheel = false
@@ -353,6 +368,7 @@ struct MaterialEditView: View {
                 stockWheelSelection = material.stockQuantity
                 costWheelSelection = Int(material.lastUnitPrice)
                 selectedCategoryName = material.category
+                selectedUnit = material.unit ?? "kg"
                 barcode = material.barcode ?? ""
                 hasVAT = material.hasVAT
             }
@@ -371,7 +387,7 @@ struct MaterialEditView: View {
         guard let unit = Double(importPrice), let qty = Int(stock) else { return }
         switch mode {
         case .add:
-            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, hasVAT: hasVAT)
+            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT)
             Task {
                 try? await viewModel.databaseSaveMaterial(material)
                 viewModel.addMaterialCategory(selectedCategoryName)
@@ -379,7 +395,7 @@ struct MaterialEditView: View {
                 dismiss()
             }
         case .edit(let m):
-            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, hasVAT: hasVAT)
+            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT)
             Task {
                 try? await viewModel.databaseUpdateMaterial(updated)
                 viewModel.addMaterialCategory(selectedCategoryName)

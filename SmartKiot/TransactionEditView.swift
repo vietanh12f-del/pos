@@ -160,8 +160,12 @@ struct TransactionEditView: View {
                                     .font(.caption)
                                     .foregroundStyle(.gray)
                             }
+                            let isImportMode = original.mode.lowercased().contains("nhập")
+                            let matchedMaterial = viewModel.materials.first(where: { $0.name.lowercased() == it.name.lowercased() })
+                            let currentStock = matchedMaterial?.stockQuantity ?? 0
+                            let stockBefore = isImportMode ? currentStock - it.quantity : currentStock + it.quantity
                             HStack {
-                                Text("SL")
+                                Text("SL nhập thêm")
                                 Spacer()
                                 Text(FormatUtils.formatWeight(it.quantity, unit: it.unit))
                                     .fontWeight(.semibold)
@@ -173,6 +177,20 @@ struct TransactionEditView: View {
                                         editingUnit = it.unit ?? "kg"
                                         showQuantityWheel = true
                                     }
+                            }
+                            HStack {
+                                Text("SL trước khi nhập")
+                                Spacer()
+                                Text(FormatUtils.formatWeight(stockBefore, unit: matchedMaterial?.unit ?? it.unit))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.gray)
+                            }
+                            HStack {
+                                Text("SL hiện tại")
+                                Spacer()
+                                Text(FormatUtils.formatWeight(currentStock, unit: matchedMaterial?.unit ?? it.unit))
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.gray)
                             }
                             HStack {
                                 Text(unitPriceTitle)

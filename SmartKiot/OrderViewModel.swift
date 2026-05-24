@@ -2780,6 +2780,38 @@ class OrderViewModel: ObservableObject {
     private func buildProductionEditDetails(original: ProductionTransaction, updated: ProductionTransaction) -> [String] {
         var lines: [String] = []
         
+        let originalItems = Dictionary(uniqueKeysWithValues: original.items.map { ($0.id, $0) })
+        let updatedItems = Dictionary(uniqueKeysWithValues: updated.items.map { ($0.id, $0) })
+        
+        for item in updated.items {
+            if let old = originalItems[item.id] {
+                if old.name != item.name {
+                    lines.append("Sửa tên: \(old.name)→\(item.name)")
+                }
+                if old.quantity != item.quantity || old.unit != item.unit {
+                    lines.append("Sửa SL \(item.name): \(FormatUtils.formatWeight(old.quantity, unit: old.unit))→\(FormatUtils.formatWeight(item.quantity, unit: item.unit))")
+                }
+                if old.unitPrice != item.unitPrice {
+                    lines.append("Sửa đơn giá \(item.name): \(formatCurrency(old.unitPrice))→\(formatCurrency(item.unitPrice))")
+                }
+                if old.additionalCost != item.additionalCost {
+                    lines.append("Sửa chi phí \(item.name): \(formatCurrency(old.additionalCost))→\(formatCurrency(item.additionalCost))")
+                }
+                if old.category != item.category {
+                    lines.append("Sửa danh mục \(item.name): \(old.category ?? "—")→\(item.category ?? "—")")
+                }
+                if old.source != item.source {
+                    lines.append("Sửa nguồn \(item.name): \(old.source ?? "—")→\(item.source ?? "—")")
+                }
+            } else {
+                lines.append("Thêm mặt hàng: \(item.name)")
+            }
+        }
+        
+        for item in original.items where updatedItems[item.id] == nil {
+            lines.append("Xóa mặt hàng: \(item.name)")
+        }
+        
         // Check debt amount changes
         if original.debtAmount != updated.debtAmount {
             let oldStr = formatCurrency(original.debtAmount ?? 0)
