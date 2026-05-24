@@ -135,6 +135,11 @@ class StoreManager: ObservableObject {
                 .execute()
                 .value
             
+            print("📋 Found \(memberships.count) memberships for user \(userId)")
+            for m in memberships {
+                print("   - Store: \(m.storeId), Status: \(m.status?.rawValue ?? "nil"), Role: \(m.role)")
+            }
+            
             if !memberships.isEmpty {
                 // Filter active vs invited
                 let activeIds = memberships.filter { $0.status == .active || $0.status == nil }.map { $0.storeId }
@@ -207,19 +212,29 @@ class StoreManager: ObservableObject {
     }
 
     private func linkPendingInvitationsForCurrentUser(userId: UUID) async {
-        guard let email = AuthManager.shared.currentUserProfile?.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              !email.isEmpty else { return }
+        // Get email from profile or directly from Supabase Auth
+        var email = AuthManager.shared.currentUserProfile?.email
+        if email == nil {
+            email = SupabaseConfig.client.auth.currentUser?.email
+        }
+        guard let normalizedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !normalizedEmail.isEmpty else {
+            print("⚠️ linkPendingInvitations: No email available")
+            return
+        }
 
         do {
-            try await client
+            print("🔗 Linking pending invitations for email: \(normalizedEmail)")
+            let response = try await client
                 .from("store_members")
                 .update(["user_id": userId])
-                .eq("email", value: email)
+                .eq("email", value: normalizedEmail)
                 .is("user_id", value: nil)
                 .eq("status", value: "invited")
                 .execute()
+            print("✅ Linked invitations response: \(response.status)")
         } catch {
-            print("Error linking pending invitations: \(error)")
+            print("❌ Error linking pending invitations: \(error)")
         }
     }
     
@@ -354,6 +369,8 @@ class StoreManager: ObservableObject {
     func inviteEmployee(email: String, permissions: [StorePermission]) async -> Bool {
         guard let storeId = currentStore?.id else { return false }
         
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        
         // Use RPC to securely find user by email or phone
         struct UserLookupResult: Decodable {
             let id: UUID
@@ -366,12 +383,14 @@ class StoreManager: ObservableObject {
         }
         
         do {
-            // Try to find user profile via RPC
+            // Try to find existing user profile
             let user: UserLookupResult = try await client
                 .rpc("find_user_by_email_or_phone", params: ["search_term": email])
                 .single()
                 .execute()
                 .value
+            
+            print("🔍 Found user via RPC: \(user.id), email: \(normalizedEmail)")
             
             struct InviteeRole: Decodable {
                 let accountRole: AccountRole?
@@ -388,21 +407,29 @@ class StoreManager: ObservableObject {
                 .execute()
                 .value
             
-            guard let inviteeRole = inviteeProfiles.first?.accountRole else {
-                self.errorMessage = "Tài khoản này chưa khởi tạo. Nhân viên cần đăng nhập lần đầu và chọn vai trò Nhân viên trước, sau đó mới có thể được mời vào cửa hàng."
-                return false
+            print("📋 Profile query result: \(inviteeProfiles.count) profiles found")
+            if let first = inviteeProfiles.first {
+                print("   - accountRole: \(first.accountRole?.rawValue ?? "nil")")
             }
             
-            guard inviteeRole == .employee else {
-                self.errorMessage = "Tài khoản này đang ở vai trò Chủ cửa hàng nên không thể được mời làm nhân viên. Vui lòng dùng tài khoản khác đã chọn vai trò Nhân viên."
+            // If user is already owner of THIS store, block invitation
+            let hasOwnerRole = inviteeProfiles.first?.accountRole == .owner
+            let isOwnerOfThisStore = hasOwnerRole && self.myStores.contains(where: { $0.id == storeId && $0.ownerId == user.id })
+            print("🔍 isOwnerCheck - hasOwnerRole: \(hasOwnerRole), isOwnerOfThisStore: \(isOwnerOfThisStore)")
+            print("   myStores.count: \(self.myStores.count), storeId: \(storeId)")
+            if isOwnerOfThisStore {
+                print("❌ Blocked: User is owner of this store")
+                self.errorMessage = "Tài khoản này đã là Chủ của cửa hàng này."
                 return false
             }
+            print("✅ User can be invited - proceeding with invitation")
             
+            // User exists — create invitation linked to their user_id
             let member = StoreMember(
                 id: UUID(),
                 storeId: storeId,
                 userId: user.id,
-                email: email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                email: normalizedEmail,
                 role: .employee,
                 permissions: permissions,
                 status: .invited,
@@ -413,8 +440,26 @@ class StoreManager: ObservableObject {
             return true
             
         } catch {
-            self.errorMessage = "Không tìm thấy người dùng (Email/SĐT) hoặc lỗi mời: \(error.localizedDescription)\nHướng dẫn: Nhân viên cần tạo tài khoản ở chế độ Nhân viên trước, sau đó Chủ cửa hàng mời bằng Email hoặc SĐT."
-            return false
+            // User not found — create a pending invitation with userId = nil
+            // When they first login, linkPendingInvitationsForCurrentUser will link it
+            let member = StoreMember(
+                id: UUID(),
+                storeId: storeId,
+                userId: nil,
+                email: normalizedEmail,
+                role: .employee,
+                permissions: permissions,
+                status: .invited,
+                joinedAt: Date()
+            )
+            
+            do {
+                try await client.from("store_members").insert(member).execute()
+                return true
+            } catch {
+                self.errorMessage = "Lỗi tạo lời mời: \(error.localizedDescription)"
+                return false
+            }
         }
     }
     

@@ -22,12 +22,12 @@ struct StoreSelectionView: View {
                         VStack(spacing: 24) {
                             // Header Section
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(authManager.selectedRole == "owner" ? "Quản lý Cửa hàng" : "Cửa hàng làm việc")
+                                Text(authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty ? "Quản lý Cửa hàng" : "Cửa hàng làm việc")
                                     .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
                                 
-                                Text(authManager.selectedRole == "owner" ? "Chọn cửa hàng để quản lý hoặc tạo mới" : "Chọn cửa hàng để bắt đầu ca làm việc")
+                                Text(authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty ? "Chọn cửa hàng để quản lý hoặc tạo mới" : "Chọn cửa hàng để bắt đầu ca làm việc")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -35,7 +35,7 @@ struct StoreSelectionView: View {
                             .padding(.horizontal)
                             .padding(.top, 20)
                             
-                            if authManager.selectedRole == "owner" {
+                            if authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty {
                                 // Owner View
                                 if storeManager.myStores.isEmpty {
                                     VStack(spacing: 24) {
@@ -165,7 +165,7 @@ struct StoreSelectionView: View {
                                                 .font(.subheadline)
                                                 .foregroundColor(Color.themeTextDark.opacity(0.7))
                                                 .multilineTextAlignment(.center)
-                                            Text("Sau khi được mời, đăng nhập lại để nhận lời mời.")
+                                            Text("Sau khi được mời, đăng nhập bằng email đã được mời để nhận lời mời.")
                                                 .font(.subheadline)
                                                 .foregroundColor(Color.themeTextDark.opacity(0.7))
                                                 .multilineTextAlignment(.center)

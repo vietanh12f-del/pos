@@ -76,12 +76,37 @@ class AuthManager: ObservableObject {
                     .eq("id", value: userId)
                     .execute()
             } else {
-                // No profile found — this account was not registered via the web.
-                // App does not support in-app registration per App Store Guideline 3.1.1.
-                print("❌ No profile found. User must register at SmartKiot.com first.")
-                self.errorMessage = "Tài khoản chưa đăng ký. Vui lòng đăng ký miễn phí tại SmartKiot.com trước khi đăng nhập."
-                self.isAuthenticated = false
-                try? await client.auth.signOut()
+                // Auto-create profile on first login — no manual profile creation step
+                let user = client.auth.currentUser
+                let name: String = {
+                    if let user = user, case let .string(n)? = user.userMetadata["full_name"] {
+                        return n
+                    }
+                    return user?.email ?? "Người dùng"
+                }()
+                let email = user?.email
+                
+                let newProfile = UserProfile(
+                    id: userId,
+                    fullName: name,
+                    email: email,
+                    phoneNumber: user?.phone,
+                    address: nil,
+                    avatarUrl: nil,
+                    createdAt: Date(),
+                    currentStoreId: nil,
+                    accountRole: nil
+                )
+                
+                do {
+                    try await client.from("profiles").insert(newProfile).execute()
+                    self.currentUserProfile = newProfile
+                    print("✅ Auto-created profile for new user: \(userId)")
+                    // Trigger store fetch to link any pending invitations
+                    await StoreManager.shared.fetchStores()
+                } catch {
+                    print("❌ Error auto-creating profile: \(error)")
+                }
             }
         } catch {
             print("❌ Error checking profile: \(error)")
