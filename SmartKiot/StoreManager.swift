@@ -360,9 +360,12 @@ class StoreManager: ObservableObject {
     
     func selectStore(_ store: Store) async {
         self.currentStore = store
+        let selectedAsOwner = self.myStores.contains(where: { $0.id == store.id }) || store.ownerId == SupabaseConfig.client.auth.currentUser?.id
+        AuthManager.shared.selectedRole = selectedAsOwner ? AccountRole.owner.rawValue : AccountRole.employee.rawValue
+        print("🏪 Selected store: \(store.name), mode: \(AuthManager.shared.selectedRole)")
         
         // Find my membership for this store
-        if store.ownerId == SupabaseConfig.client.auth.currentUser?.id {
+        if selectedAsOwner {
             // Owner has full permissions implicitly
              self.currentMember = StoreMember(
                 id: UUID(), 
