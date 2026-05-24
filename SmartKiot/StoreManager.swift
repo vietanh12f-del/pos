@@ -28,6 +28,15 @@ class StoreManager: ObservableObject {
         }
     }
     
+    func resetSessionState() {
+        myStores = []
+        memberStores = []
+        invitedStores = []
+        currentStore = nil
+        currentMember = nil
+        errorMessage = nil
+    }
+    
     func setPriceStep(_ step: Int) {
         let s = max(1000, step)
         priceStep = s

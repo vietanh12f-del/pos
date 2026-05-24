@@ -12,6 +12,7 @@ class AuthManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var currentUserProfile: UserProfile?
     @Published var selectedRole: String = AccountRole.owner.rawValue
+    private var currentSessionUserId: UUID?
     
     private let client = SupabaseConfig.client
     
@@ -32,8 +33,14 @@ class AuthManager: ObservableObject {
                 self.isAuthenticated = false
                 self.currentUserProfile = nil
                 self.selectedRole = AccountRole.owner.rawValue
+                self.currentSessionUserId = nil
+                StoreManager.shared.resetSessionState()
                 print("ℹ️ Stored session expired")
             } else {
+                if currentSessionUserId != session.user.id {
+                    StoreManager.shared.resetSessionState()
+                    currentSessionUserId = session.user.id
+                }
                 self.isAuthenticated = true
                 print("✅ User is authenticated: \(session.user.id)")
                 await checkProfile(userId: session.user.id)
@@ -42,6 +49,8 @@ class AuthManager: ObservableObject {
             self.isAuthenticated = false
             self.currentUserProfile = nil
             self.selectedRole = AccountRole.owner.rawValue
+            self.currentSessionUserId = nil
+            StoreManager.shared.resetSessionState()
             print("ℹ️ User is not authenticated")
         }
     }
@@ -230,6 +239,8 @@ class AuthManager: ObservableObject {
             self.isAuthenticated = false
             self.currentUserProfile = nil
             self.selectedRole = AccountRole.owner.rawValue
+            self.currentSessionUserId = nil
+            StoreManager.shared.resetSessionState()
         } catch {
             print("❌ Error signing out: \(error)")
         }
