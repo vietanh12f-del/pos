@@ -110,11 +110,17 @@ class StoreManager: ObservableObject {
         self.errorMessage = nil
         
         do {
-            let linkedCount = await linkPendingInvitationsForCurrentUser(userId: userId)
-            // If we linked any invitations, give Supabase a moment to propagate and re-fetch
-            if linkedCount > 0 {
-                print("⏱️ Pausing briefly after linking \(linkedCount) invitations...")
-                try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+            // Only link pending invitations on fresh login (when no stores are loaded yet)
+            // This prevents re-linking when user is switching stores
+            let shouldLinkInvitations = self.myStores.isEmpty && self.memberStores.isEmpty && self.invitedStores.isEmpty
+            var linkedCount = 0
+            if shouldLinkInvitations {
+                linkedCount = await linkPendingInvitationsForCurrentUser(userId: userId)
+                // If we linked any invitations, give Supabase a moment to propagate
+                if linkedCount > 0 {
+                    print("⏱️ Pausing briefly after linking \(linkedCount) invitations...")
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+                }
             }
             
             // Determine role to fetch relevant stores
@@ -270,6 +276,7 @@ class StoreManager: ObservableObject {
         do {
             print("🔗 Linking pending invitations for email: \(normalizedEmail)")
             // First, count how many will be linked
+            // Only link invitations that are still invited AND don't have user_id yet
             let pendingMembers: [StoreMember] = try await client
                 .from("store_members")
                 .select()
@@ -804,21 +811,39 @@ class StoreManager: ObservableObject {
     }
     
     func respondToInvitation(storeId: UUID, accept: Bool) async -> Bool {
-        guard let userId = SupabaseConfig.client.auth.currentUser?.id else { return false }
+        guard let userId = SupabaseConfig.client.auth.currentUser?.id,
+              let email = SupabaseConfig.client.auth.currentUser?.email else { return false }
+        
         do {
-            if accept {
-                try await client
+            print("🔄 Responding to invitation: storeId=\(storeId), accept=\(accept)")
+            print("   userId=\(userId), email=\(email)")
+            
+            // Try to update by email first (for records linked via email with user_id = nil)
+            let updatedByEmail = try await client
+                .from("store_members")
+                .update([
+                    "status": accept ? "active" : "declined",
+                    "user_id": userId.uuidString  // Link the user_id now
+                ])
+                .match(["store_id": storeId, "email": email])
+                .execute()
+            
+            print("📊 Update by email status: \(updatedByEmail.response.statusCode)")
+            
+            // If no records updated by email, try by user_id (for already linked records)
+            if updatedByEmail.response.statusCode == 204 {
+                // 204 No Content means no rows were affected
+                print("🔍 No records found by email, trying by user_id...")
+                let updatedByUserId = try await client
                     .from("store_members")
-                    .update(["status": "active"])
+                    .update(["status": accept ? "active" : "declined"])
                     .match(["store_id": storeId, "user_id": userId])
                     .execute()
-            } else {
-                try await client
-                    .from("store_members")
-                    .update(["status": "declined"]) // Or delete?
-                    .match(["store_id": storeId, "user_id": userId])
-                    .execute()
+                print("📊 Update by user_id status: \(updatedByUserId.response.statusCode)")
             }
+            
+            // Give database a moment to commit the update
+            try await Task.sleep(nanoseconds: 200_000_000) // 200ms
             
             await fetchStores() // Refresh list
             
