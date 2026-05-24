@@ -291,10 +291,7 @@ struct AddEmployeeView: View {
             
             Form {
                 Section(header: Text("Thông tin nhân viên")) {
-                    TextField("Email / Số điện thoại", text: $newEmployeeEmail)
-                    Text("Lưu ý khi nhập số điện thoại: thay 0 bằng 84: ví dụ 09xx --> 849xx")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                    TextField("Email", text: $newEmployeeEmail)
                 }
                 
                 Section(header: Text("Quyền truy cập")) {

@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var showBankSettings = false
     @State private var showCustomization = false
     @State private var showDeleteAccountAlert = false
+    @State private var isDeletingAccount = false
     private let database = SupabaseDatabaseService()
     @FocusState private var feedbackFocused: Bool
     @State private var keyboardHeight: CGFloat = 0
@@ -191,7 +192,9 @@ struct SettingsView: View {
                     Button("Huỷ", role: .cancel) { }
                     Button("Xóa", role: .destructive) {
                         Task {
+                            isDeletingAccount = true
                             let success = await authManager.deleteAccount()
+                            isDeletingAccount = false
                             if !success {
                                 deleteErrorMessage = authManager.errorMessage ?? "Không thể xóa tài khoản. Vui lòng thử lại sau."
                                 showDeleteErrorAlert = true
@@ -420,10 +423,28 @@ struct SettingsView: View {
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
                 keyboardHeight = 0
             }
+            .overlay {
+                if isDeletingAccount {
+                    ZStack {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                            Text("Đang xóa tài khoản...")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                        }
+                        .padding(24)
+                        .background(Color(.systemGray6).opacity(0.9))
+                        .cornerRadius(12)
+                    }
+                }
             }
-            .navigationTitle("Cài đặt")
         }
+        .navigationTitle("Cài đặt")
     }
+}
 
 struct StoreManagementView: View {
     let store: Store
