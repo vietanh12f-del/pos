@@ -7,6 +7,7 @@ struct StoreSelectionView: View {
     @State private var showCreateStore = false
     @State private var showDeleteErrorAlert = false
     @State private var deleteErrorMessage: String = ""
+    @State private var isRefreshing = false
     
     var body: some View {
         NavigationStack {
@@ -22,12 +23,12 @@ struct StoreSelectionView: View {
                         VStack(spacing: 24) {
                             // Header Section
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty ? "Quản lý Cửa hàng" : "Cửa hàng làm việc")
+                                Text(authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty && storeManager.myStores.isEmpty ? "Quản lý Cửa hàng" : "Cửa hàng làm việc")
                                     .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
                                 
-                                Text(authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty ? "Chọn cửa hàng để quản lý hoặc tạo mới" : "Chọn cửa hàng để bắt đầu ca làm việc")
+                                Text(authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty && storeManager.myStores.isEmpty ? "Chọn cửa hàng để quản lý hoặc tạo mới" : "Chọn cửa hàng để bắt đầu ca làm việc")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -35,7 +36,7 @@ struct StoreSelectionView: View {
                             .padding(.horizontal)
                             .padding(.top, 20)
                             
-                            if authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty {
+                            if authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty && !storeManager.myStores.isEmpty {
                                 // Owner View
                                 if storeManager.myStores.isEmpty {
                                     VStack(spacing: 24) {
@@ -173,6 +174,33 @@ struct StoreSelectionView: View {
                                         .padding(20)
                                         .background(Color.themePrimary.opacity(0.08))
                                         .cornerRadius(16)
+                                        .padding(.horizontal, 24)
+                                        
+                                        // Refresh Button
+                                        Button {
+                                            Task {
+                                                isRefreshing = true
+                                                await storeManager.fetchStores()
+                                                isRefreshing = false
+                                            }
+                                        } label: {
+                                            HStack {
+                                                if isRefreshing {
+                                                    ProgressView()
+                                                        .scaleEffect(0.8)
+                                                } else {
+                                                    Image(systemName: "arrow.clockwise")
+                                                }
+                                                Text(isRefreshing ? "Đang làm mới..." : "Làm mới")
+                                            }
+                                            .font(.headline)
+                                            .foregroundColor(Color.themePrimary)
+                                            .padding()
+                                            .frame(maxWidth: .infinity)
+                                            .background(Color.themePrimary.opacity(0.1))
+                                            .cornerRadius(12)
+                                        }
+                                        .disabled(isRefreshing)
                                         .padding(.horizontal, 24)
                                         
                                         Button {

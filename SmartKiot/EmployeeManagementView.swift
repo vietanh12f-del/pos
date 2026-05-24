@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import Supabase
 
 struct EmployeeViewModel: Identifiable {
     let id: UUID
@@ -16,6 +17,8 @@ struct EmployeeManagementView: View {
     @State private var pendingLeaveCount = 0
     @State private var showLeaveApproval = false
     @State private var showWorkHoursSettings = false
+    @State private var reinvitingEmployeeId: UUID? = nil
+    @State private var showReinviteSuccess = false
 
     // Tổng lương: tổng tất cả mức lương nhân viên từ UserDefaults
     private var totalSalary: Double {
@@ -97,12 +100,68 @@ struct EmployeeManagementView: View {
                                 }
                                 Spacer()
                                 if employee.member.status == .invited {
-                                    Text("Đang mời")
-                                        .font(.caption)
-                                        .padding(4)
-                                        .background(Color.orange.opacity(0.2))
-                                        .foregroundColor(.orange)
-                                        .cornerRadius(4)
+                                    HStack(spacing: 8) {
+                                        Text("Đang mời")
+                                            .font(.caption)
+                                            .padding(4)
+                                            .background(Color.orange.opacity(0.2))
+                                            .foregroundColor(.orange)
+                                            .cornerRadius(4)
+                                        
+                                        // Re-invite button for invited employees too
+                                        Button {
+                                            Task {
+                                                reinvitingEmployeeId = employee.id
+                                                let success = await reinviteEmployee(employee.member)
+                                                reinvitingEmployeeId = nil
+                                                if success {
+                                                    showReinviteSuccess = true
+                                                    await loadEmployees()
+                                                }
+                                            }
+                                        } label: {
+                                            if reinvitingEmployeeId == employee.id {
+                                                ProgressView()
+                                                    .scaleEffect(0.6)
+                                            } else {
+                                                Text("Mời lại")
+                                                    .font(.caption)
+                                                    .padding(4)
+                                                    .background(Color.themePrimary.opacity(0.2))
+                                                    .foregroundColor(Color.themePrimary)
+                                                    .cornerRadius(4)
+                                            }
+                                        }
+                                        .disabled(reinvitingEmployeeId != nil)
+                                        .buttonStyle(BorderlessButtonStyle())
+                                    }
+                                } else if employee.member.status == .declined {
+                                    // Show re-invite button for declined employees
+                                    Button {
+                                        Task {
+                                            reinvitingEmployeeId = employee.id
+                                            let success = await reinviteEmployee(employee.member)
+                                            reinvitingEmployeeId = nil
+                                            if success {
+                                                showReinviteSuccess = true
+                                                await loadEmployees()
+                                            }
+                                        }
+                                    } label: {
+                                        if reinvitingEmployeeId == employee.id {
+                                            ProgressView()
+                                                .scaleEffect(0.6)
+                                        } else {
+                                            Text("Mời lại")
+                                                .font(.caption)
+                                                .padding(4)
+                                                .background(Color.themePrimary.opacity(0.2))
+                                                .foregroundColor(Color.themePrimary)
+                                                .cornerRadius(4)
+                                        }
+                                    }
+                                    .disabled(reinvitingEmployeeId != nil)
+                                    .buttonStyle(BorderlessButtonStyle())
                                 }
                             }
                         }
@@ -116,6 +175,11 @@ struct EmployeeManagementView: View {
             await loadPendingLeave()
         }
         .navigationTitle("Quản lý nhân viên")
+        .alert("Thành công", isPresented: $showReinviteSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Đã mời lại nhân viên thành công.")
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Đóng") {
@@ -240,6 +304,25 @@ struct EmployeeManagementView: View {
                     await loadEmployees()
                 }
             }
+        }
+    }
+
+    func reinviteEmployee(_ member: StoreMember) async -> Bool {
+        // Re-invite by updating status back to invited
+        let dateFormatter = ISO8601DateFormatter()
+        let joinedAtString = dateFormatter.string(from: Date())
+        
+        do {
+            try await SupabaseConfig.client
+                .from("store_members")
+                .update(["status": "invited", "joined_at": joinedAtString])
+                .eq("id", value: member.id)
+                .execute()
+            print("✅ Re-invited employee: \(member.email ?? "unknown")")
+            return true
+        } catch {
+            print("❌ Error re-inviting employee: \(error)")
+            return false
         }
     }
 }

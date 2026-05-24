@@ -110,7 +110,13 @@ class StoreManager: ObservableObject {
         self.errorMessage = nil
         
         do {
-            await linkPendingInvitationsForCurrentUser(userId: userId)
+            let linkedCount = await linkPendingInvitationsForCurrentUser(userId: userId)
+            // If we linked any invitations, give Supabase a moment to propagate and re-fetch
+            if linkedCount > 0 {
+                print("⏱️ Pausing briefly after linking \(linkedCount) invitations...")
+                try? await Task.sleep(nanoseconds: 500_000_000) // 500ms
+            }
+            
             // Determine role to fetch relevant stores
             // If user explicitly chose "employee", we might NOT want to show owned stores
             // BUT, the user's data (myStores) should probably still be fetched for correctness,
@@ -127,15 +133,35 @@ class StoreManager: ObservableObject {
             
             self.myStores = myStoresResponse
             
-            // Fetch stores I am a member of
-            let memberships: [StoreMember] = try await client
+            // Fetch stores I am a member of (by user_id OR by email as fallback)
+            var allMemberships: [StoreMember] = []
+            
+            // First try by user_id
+            let membershipsById: [StoreMember] = try await client
                 .from("store_members")
                 .select()
                 .eq("user_id", value: userId)
                 .execute()
                 .value
+            allMemberships.append(contentsOf: membershipsById)
             
-            print("📋 Found \(memberships.count) memberships for user \(userId)")
+            // Also try by email (RLS policy allows this)
+            let email = AuthManager.shared.currentUserProfile?.email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let email = email, !email.isEmpty {
+                let membershipsByEmail: [StoreMember] = try await client
+                    .from("store_members")
+                    .select()
+                    .eq("email", value: email)
+                    .execute()
+                    .value
+                // Merge, avoiding duplicates by id
+                let existingIds = Set(allMemberships.map { $0.id })
+                let newByEmail = membershipsByEmail.filter { !existingIds.contains($0.id) }
+                allMemberships.append(contentsOf: newByEmail)
+            }
+            
+            let memberships = allMemberships
+            print("📋 Found \(memberships.count) memberships for user \(userId) (by ID: \(membershipsById.count), by email: \(allMemberships.count - membershipsById.count))")
             for m in memberships {
                 print("   - Store: \(m.storeId), Status: \(m.status?.rawValue ?? "nil"), Role: \(m.role)")
             }
@@ -145,8 +171,13 @@ class StoreManager: ObservableObject {
                 let activeIds = memberships.filter { $0.status == .active || $0.status == nil }.map { $0.storeId }
                 let invitedIds = memberships.filter { $0.status == .invited }.map { $0.storeId }
                 
+                print("🔍 Filtering memberships:")
+                print("   - Active IDs: \(activeIds)")
+                print("   - Invited IDs: \(invitedIds)")
+                
                 // Fetch all relevant stores in one go
                 let allStoreIds = activeIds + invitedIds
+                print("🔍 Querying stores with IDs: \(allStoreIds)")
                 if !allStoreIds.isEmpty {
                     let allStores: [Store] = try await client
                         .from("stores")
@@ -154,12 +185,25 @@ class StoreManager: ObservableObject {
                         .in("id", values: allStoreIds)
                         .execute()
                         .value
-                        
+                    
+                    print("📋 Fetched \(allStores.count) stores:")
+                    for store in allStores {
+                        print("   - Store: \(store.name) (\(store.id))")
+                    }
+                    
                     self.memberStores = allStores.filter { store in activeIds.contains(store.id) }
                     self.invitedStores = allStores.filter { store in invitedIds.contains(store.id) }
+                    
+                    print("📊 Final stores:")
+                    print("   - Member stores: \(self.memberStores.count)")
+                    print("   - Invited stores: \(self.invitedStores.count)")
+                    for store in self.invitedStores {
+                        print("     - \(store.name)")
+                    }
                 } else {
                      self.memberStores = []
                      self.invitedStores = []
+                     print("📊 No store IDs found")
                 }
             } else {
                 self.memberStores = []
@@ -211,7 +255,7 @@ class StoreManager: ObservableObject {
         }
     }
 
-    private func linkPendingInvitationsForCurrentUser(userId: UUID) async {
+    private func linkPendingInvitationsForCurrentUser(userId: UUID) async -> Int {
         // Get email from profile or directly from Supabase Auth
         var email = AuthManager.shared.currentUserProfile?.email
         if email == nil {
@@ -220,21 +264,40 @@ class StoreManager: ObservableObject {
         guard let normalizedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
               !normalizedEmail.isEmpty else {
             print("⚠️ linkPendingInvitations: No email available")
-            return
+            return 0
         }
 
         do {
             print("🔗 Linking pending invitations for email: \(normalizedEmail)")
-            let response = try await client
+            // First, count how many will be linked
+            let pendingMembers: [StoreMember] = try await client
+                .from("store_members")
+                .select()
+                .eq("email", value: normalizedEmail)
+                .is("user_id", value: nil)
+                .eq("status", value: "invited")
+                .execute()
+                .value
+            
+            guard !pendingMembers.isEmpty else {
+                print("ℹ️ No pending invitations to link")
+                return 0
+            }
+            
+            // Update them
+            try await client
                 .from("store_members")
                 .update(["user_id": userId])
                 .eq("email", value: normalizedEmail)
                 .is("user_id", value: nil)
                 .eq("status", value: "invited")
                 .execute()
-            print("✅ Linked invitations response: \(response.status)")
+            
+            print("✅ Linked \(pendingMembers.count) invitations")
+            return pendingMembers.count
         } catch {
             print("❌ Error linking pending invitations: \(error)")
+            return 0
         }
     }
     
@@ -424,39 +487,113 @@ class StoreManager: ObservableObject {
             }
             print("✅ User can be invited - proceeding with invitation")
             
-            // User exists — create invitation linked to their user_id
-            let member = StoreMember(
-                id: UUID(),
-                storeId: storeId,
-                userId: user.id,
-                email: normalizedEmail,
-                role: .employee,
-                permissions: permissions,
-                status: .invited,
-                joinedAt: Date()
-            )
+            // Check if invitation already exists
+            let existingMembers: [StoreMember] = try await client
+                .from("store_members")
+                .select()
+                .eq("store_id", value: storeId)
+                .eq("email", value: normalizedEmail)
+                .execute()
+                .value
             
-            try await client.from("store_members").insert(member).execute()
-            return true
+            if let existing = existingMembers.first {
+                // Update existing record (re-invite) - use StoreMember struct for proper encoding
+                let updatedMember = StoreMember(
+                    id: existing.id,
+                    storeId: storeId,
+                    userId: user.id,
+                    email: normalizedEmail,
+                    role: .employee,
+                    permissions: permissions,
+                    status: .invited,
+                    joinedAt: Date()
+                )
+                do {
+                    try await client.from("store_members")
+                        .update(updatedMember)
+                        .eq("id", value: existing.id)
+                        .execute()
+                    print("✅ Re-invited existing member")
+                    return true
+                } catch {
+                    print("❌ Error updating invitation: \(error)")
+                    self.errorMessage = "Lỗi cập nhật lời mời: \(error.localizedDescription)"
+                    return false
+                }
+            } else {
+                // Insert new invitation
+                let member = StoreMember(
+                    id: UUID(),
+                    storeId: storeId,
+                    userId: user.id,
+                    email: normalizedEmail,
+                    role: .employee,
+                    permissions: permissions,
+                    status: .invited,
+                    joinedAt: Date()
+                )
+                do {
+                    try await client.from("store_members")
+                        .insert(member)
+                        .execute()
+                    print("✅ New invitation inserted")
+                    return true
+                } catch {
+                    print("❌ Error inserting invitation: \(error)")
+                    self.errorMessage = "Lỗi tạo lời mời: \(error.localizedDescription)"
+                    return false
+                }
+            }
             
         } catch {
-            // User not found — create a pending invitation with userId = nil
-            // When they first login, linkPendingInvitationsForCurrentUser will link it
-            let member = StoreMember(
-                id: UUID(),
-                storeId: storeId,
-                userId: nil,
-                email: normalizedEmail,
-                role: .employee,
-                permissions: permissions,
-                status: .invited,
-                joinedAt: Date()
-            )
-            
+            // User not found — create a pending invitation
+            // Check if pending invitation already exists
             do {
-                try await client.from("store_members").insert(member).execute()
+                let existingPending: [StoreMember] = try await client
+                    .from("store_members")
+                    .select()
+                    .eq("store_id", value: storeId)
+                    .eq("email", value: normalizedEmail)
+                    .execute()
+                    .value
+                
+                if let existing = existingPending.first {
+                    // Update existing pending - use struct for proper encoding
+                    let updatedMember = StoreMember(
+                        id: existing.id,
+                        storeId: storeId,
+                        userId: nil,
+                        email: normalizedEmail,
+                        role: .employee,
+                        permissions: permissions,
+                        status: .invited,
+                        joinedAt: Date()
+                    )
+                    try await client.from("store_members")
+                        .update(updatedMember)
+                        .eq("id", value: existing.id)
+                        .execute()
+                    print("✅ Updated pending invitation")
+                } else {
+                    // Insert new pending
+                    let member = StoreMember(
+                        id: UUID(),
+                        storeId: storeId,
+                        userId: nil,
+                        email: normalizedEmail,
+                        role: .employee,
+                        permissions: permissions,
+                        status: .invited,
+                        joinedAt: Date()
+                    )
+                    try await client.from("store_members")
+                        .insert(member)
+                        .execute()
+                    print("✅ New pending invitation inserted")
+                }
                 return true
             } catch {
+                print("❌ Error with pending invitation: \(error)")
                 self.errorMessage = "Lỗi tạo lời mời: \(error.localizedDescription)"
                 return false
             }
@@ -684,6 +821,23 @@ class StoreManager: ObservableObject {
             }
             
             await fetchStores() // Refresh list
+            
+            // If accepted, update role to employee and select the store
+            if accept {
+                AuthManager.shared.selectedRole = AccountRole.employee.rawValue
+                print("✅ Updated selectedRole to employee after accepting invitation")
+                
+                // Find and select the store
+                if let acceptedStore = self.memberStores.first(where: { $0.id == storeId }) {
+                    await selectStore(acceptedStore)
+                    print("✅ Auto-selected store after accepting invitation")
+                } else if let invitedStore = self.invitedStores.first(where: { $0.id == storeId }) {
+                    // Move from invited to member stores
+                    await selectStore(invitedStore)
+                    print("✅ Auto-selected store from invited list after accepting")
+                }
+            }
+            
             return true
         } catch {
             self.errorMessage = "Lỗi phản hồi lời mời: \(error.localizedDescription)"
