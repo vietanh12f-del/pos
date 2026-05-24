@@ -235,33 +235,11 @@ struct ProductEditView: View {
                     HStack {
                         Text("Tồn kho")
                         Spacer()
-                        if allowEditCostAndStock {
-                            Button {
-                                // Init wheel từ quantity hiện tại
-                                let current = Int(quantity) ?? 0
-                                if stockUnit == "kg" {
-                                    stockKgSelection = current / 1000
-                                    stockGramsSelection = ((current % 1000) / 10) * 10
-                                } else {
-                                    stockWheelSelection = current
-                                    if stockWheelSelection > stockWheelMax - 50 {
-                                        stockWheelMax = stockWheelSelection + 500
-                                    }
-                                }
-                                showStockWheel = true
-                            } label: {
-                                Text(stockUnit == "kg"
-                                     ? FormatUtils.formatWeight(Int(quantity) ?? 0)
-                                     : "\(Int(quantity) ?? 0) cái")
-                                    .fontWeight(.semibold)
-                            }
-                        } else {
-                            Text(stockUnit == "kg"
-                                 ? FormatUtils.formatWeight(Int(quantity) ?? 0)
-                                 : "\(Int(quantity) ?? 0) cái")
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.gray)
-                        }
+                        Text(stockUnit == "kg"
+                             ? FormatUtils.formatWeight(Int(quantity) ?? 0)
+                             : "\(Int(quantity) ?? 0) cái")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.gray)
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
