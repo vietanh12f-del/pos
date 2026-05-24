@@ -197,11 +197,26 @@ class StoreManager: ObservableObject {
                         print("   - Store: \(store.name) (\(store.id))")
                     }
                     
-                    self.memberStores = allStores.filter { store in activeIds.contains(store.id) }
+                    // Separate stores by role
+                    let ownerMemberships = memberships.filter { $0.role == .owner && activeIds.contains($0.storeId) }
+                    let employeeMemberships = memberships.filter { $0.role == .employee && activeIds.contains($0.storeId) }
+                    
+                    let ownerStoreIds = ownerMemberships.map { $0.storeId }
+                    let employeeStoreIds = employeeMemberships.map { $0.storeId }
+                    
+                    self.myStores = allStores.filter { store in ownerStoreIds.contains(store.id) }
+                    self.memberStores = allStores.filter { store in employeeStoreIds.contains(store.id) }
                     self.invitedStores = allStores.filter { store in invitedIds.contains(store.id) }
                     
                     print("📊 Final stores:")
-                    print("   - Member stores: \(self.memberStores.count)")
+                    print("   - Owner stores (myStores): \(self.myStores.count)")
+                    for store in self.myStores {
+                        print("     - \(store.name)")
+                    }
+                    print("   - Employee stores (memberStores): \(self.memberStores.count)")
+                    for store in self.memberStores {
+                        print("     - \(store.name)")
+                    }
                     print("   - Invited stores: \(self.invitedStores.count)")
                     for store in self.invitedStores {
                         print("     - \(store.name)")
@@ -819,6 +834,9 @@ class StoreManager: ObservableObject {
             print("   userId=\(userId), email=\(email)")
             
             // Try to update by email first (for records linked via email with user_id = nil)
+            print("🔍 Attempting update by email...")
+            print("   Match conditions: store_id=\(storeId), email=\(email)")
+            
             let updatedByEmail = try await client
                 .from("store_members")
                 .update([
@@ -829,6 +847,9 @@ class StoreManager: ObservableObject {
                 .execute()
             
             print("📊 Update by email status: \(updatedByEmail.response.statusCode)")
+            if let responseText = String(data: updatedByEmail.data, encoding: .utf8) {
+                print("   Response body: \(responseText)")
+            }
             
             // If no records updated by email, try by user_id (for already linked records)
             if updatedByEmail.response.statusCode == 204 {

@@ -23,12 +23,41 @@ struct StoreSelectionView: View {
                         VStack(spacing: 24) {
                             // Header Section
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty && storeManager.myStores.isEmpty ? "Quản lý Cửa hàng" : "Cửa hàng làm việc")
+                                // Determine header based on what stores the user has
+                                let hasOwnerStores = !storeManager.myStores.isEmpty
+                                let hasEmployeeStores = !storeManager.memberStores.isEmpty
+                                let hasInvitations = !storeManager.invitedStores.isEmpty
+                                
+                                let headerTitle: String = {
+                                    if hasOwnerStores && hasEmployeeStores {
+                                        return "Quản lý Cửa hàng"
+                                    } else if hasOwnerStores {
+                                        return "Quản lý Cửa hàng"
+                                    } else if hasEmployeeStores || hasInvitations {
+                                        return "Cửa hàng làm việc"
+                                    } else {
+                                        return "Quản lý Cửa hàng"
+                                    }
+                                }()
+                                
+                                let headerSubtitle: String = {
+                                    if hasOwnerStores && hasEmployeeStores {
+                                        return "Chọn cửa hàng để quản lý hoặc bắt đầu ca làm việc"
+                                    } else if hasOwnerStores {
+                                        return "Chọn cửa hàng để quản lý hoặc tạo mới"
+                                    } else if hasEmployeeStores || hasInvitations {
+                                        return "Chọn cửa hàng để bắt đầu ca làm việc"
+                                    } else {
+                                        return "Chọn cửa hàng để quản lý hoặc tạo mới"
+                                    }
+                                }()
+                                
+                                Text(headerTitle)
                                     .font(.largeTitle)
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
                                 
-                                Text(authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty && storeManager.myStores.isEmpty ? "Chọn cửa hàng để quản lý hoặc tạo mới" : "Chọn cửa hàng để bắt đầu ca làm việc")
+                                Text(headerSubtitle)
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
                             }
@@ -36,210 +65,172 @@ struct StoreSelectionView: View {
                             .padding(.horizontal)
                             .padding(.top, 20)
                             
-                            if authManager.selectedRole == "owner" && storeManager.invitedStores.isEmpty && storeManager.memberStores.isEmpty && !storeManager.myStores.isEmpty {
-                                // Owner View
-                                if storeManager.myStores.isEmpty {
-                                    VStack(spacing: 24) {
-                                        EmptyStoreStateView(message: "Bạn chưa có cửa hàng nào.")
-                                        
-                                        VStack(spacing: 10) {
-                                            Image(systemName: "info.circle.fill")
-                                                .font(.title2)
-                                                .foregroundColor(Color.themePrimary)
-                                            Text("Bước tiếp theo")
-                                                .font(.headline)
-                                                .foregroundColor(Color.themeTextDark)
-                                            Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.")
+                            let hasOwnerStores = !storeManager.myStores.isEmpty
+                            let hasEmployeeStores = !storeManager.memberStores.isEmpty
+                            let hasInvitations = !storeManager.invitedStores.isEmpty
+                            
+                            if !hasOwnerStores && !hasEmployeeStores && !hasInvitations {
+                                VStack(spacing: 24) {
+                                    EmptyStoreStateView(message: "Bạn chưa có cửa hàng nào.")
+                                    
+                                    VStack(spacing: 10) {
+                                        Image(systemName: "info.circle.fill")
+                                            .font(.title2)
+                                            .foregroundColor(Color.themePrimary)
+                                        Text("Bước tiếp theo")
+                                            .font(.headline)
+                                            .foregroundColor(Color.themeTextDark)
+                                        Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.")
+                                            .font(.subheadline)
+                                            .foregroundColor(Color.themeTextDark.opacity(0.7))
+                                            .multilineTextAlignment(.center)
+                                        HStack(spacing: 0) {
+                                            Text("Vui lòng đăng ký cửa hàng tại ")
                                                 .font(.subheadline)
                                                 .foregroundColor(Color.themeTextDark.opacity(0.7))
-                                                .multilineTextAlignment(.center)
-                                            HStack(spacing: 0) {
-                                                Text("Vui lòng đăng ký cửa hàng tại ")
+                                            Button {
+                                                if let url = URL(string: "https://smartkiot.com") {
+                                                    UIApplication.shared.open(url)
+                                                }
+                                            } label: {
+                                                Text("SmartKiot.com")
                                                     .font(.subheadline)
-                                                    .foregroundColor(Color.themeTextDark.opacity(0.7))
-                                                Button {
-                                                    if let url = URL(string: "https://smartkiot.com") {
-                                                        UIApplication.shared.open(url)
-                                                    }
-                                                } label: {
-                                                    Text("SmartKiot.com")
-                                                        .font(.subheadline)
-                                                        .fontWeight(.bold)
-                                                        .foregroundColor(Color.themePrimary)
-                                                        .underline()
-                                                }
+                                                    .fontWeight(.bold)
+                                                    .foregroundColor(Color.themePrimary)
+                                                    .underline()
                                             }
                                         }
-                                        .padding(20)
-                                        .background(Color.themePrimary.opacity(0.08))
-                                        .cornerRadius(16)
-                                        .padding(.horizontal, 24)
-                                        
-                                        Button {
-                                            Task { await authManager.signOut() }
-                                        } label: {
-                                            HStack {
-                                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                                Text("Đăng xuất")
-                                            }
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .padding()
-                                            .frame(maxWidth: .infinity)
-                                            .background(Color.red)
-                                            .cornerRadius(12)
-                                            .shadow(color: .red.opacity(0.3), radius: 5, x: 0, y: 3)
-                                        }
-                                        .padding(.horizontal, 40)
                                     }
-                                } else {
-                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
-                                        ForEach(storeManager.myStores) { store in
-                                            StoreCardView(store: store, isOwner: true) {
-                                                Task {
-                                                    await storeManager.selectStore(store)
-                                                    dismiss()
+                                    .padding(20)
+                                    .background(Color.themePrimary.opacity(0.08))
+                                    .cornerRadius(16)
+                                    .padding(.horizontal, 24)
+                                    
+                                    Button {
+                                        Task { await authManager.signOut() }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                            Text("Đăng xuất")
+                                        }
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .padding()
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color.red)
+                                        .cornerRadius(12)
+                                        .shadow(color: .red.opacity(0.3), radius: 5, x: 0, y: 3)
+                                    }
+                                    .padding(.horizontal, 40)
+                                }
+                            } else {
+                                VStack(spacing: 24) {
+                                    if hasOwnerStores {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            HStack {
+                                                Image(systemName: "crown.fill")
+                                                    .foregroundColor(.yellow)
+                                                    .font(.title3)
+                                                Text("Cửa hàng của bạn")
+                                                    .font(.title2)
+                                                    .fontWeight(.bold)
+                                                    .foregroundColor(.primary)
+                                            }
+                                            .padding(.horizontal)
+                                            
+                                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 16)], spacing: 16) {
+                                                ForEach(storeManager.myStores) { store in
+                                                    StoreCardView(store: store, isOwner: true) {
+                                                        Task {
+                                                            await storeManager.selectStore(store)
+                                                            dismiss()
+                                                        }
+                                                    } onDelete: {
+                                                        Task {
+                                                            let success = await storeManager.deleteStore(store)
+                                                            await MainActor.run {
+                                                                if !success {
+                                                                    deleteErrorMessage = storeManager.errorMessage ?? "Không thể xóa cửa hàng. Vui lòng thử lại sau."
+                                                                    showDeleteErrorAlert = true
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                            } onDelete: {
-                                                Task {
-                                                    let success = await storeManager.deleteStore(store)
-                                                    await MainActor.run {
-                                                        if !success {
-                                                            deleteErrorMessage = storeManager.errorMessage ?? "Không thể xóa cửa hàng. Vui lòng thử lại sau."
-                                                            showDeleteErrorAlert = true
+                                                
+                                                if AppFeatureConfig.isStoreCreationEnabledOnIOS {
+                                                    Button(action: {
+                                                        showCreateStore = true
+                                                    }) {
+                                                        VStack(spacing: 12) {
+                                                            Circle()
+                                                                .fill(Color.green.opacity(0.1))
+                                                                .frame(width: 50, height: 50)
+                                                                .overlay(
+                                                                    Image(systemName: "plus")
+                                                                        .font(.title2)
+                                                                        .foregroundColor(.green)
+                                                                )
+                                                            
+                                                            Text("Thêm mới")
+                                                                .font(.headline)
+                                                                .foregroundColor(.green)
+                                                        }
+                                                        .frame(maxWidth: .infinity)
+                                                        .frame(minHeight: 180)
+                                                        .background(Color.white)
+                                                        .cornerRadius(16)
+                                                        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                                                        .overlay(
+                                                            RoundedRectangle(cornerRadius: 16)
+                                                                .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
+                                                                .foregroundColor(Color.green.opacity(0.5))
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            .padding(.horizontal)
+                                        }
+                                    }
+                                    
+                                    if hasEmployeeStores {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            HStack {
+                                                Image(systemName: "person.2.fill")
+                                                    .foregroundColor(.blue)
+                                                    .font(.title3)
+                                                Text("Cửa hàng làm việc")
+                                                    .font(.title2)
+                                                    .fontWeight(.bold)
+                                                    .foregroundColor(.primary)
+                                            }
+                                            .padding(.horizontal)
+                                            
+                                            VStack(spacing: 12) {
+                                                ForEach(storeManager.memberStores) { store in
+                                                    StoreRowCard(store: store, roleBadge: "Nhân viên") {
+                                                        Task {
+                                                            await storeManager.selectStore(store)
+                                                            dismiss()
                                                         }
                                                     }
                                                 }
                                             }
-                                        }
-                                        
-                                        // Add Store Button as a Card
-                                        if AppFeatureConfig.isStoreCreationEnabledOnIOS {
-                                            Button(action: {
-                                                showCreateStore = true
-                                            }) {
-                                                VStack(spacing: 12) {
-                                                    Circle()
-                                                        .fill(Color.green.opacity(0.1))
-                                                        .frame(width: 50, height: 50)
-                                                        .overlay(
-                                                            Image(systemName: "plus")
-                                                                .font(.title2)
-                                                                .foregroundColor(.green)
-                                                        )
-                                                    
-                                                    Text("Thêm mới")
-                                                        .font(.headline)
-                                                        .foregroundColor(.green)
-                                                }
-                                                .frame(maxWidth: .infinity)
-                                                .frame(minHeight: 180)
-                                                .background(Color.white)
-                                                .cornerRadius(16)
-                                                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 16)
-                                                        .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                                                        .foregroundColor(Color.green.opacity(0.5))
-                                                )
-                                            }
+                                            .padding(.horizontal)
                                         }
                                     }
-                                    .padding(.horizontal)
-                                }
-                                
-                            } else {
-                                // Employee View
-                                VStack(spacing: 20) {
-                                if storeManager.memberStores.isEmpty && storeManager.invitedStores.isEmpty {
-                                    VStack(spacing: 24) {
-                                        EmptyStoreStateView(message: "Bạn chưa là nhân viên của cửa hàng nào.")
-                                        
-                                        VStack(spacing: 10) {
-                                            Image(systemName: "info.circle.fill")
-                                                .font(.title2)
-                                                .foregroundColor(Color.themePrimary)
-                                            Text("Bước tiếp theo")
-                                                .font(.headline)
-                                                .foregroundColor(Color.themeTextDark)
-                                            Text("Liên hệ chủ cửa hàng để được mời vào làm việc qua email.")
-                                                .font(.subheadline)
-                                                .foregroundColor(Color.themeTextDark.opacity(0.7))
-                                                .multilineTextAlignment(.center)
-                                            Text("Sau khi được mời, đăng nhập bằng email đã được mời để nhận lời mời.")
-                                                .font(.subheadline)
-                                                .foregroundColor(Color.themeTextDark.opacity(0.7))
-                                                .multilineTextAlignment(.center)
-                                        }
-                                        .padding(20)
-                                        .background(Color.themePrimary.opacity(0.08))
-                                        .cornerRadius(16)
-                                        .padding(.horizontal, 24)
-                                        
-                                        // Refresh Button
-                                        Button {
-                                            Task {
-                                                isRefreshing = true
-                                                await storeManager.fetchStores()
-                                                isRefreshing = false
-                                            }
-                                        } label: {
-                                            HStack {
-                                                if isRefreshing {
-                                                    ProgressView()
-                                                        .scaleEffect(0.8)
-                                                } else {
-                                                    Image(systemName: "arrow.clockwise")
-                                                }
-                                                Text(isRefreshing ? "Đang làm mới..." : "Làm mới")
-                                            }
-                                            .font(.headline)
-                                            .foregroundColor(Color.themePrimary)
-                                            .padding()
-                                            .frame(maxWidth: .infinity)
-                                            .background(Color.themePrimary.opacity(0.1))
-                                            .cornerRadius(12)
-                                        }
-                                        .disabled(isRefreshing)
-                                        .padding(.horizontal, 24)
-                                        
-                                        Button {
-                                            Task { await authManager.signOut() }
-                                        } label: {
-                                            HStack {
-                                                Image(systemName: "rectangle.portrait.and.arrow.right")
-                                                Text("Đăng xuất")
-                                            }
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .padding()
-                                            .frame(maxWidth: .infinity)
-                                            .background(Color.red)
-                                            .cornerRadius(12)
-                                            .shadow(color: .red.opacity(0.3), radius: 5, x: 0, y: 3)
-                                        }
-                                        .padding(.horizontal, 40)
-                                    }
-                                    } else {
-                                        // Member Stores
-                                        ForEach(storeManager.memberStores) { store in
-                                            StoreRowCard(store: store) {
-                                                Task {
-                                                    await storeManager.selectStore(store)
-                                                    dismiss()
-                                                }
-                                            }
-                                        }
-                                        // Invitations
-                                        if !storeManager.invitedStores.isEmpty {
+                                    
+                                    if hasInvitations {
+                                        VStack(alignment: .leading, spacing: 12) {
                                             SectionHeader(title: "Lời mời tham gia")
+                                                .padding(.horizontal)
                                             ForEach(storeManager.invitedStores) { store in
                                                 InvitationRow(store: store)
                                             }
                                         }
+                                        .padding(.horizontal)
                                     }
                                 }
-                                .padding(.horizontal)
                             }
                         }
                         .padding(.bottom, 40)
@@ -251,16 +242,16 @@ struct StoreSelectionView: View {
             .sheet(isPresented: $showCreateStore) {
                 CreateStoreView()
             }
-        }
-        .onAppear {
-            Task {
-                await storeManager.fetchStores()
+            .onAppear {
+                Task {
+                    await storeManager.fetchStores()
+                }
             }
-        }
-        .alert("Lỗi xóa cửa hàng", isPresented: $showDeleteErrorAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(deleteErrorMessage)
+            .alert("Lỗi xóa cửa hàng", isPresented: $showDeleteErrorAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(deleteErrorMessage)
+            }
         }
     }
 }
@@ -335,11 +326,24 @@ struct StoreCardView: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(store.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .lineLimit(nil)
-                        .multilineTextAlignment(.leading)
+                    HStack {
+                        Text(store.name)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .lineLimit(nil)
+                            .multilineTextAlignment(.leading)
+                        
+                        if isOwner {
+                            Text("CHỦ CỬA HÀNG")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green)
+                                .foregroundColor(.white)
+                                .cornerRadius(6)
+                        }
+                    }
                     
                     if let address = store.address, !address.isEmpty {
                         Text(address)
@@ -389,7 +393,14 @@ struct StoreCardView: View {
 
 struct StoreRowCard: View {
     let store: Store
+    let roleBadge: String?
     let action: () -> Void
+    
+    init(store: Store, roleBadge: String? = nil, action: @escaping () -> Void) {
+        self.store = store
+        self.roleBadge = roleBadge
+        self.action = action
+    }
     
     var body: some View {
         Button(action: action) {
@@ -405,11 +416,24 @@ struct StoreRowCard: View {
                     )
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(store.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .lineLimit(nil)
-                        .multilineTextAlignment(.leading)
+                    HStack {
+                        Text(store.name)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .lineLimit(nil)
+                            .multilineTextAlignment(.leading)
+                        
+                        if let roleBadge = roleBadge {
+                            Text(roleBadge.uppercased())
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(roleBadge == "Chủ cửa hàng" ? Color.green : Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(6)
+                        }
+                    }
                     
                     if let address = store.address, !address.isEmpty {
                         Text(address)
