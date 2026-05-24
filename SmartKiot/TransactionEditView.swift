@@ -68,6 +68,8 @@ struct TransactionEditView: View {
     // Edit history
     @State private var showEditHistory = false
     @State private var editHistoryEntries: [ProductionEdit] = []
+    @State private var originalQtyMap: [UUID: Int] = [:]
+    @State private var stockBeforeMap: [UUID: Int] = [:]
 
     private var isExportFinishedGoods: Bool {
         let t = original.mode.lowercased()
@@ -163,7 +165,9 @@ struct TransactionEditView: View {
                             let isImportMode = original.mode.lowercased().contains("nhập")
                             let matchedMaterial = viewModel.materials.first(where: { $0.name.lowercased() == it.name.lowercased() })
                             let currentStock = matchedMaterial?.stockQuantity ?? 0
-                            let stockBefore = isImportMode ? currentStock - it.quantity : currentStock + it.quantity
+                            let originalQty = originalQtyMap[it.id] ?? it.quantity
+                            let stockBefore = stockBeforeMap[it.id] ?? (isImportMode ? currentStock - originalQty : currentStock + originalQty)
+                            let stockAfter = isImportMode ? stockBefore + it.quantity : stockBefore - it.quantity
                             HStack {
                                 Text("SL nhập thêm")
                                 Spacer()
@@ -186,9 +190,9 @@ struct TransactionEditView: View {
                                     .foregroundStyle(.gray)
                             }
                             HStack {
-                                Text("SL hiện tại")
+                                Text("SL sau khi nhập")
                                 Spacer()
-                                Text(FormatUtils.formatWeight(currentStock, unit: matchedMaterial?.unit ?? it.unit))
+                                Text(FormatUtils.formatWeight(stockAfter, unit: matchedMaterial?.unit ?? it.unit))
                                     .fontWeight(.semibold)
                                     .foregroundStyle(.gray)
                             }
@@ -456,6 +460,16 @@ struct TransactionEditView: View {
                     }
                     .disabled(original.isDeleted || isDeletingTx)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            await viewModel.loadMaterials()
+                            await viewModel.loadProducts()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
                         let total = items.reduce(0) { $0 + $1.totalCost }
@@ -488,7 +502,8 @@ struct TransactionEditView: View {
                             updated.paymentReceiptURL = original.paymentReceiptURL
                         }
                         Task {
-                            _ = await viewModel.updateProductionTransaction(original: original, updated: updated)
+                            let latest = await viewModel.fetchProductionTransactions(mode: original.mode).first(where: { $0.id == original.id }) ?? original
+                            _ = await viewModel.updateProductionTransaction(original: latest, updated: updated)
                             dismiss()
                         }
                     }
@@ -517,6 +532,26 @@ struct TransactionEditView: View {
             noteText = ""
             let partyType = original.mode.lowercased().contains("nhập") ? "supplier" : "buyer"
             Task {
+                await viewModel.loadMaterials()
+                await viewModel.loadProducts()
+                await viewModel.loadProductionHistory(mode: original.mode)
+                await MainActor.run {
+                    if let fresh = viewModel.productionHistory.first(where: { $0.id == original.id }) {
+                        items = fresh.items
+                        var map: [UUID: Int] = [:]
+                        for it in fresh.items {
+                            map[it.id] = it.quantity
+                        }
+                        originalQtyMap = map
+                        var beforeMap: [UUID: Int] = [:]
+                        for it in fresh.items {
+                            let matchedMaterial = viewModel.materials.first(where: { $0.name.lowercased() == it.name.lowercased() })
+                            let currentStock = matchedMaterial?.stockQuantity ?? 0
+                            beforeMap[it.id] = original.mode.lowercased().contains("nhập") ? currentStock - it.quantity : currentStock + it.quantity
+                        }
+                        stockBeforeMap = beforeMap
+                    }
+                }
                 if let parties = try? await viewModel.databaseService.fetchTradingParties(type: partyType) {
                     await MainActor.run { buyerHistory = parties }
                 }
