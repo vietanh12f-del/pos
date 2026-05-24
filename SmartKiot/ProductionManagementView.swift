@@ -427,8 +427,7 @@ struct ProductionManagementView: View {
             }
             .sheet(isPresented: $showMaterialEdit) {
                 if let m = editingMaterial {
-                    // Trong nhập / xuất nguyên liệu: không cho chỉnh Giá nhập + Tồn kho
-                    MaterialEditView(viewModel: viewModel, mode: .edit(m), allowEditPriceAndStock: false)
+                    MaterialEditView(viewModel: viewModel, mode: .edit(m), allowEditPriceAndStock: true)
                 }
             }
             .sheet(isPresented: $showTransactionEdit) {

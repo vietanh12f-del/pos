@@ -87,19 +87,9 @@ struct MaterialEditView: View {
                     HStack {
                         Text("Tồn kho")
                         Spacer()
-                        if allowEditPriceAndStock {
-                            Button {
-                                if let v = Int(stock) { stockWheelSelection = v }
-                                showStockWheel = true
-                            } label: {
-                                Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0), unit: selectedUnit))
-                                    .fontWeight(.semibold)
-                            }
-                        } else {
-                            Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0), unit: selectedUnit))
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.gray)
-                        }
+                        Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0), unit: selectedUnit))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.gray)
                     }
                     
                     Toggle(isOn: $hasVAT) {
