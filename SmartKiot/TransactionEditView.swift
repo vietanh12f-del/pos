@@ -163,13 +163,16 @@ struct TransactionEditView: View {
                                     .foregroundStyle(.gray)
                             }
                             let isImportMode = original.mode.lowercased().contains("nhập")
+                            let isMaterialMode = original.mode.lowercased().contains("nguyên liệu")
                             let matchedMaterial = viewModel.materials.first(where: { $0.name.lowercased() == it.name.lowercased() })
-                            let currentStock = matchedMaterial?.stockQuantity ?? 0
+                            let matchedProduct = viewModel.products.first(where: { $0.name.lowercased() == it.name.lowercased() })
+                            let currentStock = isMaterialMode ? (matchedMaterial?.stockQuantity ?? 0) : (matchedProduct?.stockQuantity ?? 0)
+                            let displayUnit = isMaterialMode ? (matchedMaterial?.unit ?? it.unit) : it.unit
                             let originalQty = originalQtyMap[it.id] ?? it.quantity
                             let stockBefore = stockBeforeMap[it.id] ?? (isImportMode ? currentStock - originalQty : currentStock + originalQty)
                             let stockAfter = isImportMode ? stockBefore + it.quantity : stockBefore - it.quantity
                             HStack {
-                                Text("SL nhập thêm")
+                                Text(isImportMode ? "SL nhập thêm" : "SL xuất")
                                 Spacer()
                                 Text(FormatUtils.formatWeight(it.quantity, unit: it.unit))
                                     .fontWeight(.semibold)
@@ -183,16 +186,16 @@ struct TransactionEditView: View {
                                     }
                             }
                             HStack {
-                                Text("SL trước khi nhập")
+                                Text(isImportMode ? "SL trước khi nhập" : "SL trước khi xuất")
                                 Spacer()
-                                Text(FormatUtils.formatWeight(stockBefore, unit: matchedMaterial?.unit ?? it.unit))
+                                Text(FormatUtils.formatWeight(stockBefore, unit: displayUnit))
                                     .fontWeight(.semibold)
                                     .foregroundStyle(.gray)
                             }
                             HStack {
-                                Text("SL sau khi nhập")
+                                Text(isImportMode ? "SL sau khi nhập" : "SL sau khi xuất")
                                 Spacer()
-                                Text(FormatUtils.formatWeight(stockAfter, unit: matchedMaterial?.unit ?? it.unit))
+                                Text(FormatUtils.formatWeight(stockAfter, unit: displayUnit))
                                     .fontWeight(.semibold)
                                     .foregroundStyle(.gray)
                             }
@@ -544,10 +547,16 @@ struct TransactionEditView: View {
                         }
                         originalQtyMap = map
                         var beforeMap: [UUID: Int] = [:]
+                        let modeLower = original.mode.lowercased()
+                        let isMaterialMode = modeLower.contains("nguyên liệu")
                         for it in fresh.items {
-                            let matchedMaterial = viewModel.materials.first(where: { $0.name.lowercased() == it.name.lowercased() })
-                            let currentStock = matchedMaterial?.stockQuantity ?? 0
-                            beforeMap[it.id] = original.mode.lowercased().contains("nhập") ? currentStock - it.quantity : currentStock + it.quantity
+                            let currentStock: Int
+                            if isMaterialMode {
+                                currentStock = viewModel.materials.first(where: { $0.name.lowercased() == it.name.lowercased() })?.stockQuantity ?? 0
+                            } else {
+                                currentStock = viewModel.products.first(where: { $0.name.lowercased() == it.name.lowercased() })?.stockQuantity ?? 0
+                            }
+                            beforeMap[it.id] = modeLower.contains("nhập") ? currentStock - it.quantity : currentStock + it.quantity
                         }
                         stockBeforeMap = beforeMap
                     }
