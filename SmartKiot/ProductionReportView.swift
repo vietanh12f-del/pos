@@ -2165,6 +2165,8 @@ struct GenericProductionReportView: View {
     @State private var showMaterialPicker = false
     @State private var showTransactionDetail = false
     @State private var selectedTransaction: ProductionTransaction?
+    @State private var printImage: UIImage?
+    @State private var showShareSheet = false
 
     // MARK: - Active range
 
@@ -2404,6 +2406,18 @@ struct GenericProductionReportView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        renderFilteredReport()
+                    } label: {
+                        Image(systemName: "printer")
+                    }
+                }
+            }
+            .sheet(isPresented: $showShareSheet) {
+                if let image = printImage {
+                    ShareSheet(items: [image])
                 }
             }
             .sheet(isPresented: $showCustomPicker) {
@@ -2823,6 +2837,32 @@ struct GenericProductionReportView: View {
 
     private var isMaterial: Bool { reportKind == .materialImport }
 
+    // MARK: - Print
+
+    private func renderFilteredReport() {
+        let allTxs = filteredTxs(rangeData.values.flatMap { $0 })
+        let view = FilteredTransactionsPrintView(
+            title: title,
+            rangeLabel: rangeLabel,
+            vatFilter: selectedVATFilter.rawValue,
+            creatorName: selectedCreatorName,
+            storeName: selectedStoreName,
+            materialName: selectedMaterialName,
+            finishedGoodName: selectedFinishedGoodName,
+            txs: allTxs,
+            isMaterial: isMaterial,
+            reportKind: reportKind
+        )
+        .frame(width: 400)
+        .background(Color.white)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        if let image = renderer.uiImage {
+            printImage = image
+            showShareSheet = true
+        }
+    }
+
     // MARK: - Data loading
 
     private func reload() async {
@@ -2879,5 +2919,262 @@ struct GenericProductionReportView: View {
         let f = DateFormatter()
         f.locale = Locale(identifier: "vi_VN"); f.timeZone = .current; f.dateFormat = "dd/MM/yyyy"
         return f.string(from: date)
+    }
+}
+
+// MARK: - Filtered Report Print View
+
+private struct FilteredTransactionsPrintView: View {
+    let title: String
+    let rangeLabel: String
+    let vatFilter: String
+    let creatorName: String?
+    let storeName: String?
+    let materialName: String?
+    let finishedGoodName: String?
+    let txs: [ProductionTransaction]
+    let isMaterial: Bool
+    let reportKind: ProductionReportKind
+
+    private var totalCost: Double {
+        txs.filter { !$0.isDeleted }.reduce(0) { $0 + $1.totalCost }
+    }
+    private var totalQty: Int {
+        txs.filter { !$0.isDeleted }.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
+    }
+    private var totalRevenue: Double {
+        txs.filter { !$0.isDeleted }.compactMap { $0.grandTotal }.reduce(0, +)
+    }
+    private var totalDebt: Double {
+        txs.filter { !$0.isDeleted }.compactMap { $0.debtAmount }.reduce(0, +)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            VStack(alignment: .center, spacing: 4) {
+                Text(title)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text(rangeLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                Text("In lúc: \(formatDateTime(Date()))")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            Divider()
+
+            // Filters
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bộ lọc:")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                if vatFilter != "Tất cả" {
+                    Text("• VAT: \(vatFilter)")
+                }
+                if let name = creatorName {
+                    Text("• Người tạo: \(name)")
+                }
+                if let name = storeName {
+                    Text("• Cơ sở: \(name)")
+                }
+                if let name = materialName {
+                    Text("• Nguyên liệu: \(name)")
+                }
+                if let name = finishedGoodName {
+                    Text("• Thành phẩm: \(name)")
+                }
+            }
+            .font(.caption)
+
+            Divider()
+
+            // Summary
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Số phiếu")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text("\(txs.count)")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                }
+                Spacer()
+                if reportKind == .finishedExport {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Tổng doanh thu")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Text(formatCurrency(totalRevenue))
+                            .font(.headline)
+                            .fontWeight(.bold)
+                    }
+                    if totalDebt > 0 {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("Còn nợ")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Text(formatCurrency(totalDebt))
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                } else {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Tổng tiền")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Text(formatCurrency(totalCost))
+                            .font(.headline)
+                            .fontWeight(.bold)
+                    }
+                }
+            }
+
+            Divider()
+
+            // Transactions
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(txs.sorted { $0.createdAt > $1.createdAt }) { tx in
+                    FilteredTransactionPrintRow(tx: tx)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.white)
+    }
+
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yyyy HH:mm"
+        return f.string(from: date)
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "VND"
+        f.locale = Locale(identifier: "vi_VN")
+        return f.string(from: NSNumber(value: value)) ?? "\(value) đ"
+    }
+}
+
+private struct FilteredTransactionPrintRow: View {
+    let tx: ProductionTransaction
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            header
+            buyerText
+            itemsList
+            totalRow
+            vatRow
+        }
+        .padding(8)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var header: some View {
+        HStack {
+            Text(formatDateTime(tx.createdAt))
+                .font(.caption)
+                .fontWeight(.semibold)
+            Spacer()
+            if tx.isDeleted {
+                Text("ĐÃ XOÁ")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var buyerText: some View {
+        if let buyer = tx.buyerName, !buyer.isEmpty {
+            Text("Khách: " + buyer)
+                .font(.caption)
+        }
+    }
+
+    private var itemsList: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(tx.items) { item in
+                FilteredTransactionItemPrintRow(item: item)
+            }
+        }
+    }
+
+    private var totalRow: some View {
+        HStack {
+            Spacer()
+            Text("Tổng: " + formatCurrency(tx.totalCost))
+                .font(.caption)
+                .fontWeight(.semibold)
+        }
+    }
+
+    @ViewBuilder
+    private var vatRow: some View {
+        if let vat = tx.vatAmount, vat > 0 {
+            HStack {
+                Spacer()
+                Text("VAT: " + formatCurrency(vat))
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+            }
+        }
+    }
+
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yyyy HH:mm"
+        return f.string(from: date)
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "VND"
+        f.locale = Locale(identifier: "vi_VN")
+        return f.string(from: NSNumber(value: value)) ?? "\(value) đ"
+    }
+}
+
+private struct FilteredTransactionItemPrintRow: View {
+    let item: RestockItem
+
+    var body: some View {
+        HStack {
+            Text(item.name)
+                .font(.caption)
+            Spacer()
+            Text(itemLine)
+                .font(.caption)
+        }
+    }
+
+    private var itemLine: String {
+        let weightStr = FormatUtils.formatWeight(item.quantity, unit: item.unit)
+        let priceStr = formatCurrency(item.unitPrice)
+        return weightStr + " x " + priceStr
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "VND"
+        f.locale = Locale(identifier: "vi_VN")
+        return f.string(from: NSNumber(value: value)) ?? "\(value) đ"
     }
 }
