@@ -8,6 +8,7 @@ struct ProductionManagementView: View {
     @State private var showMaterialEntry = false
     @State private var materialTab: Int = 0
     @State private var searchText: String = ""
+    @State private var historySearchText: String = ""
     @State private var editingMaterial: MaterialItem?
     @State private var showMaterialEdit = false
     @State private var editingTransaction: ProductionTransaction?
@@ -305,12 +306,42 @@ struct ProductionManagementView: View {
                                 }
                             }
                         } else {
-                            if viewModel.productionHistory.isEmpty {
+                            // Search bar for history
+                            HStack {
+                                HStack {
+                                    Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                                    TextField("Tìm theo tên hoặc mã phiếu...", text: $historySearchText)
+                                        .textInputAutocapitalization(.never)
+                                        .disableAutocorrection(true)
+                                    if !historySearchText.isEmpty {
+                                        Button { historySearchText = "" } label: {
+                                            Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                                        }
+                                    }
+                                }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                            }
+                            .padding(.horizontal)
+                            
+                            let filteredHistory = viewModel.productionHistory.filter { tx in
+                                if historySearchText.isEmpty { return true }
+                                let searchLower = historySearchText.lowercased()
+                                // Search by transaction ID or item names
+                                let matchId = tx.id.uuidString.lowercased().contains(searchLower)
+                                let matchItems = tx.items.contains { item in
+                                    item.name.lowercased().contains(searchLower)
+                                }
+                                return matchId || matchItems
+                            }
+                            
+                            if filteredHistory.isEmpty {
                                 VStack(spacing: 16) {
-                                    Image(systemName: "clock.arrow.circlepath")
+                                    Image(systemName: "magnifyingglass")
                                         .font(.system(size: 60))
                                         .foregroundStyle(Color.gray.opacity(0.3))
-                                    Text("Chưa có lịch sử")
+                                    Text(historySearchText.isEmpty ? "Chưa có lịch sử" : "Không tìm thấy kết quả")
                                         .font(.headline)
                                         .foregroundStyle(.gray)
                                 }
@@ -319,7 +350,7 @@ struct ProductionManagementView: View {
                                 ScrollViewReader { proxy in
                                     ScrollView {
                                         VStack(spacing: 8) {
-                                            ForEach(viewModel.productionHistory, id: \.id) { tx in
+                                            ForEach(filteredHistory, id: \.id) { tx in
                                                 ProductionTransactionHistoryCard(
                                                     tx: tx,
                                                     selectedMode: selectedMode,
@@ -411,6 +442,12 @@ struct ProductionManagementView: View {
                 }
             }
             .onChange(of: materialTab) { _, newVal in
+                // Clear search text when switching tabs
+                if newVal == 0 {
+                    historySearchText = ""
+                } else {
+                    searchText = ""
+                }
                 if newVal == 1, let m = selectedMode {
                     Task { await viewModel.loadProductionHistory(mode: m.rawValue) }
                 }
