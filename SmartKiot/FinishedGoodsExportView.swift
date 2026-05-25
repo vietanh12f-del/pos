@@ -184,7 +184,9 @@ struct FinishedGoodsExportView: View {
                         buyerSection
                     }
                     itemsSummarySection
-                    paymentSection
+                    if !isFinishedGoodsImport {
+                        paymentSection
+                    }
                     qrSection
                     actionButtons
                 }
@@ -549,7 +551,7 @@ struct FinishedGoodsExportView: View {
                     .font(.caption)
                     .foregroundStyle(.gray)
                     .frame(width: 72, alignment: .trailing)
-                Text("Đơn giá")
+                Text(isFinishedGoodsImport ? "Giá bán" : "Đơn giá")
                     .font(.caption)
                     .foregroundStyle(.gray)
                     .frame(width: 80, alignment: .trailing)
@@ -611,7 +613,8 @@ struct FinishedGoodsExportView: View {
                             .foregroundStyle(Color.themeTextDark)
                             .frame(width: 72, alignment: .trailing)
 
-                        Text(formatCurrency(item.unitPrice) + unitLabel)
+                        let displayPrice = isFinishedGoodsImport ? (item.suggestedPrice ?? item.unitPrice) : item.unitPrice
+                        Text(formatCurrency(displayPrice) + unitLabel)
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundStyle(Color.themeTextDark)
@@ -874,31 +877,33 @@ struct FinishedGoodsExportView: View {
 
     private var actionButtons: some View {
         VStack(spacing: 10) {
-            // Payment status toggle — đặt trên print button
-            HStack {
-                Text("Trạng thái thanh toán")
-                    .font(.subheadline)
-                    .foregroundStyle(.gray)
-                Spacer()
-                Button {
-                    isPaid.toggle()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: isPaid ? "checkmark.circle.fill" : "clock.fill")
-                            .foregroundStyle(isPaid ? .green : .orange)
-                        Text(isPaid ? "Đã thanh toán" : "Chưa thanh toán")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(isPaid ? .green : .orange)
+            // Payment status toggle — đặt trên print button (ẩn với nhập thành phẩm)
+            if !isFinishedGoodsImport {
+                HStack {
+                    Text("Trạng thái thanh toán")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Button {
+                        isPaid.toggle()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: isPaid ? "checkmark.circle.fill" : "clock.fill")
+                                .foregroundStyle(isPaid ? .green : .orange)
+                            Text(isPaid ? "Đã thanh toán" : "Chưa thanh toán")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(isPaid ? .green : .orange)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(isPaid ? Color.green.opacity(0.1) : Color.orange.opacity(0.1)))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Capsule().fill(isPaid ? Color.green.opacity(0.1) : Color.orange.opacity(0.1)))
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
             }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
 
             // Print bill
             Button {
