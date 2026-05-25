@@ -2596,12 +2596,20 @@ struct GenericProductionReportView: View {
         
         // Calculate totalCost: for materialImport with specific material selected,
         // only sum the cost of items matching that material
+        // For finishedImport with specific finished good selected, only sum that finished good's cost
         let totalCost: Double
         if reportKind == .materialImport, let selectedMaterial = selectedMaterialName {
             totalCost = active.reduce(0) { sum, tx in
                 let matchingItemsCost = tx.items
                     .filter { $0.name == selectedMaterial }
                     .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+                return sum + matchingItemsCost
+            }
+        } else if reportKind == .finishedImport, let selectedFG = selectedFinishedGoodName {
+            totalCost = active.reduce(0) { sum, tx in
+                let matchingItemsCost = tx.items
+                    .filter { $0.name == selectedFG }
+                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * ($1.suggestedPrice ?? $1.unitPrice)) }
                 return sum + matchingItemsCost
             }
         } else {
@@ -3249,6 +3257,15 @@ private struct FilteredTransactionsPrintView: View {
                 return sum + matchingItemsCost
             }
         }
+        // For finishedImport with specific finished good selected, only sum matching items
+        if reportKind == .finishedImport, let selectedFG = finishedGoodName {
+            return active.reduce(0) { sum, tx in
+                let matchingItemsCost = tx.items
+                    .filter { $0.name == selectedFG }
+                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * ($1.suggestedPrice ?? $1.unitPrice)) }
+                return sum + matchingItemsCost
+            }
+        }
         return active.reduce(0) { $0 + $1.totalCost }
     }
     private var totalQty: Int {
@@ -3261,6 +3278,12 @@ private struct FilteredTransactionsPrintView: View {
         }
         // For finishedExport with specific finished good selected, only count matching items
         if reportKind == .finishedExport, let selectedFG = finishedGoodName {
+            return active.flatMap { $0.items }
+                .filter { $0.name == selectedFG }
+                .reduce(0) { $0 + $1.quantity }
+        }
+        // For finishedImport with specific finished good selected, only count matching items
+        if reportKind == .finishedImport, let selectedFG = finishedGoodName {
             return active.flatMap { $0.items }
                 .filter { $0.name == selectedFG }
                 .reduce(0) { $0 + $1.quantity }
@@ -3466,6 +3489,9 @@ private struct FilteredTransactionPrintRow: View {
         if reportKind == .finishedExport, let selectedFG = finishedGoodName {
             return tx.items.filter { $0.name == selectedFG }
         }
+        if reportKind == .finishedImport, let selectedFG = finishedGoodName {
+            return tx.items.filter { $0.name == selectedFG }
+        }
         return tx.items
     }
 
@@ -3493,6 +3519,12 @@ private struct FilteredTransactionPrintRow: View {
                 .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
             let proportion = allItemsTotal > 0 ? selectedTotal / allItemsTotal : 0
             return (tx.grandTotal ?? 0) * proportion
+        }
+        if reportKind == .finishedImport, let selectedFG = finishedGoodName {
+            // Only calculate cost of selected finished good
+            return tx.items
+                .filter { $0.name == selectedFG }
+                .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * ($1.suggestedPrice ?? $1.unitPrice)) }
         }
         return tx.totalCost
     }
