@@ -64,9 +64,11 @@ struct FinishedGoodsExportView: View {
         return isImport ? "Thông tin bên nhập" : "Thông tin bên mua" 
     }
     private var partyNameLabel: String { isImport ? "Tên cơ sở cung cấp" : "Tên người mua / Công ty" }
-    private var itemsSectionLabel: String { 
+    private var itemsSectionLabel: String {
         if isRegularRestock { return "Hàng hoá nhập" }
-        return isImport ? "Nguyên liệu nhập" : "Thành phẩm xuất" 
+        if isFinishedGoodsImport { return "Thành phẩm nhập" }
+        if isExportMaterials { return "Nguyên liệu xuất" }
+        return isImport ? "Nguyên liệu nhập" : "Thành phẩm xuất"
     }
     private var debtLabel: String { isImport ? "Thiếu nợ còn lại" : "Công nợ còn lại" }
     private var printButtonLabel: String { isImport ? "In bill nhập" : "In bill xuất" }
@@ -138,7 +140,17 @@ struct FinishedGoodsExportView: View {
 
     // Computed totals
     private var subtotal: Double {
-        return items.reduce(0) { $0 + $1.totalCost }
+        return items.reduce(0) { sum, item in
+            let isLegacyGramAsCai = !isRegularRestock && item.unit?.lowercased() == "cái" && item.quantity >= 1000
+            let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
+            let lineTotal: Double
+            if isRegularRestock || isCai {
+                lineTotal = Double(item.quantity) * item.unitPrice + item.additionalCost
+            } else {
+                lineTotal = Double(item.quantity) / 1000.0 * item.unitPrice + item.additionalCost
+            }
+            return sum + lineTotal
+        }
     }
     private var vatAmount: Double { vatEnabled ? subtotal * (vatRate / 100.0) : 0 }
     private var grandTotal: Double { subtotal + vatAmount }

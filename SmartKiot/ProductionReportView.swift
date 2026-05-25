@@ -1494,6 +1494,15 @@ struct MaterialExportReportView: View {
     @State private var selectedFinishedGoodName: String? = nil
     @State private var showFinishedGoodPicker = false
 
+    // Filters (like GenericProductionReportView)
+    @State private var selectedVATFilter: VATFilter = .all
+    @State private var selectedCreatorName: String? = nil
+    @State private var showCreatorPicker = false
+
+    // Print
+    @State private var printImage: UIImage?
+    @State private var showShareSheet = false
+
     // Data (range mode)
     @State private var rangeData: [String: DayReportData] = [:]
     @State private var expandedDays: Set<String> = []
@@ -1510,6 +1519,13 @@ struct MaterialExportReportView: View {
 
     private var allFinishedGoodNamesInDay: [String] {
         Array(Set(finishedImports.flatMap { $0.items.map { $0.name } })).sorted()
+    }
+
+    // Filter computed properties
+    private var allCreatorNames: [String] {
+        let allTxs = rangeData.values.flatMap { $0.manualExports }
+        let names = allTxs.compactMap { $0.creatorName }
+        return Array(Set(names)).sorted()
     }
 
     private var totalFinishedImportGramsInDay: Int {
@@ -1591,6 +1607,74 @@ struct MaterialExportReportView: View {
 
                 Divider()
 
+                // ── Bộ lọc ─────────────────────────────────────────
+                VStack(alignment: .leading, spacing: 8) {
+                    // VAT Filter
+                    HStack(spacing: 6) {
+                        Text("VAT:")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        ForEach(VATFilter.allCases, id: \.self) { option in
+                            Button {
+                                selectedVATFilter = option
+                            } label: {
+                                Text(option.rawValue)
+                                    .font(.caption)
+                                    .fontWeight(selectedVATFilter == option ? .semibold : .regular)
+                                    .foregroundStyle(selectedVATFilter == option ? .white : Color.themeTextDark)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        Capsule()
+                                            .fill(selectedVATFilter == option ? Color.purple : Color.gray.opacity(0.1))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer()
+                    }
+
+                    // Creator Filter
+                    if !allCreatorNames.isEmpty {
+                        HStack(spacing: 6) {
+                            Text("Người tạo:")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Button {
+                                showCreatorPicker = true
+                            } label: {
+                                Text(selectedCreatorName ?? "Tất cả")
+                                    .font(.caption)
+                                    .fontWeight(selectedCreatorName != nil ? .semibold : .regular)
+                                    .foregroundStyle(selectedCreatorName != nil ? .white : Color.themeTextDark)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        Capsule()
+                                            .fill(selectedCreatorName != nil ? Color.purple : Color.gray.opacity(0.1))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            if selectedCreatorName != nil {
+                                Button {
+                                    selectedCreatorName = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            Spacer()
+                        }
+                    }
+
+                }
+                .padding(12)
+                .background(Color.white)
+
+                Divider()
+
                 // ── Nội dung ─────────────────────────────────────────
                 Group {
                     if isLoading {
@@ -1606,6 +1690,18 @@ struct MaterialExportReportView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        renderMaterialExportReport()
+                    } label: {
+                        Image(systemName: "printer")
+                    }
+                }
+            }
+            .sheet(isPresented: $showShareSheet) {
+                if let image = printImage {
+                    ShareSheet(items: [image])
                 }
             }
             .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
@@ -1639,6 +1735,15 @@ struct MaterialExportReportView: View {
                 }
                 .presentationDetents([.medium])
             }
+            .confirmationDialog("Chọn người tạo", isPresented: $showCreatorPicker, titleVisibility: .visible) {
+                ForEach(allCreatorNames, id: \.self) { name in
+                    Button(name) { selectedCreatorName = name }
+                }
+                if selectedCreatorName != nil {
+                    Button("Tất cả", role: .destructive) { selectedCreatorName = nil }
+                }
+                Button("Huỷ", role: .cancel) { }
+            }
         }
         .task { await reload() }
     }
@@ -1650,7 +1755,7 @@ struct MaterialExportReportView: View {
             VStack(spacing: 0) {
                 autoSection(logs: reportRows, finishedImports: finishedImports)
                 Divider().padding(.horizontal)
-                manualSection(exports: manualExports)
+                manualSection(exports: filteredExports(manualExports))
             }
         }
     }
@@ -1700,7 +1805,7 @@ struct MaterialExportReportView: View {
                                 VStack(spacing: 0) {
                                     autoSection(logs: dayRows, finishedImports: dayData.finishedImports)
                                     Divider().padding(.horizontal)
-                                    manualSection(exports: dayData.manualExports)
+                                    manualSection(exports: filteredExports(dayData.manualExports))
                                 }
                                 .background(Color.themeBackgroundLight)
                             }
@@ -1771,6 +1876,33 @@ struct MaterialExportReportView: View {
                 }
             }
             .padding(.horizontal).padding(.bottom, 12)
+        }
+    }
+
+    // MARK: - Filter Logic
+
+    private func filteredExports(_ exports: [ProductionTransaction]) -> [ProductionTransaction] {
+        exports.filter { tx in
+            // VAT filter
+            let vatMatch: Bool
+            switch selectedVATFilter {
+            case .all:
+                vatMatch = true
+            case .withVAT:
+                vatMatch = (tx.vatAmount ?? 0) > 0
+            case .withoutVAT:
+                vatMatch = (tx.vatAmount ?? 0) == 0
+            }
+
+            // Creator filter
+            let creatorMatch: Bool
+            if let selected = selectedCreatorName {
+                creatorMatch = tx.creatorName == selected
+            } else {
+                creatorMatch = true
+            }
+
+            return vatMatch && creatorMatch && !tx.isDeleted
         }
     }
 
@@ -1848,6 +1980,138 @@ struct MaterialExportReportView: View {
         f.locale = Locale(identifier: "vi_VN")
         f.timeZone = .current
         f.dateFormat = "dd/MM/yyyy"
+        return f.string(from: date)
+    }
+
+    // MARK: - Print
+
+    private func renderMaterialExportReport() {
+        let allManualExports = rangeData.values.flatMap { filteredExports($0.manualExports) }
+        let allAutoLogs = rangeData.values.flatMap { $0.autoLogs }
+        let view = MaterialExportPrintView(
+            rangeLabel: rangeLabel,
+            vatFilter: selectedVATFilter.rawValue,
+            creatorName: selectedCreatorName,
+            autoLogs: allAutoLogs,
+            manualExports: allManualExports,
+            materials: materials
+        )
+        .frame(width: 400)
+        .background(Color.white)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = UIScreen.main.scale
+        if let image = renderer.uiImage {
+            printImage = image
+            showShareSheet = true
+        }
+    }
+}
+
+// MARK: - Material Export Print View
+
+private struct MaterialExportPrintView: View {
+    let rangeLabel: String
+    let vatFilter: String
+    let creatorName: String?
+    let autoLogs: [AutoMaterialExportLog]
+    let manualExports: [ProductionTransaction]
+    let materials: [MaterialItem]
+
+    private var totalFreshGrams: Int {
+        autoLogs.reduce(0) { $0 + $1.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) } }
+    }
+
+    private var totalAfterBoilGrams: Int {
+        autoLogs.reduce(0) { $0 + max(0, $1.data.afterBoilGrams) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            VStack(alignment: .center, spacing: 4) {
+                Text("Báo cáo xuất nguyên liệu")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                Text(rangeLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+                Text("In lúc: " + formatDateTime(Date()))
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            Divider()
+
+            // Filters
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bộ lọc:")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                if vatFilter != "Tất cả" {
+                    Text("• VAT: " + vatFilter)
+                }
+                if let name = creatorName {
+                    Text("• Người tạo: " + name)
+                }
+            }
+            .font(.caption)
+
+            Divider()
+
+            // Summary
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Số phiếu tự động")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text(String(autoLogs.count))
+                        .font(.headline)
+                        .fontWeight(.bold)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Tổng tươi")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text(FormatUtils.formatWeight(totalFreshGrams))
+                        .font(.headline)
+                        .fontWeight(.bold)
+                }
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Sau luộc")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text(FormatUtils.formatWeight(totalAfterBoilGrams))
+                        .font(.headline)
+                        .fontWeight(.bold)
+                }
+            }
+
+            if !manualExports.isEmpty {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Xuất thủ công:")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    Text(String(manualExports.count) + " phiếu")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.white)
+    }
+
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM/yyyy HH:mm"
         return f.string(from: date)
     }
 }
@@ -2107,6 +2371,14 @@ private struct GenericTxCard: View {
     }
 }
 
+// MARK: - Shared Enums
+
+enum VATFilter: String, CaseIterable {
+    case all = "Tất cả"
+    case withVAT = "Có VAT"
+    case withoutVAT = "Không VAT"
+}
+
 struct GenericProductionReportView: View {
     @ObservedObject var viewModel: OrderViewModel
     let mode: String
@@ -2148,12 +2420,6 @@ struct GenericProductionReportView: View {
     @State private var expandedDays: Set<String> = []
 
     // MARK: - Filters
-    enum VATFilter: String, CaseIterable {
-        case all = "Tất cả"
-        case withVAT = "Có VAT"
-        case withoutVAT = "Không VAT"
-    }
-
     @State private var selectedVATFilter: VATFilter = .all
     @State private var selectedCreatorName: String? = nil
     @State private var selectedStoreName: String? = nil
