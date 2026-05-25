@@ -17,13 +17,15 @@ struct MaterialEditView: View {
     @State private var stock: String = "0"
     @State private var showCostWheel = false
     @State private var costWheelSelection = 0
-    @State private var costWheelMax = 5000000
-    @State private var costWheelBaseSelection = 0
     @State private var costWheelHundredsSelection = 0
     @State private var costWheelHundredsRangeBase = 0
     @State private var showCostWheelHundredsRangePicker = false
-    @State private var costWheelRangeBase = 0
-    @State private var showCostWheelRangePicker = false
+    @State private var costWheelMillionsSelection = 0
+    @State private var costWheelMillionsRangeBase = 0
+    @State private var showCostWheelMillionsRangePicker = false
+    @State private var costWheelThousandsSelection = 0
+    @State private var costWheelThousandsRangeBase = 0
+    @State private var showCostWheelThousandsRangePicker = false
     @State private var showStockWheel = false
     @State private var stockWheelSelection = 0
     @State private var stockWheelMax = 1000
@@ -271,47 +273,71 @@ struct MaterialEditView: View {
         .sheet(isPresented: $showCostWheel) {
             VStack(spacing: 12) {
                 Text("Sửa giá nhập").font(.headline)
-                HStack {
-                    Button {
-                        showCostWheelRangePicker = true
-                    } label: {
-                        Text(costWheelRangeBase <= 0 ? ">0" : ">\(costWheelRangeBase / 1000)k")
-                            .fontWeight(.bold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Capsule().fill(Color.gray.opacity(0.15)))
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                }
-                let step = StoreManager.shared.priceStep
-                let rangeMin = max(0, (costWheelRangeBase / step) * step)
-                HStack {
-                    VStack {
-                        Text("Giá")
+                Text(formatCurrency(Double(costWheelSelection)))
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+                HStack(alignment: .top) {
+                    VStack(spacing: 2) {
+                        Button {
+                            showCostWheelMillionsRangePicker = true
+                        } label: {
+                            Text(costWheelMillionsRangeBase <= 0 ? ">0" : ">\(costWheelMillionsRangeBase)tr")
+                                .fontWeight(.bold)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                        Text("Triệu")
                             .font(.caption)
                             .foregroundStyle(.gray)
-                        Picker("", selection: $costWheelBaseSelection) {
-                            ForEach(Array(stride(from: rangeMin, through: costWheelMax, by: step)), id: \.self) { v in
-                                Text(formatCurrency(Double(v))).tag(v)
+                        let millionsRangeMin = costWheelMillionsRangeBase
+                        Picker("", selection: $costWheelMillionsSelection) {
+                            ForEach(Array(millionsRangeMin...max(millionsRangeMin, millionsRangeMin + 20)), id: \.self) { v in
+                                Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: costWheelBaseSelection) { _, newValue in
-                            costWheelSelection = newValue + costWheelHundredsSelection
-                            if newValue > costWheelMax - (step * 5) {
-                                costWheelMax += step * 100
-                            }
+                        .onChange(of: costWheelMillionsSelection) { _, newValue in
+                            costWheelSelection = newValue * 1_000_000 + costWheelThousandsSelection * 1_000 + costWheelHundredsSelection
                         }
                     }
-                    VStack {
+                    VStack(spacing: 2) {
+                        Button {
+                            showCostWheelThousandsRangePicker = true
+                        } label: {
+                            Text(costWheelThousandsRangeBase <= 0 ? ">0" : ">\(costWheelThousandsRangeBase)")
+                                .fontWeight(.bold)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
+                        Text("Ngàn")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        let thousandsRangeMin = costWheelThousandsRangeBase
+                        Picker("", selection: $costWheelThousandsSelection) {
+                            ForEach(Array(stride(from: thousandsRangeMin, through: min(thousandsRangeMin + 90, 999), by: 1)), id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: costWheelThousandsSelection) { _, newValue in
+                            costWheelSelection = costWheelMillionsSelection * 1_000_000 + newValue * 1_000 + costWheelHundredsSelection
+                        }
+                    }
+                    VStack(spacing: 2) {
                         Button {
                             showCostWheelHundredsRangePicker = true
                         } label: {
                             Text(costWheelHundredsRangeBase <= 0 ? ">0" : "\(costWheelHundredsRangeBase)")
                                 .fontWeight(.bold)
                                 .font(.caption2)
-                                .padding(.horizontal, 8)
+                                .padding(.horizontal, 6)
                                 .padding(.vertical, 4)
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }
@@ -327,10 +353,9 @@ struct MaterialEditView: View {
                         }
                         .pickerStyle(.wheel)
                         .onChange(of: costWheelHundredsSelection) { _, newValue in
-                            costWheelSelection = costWheelBaseSelection + newValue
+                            costWheelSelection = costWheelMillionsSelection * 1_000_000 + costWheelThousandsSelection * 1_000 + newValue
                         }
                     }
-                    .frame(width: 110)
                 }
                 HStack {
                     Button("Đóng") { showCostWheel = false }
@@ -343,15 +368,39 @@ struct MaterialEditView: View {
                 .font(.headline)
             }
             .padding()
-            .presentationDetents([.height(300)])
+            .presentationDetents([.height(340)])
             .onAppear {
-                let step = StoreManager.shared.priceStep
                 let current = max(0, costWheelSelection)
-                costWheelRangeBase = (current / 100000) * 100000
-                costWheelBaseSelection = (current / step) * step
-                let remainder = max(0, current - costWheelBaseSelection)
-                costWheelHundredsRangeBase = (remainder / 100) * 100
-                costWheelHundredsSelection = min(costWheelHundredsRangeBase + 90, remainder)
+                costWheelMillionsSelection = current / 1_000_000
+                costWheelMillionsRangeBase = (costWheelMillionsSelection / 10) * 10
+                let remainder1 = current % 1_000_000
+                costWheelThousandsSelection = remainder1 / 1_000
+                costWheelThousandsRangeBase = (costWheelThousandsSelection / 100) * 100
+                let remainder2 = remainder1 % 1_000
+                costWheelHundredsRangeBase = (remainder2 / 100) * 100
+                costWheelHundredsSelection = (remainder2 / 10) * 10
+            }
+            .confirmationDialog("Chọn vùng triệu", isPresented: $showCostWheelMillionsRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: 50, by: 10)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : ">\(v)tr") {
+                        costWheelMillionsRangeBase = v
+                        if costWheelMillionsSelection < v {
+                            costWheelMillionsSelection = v
+                        }
+                        showCostWheelMillionsRangePicker = false
+                    }
+                }
+            }
+            .confirmationDialog("Chọn vùng ngàn", isPresented: $showCostWheelThousandsRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : "\(v)-\(v+99)") {
+                        costWheelThousandsRangeBase = v
+                        if costWheelThousandsSelection < v || costWheelThousandsSelection > v + 99 {
+                            costWheelThousandsSelection = v
+                        }
+                        showCostWheelThousandsRangePicker = false
+                    }
+                }
             }
             .confirmationDialog("Chọn vùng trăm", isPresented: $showCostWheelHundredsRangePicker, titleVisibility: .visible) {
                 ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
@@ -361,17 +410,6 @@ struct MaterialEditView: View {
                             costWheelHundredsSelection = v
                         }
                         showCostWheelHundredsRangePicker = false
-                    }
-                }
-            }
-            .confirmationDialog("Chọn vùng giá trị", isPresented: $showCostWheelRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: min(costWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
-                        costWheelRangeBase = v
-                        let step = StoreManager.shared.priceStep
-                        let rangeMin = max(0, (v / step) * step)
-                        if costWheelBaseSelection < rangeMin { costWheelBaseSelection = rangeMin }
-                        showCostWheelRangePicker = false
                     }
                 }
             }
