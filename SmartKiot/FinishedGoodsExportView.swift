@@ -567,11 +567,12 @@ struct FinishedGoodsExportView: View {
             ForEach(items) { item in
                 let isLegacyGramAsCai = !isRegularRestock && item.unit?.lowercased() == "cái" && item.quantity >= 1000
                 let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
+                let itemUnitPrice = isFinishedGoodsImport ? (item.suggestedPrice ?? item.unitPrice) : item.unitPrice
                 let lineTotal: Double = {
                     if isRegularRestock || isCai {
-                        return Double(item.quantity) * item.unitPrice + item.additionalCost
+                        return Double(item.quantity) * itemUnitPrice
                     } else {
-                        return Double(item.quantity) / 1000.0 * item.unitPrice + item.additionalCost
+                        return Double(item.quantity) / 1000.0 * itemUnitPrice
                     }
                 }()
                 let qtyText: String = {
