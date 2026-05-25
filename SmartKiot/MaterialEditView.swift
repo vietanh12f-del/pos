@@ -205,6 +205,64 @@ struct MaterialEditView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    
+                    // MARK: - Material Export Summary Section
+                    Section(header: 
+                        HStack {
+                            Text("Tổng xuất nguyên liệu")
+                            Spacer()
+                            Button {
+                                showSummaryDatePicker = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "calendar")
+                                        .font(.caption)
+                                    Text(summaryDateRangeText)
+                                        .font(.caption)
+                                }
+                                .foregroundStyle(.blue)
+                            }
+                        }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 0) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Tổng số lượng xuất")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text(FormatUtils.formatWeight(totalExportedQuantity, unit: selectedUnit))
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(Color.orange)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text("Số lần xuất")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text("\(exportTransactionCount)")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(Color.red)
+                                }
+                            }
+                            
+                            if totalExportedCost > 0 {
+                                HStack {
+                                    Text("Tổng giá trị xuất:")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                    Text(formatCurrency(totalExportedCost))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.themeTextDark)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
             }
         }
@@ -547,6 +605,51 @@ struct MaterialEditView: View {
         let materialName = material.name
         return viewModel.productionHistory.filter { tx in
             tx.mode.lowercased().contains("nhập") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate &&
+            tx.items.contains { $0.name == materialName }
+        }.count
+    }
+    
+    // MARK: - Material Export Summary Computed Properties
+    private var totalExportedQuantity: Int {
+        guard case .edit(let material) = mode else { return 0 }
+        let materialName = material.name
+        let exportTxs = viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("xuất") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate
+        }
+        return exportTxs.reduce(0) { total, tx in
+            total + tx.items
+                .filter { $0.name == materialName }
+                .reduce(0) { $0 + $1.quantity }
+        }
+    }
+    
+    private var totalExportedCost: Double {
+        guard case .edit(let material) = mode else { return 0 }
+        let materialName = material.name
+        let exportTxs = viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("xuất") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate
+        }
+        return exportTxs.reduce(0) { total, tx in
+            total + tx.items
+                .filter { $0.name == materialName }
+                .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+        }
+    }
+    
+    private var exportTransactionCount: Int {
+        guard case .edit(let material) = mode else { return 0 }
+        let materialName = material.name
+        return viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("xuất") &&
             !tx.isDeleted &&
             tx.createdAt >= summaryStartDate &&
             tx.createdAt <= summaryEndDate &&
