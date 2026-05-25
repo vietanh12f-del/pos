@@ -1396,11 +1396,15 @@ struct ManualRestockItemView: View {
     @State private var showAdditionalCostHundredsRangePicker = false
     @State private var showSuggestedPriceWheel = false
     @State private var suggestedPriceWheelSelection = 0
-    @State private var suggestedPriceWheelMax = 10_000_000
-    @State private var suggestedPriceBaseSelection = 0
+    @State private var suggestedPriceMillionsSelection = 0
+    @State private var suggestedPriceMillionsRangeBase = 0
+    @State private var showSuggestedPriceMillionsRangePicker = false
+    @State private var suggestedPriceThousandsSelection = 0
+    @State private var suggestedPriceThousandsRangeBase = 0
+    @State private var showSuggestedPriceThousandsRangePicker = false
     @State private var suggestedPriceHundredsSelection = 0
-    @State private var suggestedPriceWheelRangeBase = 0
-    @State private var showSuggestedPriceWheelRangePicker = false
+    @State private var suggestedPriceHundredsRangeBase = 0
+    @State private var showSuggestedPriceHundredsRangePicker = false
     @State private var userEditedSuggestedPrice = false // flag: user đã tự chỉnh giá bán
     @State private var markupPercent: Double = 30 // % lợi nhuận trên giá vốn
     @State private var showMarkupPicker = false
@@ -2530,86 +2534,142 @@ struct ManualRestockItemView: View {
         }
         .sheet(isPresented: $showSuggestedPriceWheel) {
             VStack(spacing: 12) {
-                Text("Sửa giá bán dự kiến")
-                    .font(.headline)
-                let step = StoreManager.shared.priceStep
-                let rangeMin = max(0, (suggestedPriceWheelRangeBase / step) * step)
-                HStack {
-                    Button {
-                        showSuggestedPriceWheelRangePicker = true
-                    } label: {
-                        Text(suggestedPriceWheelRangeBase <= 0 ? ">0" : ">\(suggestedPriceWheelRangeBase / 1000)k")
-                            .fontWeight(.bold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Capsule().fill(Color.gray.opacity(0.15)))
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                }
-                HStack {
-                    VStack {
-                        Text("Giá")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Picker("", selection: $suggestedPriceBaseSelection) {
-                            ForEach(Array(stride(from: rangeMin, through: suggestedPriceWheelMax, by: step)), id: \.self) { v in
-                                Text(formatCurrency(Double(v))).tag(v)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .onChange(of: suggestedPriceBaseSelection) { _, newValue in
-                            suggestedPriceWheelSelection = newValue + suggestedPriceHundredsSelection
-                            if newValue > suggestedPriceWheelMax - (step * 5) {
-                                suggestedPriceWheelMax += step * 100
-                            }
-                        }
-                    }
-                    VStack {
-                        Text("Trăm")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Picker("", selection: $suggestedPriceHundredsSelection) {
-                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                Text("Sửa giá bán dự kiến").font(.headline)
+                Text(formatCurrency(Double(suggestedPriceWheelSelection)))
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+                HStack(alignment: .top) {
+                    VStack(spacing: 2) {
+                        Button { showSuggestedPriceMillionsRangePicker = true } label: {
+                            Text(suggestedPriceMillionsRangeBase <= 0 ? ">0" : ">\(suggestedPriceMillionsRangeBase)tr")
+                                .fontWeight(.bold).font(.caption2)
+                                .padding(.horizontal, 6).padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }.buttonStyle(.plain)
+                        Text("Triệu").font(.caption).foregroundStyle(.gray)
+                        let millionsMin = suggestedPriceMillionsRangeBase
+                        Picker("", selection: $suggestedPriceMillionsSelection) {
+                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: suggestedPriceHundredsSelection) { _, newValue in
-                            suggestedPriceWheelSelection = suggestedPriceBaseSelection + newValue
+                        .onChange(of: suggestedPriceMillionsSelection) { _, v in
+                            suggestedPriceWheelSelection = v * 1_000_000 + suggestedPriceThousandsSelection * 1_000 + suggestedPriceHundredsSelection
                         }
                     }
-                    .frame(width: 110)
+                    VStack(spacing: 2) {
+                        Button { showSuggestedPriceThousandsRangePicker = true } label: {
+                            Text(suggestedPriceThousandsRangeBase <= 0 ? ">0" : ">\(suggestedPriceThousandsRangeBase)")
+                                .fontWeight(.bold).font(.caption2)
+                                .padding(.horizontal, 6).padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }.buttonStyle(.plain)
+                        Text("Ngàn").font(.caption).foregroundStyle(.gray)
+                        let thousandsMin = suggestedPriceThousandsRangeBase
+                        Picker("", selection: $suggestedPriceThousandsSelection) {
+                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: suggestedPriceThousandsSelection) { _, v in
+                            suggestedPriceWheelSelection = suggestedPriceMillionsSelection * 1_000_000 + v * 1_000 + suggestedPriceHundredsSelection
+                        }
+                    }
+                    VStack(spacing: 2) {
+                        Button { showSuggestedPriceHundredsRangePicker = true } label: {
+                            Text(suggestedPriceHundredsRangeBase <= 0 ? ">0" : "\(suggestedPriceHundredsRangeBase)")
+                                .fontWeight(.bold).font(.caption2)
+                                .padding(.horizontal, 6).padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }.buttonStyle(.plain)
+                        Text("Trăm").font(.caption).foregroundStyle(.gray)
+                        let hundredsMin = suggestedPriceHundredsRangeBase
+                        Picker("", selection: $suggestedPriceHundredsSelection) {
+                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: suggestedPriceHundredsSelection) { _, v in
+                            suggestedPriceWheelSelection = suggestedPriceMillionsSelection * 1_000_000 + suggestedPriceThousandsSelection * 1_000 + v
+                        }
+                    }
                 }
                 HStack {
                     Button("Đóng") { showSuggestedPriceWheel = false }
                     Spacer()
-                    Button("Lưu") {
-                        handleSaveSuggestedPrice()
-                    }
+                    Button("Lưu") { handleSaveSuggestedPrice() }
                 }
                 .font(.headline)
             }
             .padding()
-            .presentationDetents([.height(300)])
+            .presentationDetents([.height(340)])
             .onAppear {
-                let step = StoreManager.shared.priceStep
                 let current = max(0, suggestedPriceWheelSelection)
-                suggestedPriceWheelRangeBase = (current / 100000) * 100000
-                suggestedPriceBaseSelection = (current / step) * step
-                let remainder = max(0, current - suggestedPriceBaseSelection)
-                suggestedPriceHundredsSelection = min(900, (remainder / 100) * 100)
+                suggestedPriceMillionsSelection = current / 1_000_000
+                suggestedPriceMillionsRangeBase = (suggestedPriceMillionsSelection / 10) * 10
+                let rem1 = current % 1_000_000
+                suggestedPriceThousandsSelection = rem1 / 1_000
+                suggestedPriceThousandsRangeBase = (suggestedPriceThousandsSelection / 100) * 100
+                let rem2 = rem1 % 1_000
+                suggestedPriceHundredsRangeBase = (rem2 / 100) * 100
+                suggestedPriceHundredsSelection = (rem2 / 10) * 10
             }
-            .confirmationDialog("Chọn vùng giá trị", isPresented: $showSuggestedPriceWheelRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: min(suggestedPriceWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : ">\(v / 1000)k") {
-                        suggestedPriceWheelRangeBase = v
-                        let step = StoreManager.shared.priceStep
-                        let rangeMin = max(0, (v / step) * step)
-                        if suggestedPriceBaseSelection < rangeMin { suggestedPriceBaseSelection = rangeMin }
-                        showSuggestedPriceWheelRangePicker = false
+            .sheet(isPresented: $showSuggestedPriceMillionsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng triệu").font(.headline)
+                    Picker("", selection: $suggestedPriceMillionsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
+                        }
+                    }.pickerStyle(.wheel)
+                    Button {
+                        if suggestedPriceMillionsSelection < suggestedPriceMillionsRangeBase { suggestedPriceMillionsSelection = suggestedPriceMillionsRangeBase }
+                        showSuggestedPriceMillionsRangePicker = false
+                    } label: {
+                        Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(Color.themePrimary).cornerRadius(10)
                     }
-                }
+                }.padding().presentationDetents([.height(300)])
+            }
+            .sheet(isPresented: $showSuggestedPriceThousandsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng ngàn").font(.headline)
+                    Picker("", selection: $suggestedPriceThousandsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                        }
+                    }.pickerStyle(.wheel)
+                    Button {
+                        if suggestedPriceThousandsSelection < suggestedPriceThousandsRangeBase || suggestedPriceThousandsSelection > suggestedPriceThousandsRangeBase + 99 { suggestedPriceThousandsSelection = suggestedPriceThousandsRangeBase }
+                        showSuggestedPriceThousandsRangePicker = false
+                    } label: {
+                        Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(Color.themePrimary).cornerRadius(10)
+                    }
+                }.padding().presentationDetents([.height(300)])
+            }
+            .sheet(isPresented: $showSuggestedPriceHundredsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng trăm").font(.headline)
+                    Picker("", selection: $suggestedPriceHundredsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                        }
+                    }.pickerStyle(.wheel)
+                    Button {
+                        if suggestedPriceHundredsSelection < suggestedPriceHundredsRangeBase || suggestedPriceHundredsSelection > suggestedPriceHundredsRangeBase + 90 { suggestedPriceHundredsSelection = suggestedPriceHundredsRangeBase }
+                        showSuggestedPriceHundredsRangePicker = false
+                    } label: {
+                        Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(Color.themePrimary).cornerRadius(10)
+                    }
+                }.padding().presentationDetents([.height(300)])
             }
         }
         .sheet(isPresented: $showMarkupPicker) {
