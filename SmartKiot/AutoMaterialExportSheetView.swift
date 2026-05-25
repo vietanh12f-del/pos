@@ -2680,9 +2680,25 @@ private struct ExportSlipShareSheet: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.themePrimary.opacity(0.06)))
             }
 
-            // Footer info — chỉ hiện "còn sau luộc", bỏ số chảo và KL/chảo vì đã có ở trên
+            // Footer info
             VStack(alignment: .leading, spacing: 6) {
                 slipInfoRow(label: afterBoilTitle, value: FormatUtils.formatWeight(afterBoilGrams))
+                if subSheetSlips.isEmpty {
+                    if actualPanWeightGrams > 0 {
+                        slipInfoRow(label: "Khối lượng chảo xào", value: FormatUtils.formatWeight(Int(actualPanWeightGrams.rounded())))
+                    }
+                    let extraTotal = extraPanRows.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
+                    if extraTotal > 0 {
+                        slipInfoRow(label: "Khối lượng xào thêm", value: FormatUtils.formatWeight(extraTotal))
+                    }
+                } else {
+                    let extraTotal = subSheetSlips.reduce(0) { sum, slip in
+                        sum + slip.extraPanRows.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
+                    }
+                    if extraTotal > 0 {
+                        slipInfoRow(label: "Khối lượng xào thêm", value: FormatUtils.formatWeight(extraTotal))
+                    }
+                }
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.06)))
