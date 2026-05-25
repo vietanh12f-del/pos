@@ -383,33 +383,39 @@ struct MaterialEditView: View {
             .confirmationDialog("Chọn vùng triệu", isPresented: $showCostWheelMillionsRangePicker, titleVisibility: .visible) {
                 ForEach(Array(stride(from: 0, through: 500, by: 50)), id: \.self) { v in
                     Button(v == 0 ? ">0" : ">\(v)tr") {
-                        costWheelMillionsRangeBase = v
-                        if costWheelMillionsSelection < v {
-                            costWheelMillionsSelection = v
-                        }
                         showCostWheelMillionsRangePicker = false
+                        DispatchQueue.main.async {
+                            costWheelMillionsRangeBase = v
+                            if costWheelMillionsSelection < v {
+                                costWheelMillionsSelection = v
+                            }
+                        }
                     }
                 }
             }
             .confirmationDialog("Chọn vùng ngàn", isPresented: $showCostWheelThousandsRangePicker, titleVisibility: .visible) {
                 ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
                     Button(v == 0 ? ">0" : "\(v)-\(v+99)") {
-                        costWheelThousandsRangeBase = v
-                        if costWheelThousandsSelection < v || costWheelThousandsSelection > v + 99 {
-                            costWheelThousandsSelection = v
-                        }
                         showCostWheelThousandsRangePicker = false
+                        DispatchQueue.main.async {
+                            costWheelThousandsRangeBase = v
+                            if costWheelThousandsSelection < v || costWheelThousandsSelection > v + 99 {
+                                costWheelThousandsSelection = v
+                            }
+                        }
                     }
                 }
             }
             .confirmationDialog("Chọn vùng trăm", isPresented: $showCostWheelHundredsRangePicker, titleVisibility: .visible) {
                 ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
                     Button(v == 0 ? ">0" : "\(v)-\(v+90)") {
-                        costWheelHundredsRangeBase = v
-                        if costWheelHundredsSelection < v || costWheelHundredsSelection > v + 90 {
-                            costWheelHundredsSelection = v
-                        }
                         showCostWheelHundredsRangePicker = false
+                        DispatchQueue.main.async {
+                            costWheelHundredsRangeBase = v
+                            if costWheelHundredsSelection < v || costWheelHundredsSelection > v + 90 {
+                                costWheelHundredsSelection = v
+                            }
+                        }
                     }
                 }
             }
