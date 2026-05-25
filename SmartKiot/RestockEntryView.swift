@@ -29,11 +29,15 @@ struct RestockEntryView: View {
     @State private var showSummaryQtyRangePicker = false
     @State private var showSummaryQtyGramsRangePicker = false
     @State private var summaryPriceSelection = 0
-    @State private var summaryPriceBaseSelection = 0
+    @State private var summaryPriceMillionsSelection = 0
+    @State private var summaryPriceMillionsRangeBase = 0
+    @State private var showSummaryPriceMillionsRangePicker = false
+    @State private var summaryPriceThousandsSelection = 0
+    @State private var summaryPriceThousandsRangeBase = 0
+    @State private var showSummaryPriceThousandsRangePicker = false
     @State private var summaryPriceHundredsSelection = 0
-    @State private var summaryPriceMax = 5_000_000
-    @State private var summaryPriceRangeBase = 0
-    @State private var showSummaryPriceRangePicker = false
+    @State private var summaryPriceHundredsRangeBase = 0
+    @State private var showSummaryPriceHundredsRangePicker = false
     @State private var summaryIsMaterials = false
     @State private var inventorySubTab: Int = 1
     @State private var lastAddedItemId: UUID? = nil
@@ -586,10 +590,6 @@ struct RestockEntryView: View {
                                                         ? Int(item.suggestedPrice ?? 0)
                                                         : Int(item.unitPrice)
                                                     summaryPriceSelection = priceToEdit
-                                                    let step = StoreManager.shared.priceStep
-                                                    summaryPriceBaseSelection = (summaryPriceSelection / step) * step
-                                                    let remainder = max(0, summaryPriceSelection - summaryPriceBaseSelection)
-                                                    summaryPriceHundredsSelection = min(900, (remainder / 100) * 100)
                                                     showSummaryPriceWheel = true
                                                 }
                                                 if item.additionalCost > 0 {
@@ -1039,54 +1039,67 @@ struct RestockEntryView: View {
         .sheet(isPresented: $showSummaryPriceWheel) {
             VStack(spacing: 12) {
                 Text(useMaterialsList ? "Sửa đơn giá" : "Sửa giá bán dự kiến").font(.headline)
-                let step = StoreManager.shared.priceStep
-                let rangeMin = max(0, (summaryPriceRangeBase / step) * step)
-                HStack {
-                    Button {
-                        showSummaryPriceRangePicker = true
-                    } label: {
-                        Text(summaryPriceRangeBase <= 0 ? ">0" : ">\(summaryPriceRangeBase / 1000)k")
-                            .fontWeight(.bold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Capsule().fill(Color.gray.opacity(0.15)))
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                }
-                HStack {
-                    VStack {
-                        Text("Giá")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Picker("", selection: $summaryPriceBaseSelection) {
-                            ForEach(Array(stride(from: rangeMin, through: summaryPriceMax, by: step)), id: \.self) { v in
-                                Text(formatCurrency(Double(v))).tag(v)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .onChange(of: summaryPriceBaseSelection) { _, newValue in
-                            summaryPriceSelection = newValue + summaryPriceHundredsSelection
-                            if newValue > summaryPriceMax - (step * 5) {
-                                summaryPriceMax += step * 100
-                            }
-                        }
-                    }
-                    VStack {
-                        Text("Trăm")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Picker("", selection: $summaryPriceHundredsSelection) {
-                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                Text(formatCurrency(Double(summaryPriceSelection)))
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+                HStack(alignment: .top) {
+                    VStack(spacing: 2) {
+                        Button { showSummaryPriceMillionsRangePicker = true } label: {
+                            Text(summaryPriceMillionsRangeBase <= 0 ? ">0" : ">\(summaryPriceMillionsRangeBase)tr")
+                                .fontWeight(.bold).font(.caption2)
+                                .padding(.horizontal, 6).padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }.buttonStyle(.plain)
+                        Text("Triệu").font(.caption).foregroundStyle(.gray)
+                        let millionsMin = summaryPriceMillionsRangeBase
+                        Picker("", selection: $summaryPriceMillionsSelection) {
+                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: summaryPriceHundredsSelection) { _, newValue in
-                            summaryPriceSelection = summaryPriceBaseSelection + newValue
+                        .onChange(of: summaryPriceMillionsSelection) { _, v in
+                            summaryPriceSelection = v * 1_000_000 + summaryPriceThousandsSelection * 1_000 + summaryPriceHundredsSelection
                         }
                     }
-                    .frame(width: 110)
+                    VStack(spacing: 2) {
+                        Button { showSummaryPriceThousandsRangePicker = true } label: {
+                            Text(summaryPriceThousandsRangeBase <= 0 ? ">0" : ">\(summaryPriceThousandsRangeBase)")
+                                .fontWeight(.bold).font(.caption2)
+                                .padding(.horizontal, 6).padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }.buttonStyle(.plain)
+                        Text("Ngàn").font(.caption).foregroundStyle(.gray)
+                        let thousandsMin = summaryPriceThousandsRangeBase
+                        Picker("", selection: $summaryPriceThousandsSelection) {
+                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: summaryPriceThousandsSelection) { _, v in
+                            summaryPriceSelection = summaryPriceMillionsSelection * 1_000_000 + v * 1_000 + summaryPriceHundredsSelection
+                        }
+                    }
+                    VStack(spacing: 2) {
+                        Button { showSummaryPriceHundredsRangePicker = true } label: {
+                            Text(summaryPriceHundredsRangeBase <= 0 ? ">0" : "\(summaryPriceHundredsRangeBase)")
+                                .fontWeight(.bold).font(.caption2)
+                                .padding(.horizontal, 6).padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }.buttonStyle(.plain)
+                        Text("Trăm").font(.caption).foregroundStyle(.gray)
+                        let hundredsMin = summaryPriceHundredsRangeBase
+                        Picker("", selection: $summaryPriceHundredsSelection) {
+                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                                Text("\(v)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        .onChange(of: summaryPriceHundredsSelection) { _, v in
+                            summaryPriceSelection = summaryPriceMillionsSelection * 1_000_000 + summaryPriceThousandsSelection * 1_000 + v
+                        }
+                    }
                 }
                 HStack {
                     Button("Đóng") { showSummaryPriceWheel = false }
@@ -1105,55 +1118,71 @@ struct RestockEntryView: View {
                 .font(.headline)
             }
             .padding()
-            .presentationDetents([.height(300)])
+            .presentationDetents([.height(340)])
             .onAppear {
-                let step = StoreManager.shared.priceStep
                 let current = max(0, summaryPriceSelection)
-                summaryPriceRangeBase = (current / 100000) * 100000
-                summaryPriceBaseSelection = (current / step) * step
-                let remainder = max(0, current - summaryPriceBaseSelection)
-                summaryPriceHundredsSelection = min(900, (remainder / 100) * 100)
+                summaryPriceMillionsSelection = current / 1_000_000
+                summaryPriceMillionsRangeBase = (summaryPriceMillionsSelection / 10) * 10
+                let rem1 = current % 1_000_000
+                summaryPriceThousandsSelection = rem1 / 1_000
+                summaryPriceThousandsRangeBase = (summaryPriceThousandsSelection / 100) * 100
+                let rem2 = rem1 % 1_000
+                summaryPriceHundredsRangeBase = (rem2 / 100) * 100
+                summaryPriceHundredsSelection = (rem2 / 10) * 10
             }
-            .sheet(isPresented: $showSummaryPriceRangePicker) {
+            .sheet(isPresented: $showSummaryPriceMillionsRangePicker) {
                 VStack(spacing: 16) {
-                    Text("Chọn vùng giá trị").font(.headline)
-                    let step = StoreManager.shared.priceStep
-                    Picker("", selection: $summaryPriceRangeBase) {
-                        ForEach(Array(stride(from: 0, through: min(summaryPriceMax, 10_000_000), by: 100_000)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : ">\(v / 1000)k").tag(v)
+                    Text("Chọn vùng triệu").font(.headline)
+                    Picker("", selection: $summaryPriceMillionsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
                         }
-                    }
-                    .pickerStyle(.wheel)
-                    .onChange(of: summaryPriceRangeBase) { _, newValue in
-                        if newValue >= summaryPriceMax - 200_000 {
-                            summaryPriceMax += 1_000_000
-                        }
-                    }
-                    
+                    }.pickerStyle(.wheel)
                     Button {
-                        let rangeMin = max(0, (summaryPriceRangeBase / step) * step)
-                        if summaryPriceBaseSelection < rangeMin { summaryPriceBaseSelection = rangeMin }
-                        showSummaryPriceRangePicker = false
+                        if summaryPriceMillionsSelection < summaryPriceMillionsRangeBase { summaryPriceMillionsSelection = summaryPriceMillionsRangeBase }
+                        showSummaryPriceMillionsRangePicker = false
                     } label: {
-                        Text("Xong")
-                            .font(.subheadline).fontWeight(.bold)
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.themePrimary)
-                            .cornerRadius(10)
+                        Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(Color.themePrimary).cornerRadius(10)
                     }
-                }
-                .padding()
-                .presentationDetents([.height(300)])
+                }.padding().presentationDetents([.height(300)])
             }
-            .onAppear {
-                let t = titleText.lowercased()
-                if t.contains("thành phẩm") {
-                    inventorySubTab = 0
-                } else {
-                    inventorySubTab = 1
-                }
+            .sheet(isPresented: $showSummaryPriceThousandsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng ngàn").font(.headline)
+                    Picker("", selection: $summaryPriceThousandsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                        }
+                    }.pickerStyle(.wheel)
+                    Button {
+                        if summaryPriceThousandsSelection < summaryPriceThousandsRangeBase || summaryPriceThousandsSelection > summaryPriceThousandsRangeBase + 99 { summaryPriceThousandsSelection = summaryPriceThousandsRangeBase }
+                        showSummaryPriceThousandsRangePicker = false
+                    } label: {
+                        Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(Color.themePrimary).cornerRadius(10)
+                    }
+                }.padding().presentationDetents([.height(300)])
+            }
+            .sheet(isPresented: $showSummaryPriceHundredsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng trăm").font(.headline)
+                    Picker("", selection: $summaryPriceHundredsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                        }
+                    }.pickerStyle(.wheel)
+                    Button {
+                        if summaryPriceHundredsSelection < summaryPriceHundredsRangeBase || summaryPriceHundredsSelection > summaryPriceHundredsRangeBase + 90 { summaryPriceHundredsSelection = summaryPriceHundredsRangeBase }
+                        showSummaryPriceHundredsRangePicker = false
+                    } label: {
+                        Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 10)
+                            .background(Color.themePrimary).cornerRadius(10)
+                    }
+                }.padding().presentationDetents([.height(300)])
             }
         }
     }
