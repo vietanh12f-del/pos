@@ -2587,7 +2587,21 @@ struct GenericProductionReportView: View {
     private func stats(for txs: [ProductionTransaction]) -> (count: Int, totalCost: Double, totalQty: Int, totalRevenue: Double, totalDebt: Double, unpaidCount: Int) {
         let active = txs.filter { !$0.isDeleted }
         let count = active.count
-        let totalCost = active.reduce(0) { $0 + $1.totalCost }
+        
+        // Calculate totalCost: for materialImport with specific material selected,
+        // only sum the cost of items matching that material
+        let totalCost: Double
+        if reportKind == .materialImport, let selectedMaterial = selectedMaterialName {
+            totalCost = active.reduce(0) { sum, tx in
+                let matchingItemsCost = tx.items
+                    .filter { $0.name == selectedMaterial }
+                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+                return sum + matchingItemsCost
+            }
+        } else {
+            totalCost = active.reduce(0) { $0 + $1.totalCost }
+        }
+        
         let totalQty = active.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
         let totalRevenue = active.compactMap { $0.grandTotal }.reduce(0, +)
         let totalDebt = active.compactMap { $0.debtAmount }.reduce(0, +)
