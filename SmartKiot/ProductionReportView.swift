@@ -48,7 +48,18 @@ struct ProductionReportView: View {
     }
 
     private var importTxCount: Int { filteredImportTx.count }
-    private var importTxTotal: Double { filteredImportTx.reduce(0.0) { total, tx in total + tx.totalCost } }
+    private var importTxTotal: Double { 
+        filteredImportTx.reduce(0.0) { total, tx in
+            let txCost = tx.items.reduce(0.0) { sum, item in
+                let isCai = item.unit?.lowercased() == "cái"
+                let itemCost = isCai
+                    ? Double(item.quantity) * item.unitPrice
+                    : Double(item.quantity) / 1000.0 * item.unitPrice
+                return sum + itemCost
+            }
+            return total + txCost
+        }
+    }
     
     // Thống kê VAT cho nhập nguyên liệu
     private var importTxVatCount: Int { filteredImportTx.filter { ($0.vatAmount ?? 0) > 0 }.count }
@@ -93,7 +104,16 @@ struct ProductionReportView: View {
 
     /// Tổng giá trị nhập thành phẩm trong kỳ
     private var finishedImportTotalValue: Double {
-        filteredFinishedImportTx.reduce(0) { $0 + $1.totalCost }
+        filteredFinishedImportTx.reduce(0.0) { total, tx in
+            let txCost = tx.items.reduce(0.0) { sum, item in
+                let isCai = item.unit?.lowercased() == "cái"
+                let itemCost = isCai
+                    ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                    : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+                return sum + itemCost
+            }
+            return total + txCost
+        }
     }
 
     /// Số loại thành phẩm hiện có trong kho
