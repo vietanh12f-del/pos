@@ -118,6 +118,11 @@ struct ProductionReportView: View {
         filteredFinishedExportTx.reduce(0) { $0 + ($1.grandTotal ?? 0) }
     }
 
+    /// Tổng công nợ từ xuất thành phẩm
+    private var finishedExportTotalDebt: Double {
+        filteredFinishedExportTx.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+    }
+
     /// Tổng số thành phẩm hiện tại (tất cả loại)
     private var totalFinishedGoodStockCount: Int {
         viewModel.products.filter { $0.isFinishedGood }.reduce(0) { $0 + $1.stockQuantity }
@@ -918,10 +923,11 @@ struct ProductionReportView: View {
                 Divider().frame(height: 32)
 
                 VStack(spacing: 4) {
-                    Text("Giá trị tồn kho")
+                    Text("Công nợ")
                         .font(.caption2).foregroundStyle(.gray)
-                    Text(formatCurrency(totalFinishedGoodStockValue))
-                        .font(.caption).fontWeight(.semibold).foregroundStyle(cfg.color)
+                    Text(formatCurrency(finishedExportTotalDebt))
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(finishedExportTotalDebt > 0 ? .red : cfg.color)
                         .lineLimit(1).minimumScaleFactor(0.8)
                 }
                 .frame(maxWidth: .infinity)
@@ -2602,8 +2608,25 @@ struct GenericProductionReportView: View {
             totalCost = active.reduce(0) { $0 + $1.totalCost }
         }
         
+        // Calculate totalRevenue: for finishedExport with specific finished good selected,
+        // calculate revenue proportionally based on matching items
+        let totalRevenue: Double
+        if reportKind == .finishedExport, let selectedFG = selectedFinishedGoodName {
+            totalRevenue = active.reduce(0) { sum, tx in
+                // Calculate proportion of selected finished good in this transaction
+                let selectedTotal = tx.items
+                    .filter { $0.name == selectedFG }
+                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+                let allItemsTotal = tx.items
+                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+                let proportion = allItemsTotal > 0 ? selectedTotal / allItemsTotal : 0
+                return sum + (tx.grandTotal ?? 0) * proportion
+            }
+        } else {
+            totalRevenue = active.compactMap { $0.grandTotal }.reduce(0, +)
+        }
+        
         let totalQty = active.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
-        let totalRevenue = active.compactMap { $0.grandTotal }.reduce(0, +)
         let totalDebt = active.compactMap { $0.debtAmount }.reduce(0, +)
         let unpaidCount = active.filter { !$0.isPaid }.count
         return (count, totalCost, totalQty, totalRevenue, totalDebt, unpaidCount)
@@ -3059,8 +3082,7 @@ struct GenericProductionReportView: View {
                     statTile(label: "Tổng tiền nhập hàng", value: formatCurrency(s.totalCost), icon: "banknote.fill", color: .green)
                 } else if reportKind == .finishedExport {
                     statTile(label: "Số phiếu xuất", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
-                    statTile(label: "Giá trị tồn kho", value: formatCurrency(currentStockValue), icon: "shippingbox.fill", color: accentColor)
-                    statTile(label: "Còn nợ", value: formatCurrency(s.totalDebt), icon: "exclamationmark.circle.fill", color: s.totalDebt > 0 ? .red : .gray)
+                    statTile(label: "Giá trị xuất", value: formatCurrency(s.totalRevenue), icon: "arrow.up.circle.fill", color: accentColor)
                 } else {
                     statTile(label: "Số phiếu nhập", value: "\(s.count)", icon: "doc.text.fill", color: accentColor)
                     statTile(label: "Tổng tiền nhập hàng", value: formatCurrency(s.totalCost), icon: "banknote.fill", color: .green)
@@ -3237,7 +3259,29 @@ private struct FilteredTransactionsPrintView: View {
                 .filter { $0.name == selectedMaterial }
                 .reduce(0) { $0 + $1.quantity }
         }
+        // For finishedExport with specific finished good selected, only count matching items
+        if reportKind == .finishedExport, let selectedFG = finishedGoodName {
+            return active.flatMap { $0.items }
+                .filter { $0.name == selectedFG }
+                .reduce(0) { $0 + $1.quantity }
+        }
         return active.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
+    }
+    private var filteredTotalRevenue: Double {
+        let active = txs.filter { !$0.isDeleted }
+        // For finishedExport with specific finished good selected, calculate revenue proportionally
+        if reportKind == .finishedExport, let selectedFG = finishedGoodName {
+            return active.reduce(0) { sum, tx in
+                let selectedTotal = tx.items
+                    .filter { $0.name == selectedFG }
+                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+                let allItemsTotal = tx.items
+                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+                let proportion = allItemsTotal > 0 ? selectedTotal / allItemsTotal : 0
+                return sum + (tx.grandTotal ?? 0) * proportion
+            }
+        }
+        return active.compactMap { $0.grandTotal }.reduce(0, +)
     }
     private var totalRevenue: Double {
         txs.filter { !$0.isDeleted }.compactMap { $0.grandTotal }.reduce(0, +)
@@ -3305,7 +3349,7 @@ private struct FilteredTransactionsPrintView: View {
                         Text("Tổng doanh thu")
                             .font(.caption)
                             .foregroundStyle(.gray)
-                        Text(formatCurrency(totalRevenue))
+                        Text(formatCurrency(filteredTotalRevenue))
                             .font(.headline)
                             .fontWeight(.bold)
                     }
@@ -3322,10 +3366,11 @@ private struct FilteredTransactionsPrintView: View {
                     }
                 } else {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("Tổng tiền")
+                        Text(reportKind == .finishedExport ? "Giá trị xuất" : "Tổng tiền")
                             .font(.caption)
                             .foregroundStyle(.gray)
-                        Text(formatCurrency(totalCost))
+                        let revenueToShow = reportKind == .finishedExport ? filteredTotalRevenue : totalCost
+                        Text(formatCurrency(revenueToShow))
                             .font(.headline)
                             .fontWeight(.bold)
                     }
@@ -3337,7 +3382,7 @@ private struct FilteredTransactionsPrintView: View {
             // Transactions
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(txs.sorted { $0.createdAt > $1.createdAt }) { tx in
-                    FilteredTransactionPrintRow(tx: tx, materialName: materialName, reportKind: reportKind)
+                    FilteredTransactionPrintRow(tx: tx, materialName: materialName, finishedGoodName: finishedGoodName, reportKind: reportKind)
                 }
             }
 
@@ -3367,6 +3412,7 @@ private struct FilteredTransactionsPrintView: View {
 private struct FilteredTransactionPrintRow: View {
     let tx: ProductionTransaction
     let materialName: String?
+    let finishedGoodName: String?
     let reportKind: ProductionReportKind
 
     var body: some View {
@@ -3417,6 +3463,9 @@ private struct FilteredTransactionPrintRow: View {
         if reportKind == .materialImport, let selectedMaterial = materialName {
             return tx.items.filter { $0.name == selectedMaterial }
         }
+        if reportKind == .finishedExport, let selectedFG = finishedGoodName {
+            return tx.items.filter { $0.name == selectedFG }
+        }
         return tx.items
     }
 
@@ -3434,6 +3483,16 @@ private struct FilteredTransactionPrintRow: View {
             return tx.items
                 .filter { $0.name == selectedMaterial }
                 .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+        }
+        if reportKind == .finishedExport, let selectedFG = finishedGoodName {
+            // Calculate proportion of selected finished good in this transaction
+            let selectedTotal = tx.items
+                .filter { $0.name == selectedFG }
+                .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+            let allItemsTotal = tx.items
+                .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+            let proportion = allItemsTotal > 0 ? selectedTotal / allItemsTotal : 0
+            return (tx.grandTotal ?? 0) * proportion
         }
         return tx.totalCost
     }
