@@ -2885,8 +2885,8 @@ struct GenericProductionReportView: View {
                         }
                     }
                     
-                    // Finished Goods Filter (only for finishedExport)
-                    if reportKind == .finishedExport {
+                    // Finished Goods Filter (for finishedExport and finishedImport)
+                    if reportKind == .finishedExport || reportKind == .finishedImport {
                         HStack(spacing: 6) {
                             Text("Thành phẩm:")
                                 .font(.caption)
