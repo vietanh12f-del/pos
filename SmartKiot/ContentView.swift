@@ -956,11 +956,15 @@ struct ContentView: View {
         @State private var priceEditItem: OrderItem?
         @State private var priceInput: String = ""
         @State private var priceWheelSelection: Int = 0
-        @State private var priceWheelBaseSelection: Int = 0
-        @State private var priceWheelHundredsSelection: Int = 0
-        @State private var priceWheelMax: Int = 100_000
-        @State private var priceWheelRangeBase: Int = 0
-        @State private var showPriceWheelRangePicker: Bool = false
+        @State private var priceMillionsSelection: Int = 0
+        @State private var priceMillionsRangeBase: Int = 0
+        @State private var showPriceMillionsRangePicker: Bool = false
+        @State private var priceThousandsSelection: Int = 0
+        @State private var priceThousandsRangeBase: Int = 0
+        @State private var showPriceThousandsRangePicker: Bool = false
+        @State private var priceHundredsSelection: Int = 0
+        @State private var priceHundredsRangeBase: Int = 0
+        @State private var showPriceHundredsRangePicker: Bool = false
         @State private var wheelItem: OrderItem?
         @State private var wheelSelection: Int = 1
         @State private var wheelMax: Int = 100
@@ -1342,13 +1346,7 @@ struct ContentView: View {
                                                 .font(.caption)
                                                 .foregroundStyle(.gray)
                                                 .onTapGesture {
-                                                    let step = StoreManager.shared.priceStep
-                                                    let base = max(0, Int(item.price))
-                                                    priceWheelSelection = base
-                                                    priceWheelBaseSelection = (base / step) * step
-                                                    let remainder = max(0, base - priceWheelBaseSelection)
-                                                    priceWheelHundredsSelection = min(900, (remainder / 100) * 100)
-                                                    priceWheelMax = max(step * 20, priceWheelBaseSelection + 500_000)
+                                                    priceWheelSelection = max(0, Int(item.price))
                                                     priceEditItem = item
                                                 }
                                             if item.discount > 0 {
@@ -1602,92 +1600,146 @@ struct ContentView: View {
                 ProductCustomizeView(product: product, viewModel: viewModel)
             }
             .sheet(item: $priceEditItem) { item in
-                NavigationStack {
-                    Form {
-                        Section {
-                            let step = StoreManager.shared.priceStep
-                            let rangeMin = max(0, (priceWheelRangeBase / step) * step)
-                            HStack {
-                                Button {
-                                    showPriceWheelRangePicker = true
-                                } label: {
-                                    Text(priceWheelRangeBase <= 0 ? ">0" : ">\(priceWheelRangeBase / 1000)k")
-                                        .fontWeight(.bold)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                VStack(spacing: 12) {
+                    Text("Sửa giá").font(.headline)
+                    Text(formatCurrency(Double(priceWheelSelection)))
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themePrimary)
+                    HStack(alignment: .top) {
+                        VStack(spacing: 2) {
+                            Button { showPriceMillionsRangePicker = true } label: {
+                                Text(priceMillionsRangeBase <= 0 ? ">0" : ">\(priceMillionsRangeBase)tr")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Triệu").font(.caption).foregroundStyle(.gray)
+                            let millionsMin = priceMillionsRangeBase
+                            Picker("", selection: $priceMillionsSelection) {
+                                ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
                                 }
-                                .buttonStyle(.plain)
-                                Spacer()
                             }
-                            HStack {
-                                VStack {
-                                    Text("Giá")
-                                        .font(.caption)
-                                        .foregroundStyle(.gray)
-                                    Picker("", selection: $priceWheelBaseSelection) {
-                                        ForEach(Array(stride(from: rangeMin, through: priceWheelMax, by: step)), id: \.self) { v in
-                                            Text(formatCurrency(Double(v))).tag(v)
-                                        }
-                                    }
-                                    .pickerStyle(.wheel)
-                                    .onChange(of: priceWheelBaseSelection) { _, newValue in
-                                        priceWheelSelection = newValue + priceWheelHundredsSelection
-                                        if newValue > priceWheelMax - (step * 5) {
-                                            priceWheelMax += step * 100
-                                        }
-                                    }
-                                }
-                                VStack {
-                                    Text("Trăm")
-                                        .font(.caption)
-                                        .foregroundStyle(.gray)
-                                    Picker("", selection: $priceWheelHundredsSelection) {
-                                        ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                                            Text("\(v)").tag(v)
-                                        }
-                                    }
-                                    .pickerStyle(.wheel)
-                                    .onChange(of: priceWheelHundredsSelection) { _, newValue in
-                                        priceWheelSelection = priceWheelBaseSelection + newValue
-                                    }
-                                }
-                                .frame(width: 110)
+                            .pickerStyle(.wheel)
+                            .onChange(of: priceMillionsSelection) { _, v in
+                                priceWheelSelection = v * 1_000_000 + priceThousandsSelection * 1_000 + priceHundredsSelection
                             }
                         }
-                    }
-                    .navigationTitle("Sửa giá")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Hủy") { priceEditItem = nil }
+                        VStack(spacing: 2) {
+                            Button { showPriceThousandsRangePicker = true } label: {
+                                Text(priceThousandsRangeBase <= 0 ? ">0" : ">\(priceThousandsRangeBase)")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Ngàn").font(.caption).foregroundStyle(.gray)
+                            let thousandsMin = priceThousandsRangeBase
+                            Picker("", selection: $priceThousandsSelection) {
+                                ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: priceThousandsSelection) { _, v in
+                                priceWheelSelection = priceMillionsSelection * 1_000_000 + v * 1_000 + priceHundredsSelection
+                            }
                         }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Lưu") {
-                                viewModel.updateItemFull(item, name: item.name, price: Double(priceWheelSelection), quantity: item.quantity, discount: item.discount, imageData: item.imageData)
-                                priceEditItem = nil
+                        VStack(spacing: 2) {
+                            Button { showPriceHundredsRangePicker = true } label: {
+                                Text(priceHundredsRangeBase <= 0 ? ">0" : "\(priceHundredsRangeBase)")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Trăm").font(.caption).foregroundStyle(.gray)
+                            let hundredsMin = priceHundredsRangeBase
+                            Picker("", selection: $priceHundredsSelection) {
+                                ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: priceHundredsSelection) { _, v in
+                                priceWheelSelection = priceMillionsSelection * 1_000_000 + priceThousandsSelection * 1_000 + v
                             }
                         }
                     }
+                    HStack {
+                        Button("Đóng") { priceEditItem = nil }
+                        Spacer()
+                        Button("Lưu") {
+                            viewModel.updateItemFull(item, name: item.name, price: Double(priceWheelSelection), quantity: item.quantity, discount: item.discount, imageData: item.imageData)
+                            priceEditItem = nil
+                        }
+                    }
+                    .font(.headline)
                 }
-                .presentationDetents([.height(300)])
+                .padding()
+                .presentationDetents([.height(340)])
                 .onAppear {
-                    let step = StoreManager.shared.priceStep
                     let current = max(0, priceWheelSelection)
-                    priceWheelRangeBase = (current / 100000) * 100000
-                    priceWheelBaseSelection = (current / step) * step
-                    let remainder = max(0, current - priceWheelBaseSelection)
-                    priceWheelHundredsSelection = min(900, (remainder / 100) * 100)
+                    priceMillionsSelection = current / 1_000_000
+                    priceMillionsRangeBase = (priceMillionsSelection / 10) * 10
+                    let rem1 = current % 1_000_000
+                    priceThousandsSelection = rem1 / 1_000
+                    priceThousandsRangeBase = (priceThousandsSelection / 100) * 100
+                    let rem2 = rem1 % 1_000
+                    priceHundredsRangeBase = (rem2 / 100) * 100
+                    priceHundredsSelection = (rem2 / 10) * 10
                 }
-                .confirmationDialog("Chọn vùng giá trị", isPresented: $showPriceWheelRangePicker, titleVisibility: .visible) {
-                    ForEach(Array(stride(from: 0, through: min(priceWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
-                        Button(v == 0 ? ">0" : ">\(v / 1000)k") {
-                            priceWheelRangeBase = v
-                            let step = StoreManager.shared.priceStep
-                            let rangeMin = max(0, (v / step) * step)
-                            if priceWheelBaseSelection < rangeMin { priceWheelBaseSelection = rangeMin }
-                            showPriceWheelRangePicker = false
+                .sheet(isPresented: $showPriceMillionsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng triệu").font(.headline)
+                        Picker("", selection: $priceMillionsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
+                                Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if priceMillionsSelection < priceMillionsRangeBase { priceMillionsSelection = priceMillionsRangeBase }
+                            showPriceMillionsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
                         }
-                    }
+                    }.padding().presentationDetents([.height(300)])
+                }
+                .sheet(isPresented: $showPriceThousandsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng ngàn").font(.headline)
+                        Picker("", selection: $priceThousandsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if priceThousandsSelection < priceThousandsRangeBase || priceThousandsSelection > priceThousandsRangeBase + 99 { priceThousandsSelection = priceThousandsRangeBase }
+                            showPriceThousandsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }.padding().presentationDetents([.height(300)])
+                }
+                .sheet(isPresented: $showPriceHundredsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng trăm").font(.headline)
+                        Picker("", selection: $priceHundredsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if priceHundredsSelection < priceHundredsRangeBase || priceHundredsSelection > priceHundredsRangeBase + 90 { priceHundredsSelection = priceHundredsRangeBase }
+                            showPriceHundredsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }.padding().presentationDetents([.height(300)])
                 }
             }
             .sheet(item: $nameWheelItem) { item in
