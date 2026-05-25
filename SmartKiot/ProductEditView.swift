@@ -45,6 +45,8 @@ struct ProductEditView: View {
     @State private var priceWheelMax = 10000000
     @State private var priceWheelBaseSelection = 0
     @State private var priceWheelHundredsSelection = 0
+    @State private var priceWheelHundredsRangeBase = 0
+    @State private var showPriceWheelHundredsRangePicker = false
     @State private var priceWheelRangeBase = 0
     @State private var showPriceWheelRangePicker = false
     @State private var showStockWheel = false
@@ -868,11 +870,23 @@ struct ProductEditView: View {
                             }
                         }
                         VStack {
+                            Button {
+                                showPriceWheelHundredsRangePicker = true
+                            } label: {
+                                Text(priceWheelHundredsRangeBase <= 0 ? ">0" : "\(priceWheelHundredsRangeBase)")
+                                    .fontWeight(.bold)
+                                    .font(.caption2)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
                             Text("Trăm")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
+                            let hundredsRangeMin = priceWheelHundredsRangeBase
                             Picker("", selection: $priceWheelHundredsSelection) {
-                                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                ForEach(Array(stride(from: hundredsRangeMin, through: min(hundredsRangeMin + 90, 990), by: 10)), id: \.self) { v in
                                     Text("\(v)").tag(v)
                                 }
                             }
@@ -901,7 +915,19 @@ struct ProductEditView: View {
                     priceWheelRangeBase = (current / 100000) * 100000
                     priceWheelBaseSelection = (current / step) * step
                     let remainder = max(0, current - priceWheelBaseSelection)
-                    priceWheelHundredsSelection = min(900, (remainder / 100) * 100)
+                    priceWheelHundredsRangeBase = (remainder / 100) * 100
+                    priceWheelHundredsSelection = min(priceWheelHundredsRangeBase + 90, remainder)
+                }
+                .confirmationDialog("Chọn vùng trăm", isPresented: $showPriceWheelHundredsRangePicker, titleVisibility: .visible) {
+                    ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                        Button(v == 0 ? ">0" : "\(v)-\(v+90)") {
+                            priceWheelHundredsRangeBase = v
+                            if priceWheelHundredsSelection < v || priceWheelHundredsSelection > v + 90 {
+                                priceWheelHundredsSelection = v
+                            }
+                            showPriceWheelHundredsRangePicker = false
+                        }
+                    }
                 }
                 .confirmationDialog("Chọn vùng giá trị", isPresented: $showPriceWheelRangePicker, titleVisibility: .visible) {
                     ForEach(Array(stride(from: 0, through: min(priceWheelMax, 20_000_000), by: 100_000)), id: \.self) { v in

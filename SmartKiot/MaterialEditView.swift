@@ -20,6 +20,8 @@ struct MaterialEditView: View {
     @State private var costWheelMax = 5000000
     @State private var costWheelBaseSelection = 0
     @State private var costWheelHundredsSelection = 0
+    @State private var costWheelHundredsRangeBase = 0
+    @State private var showCostWheelHundredsRangePicker = false
     @State private var costWheelRangeBase = 0
     @State private var showCostWheelRangePicker = false
     @State private var showStockWheel = false
@@ -303,11 +305,23 @@ struct MaterialEditView: View {
                         }
                     }
                     VStack {
+                        Button {
+                            showCostWheelHundredsRangePicker = true
+                        } label: {
+                            Text(costWheelHundredsRangeBase <= 0 ? ">0" : "\(costWheelHundredsRangeBase)")
+                                .fontWeight(.bold)
+                                .font(.caption2)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Color.gray.opacity(0.15)))
+                        }
+                        .buttonStyle(.plain)
                         Text("Trăm")
                             .font(.caption)
                             .foregroundStyle(.gray)
+                        let hundredsRangeMin = costWheelHundredsRangeBase
                         Picker("", selection: $costWheelHundredsSelection) {
-                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                            ForEach(Array(stride(from: hundredsRangeMin, through: min(hundredsRangeMin + 90, 990), by: 10)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
@@ -336,7 +350,19 @@ struct MaterialEditView: View {
                 costWheelRangeBase = (current / 100000) * 100000
                 costWheelBaseSelection = (current / step) * step
                 let remainder = max(0, current - costWheelBaseSelection)
-                costWheelHundredsSelection = min(900, (remainder / 100) * 100)
+                costWheelHundredsRangeBase = (remainder / 100) * 100
+                costWheelHundredsSelection = min(costWheelHundredsRangeBase + 90, remainder)
+            }
+            .confirmationDialog("Chọn vùng trăm", isPresented: $showCostWheelHundredsRangePicker, titleVisibility: .visible) {
+                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                    Button(v == 0 ? ">0" : "\(v)-\(v+90)") {
+                        costWheelHundredsRangeBase = v
+                        if costWheelHundredsSelection < v || costWheelHundredsSelection > v + 90 {
+                            costWheelHundredsSelection = v
+                        }
+                        showCostWheelHundredsRangePicker = false
+                    }
+                }
             }
             .confirmationDialog("Chọn vùng giá trị", isPresented: $showCostWheelRangePicker, titleVisibility: .visible) {
                 ForEach(Array(stride(from: 0, through: min(costWheelMax, 10_000_000), by: 100_000)), id: \.self) { v in
