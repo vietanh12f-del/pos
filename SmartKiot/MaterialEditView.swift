@@ -295,7 +295,7 @@ struct MaterialEditView: View {
                             .foregroundStyle(.gray)
                         let millionsRangeMin = costWheelMillionsRangeBase
                         Picker("", selection: $costWheelMillionsSelection) {
-                            ForEach(Array(millionsRangeMin...max(millionsRangeMin, millionsRangeMin + 20)), id: \.self) { v in
+                            ForEach(Array(millionsRangeMin...max(millionsRangeMin, millionsRangeMin + 500)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
@@ -381,7 +381,7 @@ struct MaterialEditView: View {
                 costWheelHundredsSelection = (remainder2 / 10) * 10
             }
             .confirmationDialog("Chọn vùng triệu", isPresented: $showCostWheelMillionsRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: 50, by: 10)), id: \.self) { v in
+                ForEach(Array(stride(from: 0, through: 500, by: 50)), id: \.self) { v in
                     Button(v == 0 ? ">0" : ">\(v)tr") {
                         costWheelMillionsRangeBase = v
                         if costWheelMillionsSelection < v {
