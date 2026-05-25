@@ -380,44 +380,86 @@ struct MaterialEditView: View {
                 costWheelHundredsRangeBase = (remainder2 / 100) * 100
                 costWheelHundredsSelection = (remainder2 / 10) * 10
             }
-            .confirmationDialog("Chọn vùng triệu", isPresented: $showCostWheelMillionsRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: 500, by: 50)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : ">\(v)tr") {
+            .sheet(isPresented: $showCostWheelMillionsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng triệu").font(.headline)
+                    Picker("", selection: $costWheelMillionsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 500, by: 50)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    Button {
+                        if costWheelMillionsSelection < costWheelMillionsRangeBase {
+                            costWheelMillionsSelection = costWheelMillionsRangeBase
+                        }
                         showCostWheelMillionsRangePicker = false
-                        DispatchQueue.main.async {
-                            costWheelMillionsRangeBase = v
-                            if costWheelMillionsSelection < v {
-                                costWheelMillionsSelection = v
-                            }
-                        }
+                    } label: {
+                        Text("Xong")
+                            .font(.subheadline).fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.themePrimary)
+                            .cornerRadius(10)
                     }
                 }
+                .padding()
+                .presentationDetents([.height(300)])
             }
-            .confirmationDialog("Chọn vùng ngàn", isPresented: $showCostWheelThousandsRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : "\(v)-\(v+99)") {
+            .sheet(isPresented: $showCostWheelThousandsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng ngàn").font(.headline)
+                    Picker("", selection: $costWheelThousandsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    Button {
+                        if costWheelThousandsSelection < costWheelThousandsRangeBase || costWheelThousandsSelection > costWheelThousandsRangeBase + 99 {
+                            costWheelThousandsSelection = costWheelThousandsRangeBase
+                        }
                         showCostWheelThousandsRangePicker = false
-                        DispatchQueue.main.async {
-                            costWheelThousandsRangeBase = v
-                            if costWheelThousandsSelection < v || costWheelThousandsSelection > v + 99 {
-                                costWheelThousandsSelection = v
-                            }
-                        }
+                    } label: {
+                        Text("Xong")
+                            .font(.subheadline).fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.themePrimary)
+                            .cornerRadius(10)
                     }
                 }
+                .padding()
+                .presentationDetents([.height(300)])
             }
-            .confirmationDialog("Chọn vùng trăm", isPresented: $showCostWheelHundredsRangePicker, titleVisibility: .visible) {
-                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                    Button(v == 0 ? ">0" : "\(v)-\(v+90)") {
-                        showCostWheelHundredsRangePicker = false
-                        DispatchQueue.main.async {
-                            costWheelHundredsRangeBase = v
-                            if costWheelHundredsSelection < v || costWheelHundredsSelection > v + 90 {
-                                costWheelHundredsSelection = v
-                            }
+            .sheet(isPresented: $showCostWheelHundredsRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng trăm").font(.headline)
+                    Picker("", selection: $costWheelHundredsRangeBase) {
+                        ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
                         }
                     }
+                    .pickerStyle(.wheel)
+                    Button {
+                        if costWheelHundredsSelection < costWheelHundredsRangeBase || costWheelHundredsSelection > costWheelHundredsRangeBase + 90 {
+                            costWheelHundredsSelection = costWheelHundredsRangeBase
+                        }
+                        showCostWheelHundredsRangePicker = false
+                    } label: {
+                        Text("Xong")
+                            .font(.subheadline).fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.themePrimary)
+                            .cornerRadius(10)
+                    }
                 }
+                .padding()
+                .presentationDetents([.height(300)])
             }
         }
         .sheet(isPresented: $showStockWheel) {
