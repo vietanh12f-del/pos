@@ -3217,10 +3217,27 @@ private struct FilteredTransactionsPrintView: View {
     let reportKind: ProductionReportKind
 
     private var totalCost: Double {
-        txs.filter { !$0.isDeleted }.reduce(0) { $0 + $1.totalCost }
+        let active = txs.filter { !$0.isDeleted }
+        // For materialImport with specific material selected, only sum matching items
+        if reportKind == .materialImport, let selectedMaterial = materialName {
+            return active.reduce(0) { sum, tx in
+                let matchingItemsCost = tx.items
+                    .filter { $0.name == selectedMaterial }
+                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+                return sum + matchingItemsCost
+            }
+        }
+        return active.reduce(0) { $0 + $1.totalCost }
     }
     private var totalQty: Int {
-        txs.filter { !$0.isDeleted }.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
+        let active = txs.filter { !$0.isDeleted }
+        // For materialImport with specific material selected, only count matching items
+        if reportKind == .materialImport, let selectedMaterial = materialName {
+            return active.flatMap { $0.items }
+                .filter { $0.name == selectedMaterial }
+                .reduce(0) { $0 + $1.quantity }
+        }
+        return active.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
     }
     private var totalRevenue: Double {
         txs.filter { !$0.isDeleted }.compactMap { $0.grandTotal }.reduce(0, +)
@@ -3320,7 +3337,7 @@ private struct FilteredTransactionsPrintView: View {
             // Transactions
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(txs.sorted { $0.createdAt > $1.createdAt }) { tx in
-                    FilteredTransactionPrintRow(tx: tx)
+                    FilteredTransactionPrintRow(tx: tx, materialName: materialName, reportKind: reportKind)
                 }
             }
 
@@ -3349,6 +3366,8 @@ private struct FilteredTransactionsPrintView: View {
 
 private struct FilteredTransactionPrintRow: View {
     let tx: ProductionTransaction
+    let materialName: String?
+    let reportKind: ProductionReportKind
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -3388,19 +3407,35 @@ private struct FilteredTransactionPrintRow: View {
 
     private var itemsList: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(tx.items) { item in
+            ForEach(filteredItems) { item in
                 FilteredTransactionItemPrintRow(item: item)
             }
         }
+    }
+    
+    private var filteredItems: [RestockItem] {
+        if reportKind == .materialImport, let selectedMaterial = materialName {
+            return tx.items.filter { $0.name == selectedMaterial }
+        }
+        return tx.items
     }
 
     private var totalRow: some View {
         HStack {
             Spacer()
-            Text("Tổng: " + formatCurrency(tx.totalCost))
+            Text("Tổng: " + formatCurrency(rowTotal))
                 .font(.caption)
                 .fontWeight(.semibold)
         }
+    }
+    
+    private var rowTotal: Double {
+        if reportKind == .materialImport, let selectedMaterial = materialName {
+            return tx.items
+                .filter { $0.name == selectedMaterial }
+                .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+        }
+        return tx.totalCost
     }
 
     @ViewBuilder
