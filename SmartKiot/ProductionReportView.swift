@@ -2158,9 +2158,11 @@ struct GenericProductionReportView: View {
     @State private var selectedCreatorName: String? = nil
     @State private var selectedStoreName: String? = nil
     @State private var selectedFinishedGoodName: String? = nil
+    @State private var selectedMaterialName: String? = nil
     @State private var showCreatorPicker = false
     @State private var showStorePicker = false
     @State private var showFinishedGoodPicker = false
+    @State private var showMaterialPicker = false
     @State private var showTransactionDetail = false
     @State private var selectedTransaction: ProductionTransaction?
 
@@ -2239,6 +2241,21 @@ struct GenericProductionReportView: View {
         let names = filteredTxsForNames.flatMap { $0.items.map { $0.name } }
         return Array(Set(names)).sorted()
     }
+    
+    // Danh sách tên nguyên liệu (từ items của các transaction, lọc theo VAT)
+    private var allMaterialNames: [String] {
+        let filteredTxsForNames: [ProductionTransaction]
+        switch selectedVATFilter {
+        case .all:
+            filteredTxsForNames = allLoadedTxs
+        case .withVAT:
+            filteredTxsForNames = allLoadedTxs.filter { ($0.vatAmount ?? 0) > 0 }
+        case .withoutVAT:
+            filteredTxsForNames = allLoadedTxs.filter { ($0.vatAmount ?? 0) == 0 }
+        }
+        let names = filteredTxsForNames.flatMap { $0.items.map { $0.name } }
+        return Array(Set(names)).sorted()
+    }
 
     // Lọc giao dịch theo các bộ lọc
     private func filteredTxs(_ txs: [ProductionTransaction]) -> [ProductionTransaction] {
@@ -2277,8 +2294,16 @@ struct GenericProductionReportView: View {
             } else {
                 finishedGoodMatch = true
             }
+            
+            // Lọc nguyên liệu
+            let materialMatch: Bool
+            if let selected = selectedMaterialName {
+                materialMatch = tx.items.contains(where: { $0.name == selected })
+            } else {
+                materialMatch = true
+            }
 
-            return vatMatch && creatorMatch && storeMatch && finishedGoodMatch && !tx.isDeleted
+            return vatMatch && creatorMatch && storeMatch && finishedGoodMatch && materialMatch && !tx.isDeleted
         }
     }
 
@@ -2459,6 +2484,12 @@ struct GenericProductionReportView: View {
                                         selectedFinishedGoodName = nil
                                     }
                                 }
+                                if let selected = selectedMaterialName {
+                                    let newNames = allMaterialNames
+                                    if !newNames.contains(selected) {
+                                        selectedMaterialName = nil
+                                    }
+                                }
                             } label: {
                                 Text(option.rawValue)
                                     .font(.caption)
@@ -2537,6 +2568,41 @@ struct GenericProductionReportView: View {
                             .buttonStyle(.plain)
                         }
                         Spacer()
+                    }
+                    
+                    // Material Filter (only for materialImport)
+                    if reportKind == .materialImport {
+                        HStack(spacing: 6) {
+                            Text("Nguyên liệu:")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Button {
+                                showMaterialPicker = true
+                            } label: {
+                                Text(selectedMaterialName ?? "Tất cả")
+                                    .font(.caption)
+                                    .fontWeight(selectedMaterialName != nil ? .semibold : .regular)
+                                    .foregroundStyle(selectedMaterialName != nil ? .white : Color.themeTextDark)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(
+                                        Capsule()
+                                            .fill(selectedMaterialName != nil ? accentColor : Color.gray.opacity(0.1))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            if selectedMaterialName != nil {
+                                Button {
+                                    selectedMaterialName = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            Spacer()
+                        }
                     }
                     
                     // Finished Goods Filter (only for finishedExport)
@@ -2662,6 +2728,15 @@ struct GenericProductionReportView: View {
             }
             if selectedFinishedGoodName != nil {
                 Button("Tất cả", role: .destructive) { selectedFinishedGoodName = nil }
+            }
+            Button("Huỷ", role: .cancel) { }
+        }
+        .confirmationDialog("Chọn nguyên liệu", isPresented: $showMaterialPicker, titleVisibility: .visible) {
+            ForEach(allMaterialNames, id: \.self) { name in
+                Button(name) { selectedMaterialName = name }
+            }
+            if selectedMaterialName != nil {
+                Button("Tất cả", role: .destructive) { selectedMaterialName = nil }
             }
             Button("Huỷ", role: .cancel) { }
         }
