@@ -1089,6 +1089,12 @@ struct ProductEditView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .task {
+            // Load production history for both import and export when editing finished goods
+            if case .edit(let product) = mode, product.isFinishedGood {
+                await loadSummaryData()
+            }
+        }
     }
     
     // MARK: - Summary Computed Properties for Finished Goods
@@ -1100,12 +1106,24 @@ struct ProductEditView: View {
         return "\(formatter.string(from: summaryStartDate)) - \(formatter.string(from: summaryEndDate))"
     }
     
+    // Cache for production transactions to avoid repeated fetches
+    @State private var cachedImportTxs: [ProductionTransaction] = []
+    @State private var cachedExportTxs: [ProductionTransaction] = []
+    @State private var hasLoadedSummaryData: Bool = false
+    
+    private func loadSummaryData() async {
+        guard !hasLoadedSummaryData else { return }
+        let importTxs = await viewModel.fetchProductionTransactions(mode: "Nhập Thành Phẩm")
+        let exportTxs = await viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
+        cachedImportTxs = importTxs
+        cachedExportTxs = exportTxs
+        hasLoadedSummaryData = true
+    }
+    
     private var totalFinishedGoodImportedQuantity: Int {
         guard case .edit(let product) = mode else { return 0 }
         let productName = product.name
-        let importTxs = viewModel.productionHistory.filter { tx in
-            tx.mode.lowercased().contains("nhập") &&
-            tx.mode.lowercased().contains("thành phẩm") &&
+        let importTxs = cachedImportTxs.filter { tx in
             !tx.isDeleted &&
             tx.createdAt >= summaryStartDate &&
             tx.createdAt <= summaryEndDate
@@ -1119,9 +1137,7 @@ struct ProductEditView: View {
     private var totalFinishedGoodImportedCost: Double {
         guard case .edit(let product) = mode else { return 0 }
         let productName = product.name
-        let importTxs = viewModel.productionHistory.filter { tx in
-            tx.mode.lowercased().contains("nhập") &&
-            tx.mode.lowercased().contains("thành phẩm") &&
+        let importTxs = cachedImportTxs.filter { tx in
             !tx.isDeleted &&
             tx.createdAt >= summaryStartDate &&
             tx.createdAt <= summaryEndDate
@@ -1141,9 +1157,7 @@ struct ProductEditView: View {
     private var finishedGoodImportTransactionCount: Int {
         guard case .edit(let product) = mode else { return 0 }
         let productName = product.name
-        return viewModel.productionHistory.filter { tx in
-            tx.mode.lowercased().contains("nhập") &&
-            tx.mode.lowercased().contains("thành phẩm") &&
+        return cachedImportTxs.filter { tx in
             !tx.isDeleted &&
             tx.createdAt >= summaryStartDate &&
             tx.createdAt <= summaryEndDate &&
@@ -1154,9 +1168,7 @@ struct ProductEditView: View {
     private var totalFinishedGoodExportedQuantity: Int {
         guard case .edit(let product) = mode else { return 0 }
         let productName = product.name
-        let exportTxs = viewModel.productionHistory.filter { tx in
-            tx.mode.lowercased().contains("xuất") &&
-            tx.mode.lowercased().contains("thành phẩm") &&
+        let exportTxs = cachedExportTxs.filter { tx in
             !tx.isDeleted &&
             tx.createdAt >= summaryStartDate &&
             tx.createdAt <= summaryEndDate
@@ -1170,9 +1182,7 @@ struct ProductEditView: View {
     private var totalFinishedGoodExportedRevenue: Double {
         guard case .edit(let product) = mode else { return 0 }
         let productName = product.name
-        let exportTxs = viewModel.productionHistory.filter { tx in
-            tx.mode.lowercased().contains("xuất") &&
-            tx.mode.lowercased().contains("thành phẩm") &&
+        let exportTxs = cachedExportTxs.filter { tx in
             !tx.isDeleted &&
             tx.createdAt >= summaryStartDate &&
             tx.createdAt <= summaryEndDate
@@ -1189,9 +1199,7 @@ struct ProductEditView: View {
     private var finishedGoodExportTransactionCount: Int {
         guard case .edit(let product) = mode else { return 0 }
         let productName = product.name
-        return viewModel.productionHistory.filter { tx in
-            tx.mode.lowercased().contains("xuất") &&
-            tx.mode.lowercased().contains("thành phẩm") &&
+        return cachedExportTxs.filter { tx in
             !tx.isDeleted &&
             tx.createdAt >= summaryStartDate &&
             tx.createdAt <= summaryEndDate &&
