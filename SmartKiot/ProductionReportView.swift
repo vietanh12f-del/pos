@@ -123,9 +123,9 @@ struct ProductionReportView: View {
         viewModel.products.filter { $0.isFinishedGood }.reduce(0) { $0 + $1.stockQuantity }
     }
 
-    /// Tổng giá trị tồn kho thành phẩm (stockQuantity × costPrice)
+    /// Tổng giá trị tồn kho thành phẩm (stockQuantity(kg) × giá bán)
     private var totalFinishedGoodStockValue: Double {
-        viewModel.products.filter { $0.isFinishedGood }.reduce(0) { $0 + Double($1.stockQuantity) * $1.costPrice }
+        viewModel.products.filter { $0.isFinishedGood }.reduce(0) { $0 + Double($1.stockQuantity) / 1000.0 * $1.price }
     }
 
     private func dateInterval(for range: ReportDateRange) -> (Date, Date) {
@@ -624,7 +624,7 @@ struct ProductionReportView: View {
                         .font(.caption2).foregroundStyle(.gray)
                     let stockValue = viewModel.products
                         .filter { $0.isFinishedGood }
-                        .reduce(0) { $0 + Double($1.stockQuantity) / 1000.0 * $1.costPrice }
+                        .reduce(0) { $0 + Double($1.stockQuantity) / 1000.0 * $1.price }
                     Text(formatCurrency(stockValue))
                         .font(.caption).fontWeight(.semibold).foregroundStyle(cfg.color)
                         .lineLimit(1).minimumScaleFactor(0.8)
@@ -3033,7 +3033,7 @@ struct GenericProductionReportView: View {
 
     private func summaryCard(txs: [ProductionTransaction]) -> some View {
         let s = stats(for: txs)
-        let currentStockValue = viewModel.products.filter { $0.isFinishedGood }.reduce(0.0) { $0 + Double($1.stockQuantity) * $1.costPrice }
+        let currentStockValue = viewModel.products.filter { $0.isFinishedGood }.reduce(0.0) { $0 + Double($1.stockQuantity) / 1000.0 * $1.price }
         
         return VStack(alignment: .leading, spacing: 10) {
             Text("Tổng kết")

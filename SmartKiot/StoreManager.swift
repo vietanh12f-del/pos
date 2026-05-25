@@ -28,15 +28,6 @@ class StoreManager: ObservableObject {
         }
     }
     
-    func resetSessionState() {
-        myStores = []
-        memberStores = []
-        invitedStores = []
-        currentStore = nil
-        currentMember = nil
-        errorMessage = nil
-    }
-    
     func setPriceStep(_ step: Int) {
         let s = max(1000, step)
         priceStep = s
@@ -110,6 +101,15 @@ class StoreManager: ObservableObject {
 
     func setProductionEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: "production_enabled_global")
+    }
+
+    func resetSessionState() {
+        self.currentStore = nil
+        self.currentMember = nil
+        self.myStores = []
+        self.memberStores = []
+        self.invitedStores = []
+        self.errorMessage = nil
     }
     
     func fetchStores() async {
@@ -206,26 +206,11 @@ class StoreManager: ObservableObject {
                         print("   - Store: \(store.name) (\(store.id))")
                     }
                     
-                    // Separate stores by role
-                    let ownerMemberships = memberships.filter { $0.role == .owner && activeIds.contains($0.storeId) }
-                    let employeeMemberships = memberships.filter { $0.role == .employee && activeIds.contains($0.storeId) }
-                    
-                    let ownerStoreIds = ownerMemberships.map { $0.storeId }
-                    let employeeStoreIds = employeeMemberships.map { $0.storeId }
-                    
-                    self.myStores = allStores.filter { store in ownerStoreIds.contains(store.id) }
-                    self.memberStores = allStores.filter { store in employeeStoreIds.contains(store.id) }
+                    self.memberStores = allStores.filter { store in activeIds.contains(store.id) }
                     self.invitedStores = allStores.filter { store in invitedIds.contains(store.id) }
                     
                     print("📊 Final stores:")
-                    print("   - Owner stores (myStores): \(self.myStores.count)")
-                    for store in self.myStores {
-                        print("     - \(store.name)")
-                    }
-                    print("   - Employee stores (memberStores): \(self.memberStores.count)")
-                    for store in self.memberStores {
-                        print("     - \(store.name)")
-                    }
+                    print("   - Member stores: \(self.memberStores.count)")
                     print("   - Invited stores: \(self.invitedStores.count)")
                     for store in self.invitedStores {
                         print("     - \(store.name)")
@@ -369,12 +354,9 @@ class StoreManager: ObservableObject {
     
     func selectStore(_ store: Store) async {
         self.currentStore = store
-        let selectedAsOwner = self.myStores.contains(where: { $0.id == store.id }) || store.ownerId == SupabaseConfig.client.auth.currentUser?.id
-        AuthManager.shared.selectedRole = selectedAsOwner ? AccountRole.owner.rawValue : AccountRole.employee.rawValue
-        print("🏪 Selected store: \(store.name), mode: \(AuthManager.shared.selectedRole)")
         
         // Find my membership for this store
-        if selectedAsOwner {
+        if store.ownerId == SupabaseConfig.client.auth.currentUser?.id {
             // Owner has full permissions implicitly
              self.currentMember = StoreMember(
                 id: UUID(), 
