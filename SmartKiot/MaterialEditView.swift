@@ -384,7 +384,7 @@ struct MaterialEditView: View {
                 VStack(spacing: 16) {
                     Text("Chọn vùng triệu").font(.headline)
                     Picker("", selection: $costWheelMillionsRangeBase) {
-                        ForEach(Array(stride(from: 0, through: 500, by: 50)), id: \.self) { v in
+                        ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
                             Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
                         }
                     }
