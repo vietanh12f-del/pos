@@ -559,11 +559,22 @@ struct RestockEntryView: View {
                                                     showSummaryQtyWheel = true
                                                 }
                                                 HStack(spacing: 6) {
-                                                    let priceTitle = useMaterialsList ? "Đơn giá:" : (titleText.lowercased().contains("xuất") ? "Giá xuất:" : "Giá nhập:")
+                                                    let priceTitle: String = {
+                                                        if useMaterialsList { return "Đơn giá:" }
+                                                        if titleText.lowercased().contains("xuất") { return "Giá xuất:" }
+                                                        if titleText.lowercased().contains("thành phẩm") { return "Giá bán dự kiến:" }
+                                                        return "Giá nhập:"
+                                                    }()
+                                                    let priceValue: Double = {
+                                                        if titleText.lowercased().contains("thành phẩm") {
+                                                            return item.suggestedPrice ?? 0
+                                                        }
+                                                        return item.unitPrice
+                                                    }()
                                                     Text(priceTitle)
                                                         .font(.caption)
                                                         .foregroundStyle(.gray)
-                                                    Text(formatCurrency(item.unitPrice))
+                                                    Text(formatCurrency(priceValue))
                                                         .font(.headline)
                                                         .fontWeight(.heavy)
                                                         .monospacedDigit()
@@ -571,7 +582,10 @@ struct RestockEntryView: View {
                                                 }
                                                 .onTapGesture {
                                                     summaryEditingIndex = idx
-                                                    summaryPriceSelection = Int(item.unitPrice)
+                                                    let priceToEdit = titleText.lowercased().contains("thành phẩm")
+                                                        ? Int(item.suggestedPrice ?? 0)
+                                                        : Int(item.unitPrice)
+                                                    summaryPriceSelection = priceToEdit
                                                     let step = StoreManager.shared.priceStep
                                                     summaryPriceBaseSelection = (summaryPriceSelection / step) * step
                                                     let remainder = max(0, summaryPriceSelection - summaryPriceBaseSelection)
@@ -1079,7 +1093,11 @@ struct RestockEntryView: View {
                     Spacer()
                     Button("Lưu") {
                         if let i = summaryEditingIndex, i < viewModel.restockItems.count {
-                            viewModel.restockItems[i].unitPrice = Double(summaryPriceSelection)
+                            if titleText.lowercased().contains("thành phẩm") {
+                                viewModel.restockItems[i].suggestedPrice = Double(summaryPriceSelection)
+                            } else {
+                                viewModel.restockItems[i].unitPrice = Double(summaryPriceSelection)
+                            }
                         }
                         showSummaryPriceWheel = false
                     }
