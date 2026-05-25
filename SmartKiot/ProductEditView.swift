@@ -63,6 +63,12 @@ struct ProductEditView: View {
     @State private var markupPercent: Double = 30
     @State private var showMarkupPicker = false
     
+    // MARK: - Summary Section State for Finished Goods
+    @State private var summaryStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+    @State private var summaryEndDate: Date = Date()
+    @State private var showSummaryDatePicker: Bool = false
+    @State private var isEditingSummaryStart: Bool = true
+    
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
     let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
     
@@ -270,6 +276,115 @@ struct ProductEditView: View {
                         } label: {
                             Label("In mã vạch", systemImage: "printer")
                                 .font(.caption)
+                        }
+                    }
+                }
+                
+                // Show import/export summary only for finished goods in edit mode
+                if case .edit(let product) = mode, product.isFinishedGood {
+                    // Import Summary Section
+                    Section(header: 
+                        HStack {
+                            Text("Tổng nhập thành phẩm")
+                            Spacer()
+                            Button {
+                                showSummaryDatePicker = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "calendar")
+                                    Text(summaryDateRangeText)
+                                        .font(.caption)
+                                }
+                                .foregroundStyle(.blue)
+                            }
+                        }
+                    ) {
+                        HStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Tổng số lượng nhập")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Text(FormatUtils.formatWeight(totalFinishedGoodImportedQuantity, unit: "kg"))
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themePrimary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Số phiếu nhập")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Text("\(finishedGoodImportTransactionCount) phiếu")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themePrimary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        
+                        HStack {
+                            Text("Tổng giá trị nhập")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(totalFinishedGoodImportedCost))
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.green)
+                        }
+                    }
+                    
+                    // Export Summary Section
+                    Section(header: 
+                        HStack {
+                            Text("Tổng xuất thành phẩm")
+                            Spacer()
+                            Button {
+                                showSummaryDatePicker = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "calendar")
+                                    Text(summaryDateRangeText)
+                                        .font(.caption)
+                                }
+                                .foregroundStyle(.blue)
+                            }
+                        }
+                    ) {
+                        HStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Tổng số lượng xuất")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Text(FormatUtils.formatWeight(totalFinishedGoodExportedQuantity, unit: "kg"))
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.orange)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Số phiếu xuất")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Text("\(finishedGoodExportTransactionCount) phiếu")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.orange)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        
+                        HStack {
+                            Text("Tổng giá trị xuất")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(totalFinishedGoodExportedRevenue))
+                                .font(.headline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.red)
                         }
                     }
                 }
@@ -532,6 +647,68 @@ struct ProductEditView: View {
                     barcode: barcode
                 )
                 BarcodePrintView(product: tempProduct)
+            }
+            .sheet(isPresented: $showSummaryDatePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn khoảng thời gian").font(.headline)
+                    
+                    HStack(spacing: 20) {
+                        VStack(alignment: .leading) {
+                            Text("Từ ngày").font(.caption).foregroundStyle(.gray)
+                            DatePicker("", selection: $summaryStartDate, displayedComponents: .date)
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                        }
+                        
+                        VStack(alignment: .leading) {
+                            Text("Đến ngày").font(.caption).foregroundStyle(.gray)
+                            DatePicker("", selection: $summaryEndDate, displayedComponents: .date)
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    HStack(spacing: 8) {
+                        Button("7 ngày") {
+                            summaryEndDate = Date()
+                            summaryStartDate = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                        
+                        Button("30 ngày") {
+                            summaryEndDate = Date()
+                            summaryStartDate = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                        
+                        Button("3 tháng") {
+                            summaryEndDate = Date()
+                            summaryStartDate = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                        
+                        Button("1 năm") {
+                            summaryEndDate = Date()
+                            summaryStartDate = Calendar.current.date(byAdding: .year, value: -1, to: Date()) ?? Date()
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                    }
+                    
+                    Spacer()
+                    
+                    Button("Xong") {
+                        showSummaryDatePicker = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+                .presentationDetents([.height(350)])
             }
             .sheet(isPresented: $showMarkupPicker) {
                 VStack(spacing: 16) {
@@ -912,6 +1089,114 @@ struct ProductEditView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+    
+    // MARK: - Summary Computed Properties for Finished Goods
+    
+    private var summaryDateRangeText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM"
+        return "\(formatter.string(from: summaryStartDate)) - \(formatter.string(from: summaryEndDate))"
+    }
+    
+    private var totalFinishedGoodImportedQuantity: Int {
+        guard case .edit(let product) = mode else { return 0 }
+        let productName = product.name
+        let importTxs = viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("nhập") &&
+            tx.mode.lowercased().contains("thành phẩm") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate
+        }
+        return importTxs.reduce(0) { total, tx in
+            let matchingItems = tx.items.filter { $0.name == productName }
+            return total + matchingItems.reduce(0) { $0 + $1.quantity }
+        }
+    }
+    
+    private var totalFinishedGoodImportedCost: Double {
+        guard case .edit(let product) = mode else { return 0 }
+        let productName = product.name
+        let importTxs = viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("nhập") &&
+            tx.mode.lowercased().contains("thành phẩm") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate
+        }
+        return importTxs.reduce(0) { total, tx in
+            let matchingItems = tx.items.filter { $0.name == productName }
+            return total + matchingItems.reduce(0) { sum, item in
+                let isCai = item.unit?.lowercased() == "cái"
+                let itemCost = isCai
+                    ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                    : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+                return sum + itemCost
+            }
+        }
+    }
+    
+    private var finishedGoodImportTransactionCount: Int {
+        guard case .edit(let product) = mode else { return 0 }
+        let productName = product.name
+        return viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("nhập") &&
+            tx.mode.lowercased().contains("thành phẩm") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate &&
+            tx.items.contains { $0.name == productName }
+        }.count
+    }
+    
+    private var totalFinishedGoodExportedQuantity: Int {
+        guard case .edit(let product) = mode else { return 0 }
+        let productName = product.name
+        let exportTxs = viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("xuất") &&
+            tx.mode.lowercased().contains("thành phẩm") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate
+        }
+        return exportTxs.reduce(0) { total, tx in
+            let matchingItems = tx.items.filter { $0.name == productName }
+            return total + matchingItems.reduce(0) { $0 + $1.quantity }
+        }
+    }
+    
+    private var totalFinishedGoodExportedRevenue: Double {
+        guard case .edit(let product) = mode else { return 0 }
+        let productName = product.name
+        let exportTxs = viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("xuất") &&
+            tx.mode.lowercased().contains("thành phẩm") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate
+        }
+        return exportTxs.reduce(0) { total, tx in
+            let matchingItems = tx.items.filter { $0.name == productName }
+            let selectedTotal = matchingItems.reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+            let allItemsTotal = tx.items.reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+            let proportion = allItemsTotal > 0 ? selectedTotal / allItemsTotal : 0
+            return total + (tx.grandTotal ?? 0) * proportion
+        }
+    }
+    
+    private var finishedGoodExportTransactionCount: Int {
+        guard case .edit(let product) = mode else { return 0 }
+        let productName = product.name
+        return viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("xuất") &&
+            tx.mode.lowercased().contains("thành phẩm") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate &&
+            tx.items.contains { $0.name == productName }
+        }.count
     }
     
     var title: String {
