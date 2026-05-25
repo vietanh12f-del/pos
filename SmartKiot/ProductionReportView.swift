@@ -2349,11 +2349,7 @@ private struct GenericTxCard: View {
                         }
                     }
                 } else {
-                    HStack {
-                        Text("Tổng chi phí").font(.subheadline).fontWeight(.bold)
-                        Spacer()
-                        Text(formatCurrency(tx.totalCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(accentColor)
-                    }
+                    finishedImportTotalCostRow(tx: tx)
                 }
             }
         }
@@ -2362,6 +2358,26 @@ private struct GenericTxCard: View {
         .cornerRadius(14)
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(tx.isDeleted ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1))
         .shadow(color: tx.isDeleted ? .clear : .black.opacity(0.04), radius: 5, x: 0, y: 2)
+    }
+
+    private func finishedImportTotalCostRow(tx: ProductionTransaction) -> some View {
+        HStack {
+            Text("Tổng chi phí").font(.subheadline).fontWeight(.bold)
+            Spacer()
+            let displayTotalCost = calculateFinishedImportTotalCost(tx: tx)
+            Text(formatCurrency(displayTotalCost)).font(.subheadline).fontWeight(.bold).foregroundStyle(accentColor)
+        }
+    }
+
+    private func calculateFinishedImportTotalCost(tx: ProductionTransaction) -> Double {
+        guard reportKind == .finishedImport else { return tx.totalCost }
+        return tx.items.reduce(0) { sum, item in
+            let isCai = item.unit?.lowercased() == "cái"
+            let itemCost = isCai
+                ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+            return sum + itemCost
+        }
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -2609,8 +2625,26 @@ struct GenericProductionReportView: View {
             totalCost = active.reduce(0) { sum, tx in
                 let matchingItemsCost = tx.items
                     .filter { $0.name == selectedFG }
-                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * ($1.suggestedPrice ?? $1.unitPrice)) }
+                    .reduce(0) { itemSum, item in
+                        let isCai = item.unit?.lowercased() == "cái"
+                        let itemCost = isCai 
+                            ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                            : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+                        return itemSum + itemCost
+                    }
                 return sum + matchingItemsCost
+            }
+        } else if reportKind == .finishedImport {
+            // For finishedImport without filter, calculate correctly based on unit
+            totalCost = active.reduce(0) { sum, tx in
+                let txCost = tx.items.reduce(0) { itemSum, item in
+                    let isCai = item.unit?.lowercased() == "cái"
+                    let itemCost = isCai 
+                        ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                        : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+                    return itemSum + itemCost
+                }
+                return sum + txCost
             }
         } else {
             totalCost = active.reduce(0) { $0 + $1.totalCost }
@@ -3262,8 +3296,27 @@ private struct FilteredTransactionsPrintView: View {
             return active.reduce(0) { sum, tx in
                 let matchingItemsCost = tx.items
                     .filter { $0.name == selectedFG }
-                    .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * ($1.suggestedPrice ?? $1.unitPrice)) }
+                    .reduce(0) { itemSum, item in
+                        let isCai = item.unit?.lowercased() == "cái"
+                        let itemCost = isCai 
+                            ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                            : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+                        return itemSum + itemCost
+                    }
                 return sum + matchingItemsCost
+            }
+        }
+        // For finishedImport without filter, calculate correctly based on unit
+        if reportKind == .finishedImport {
+            return active.reduce(0) { sum, tx in
+                let txCost = tx.items.reduce(0) { itemSum, item in
+                    let isCai = item.unit?.lowercased() == "cái"
+                    let itemCost = isCai 
+                        ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                        : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+                    return itemSum + itemCost
+                }
+                return sum + txCost
             }
         }
         return active.reduce(0) { $0 + $1.totalCost }
@@ -3524,7 +3577,23 @@ private struct FilteredTransactionPrintRow: View {
             // Only calculate cost of selected finished good
             return tx.items
                 .filter { $0.name == selectedFG }
-                .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * ($1.suggestedPrice ?? $1.unitPrice)) }
+                .reduce(0) { sum, item in
+                    let isCai = item.unit?.lowercased() == "cái"
+                    let itemCost = isCai 
+                        ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                        : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+                    return sum + itemCost
+                }
+        }
+        // For finishedImport without filter, calculate based on unit
+        if reportKind == .finishedImport {
+            return tx.items.reduce(0) { sum, item in
+                let isCai = item.unit?.lowercased() == "cái"
+                let itemCost = isCai 
+                    ? Double(item.quantity) * (item.suggestedPrice ?? item.unitPrice)
+                    : Double(item.quantity) / 1000.0 * (item.suggestedPrice ?? item.unitPrice)
+                return sum + itemCost
+            }
         }
         return tx.totalCost
     }
