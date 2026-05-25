@@ -37,6 +37,12 @@ struct MaterialEditView: View {
     @State private var showPrintBarcode = false
     @State private var hasVAT: Bool = false
     
+    // MARK: - Summary Section State
+    @State private var summaryStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+    @State private var summaryEndDate: Date = Date()
+    @State private var showSummaryDatePicker: Bool = false
+    @State private var isEditingSummaryStart: Bool = true
+    
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -139,7 +145,68 @@ struct MaterialEditView: View {
                                 .font(.caption)
                         }
                     }
-                }            }
+                }
+                
+                // MARK: - Material Import Summary Section
+                if case .edit(let material) = mode {
+                    Section(header: 
+                        HStack {
+                            Text("Tổng nhập nguyên liệu")
+                            Spacer()
+                            Button {
+                                showSummaryDatePicker = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "calendar")
+                                        .font(.caption)
+                                    Text(summaryDateRangeText)
+                                        .font(.caption)
+                                }
+                                .foregroundStyle(.blue)
+                            }
+                        }
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 0) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Tổng số lượng nhập")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text(FormatUtils.formatWeight(totalImportedQuantity, unit: selectedUnit))
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text("Số lần nhập")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text("\(importTransactionCount)")
+                                        .font(.headline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(Color.green)
+                                }
+                            }
+                            
+                            if totalImportedCost > 0 {
+                                HStack {
+                                    Text("Tổng giá trị nhập:")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                    Text(formatCurrency(totalImportedCost))
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.themeTextDark)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
         }
         .sheet(isPresented: $showCostWheel) {
             VStack(spacing: 12) {
@@ -350,6 +417,68 @@ struct MaterialEditView: View {
             )
             BarcodePrintView(product: tempProduct)
         }
+        .sheet(isPresented: $showSummaryDatePicker) {
+            VStack(spacing: 16) {
+                Text("Chọn khoảng thời gian").font(.headline)
+                
+                HStack(spacing: 20) {
+                    VStack(alignment: .leading) {
+                        Text("Từ ngày").font(.caption).foregroundStyle(.gray)
+                        DatePicker("", selection: $summaryStartDate, displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                    }
+                    
+                    VStack(alignment: .leading) {
+                        Text("Đến ngày").font(.caption).foregroundStyle(.gray)
+                        DatePicker("", selection: $summaryEndDate, displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                    }
+                }
+                
+                // Quick range buttons
+                HStack(spacing: 8) {
+                    Button("7 ngày") {
+                        summaryEndDate = Date()
+                        summaryStartDate = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
+                    
+                    Button("30 ngày") {
+                        summaryEndDate = Date()
+                        summaryStartDate = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
+                    
+                    Button("3 tháng") {
+                        summaryEndDate = Date()
+                        summaryStartDate = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
+                    
+                    Button("1 năm") {
+                        summaryEndDate = Date()
+                        summaryStartDate = Calendar.current.date(byAdding: .year, value: -1, to: Date()) ?? Date()
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
+                }
+                .font(.caption)
+                
+                Spacer()
+                
+                Button("Xong") {
+                    showSummaryDatePicker = false
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .presentationDetents([.height(300)])
+        }
         .onAppear {
             if case .edit(let material) = mode {
                 name = material.name
@@ -371,6 +500,58 @@ struct MaterialEditView: View {
         case .add: return "Thêm nguyên liệu"
         case .edit: return "Sửa nguyên liệu"
         }
+    }
+    
+    // MARK: - Material Import Summary Computed Properties
+    private var summaryDateRangeText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM"
+        return "\(formatter.string(from: summaryStartDate)) - \(formatter.string(from: summaryEndDate))"
+    }
+    
+    private var totalImportedQuantity: Int {
+        guard case .edit(let material) = mode else { return 0 }
+        let materialName = material.name
+        let importTxs = viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("nhập") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate
+        }
+        return importTxs.reduce(0) { total, tx in
+            total + tx.items
+                .filter { $0.name == materialName }
+                .reduce(0) { $0 + $1.quantity }
+        }
+    }
+    
+    private var totalImportedCost: Double {
+        guard case .edit(let material) = mode else { return 0 }
+        let materialName = material.name
+        let importTxs = viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("nhập") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate
+        }
+        return importTxs.reduce(0) { total, tx in
+            total + tx.items
+                .filter { $0.name == materialName }
+                .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
+        }
+    }
+    
+    private var importTransactionCount: Int {
+        guard case .edit(let material) = mode else { return 0 }
+        let materialName = material.name
+        return viewModel.productionHistory.filter { tx in
+            tx.mode.lowercased().contains("nhập") &&
+            !tx.isDeleted &&
+            tx.createdAt >= summaryStartDate &&
+            tx.createdAt <= summaryEndDate &&
+            tx.items.contains { $0.name == materialName }
+        }.count
     }
     
     private func save() {
