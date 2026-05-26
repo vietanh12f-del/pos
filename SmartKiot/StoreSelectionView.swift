@@ -84,22 +84,10 @@ struct StoreSelectionView: View {
                                             .font(.subheadline)
                                             .foregroundColor(Color.themeTextDark.opacity(0.7))
                                             .multilineTextAlignment(.center)
-                                        HStack(spacing: 0) {
-                                            Text("Vui lòng đăng ký cửa hàng tại ")
-                                                .font(.subheadline)
-                                                .foregroundColor(Color.themeTextDark.opacity(0.7))
-                                            Button {
-                                                if let url = URL(string: "https://smartkiot.com") {
-                                                    UIApplication.shared.open(url)
-                                                }
-                                            } label: {
-                                                Text("SmartKiot.com")
-                                                    .font(.subheadline)
-                                                    .fontWeight(.bold)
-                                                    .foregroundColor(Color.themePrimary)
-                                                    .underline()
-                                            }
-                                        }
+                                        Text("Vui lòng liên hệ quản trị viên để được thêm vào cửa hàng.")
+                                            .font(.subheadline)
+                                            .foregroundColor(Color.themeTextDark.opacity(0.7))
+                                            .multilineTextAlignment(.center)
                                     }
                                     .padding(20)
                                     .background(Color.themePrimary.opacity(0.08))

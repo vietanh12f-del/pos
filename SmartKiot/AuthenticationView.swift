@@ -23,17 +23,6 @@ struct AuthenticationView: View {
                     .font(.subheadline)
                     .foregroundStyle(.gray)
                 
-                Button {
-                    if let url = URL(string: "https://smartkiot.com") {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    Text("Chưa có tài khoản? Đăng ký miễn phí tại SmartKiot.com")
-                        .font(.caption)
-                        .foregroundColor(Color.themePrimary)
-                        .underline()
-                }
-                .padding(.top, 4)
             }
             .padding(.top, 40)
             
