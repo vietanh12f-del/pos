@@ -10,7 +10,7 @@ struct AuthenticationView: View {
         VStack(spacing: 24) {
             // Logo or Title
             VStack(spacing: 8) {
-                Image(systemName: "flower.fill")
+                Image(systemName: "leaf.fill")
                     .font(.system(size: 60))
                     .foregroundStyle(Color.themePrimary)
                 

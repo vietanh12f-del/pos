@@ -10,6 +10,7 @@ class AuthManager: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
+    @Published var phoneLinkConflictPhone: String?
     @Published var currentUserProfile: UserProfile?
     @Published var selectedRole: String = AccountRole.owner.rawValue
     private var currentSessionUserId: UUID?
@@ -231,19 +232,388 @@ class AuthManager: ObservableObject {
             return false
         }
     }
-    
+
     @MainActor
-    func signOut() async {
+    func sendOTP(phone: String) async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+
+        let formattedPhone = formatPhoneNumber(phone)
+
+        do {
+            try await client.auth.signInWithOTP(
+                phone: formattedPhone,
+                channel: .sms
+            )
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+
+            let errorString = String(describing: error)
+            if errorString.contains("Invalid From Number") {
+                self.errorMessage = "Lỗi cấu hình server: Sai số điện thoại gửi. Vui lòng kiểm tra cấu hình SMS."
+            } else if errorString.contains("sms_send_failed") {
+                self.errorMessage = "Gửi SMS thất bại. Vui lòng kiểm tra cấu hình SMS hoặc giới hạn gửi tin."
+            } else {
+                self.errorMessage = error.localizedDescription
+            }
+
+            print("❌ Error sending OTP: \(error)")
+            return false
+        }
+    }
+
+    @MainActor
+    func verifyOTP(phone: String, token: String) async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+
+        let formattedPhone = formatPhoneNumber(phone)
+
+        do {
+            let session = try await client.auth.verifyOTP(
+                phone: formattedPhone,
+                token: token,
+                type: .sms
+            )
+            self.isAuthenticated = true
+            await checkProfile(userId: session.user.id)
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Mã OTP không đúng hoặc đã hết hạn."
+            print("❌ Error verifying OTP: \(error)")
+            return false
+        }
+    }
+
+    @MainActor
+    func requestPhoneLink(phone: String) async -> Bool {
+        guard client.auth.currentUser != nil else { return false }
+        self.isLoading = true
+        self.errorMessage = nil
+        self.phoneLinkConflictPhone = nil
+
+        let formattedPhone = formatPhoneNumber(phone)
+
+        do {
+            _ = try await client.auth.update(
+                user: UserAttributes(phone: formattedPhone)
+            )
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+            let errorString = String(describing: error)
+            if errorString.lowercased().contains("already been registered") || errorString.lowercased().contains("phone_exists") {
+                self.phoneLinkConflictPhone = formattedPhone
+                self.errorMessage = "SĐT này đã được dùng cho một tài khoản khác. Nếu đó là tài khoản rỗng/tạo nhầm, bạn có thể giải phóng SĐT rồi thử lại."
+            } else {
+                self.errorMessage = "Không thể gửi OTP liên kết SĐT: \(error.localizedDescription)"
+            }
+            print("❌ Error requesting phone link: \(error)")
+            return false
+        }
+    }
+
+    @MainActor
+    func verifyPhoneLinkOTP(phone: String, token: String) async -> Bool {
+        guard let user = client.auth.currentUser else { return false }
+        self.isLoading = true
+        self.errorMessage = nil
+        self.phoneLinkConflictPhone = nil
+
+        let formattedPhone = formatPhoneNumber(phone)
+
+        do {
+            _ = try await client.auth.verifyOTP(
+                phone: formattedPhone,
+                token: token,
+                type: .phoneChange
+            )
+
+            _ = try? await client
+                .from("profiles")
+                .update(["phone_number": formattedPhone])
+                .eq("id", value: user.id)
+                .execute()
+
+            if var profile = self.currentUserProfile {
+                profile.phoneNumber = formattedPhone
+                self.currentUserProfile = profile
+            } else {
+                await checkProfile(userId: user.id)
+            }
+
+            self.isLoading = false
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Mã OTP không đúng hoặc đã hết hạn."
+            print("❌ Error verifying phone link OTP: \(error)")
+            return false
+        }
+    }
+
+    enum PhoneReleaseResult {
+        case success
+        case hasData
+        case failure
+    }
+
+    @MainActor
+    func releasePhoneNumberWithResult(phone: String) async -> PhoneReleaseResult {
+        self.isLoading = true
+        self.errorMessage = nil
+
+        let formattedPhone = formatPhoneNumber(phone)
+
+        do {
+            guard let session = try? await client.auth.session,
+                  let url = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/release-phone-number") else {
+                throw NSError(domain: "ReleasePhone", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không thể tạo request giải phóng SĐT"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue(SupabaseConfig.key, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let requestBody: [String: Any] = ["phone": formattedPhone]
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+
+            if let http = httpResponse as? HTTPURLResponse, http.statusCode >= 400 {
+                let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+                let err = responseBody["error"] as? String ?? "HTTP \(http.statusCode)"
+                if err == "phone_in_use_has_data" || http.statusCode == 409 {
+                    self.isLoading = false
+                    return .hasData
+                }
+                throw NSError(domain: "ReleasePhone", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: err])
+            }
+
+            let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+            let status = responseBody["status"] as? String
+            if status == "released" || status == "not_found" || status == "already_me" {
+                self.phoneLinkConflictPhone = nil
+            }
+
+            self.isLoading = false
+            return .success
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Không thể giải phóng SĐT: \(error.localizedDescription)"
+            print("❌ Error releasing phone number: \(error)")
+            return .failure
+        }
+    }
+
+    // MARK: - Zalo OTP Flow
+
+    @MainActor
+    func sendZaloOTP(phone: String, purpose: String = "link_phone") async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+
+        let formattedPhone = formatPhoneNumber(phone)
+
+        do {
+            guard let url = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/send-zalo-otp") else {
+                throw NSError(domain: "ZaloOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không thể tạo request gửi OTP"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue(SupabaseConfig.key, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            // For login purpose, use anon key with Bearer prefix. For link_phone, try to use session if available
+            if purpose == "login" {
+                request.setValue("Bearer \(SupabaseConfig.key)", forHTTPHeaderField: "Authorization")
+            } else if let session = try? await client.auth.session {
+                request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+            } else {
+                request.setValue("Bearer \(SupabaseConfig.key)", forHTTPHeaderField: "Authorization")
+            }
+
+            let requestBody: [String: Any] = ["phone": formattedPhone, "purpose": purpose]
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+
+            if let http = httpResponse as? HTTPURLResponse, http.statusCode >= 400 {
+                let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+                let err = responseBody["error"] as? String ?? "HTTP \(http.statusCode)"
+                throw NSError(domain: "ZaloOTP", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: err])
+            }
+
+            self.isLoading = false
+            print("✅ Zalo OTP sent to \(formattedPhone)")
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Không thể gửi OTP: \(error.localizedDescription)"
+            print("❌ Error sending Zalo OTP: \(error)")
+            return false
+        }
+    }
+
+    @MainActor
+    func verifyZaloOTP(phone: String, code: String, purpose: String = "link_phone") async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+
+        let formattedPhone = formatPhoneNumber(phone)
+        print("[verifyZaloOTP] Sending: phone=\(formattedPhone), code=\(code), purpose=\(purpose)")
+
+        do {
+            guard let url = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/verify-zalo-otp") else {
+                throw NSError(domain: "ZaloOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không thể tạo request xác thực OTP"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue(SupabaseConfig.key, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            
+            // For login purpose, use anon key with Bearer prefix. For link_phone, use session if available
+            if purpose == "login" {
+                request.setValue("Bearer \(SupabaseConfig.key)", forHTTPHeaderField: "Authorization")
+            } else if let session = try? await client.auth.session {
+                request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+            } else {
+                request.setValue("Bearer \(SupabaseConfig.key)", forHTTPHeaderField: "Authorization")
+            }
+
+            let requestBody: [String: Any] = ["phone": formattedPhone, "code": code, "purpose": purpose]
+            print("[verifyZaloOTP] Request body: \(requestBody)")
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+
+            if let http = httpResponse as? HTTPURLResponse, http.statusCode >= 400 {
+                let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+                let err = responseBody["error"] as? String ?? "HTTP \(http.statusCode)"
+                throw NSError(domain: "ZaloOTP", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: err])
+            }
+
+            // OTP verified successfully
+            // For login: use login-with-zalo-otp to create session
+            if purpose == "login" {
+                // Call login-with-zalo-otp to get user_id and create session
+                guard let loginUrl = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/login-with-zalo-otp") else {
+                    throw NSError(domain: "ZaloOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không thể tạo request đăng nhập"])
+                }
+                
+                var loginRequest = URLRequest(url: loginUrl)
+                loginRequest.httpMethod = "POST"
+                loginRequest.setValue(SupabaseConfig.key, forHTTPHeaderField: "apikey")
+                loginRequest.setValue("Bearer \(SupabaseConfig.key)", forHTTPHeaderField: "Authorization")
+                loginRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                
+                let loginBody: [String: Any] = ["phone": formattedPhone, "code": code]
+                loginRequest.httpBody = try JSONSerialization.data(withJSONObject: loginBody)
+                
+                let (loginData, loginResponse) = try await URLSession.shared.data(for: loginRequest)
+                
+                if let http = loginResponse as? HTTPURLResponse, http.statusCode >= 400 {
+                    let responseBody = (try? JSONSerialization.jsonObject(with: loginData) as? [String: Any]) ?? [:]
+                    let err = responseBody["error"] as? String ?? "HTTP \(http.statusCode)"
+                    throw NSError(domain: "ZaloOTP", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: err])
+                }
+                
+                let responseBody = (try? JSONSerialization.jsonObject(with: loginData) as? [String: Any]) ?? [:]
+                guard let userId = responseBody["user_id"] as? String else {
+                    throw NSError(domain: "ZaloOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không nhận được thông tin người dùng"])
+                }
+                
+                // Now use verifyOTP to sign in (since we already verified with Zalo OTP)
+                do {
+                    // First, we need to set the phone for the user if not already set
+                    // Then use verifyOTP to create session
+                    let session = try await client.auth.verifyOTP(
+                        phone: formattedPhone,
+                        token: code,
+                        type: .sms
+                    )
+                    self.isAuthenticated = true
+                    await checkProfile(userId: session.user.id)
+                    self.isLoading = false
+                    print("✅ Zalo OTP login successful: \(formattedPhone)")
+                    return true
+                } catch {
+                    // If verifyOTP fails, user might need to complete phone verification
+                    self.isLoading = false
+                    self.errorMessage = "Không thể đăng nhập. Vui lòng thử lại."
+                    return false
+                }
+            } else {
+                // For link_phone: update current user
+                if let user = client.auth.currentUser {
+                    _ = try? await client.auth.update(user: UserAttributes(phone: formattedPhone))
+                    _ = try? await client
+                        .from("profiles")
+                        .update(["phone_number": formattedPhone])
+                        .eq("id", value: user.id)
+                        .execute()
+                    
+                    if var profile = self.currentUserProfile {
+                        profile.phoneNumber = formattedPhone
+                        self.currentUserProfile = profile
+                    } else {
+                        await checkProfile(userId: user.id)
+                    }
+                }
+            }
+
+            self.isLoading = false
+            print("✅ Zalo OTP verified: \(formattedPhone)")
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Mã OTP không đúng hoặc đã hết hạn."
+            print("❌ Error verifying Zalo OTP: \(error)")
+            return false
+        }
+    }
+
+    @MainActor
+    @discardableResult
+    func signOut() async -> Bool {
         do {
             try await client.auth.signOut()
             self.isAuthenticated = false
             self.currentUserProfile = nil
+            self.phoneLinkConflictPhone = nil
             self.selectedRole = AccountRole.owner.rawValue
             self.currentSessionUserId = nil
             StoreManager.shared.resetSessionState()
+            return true
         } catch {
             print("❌ Error signing out: \(error)")
+            return false
         }
+    }
+
+    private func formatPhoneNumber(_ phone: String) -> String {
+        var p = phone.replacingOccurrences(of: " ", with: "")
+        p = p.replacingOccurrences(of: "-", with: "")
+
+        if p.hasPrefix("0") {
+            p = String(p.dropFirst())
+            return "+84" + p
+        } else if p.hasPrefix("84") {
+            return "+" + p
+        } else if p.hasPrefix("+84") {
+            return p
+        }
+
+        return "+84" + p
     }
     
     @MainActor

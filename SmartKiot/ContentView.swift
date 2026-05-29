@@ -4,6 +4,8 @@ import CoreImage.CIFilterBuiltins
 import PhotosUI
 import Combine
 import ImageIO
+import Supabase
+import Auth
 
 // MARK: - Theme Colors (Moved to Components.swift)
 
@@ -28,6 +30,7 @@ struct ContentView: View {
     @State private var showProductionReport: Bool = false
     @State private var showCustomerManagement: Bool = false
     @State private var navigateToBillId: UUID? = nil
+    @State private var skippedPhoneLink: Bool = false
     
     init() {
         // Default TabBar
@@ -37,6 +40,8 @@ struct ContentView: View {
     var body: some View {
         if !authManager.isAuthenticated {
             AuthenticationView()
+        } else if needsPhoneLink && !skippedPhoneLink {
+            LinkPhoneView(onSkip: { skippedPhoneLink = true })
         } else if storeManager.currentStore == nil {
             StoreSelectionView()
         } else {
@@ -249,7 +254,19 @@ struct ContentView: View {
                     isKeyboardVisibleGlobal = false
                 }
             }
+            .onChange(of: authManager.isAuthenticated) { newValue in
+                if !newValue {
+                    skippedPhoneLink = false
+                }
+            }
         }
+    }
+    
+    private var needsPhoneLink: Bool {
+        let profilePhone = authManager.currentUserProfile?.phoneNumber?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let authPhone = SupabaseConfig.client.auth.currentUser?.phone?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !profilePhone.isEmpty || !authPhone.isEmpty { return false }
+        return true
     }
 }
     
