@@ -726,7 +726,7 @@ struct EmployeeDetailView: View {
                         .disabled(positionTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSavingPosition)
                     }
                 }
-                .onChange(of: speech.transcript) { _, newText in
+                .onChange(of: speech.transcript) { newText in
                     positionTitle = newText
                 }
             }
@@ -1192,7 +1192,7 @@ struct EmployeeAttendanceReport: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } }
             }
             .task { await loadRecords() }
-            .onChange(of: rangeMode) { _, m in
+            .onChange(of: rangeMode) { m in
                 if m == .custom { showCustomPicker = true }
                 else { Task { await loadRecords() } }
             }

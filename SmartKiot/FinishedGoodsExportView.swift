@@ -206,9 +206,9 @@ struct FinishedGoodsExportView: View {
             Task { await loadPartyHistory() }
             loadQRImage()
         }
-        .onChange(of: paidAmount) { _, _ in loadQRImage() }
-        .onChange(of: buyerName) { _, _ in updatePastDebt() }
-        .onChange(of: buyerPhone) { _, _ in updatePastDebt() }
+        .onChange(of: paidAmount) { _ in loadQRImage() }
+        .onChange(of: buyerName) { _ in updatePastDebt() }
+        .onChange(of: buyerPhone) { _ in updatePastDebt() }
         .sheet(isPresented: $showBuyerPicker) {
             BuyerPickerSheet(buyers: buyerHistory) { selected in
                 buyerName = selected.name
@@ -285,7 +285,7 @@ struct FinishedGoodsExportView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: partialAmountBaseSelection) { _, newValue in
+                            .onChange(of: partialAmountBaseSelection) { newValue in
                                 partialAmountSelection = newValue + partialAmountHundredsSelection
                                 if newValue > partialAmountMax - (step * 5) {
                                     partialAmountMax += step * 100
@@ -302,7 +302,7 @@ struct FinishedGoodsExportView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: partialAmountHundredsSelection) { _, newValue in
+                            .onChange(of: partialAmountHundredsSelection) { newValue in
                                 partialAmountSelection = partialAmountBaseSelection + newValue
                             }
                         }
@@ -335,7 +335,7 @@ struct FinishedGoodsExportView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: partialAmountRangeBase) { _, newValue in
+                        .onChange(of: partialAmountRangeBase) { newValue in
                             if newValue >= partialAmountMax - 200_000 {
                                 partialAmountMax += 1_000_000
                             }

@@ -49,104 +49,17 @@ struct OrderHistoryView: View {
                     }
                 } else {
                     ScrollViewReader { proxy in
-                    List {
-                        ForEach(sections, id: \.title) { section in
-                            Section(header: Text(section.title)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.gray)
-                                .padding(.vertical, 4)) {
+                        List {
+                            ForEach(sections, id: \.title) { section in
+                                Section(header: OrderHistorySectionHeader(title: section.title)) {
                                     ForEach(section.bills) { bill in
-                                        Button(action: { selectedBill = bill }) {
-                                            HStack {
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    HStack {
-                                                        Text(formatTime(bill.createdAt))
-                                                            .font(.caption)
-                                                            .foregroundStyle(Color.gray)
-                                                        
-                                                        if let stt = bill.sequenceNumber {
-                                                            Text("• \(stt)")
-                                                                .font(.caption)
-                                                                .fontWeight(.bold)
-                                                                .foregroundStyle(Color.themePrimary)
-                                                        }
-                                                    }
-                                                    
-                                                    Text(billItemsSummary(bill))
-                                                        .font(.subheadline)
-                                                        .fontWeight(.medium)
-                                                        .foregroundStyle(Color.themeTextDark)
-                                                        .lineLimit(1)
-                                                    
-                                                    if let creator = bill.creatorName {
-                                                        Text("Người tạo: \(creator)")
-                                                            .font(.caption2)
-                                                            .foregroundStyle(Color.gray)
-                                                    }
-                                                    if let customer = bill.customerName, !customer.isEmpty {
-                                                        Text("Khách: \(customer)")
-                                                            .font(.caption2)
-                                                            .foregroundStyle(Color.gray)
-                                                    }
-                                                    if viewModel.hasHistory(for: bill.id) {
-                                                        HStack(spacing: 6) {
-                                                            Image(systemName: "clock.arrow.circlepath")
-                                                                .font(.caption2)
-                                                                .foregroundStyle(.orange)
-                                                            Text("Đã chỉnh sửa")
-                                                                .font(.caption2)
-                                                                .fontWeight(.bold)
-                                                                .foregroundStyle(.orange)
-                                                        }
-                                                        .padding(.horizontal, 6)
-                                                        .padding(.vertical, 2)
-                                                        .background(Color.orange.opacity(0.08))
-                                                        .cornerRadius(6)
-                                                    }
-                                                }
-                                                
-                                                Spacer()
-                                                
-                                                VStack(alignment: .trailing, spacing: 4) {
-                                                    Text(formatCurrency(bill.total))
-                                                        .font(.headline)
-                                                        .fontWeight(.bold)
-                                                        .foregroundStyle(bill.isPaid ? Color.themePrimary : Color.red)
-                                                    
-                                                    if !bill.isPaid {
-                                                        Text("Chưa nhận tiền")
-                                                            .font(.caption2)
-                                                            .fontWeight(.bold)
-                                                            .foregroundStyle(Color.red)
-                                                            .padding(.horizontal, 6)
-                                                            .padding(.vertical, 2)
-                                                            .background(Color.red.opacity(0.1))
-                                                            .cornerRadius(4)
-                                                    }
-                                                }
-                                            }
-                                            .padding(.vertical, 8)
-                                        }
-                                        .listRowBackground(
-                                            highlightedBillId == bill.id
-                                                ? Color.themePrimary.opacity(0.08)
-                                                : Color.white
+                                        OrderHistoryRow(
+                                            bill: bill,
+                                            viewModel: viewModel,
+                                            highlightedBillId: $highlightedBillId,
+                                            selectedBill: $selectedBill
                                         )
                                         .id(bill.id)
-                                        .contextMenu {
-                                            Button(action: {
-                                                viewModel.startEditing(bill)
-                                            }) {
-                                                Label("Sửa", systemImage: "pencil")
-                                            }
-                                            
-                                            Button(role: .destructive, action: {
-                                                viewModel.deleteOrder(bill)
-                                            }) {
-                                                Label("Xóa", systemImage: "trash")
-                                            }
-                                        }
                                     }
                                     .onDelete { indexSet in
                                         for index in indexSet {
@@ -155,19 +68,19 @@ struct OrderHistoryView: View {
                                         }
                                     }
                                 }
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                    .refreshable { await viewModel.loadData(force: true) }
-                    .scrollContentBackground(.hidden)
-                    .background(Color.themeBackgroundLight)
-                    .onChange(of: highlightedBillId) { _, billId in
-                        if let billId {
-                            withAnimation(.easeInOut(duration: 0.5)) {
-                                proxy.scrollTo(billId, anchor: .center)
                             }
                         }
-                    }
+                        .listStyle(.insetGrouped)
+                        .refreshable { await viewModel.loadData(force: true) }
+                        .scrollContentBackground(.hidden)
+                        .background(Color.themeBackgroundLight)
+                        .onChange(of: highlightedBillId) { billId in
+                            if let billId = billId {
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    proxy.scrollTo(billId, anchor: .center)
+                                }
+                            }
+                        }
                     } // end ScrollViewReader
                 }
             }
@@ -230,7 +143,7 @@ struct OrderHistoryView: View {
             .sheet(isPresented: $showInventoryReport) {
                 InventoryReportView(viewModel: viewModel)
             }
-            .onChange(of: navigateToBillId) { _, billId in
+            .onChange(of: navigateToBillId) { billId in
                 guard let billId else { return }
                 if let bill = viewModel.pastOrders.first(where: { $0.id == billId }) {
                     selectedBill = bill
@@ -342,6 +255,168 @@ struct OrderHistoryView: View {
             }
             let bills = grouped[date]?.sorted(by: { $0.createdAt > $1.createdAt }) ?? []
             return (title: title, bills: bills)
+        }
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.currencySymbol = "₫"
+        return formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
+    }
+    
+    private func billItemsSummary(_ bill: Bill) -> String {
+        if bill.items.count == 1 {
+            return bill.items[0].name
+        } else if bill.items.count == 0 {
+            return "Không có sản phẩm"
+        } else {
+            return "\(bill.items[0].name) + \(bill.items.count - 1) sản phẩm khác"
+        }
+    }
+}
+
+private struct OrderHistorySectionHeader: View {
+    let title: String
+    
+    var body: some View {
+        Text(title)
+            .font(.subheadline)
+            .fontWeight(.bold)
+            .foregroundStyle(Color.gray)
+            .padding(.vertical, 4)
+    }
+}
+
+private struct OrderHistoryRow: View {
+    let bill: Bill
+    let viewModel: OrderViewModel
+    @Binding var highlightedBillId: UUID?
+    @Binding var selectedBill: Bill?
+    
+    var body: some View {
+        Button(action: { selectedBill = bill }) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(formatTime(bill.createdAt))
+                            .font(.caption)
+                            .foregroundStyle(Color.gray)
+                        
+                        if let stt = bill.sequenceNumber {
+                            Text("• \(stt)")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                    }
+                    
+                    Text(billItemsSummary(bill))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(Color.themeTextDark)
+                        .lineLimit(1)
+                    
+                    if let creator = bill.creatorName {
+                        Text("Người tạo: \(creator)")
+                            .font(.caption2)
+                            .foregroundStyle(Color.gray)
+                    }
+                    if let customer = bill.customerName, !customer.isEmpty {
+                        Text("Khách: \(customer)")
+                            .font(.caption2)
+                            .foregroundStyle(Color.gray)
+                    }
+                    if viewModel.hasHistory(for: bill.id) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                            Text("Đã chỉnh sửa")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.orange)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.08))
+                        .cornerRadius(6)
+                    }
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(formatCurrency(bill.total))
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(bill.isPaid ? Color.themePrimary : Color.red)
+                    
+                    if !bill.isPaid {
+                        Text("Chưa nhận tiền")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.red)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(4)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+        }
+        .listRowBackground(rowBackground)
+        .contextMenu {
+            Button {
+                viewModel.startEditing(bill)
+            } label: {
+                Label("Sửa", systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                viewModel.deleteOrder(bill)
+            } label: {
+                Label("Xóa", systemImage: "trash")
+            }
+        }
+    }
+    
+    private var rowBackground: Color {
+        highlightedBillId == bill.id
+            ? Color.themePrimary.opacity(0.08)
+            : Color.white
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    private func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.currencySymbol = "₫"
+        return formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
+    }
+    
+    private func billItemsSummary(_ bill: Bill) -> String {
+        if bill.items.count == 1 {
+            return bill.items[0].name
+        } else if bill.items.count == 0 {
+            return "Không có sản phẩm"
+        } else {
+            return "\(bill.items[0].name) + \(bill.items.count - 1) sản phẩm khác"
         }
     }
 }

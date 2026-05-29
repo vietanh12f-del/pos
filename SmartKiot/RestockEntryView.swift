@@ -57,6 +57,24 @@ struct RestockEntryView: View {
         !useMaterialsList && inventorySubTab == 0 && titleText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "nhập hàng"
     }
     
+    private func quantityText(for item: RestockItem) -> String {
+        let isWeight = useMaterialsList || (titleText.lowercased().contains("thành phẩm") && (item.weightPerUnitGrams == nil))
+        return isWeight ? FormatUtils.formatWeight(item.quantity, unit: item.unit) : String(item.quantity)
+    }
+    
+    // Helper range properties to reduce type checking complexity in ForEach loops
+    private func millionsRange(base: Int) -> ClosedRange<Int> {
+        base...max(base, base + 500)
+    }
+    
+    private func thousandsRange(base: Int) -> StrideThrough<Int> {
+        stride(from: base, through: min(base + 90, 999), by: 1)
+    }
+    
+    private func hundredsRange(base: Int) -> StrideThrough<Int> {
+        stride(from: base, through: min(base + 90, 990), by: 10)
+    }
+    
     var body: some View {
         ZStack(alignment: .bottom) {
             // Background
@@ -531,7 +549,7 @@ struct RestockEntryView: View {
                                                     Text("SL:")
                                                         .font(.caption)
                                                         .foregroundStyle(.gray)
-                                                    Text(isWeight ? FormatUtils.formatWeight(item.quantity, unit: item.unit) : String(item.quantity))
+                                                    Text(quantityText(for: item))
                                                         .font(.headline)
                                                         .fontWeight(.heavy)
                                                         .monospacedDigit()
@@ -627,7 +645,7 @@ struct RestockEntryView: View {
                                 }
                             }
                         }
-                        .onChange(of: lastAddedItemId) { _, newId in
+                        .onChange(of: lastAddedItemId) { newId in
                             if let target = newId {
                                 withAnimation { proxy.scrollTo(target, anchor: .center) }
                             }
@@ -909,7 +927,7 @@ struct RestockEntryView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: summaryQtyKgSelection) { _, newValue in
+                            .onChange(of: summaryQtyKgSelection) { newValue in
                                 if newValue >= max(0, summaryQtyMax - 10) {
                                     summaryQtyMax += 200
                                 }
@@ -933,7 +951,7 @@ struct RestockEntryView: View {
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: summaryQtySelection) { _, newValue in
+                    .onChange(of: summaryQtySelection) { newValue in
                         if newValue >= summaryQtyMax - 10 {
                             summaryQtyMax += 200
                         }
@@ -979,7 +997,7 @@ struct RestockEntryView: View {
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: summaryQtyRangeBase) { _, newValue in
+                    .onChange(of: summaryQtyRangeBase) { newValue in
                         if newValue >= summaryQtyMax - 100 {
                             summaryQtyMax += 500
                         }
@@ -1053,12 +1071,12 @@ struct RestockEntryView: View {
                         Text("Triệu").font(.caption).foregroundStyle(.gray)
                         let millionsMin = summaryPriceMillionsRangeBase
                         Picker("", selection: $summaryPriceMillionsSelection) {
-                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                            ForEach(Array(millionsRange(base: millionsMin)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: summaryPriceMillionsSelection) { _, v in
+                        .onChange(of: summaryPriceMillionsSelection) { v in
                             summaryPriceSelection = v * 1_000_000 + summaryPriceThousandsSelection * 1_000 + summaryPriceHundredsSelection
                         }
                     }
@@ -1072,12 +1090,12 @@ struct RestockEntryView: View {
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
                         let thousandsMin = summaryPriceThousandsRangeBase
                         Picker("", selection: $summaryPriceThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(Array(thousandsRange(base: thousandsMin)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: summaryPriceThousandsSelection) { _, v in
+                        .onChange(of: summaryPriceThousandsSelection) { v in
                             summaryPriceSelection = summaryPriceMillionsSelection * 1_000_000 + v * 1_000 + summaryPriceHundredsSelection
                         }
                     }
@@ -1091,12 +1109,12 @@ struct RestockEntryView: View {
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
                         let hundredsMin = summaryPriceHundredsRangeBase
                         Picker("", selection: $summaryPriceHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(Array(hundredsRange(base: hundredsMin)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: summaryPriceHundredsSelection) { _, v in
+                        .onChange(of: summaryPriceHundredsSelection) { v in
                             summaryPriceSelection = summaryPriceMillionsSelection * 1_000_000 + summaryPriceThousandsSelection * 1_000 + v
                         }
                     }
@@ -1493,7 +1511,7 @@ struct ManualRestockItemView: View {
                             if !t.isEmpty { name = t }
                         }
                     }
-                    .onChange(of: name) { _, newValue in
+                    .onChange(of: name) { newValue in
                         let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                         if trimmed.isEmpty { return }
                         if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -1916,7 +1934,7 @@ struct ManualRestockItemView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: weightPerUnitKgSelection) { _, v in
+                        .onChange(of: weightPerUnitKgSelection) { v in
                             if v >= weightPerUnitMax - 5 { weightPerUnitMax += 50 }
                         }
                     }
@@ -2266,14 +2284,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Triệu").font(.caption).foregroundStyle(.gray)
-                        let millionsMin = unitPriceMillionsRangeBase
+                        let millionsMin: Int = unitPriceMillionsRangeBase
+                        let millionsMax: Int = max(millionsMin, millionsMin + 500)
+                        let millionsRangeArray: [Int] = Array(millionsMin...millionsMax)
                         Picker("", selection: $unitPriceMillionsSelection) {
-                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                            ForEach(millionsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceMillionsSelection) { _, v in
+                        .onChange(of: unitPriceMillionsSelection) { v in
                             unitPriceWheelSelection = v * 1_000_000 + unitPriceThousandsSelection * 1_000 + unitPriceHundredsSelection
                         }
                     }
@@ -2285,14 +2305,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
-                        let thousandsMin = unitPriceThousandsRangeBase
+                        let thousandsMin: Int = unitPriceThousandsRangeBase
+                        let thousandsMax: Int = min(thousandsMin + 90, 999)
+                        let thousandsRangeArray: [Int] = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $unitPriceThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(thousandsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceThousandsSelection) { _, v in
+                        .onChange(of: unitPriceThousandsSelection) { v in
                             unitPriceWheelSelection = unitPriceMillionsSelection * 1_000_000 + v * 1_000 + unitPriceHundredsSelection
                         }
                     }
@@ -2304,14 +2326,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
-                        let hundredsMin = unitPriceHundredsRangeBase
+                        let hundredsMin: Int = unitPriceHundredsRangeBase
+                        let hundredsMax: Int = min(hundredsMin + 90, 990)
+                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
                         Picker("", selection: $unitPriceHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(hundredsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceHundredsSelection) { _, v in
+                        .onChange(of: unitPriceHundredsSelection) { v in
                             unitPriceWheelSelection = unitPriceMillionsSelection * 1_000_000 + unitPriceThousandsSelection * 1_000 + v
                         }
                     }
@@ -2407,14 +2431,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Triệu").font(.caption).foregroundStyle(.gray)
-                        let millionsMin = additionalCostMillionsRangeBase
+                        let millionsMin: Int = additionalCostMillionsRangeBase
+                        let millionsMax: Int = max(millionsMin, millionsMin + 500)
+                        let millionsRangeArray: [Int] = Array(millionsMin...millionsMax)
                         Picker("", selection: $additionalCostMillionsSelection) {
-                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                            ForEach(millionsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostMillionsSelection) { _, v in
+                        .onChange(of: additionalCostMillionsSelection) { v in
                             additionalCostWheelSelection = v * 1_000_000 + additionalCostThousandsSelection * 1_000 + additionalCostHundredsSelection
                         }
                     }
@@ -2426,14 +2452,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
-                        let thousandsMin = additionalCostThousandsRangeBase
+                        let thousandsMin: Int = additionalCostThousandsRangeBase
+                        let thousandsMax: Int = min(thousandsMin + 90, 999)
+                        let thousandsRangeArray: [Int] = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $additionalCostThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(thousandsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostThousandsSelection) { _, v in
+                        .onChange(of: additionalCostThousandsSelection) { v in
                             additionalCostWheelSelection = additionalCostMillionsSelection * 1_000_000 + v * 1_000 + additionalCostHundredsSelection
                         }
                     }
@@ -2445,14 +2473,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
-                        let hundredsMin = additionalCostHundredsRangeBase
+                        let hundredsMin: Int = additionalCostHundredsRangeBase
+                        let hundredsMax: Int = min(hundredsMin + 90, 990)
+                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
                         Picker("", selection: $additionalCostHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(hundredsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostHundredsSelection) { _, v in
+                        .onChange(of: additionalCostHundredsSelection) { v in
                             additionalCostWheelSelection = additionalCostMillionsSelection * 1_000_000 + additionalCostThousandsSelection * 1_000 + v
                         }
                     }
@@ -2547,14 +2577,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Triệu").font(.caption).foregroundStyle(.gray)
-                        let millionsMin = suggestedPriceMillionsRangeBase
+                        let millionsMin: Int = suggestedPriceMillionsRangeBase
+                        let millionsMax: Int = max(millionsMin, millionsMin + 500)
+                        let millionsRangeArray: [Int] = Array(millionsMin...millionsMax)
                         Picker("", selection: $suggestedPriceMillionsSelection) {
-                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                            ForEach(millionsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: suggestedPriceMillionsSelection) { _, v in
+                        .onChange(of: suggestedPriceMillionsSelection) { v in
                             suggestedPriceWheelSelection = v * 1_000_000 + suggestedPriceThousandsSelection * 1_000 + suggestedPriceHundredsSelection
                         }
                     }
@@ -2566,14 +2598,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
-                        let thousandsMin = suggestedPriceThousandsRangeBase
+                        let thousandsMin: Int = suggestedPriceThousandsRangeBase
+                        let thousandsMax: Int = min(thousandsMin + 90, 999)
+                        let thousandsRangeArray: [Int] = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $suggestedPriceThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(thousandsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: suggestedPriceThousandsSelection) { _, v in
+                        .onChange(of: suggestedPriceThousandsSelection) { v in
                             suggestedPriceWheelSelection = suggestedPriceMillionsSelection * 1_000_000 + v * 1_000 + suggestedPriceHundredsSelection
                         }
                     }
@@ -2585,14 +2619,16 @@ struct ManualRestockItemView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
-                        let hundredsMin = suggestedPriceHundredsRangeBase
+                        let hundredsMin: Int = suggestedPriceHundredsRangeBase
+                        let hundredsMax: Int = min(hundredsMin + 90, 990)
+                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
                         Picker("", selection: $suggestedPriceHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(hundredsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: suggestedPriceHundredsSelection) { _, v in
+                        .onChange(of: suggestedPriceHundredsSelection) { v in
                             suggestedPriceWheelSelection = suggestedPriceMillionsSelection * 1_000_000 + suggestedPriceThousandsSelection * 1_000 + v
                         }
                     }

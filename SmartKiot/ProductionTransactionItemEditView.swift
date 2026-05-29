@@ -67,6 +67,67 @@ struct ProductionTransactionItemEditView: View {
     @State private var additionalCostHundredsSelection = 0
     @State private var additionalCostHundredsRangeBase = 0
     @State private var showAdditionalCostHundredsRangePicker = false
+
+    // MARK: - Computed Properties to fix type checking issues
+    private var unitPriceMillionsRange: [Int] {
+        let millionsMin = unitPriceMillionsRangeBase
+        let upperBound = max(millionsMin, millionsMin + 500)
+        return Array(millionsMin...upperBound)
+    }
+    
+    private var unitPriceThousandsRange: [Int] {
+        let thousandsMin = unitPriceThousandsRangeBase
+        let upperBound = min(thousandsMin + 90, 999)
+        return Array(thousandsMin...upperBound)
+    }
+    
+    private var unitPriceHundredsRange: [Int] {
+        let hundredsMin = unitPriceHundredsRangeBase
+        let upperBound = min(hundredsMin + 90, 990)
+        return Array(stride(from: hundredsMin, through: upperBound, by: 10))
+    }
+    
+    private var additionalCostMillionsRange: [Int] {
+        let millionsMin = additionalCostMillionsRangeBase
+        let upperBound = max(millionsMin, millionsMin + 500)
+        return Array(millionsMin...upperBound)
+    }
+    
+    private var additionalCostThousandsRange: [Int] {
+        let thousandsMin = additionalCostThousandsRangeBase
+        let upperBound = min(thousandsMin + 90, 999)
+        return Array(thousandsMin...upperBound)
+    }
+    
+    private var additionalCostHundredsRange: [Int] {
+        let hundredsMin = additionalCostHundredsRangeBase
+        let upperBound = min(hundredsMin + 90, 990)
+        return Array(stride(from: hundredsMin, through: upperBound, by: 10))
+    }
+    
+    private var quantityKgRange: [Int] {
+        let kgMin = quantityKgRangeBase
+        let upperBound = max(kgMin, kgMin + 500)
+        return Array(kgMin...upperBound)
+    }
+    
+    private var gramsRange: [Int] {
+        let gramsMin = gramsWheelRangeBase
+        let upperBound = gramsWheelMax
+        return Array(stride(from: gramsMin, through: upperBound, by: 100))
+    }
+    
+    private var quantityKgPickerRange: [Int] {
+        Array(quantityKgRangeBase...quantityWheelMax)
+    }
+    
+    private var gramsPickerRange: [Int] {
+        Array(stride(from: gramsWheelRangeBase, through: gramsWheelMax, by: 10))
+    }
+    
+    private var quantityPickerRange: [Int] {
+        Array(1...quantityWheelMax)
+    }
     
     init(viewModel: OrderViewModel, modeTitle: String, isFinishedGoods: Bool, initialItem: RestockItem, onSave: @escaping (RestockItem) -> Void) {
         self.viewModel = viewModel
@@ -149,7 +210,7 @@ struct ProductionTransactionItemEditView: View {
                             if !t.isEmpty { name = t }
                         }
                     }
-                    .onChange(of: name) { _, newValue in
+                    .onChange(of: name) { newValue in
                         let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                         if trimmed.isEmpty { return }
                         if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -537,12 +598,12 @@ struct ProductionTransactionItemEditView: View {
                         VStack {
                             Text("Kg").font(.caption).foregroundStyle(.gray)
                             Picker("", selection: $quantityKgSelection) {
-                                ForEach(Array(quantityKgRangeBase...quantityWheelMax), id: \.self) { kg in
+                                ForEach(quantityKgPickerRange, id: \.self) { kg in
                                     Text("\(kg)").tag(kg)
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: quantityKgSelection) { _, newValue in
+                            .onChange(of: quantityKgSelection) { newValue in
                                 if newValue >= max(0, quantityWheelMax - 10) {
                                     quantityWheelMax += 200
                                 }
@@ -551,7 +612,7 @@ struct ProductionTransactionItemEditView: View {
                         VStack {
                             Text("Gam").font(.caption).foregroundStyle(.gray)
                             Picker("", selection: $gramsWheelSelection) {
-                                ForEach(Array(stride(from: gramsWheelRangeBase, through: gramsWheelMax, by: 10)), id: \.self) { g in
+                                ForEach(gramsPickerRange, id: \.self) { g in
                                     Text("\(g)").tag(g)
                                 }
                             }
@@ -560,12 +621,12 @@ struct ProductionTransactionItemEditView: View {
                     }
                 } else {
                     Picker("", selection: $quantityWheelSelection) {
-                        ForEach(Array(1...quantityWheelMax), id: \.self) { v in
+                        ForEach(quantityPickerRange, id: \.self) { v in
                             Text("\(v)").tag(v)
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: quantityWheelSelection) { _, newValue in
+                    .onChange(of: quantityWheelSelection) { newValue in
                         if newValue >= quantityWheelMax - 10 {
                             quantityWheelMax += 200
                         }
@@ -599,7 +660,7 @@ struct ProductionTransactionItemEditView: View {
                     }
                 }
                 .pickerStyle(.wheel)
-                .onChange(of: quantityKgRangeBase) { _, newValue in
+                .onChange(of: quantityKgRangeBase) { newValue in
                     if quantityKgSelection < newValue { quantityKgSelection = newValue }
                 }
                 HStack {
@@ -621,7 +682,7 @@ struct ProductionTransactionItemEditView: View {
                     }
                 }
                 .pickerStyle(.wheel)
-                .onChange(of: gramsWheelRangeBase) { _, newValue in
+                .onChange(of: gramsWheelRangeBase) { newValue in
                     if gramsWheelSelection < newValue { gramsWheelSelection = newValue }
                 }
                 HStack {
@@ -649,14 +710,13 @@ struct ProductionTransactionItemEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Triệu").font(.caption).foregroundStyle(.gray)
-                        let millionsMin = unitPriceMillionsRangeBase
                         Picker("", selection: $unitPriceMillionsSelection) {
-                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                            ForEach(unitPriceMillionsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceMillionsSelection) { _, v in
+                        .onChange(of: unitPriceMillionsSelection) { v in
                             unitPriceWheelSelection = v * 1_000_000 + unitPriceThousandsSelection * 1_000 + unitPriceHundredsSelection
                         }
                     }
@@ -668,14 +728,13 @@ struct ProductionTransactionItemEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
-                        let thousandsMin = unitPriceThousandsRangeBase
                         Picker("", selection: $unitPriceThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(unitPriceThousandsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceThousandsSelection) { _, v in
+                        .onChange(of: unitPriceThousandsSelection) { v in
                             unitPriceWheelSelection = unitPriceMillionsSelection * 1_000_000 + v * 1_000 + unitPriceHundredsSelection
                         }
                     }
@@ -687,14 +746,13 @@ struct ProductionTransactionItemEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
-                        let hundredsMin = unitPriceHundredsRangeBase
                         Picker("", selection: $unitPriceHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(unitPriceHundredsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceHundredsSelection) { _, v in
+                        .onChange(of: unitPriceHundredsSelection) { v in
                             unitPriceWheelSelection = unitPriceMillionsSelection * 1_000_000 + unitPriceThousandsSelection * 1_000 + v
                         }
                     }
@@ -792,14 +850,13 @@ struct ProductionTransactionItemEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Triệu").font(.caption).foregroundStyle(.gray)
-                        let millionsMin = additionalCostMillionsRangeBase
                         Picker("", selection: $additionalCostMillionsSelection) {
-                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                            ForEach(additionalCostMillionsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostMillionsSelection) { _, v in
+                        .onChange(of: additionalCostMillionsSelection) { v in
                             additionalCostWheelSelection = v * 1_000_000 + additionalCostThousandsSelection * 1_000 + additionalCostHundredsSelection
                         }
                     }
@@ -811,14 +868,13 @@ struct ProductionTransactionItemEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
-                        let thousandsMin = additionalCostThousandsRangeBase
                         Picker("", selection: $additionalCostThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(additionalCostThousandsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostThousandsSelection) { _, v in
+                        .onChange(of: additionalCostThousandsSelection) { v in
                             additionalCostWheelSelection = additionalCostMillionsSelection * 1_000_000 + v * 1_000 + additionalCostHundredsSelection
                         }
                     }
@@ -830,14 +886,13 @@ struct ProductionTransactionItemEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
-                        let hundredsMin = additionalCostHundredsRangeBase
                         Picker("", selection: $additionalCostHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(additionalCostHundredsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostHundredsSelection) { _, v in
+                        .onChange(of: additionalCostHundredsSelection) { v in
                             additionalCostWheelSelection = additionalCostMillionsSelection * 1_000_000 + additionalCostThousandsSelection * 1_000 + v
                         }
                     }

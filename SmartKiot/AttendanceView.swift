@@ -799,7 +799,7 @@ private struct AttendanceHistoryView: View {
             .padding(.vertical, 16)
         }
         .task { await loadRecords() }
-        .onChange(of: rangeMode) { _, _ in
+        .onChange(of: rangeMode) { _ in
             if rangeMode == .custom { showCustomDatePicker = true }
             else { Task { await loadRecords() } }
         }
@@ -1267,7 +1267,7 @@ struct LeaveRequestSheet: View {
                 }
             }
             .task { await loadHistory() }
-            .onChange(of: selectedTab) { _, t in
+            .onChange(of: selectedTab) { t in
                 if t == .history { Task { await loadHistory() } }
             }
         }

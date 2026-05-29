@@ -142,106 +142,138 @@ struct TransactionEditView: View {
         return URL(string: "https://img.vietqr.io/image/\(code)-\(bankAccount)-compact.png?amount=\(amount)&addInfo=\(info)")
     }
     
+    private func findMaterialAndProduct(for itemName: String) -> (MaterialItem?, Product?) {
+        let lowerName = itemName.lowercased()
+        var foundMaterial: MaterialItem? = nil
+        for m in viewModel.materials {
+            if m.name.lowercased() == lowerName {
+                foundMaterial = m
+                break
+            }
+        }
+        var foundProduct: Product? = nil
+        for p in viewModel.products {
+            if p.name.lowercased() == lowerName {
+                foundProduct = p
+                break
+            }
+        }
+        return (foundMaterial, foundProduct)
+    }
+    
+    private func listItemView(idx: Int, it: RestockItem) -> some View {
+        let src: String = it.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let isImportMode: Bool = original.mode.lowercased().contains("nhập")
+        let isMaterialMode: Bool = original.mode.lowercased().contains("nguyên liệu")
+        let (foundMaterial, foundProduct) = findMaterialAndProduct(for: it.name)
+        let currentStock: Int = isMaterialMode ? (foundMaterial?.stockQuantity ?? 0) : (foundProduct?.stockQuantity ?? 0)
+        let displayUnit: String? = isMaterialMode ? (foundMaterial?.unit ?? it.unit) : it.unit
+        let originalQty: Int = originalQtyMap[it.id] ?? it.quantity
+        let computedStockBefore: Int
+        if let cached = stockBeforeMap[it.id] {
+            computedStockBefore = cached
+        } else if isImportMode {
+            computedStockBefore = currentStock - originalQty
+        } else {
+            computedStockBefore = currentStock + originalQty
+        }
+        let stockBefore: Int = computedStockBefore
+        let stockAfter: Int = isImportMode ? (stockBefore + it.quantity) : (stockBefore - it.quantity)
+        
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(it.name)
+                    .font(.headline)
+                    .foregroundStyle(Color.themeTextDark)
+                Spacer()
+                Button {
+                    editingItemIndex = idx
+                    editingItem = it
+                } label: {
+                    Text("Sửa")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            }
+            if !src.isEmpty {
+                let sourceLabel: String = "Nguồn: \(src)"
+                Text(sourceLabel)
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            HStack {
+                Text(isImportMode ? "SL nhập thêm" : "SL xuất")
+                Spacer()
+                Text(FormatUtils.formatWeight(it.quantity, unit: it.unit))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        editingIndex = idx
+                        quantityWheelSelection = it.quantity
+                        editingUnit = it.unit ?? "kg"
+                        showQuantityWheel = true
+                    }
+            }
+            HStack {
+                Text(isImportMode ? "SL trước khi nhập" : "SL trước khi xuất")
+                Spacer()
+                Text(FormatUtils.formatWeight(stockBefore, unit: displayUnit))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.gray)
+            }
+            HStack {
+                Text(isImportMode ? "SL sau khi nhập" : "SL sau khi xuất")
+                Spacer()
+                Text(FormatUtils.formatWeight(stockAfter, unit: displayUnit))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.gray)
+            }
+            HStack {
+                Text(unitPriceTitle)
+                Spacer()
+                Text(formatCurrency(it.unitPrice))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        editingIndex = idx
+                        unitPriceWheelSelection = Int(it.unitPrice)
+                        showUnitPriceWheel = true
+                    }
+            }
+            HStack {
+                Text("Chi phí")
+                Spacer()
+                Text(formatCurrency(it.additionalCost))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        editingIndex = idx
+                        additionalCostWheelSelection = Int(it.additionalCost)
+                        showAdditionalCostWheel = true
+                    }
+            }
+            HStack {
+                Text("Đơn giá gồm chi phí")
+                Spacer()
+                Text(formatCurrency(it.finalUnitCost))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.gray)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+    
     var body: some View {
         NavigationStack {
             List {
                 Section(header: Text("Sản phẩm")) {
                     ForEach(Array(items.enumerated()), id: \.offset) { idx, it in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(it.name)
-                                    .font(.headline)
-                                    .foregroundStyle(Color.themeTextDark)
-                                Spacer()
-                                Button {
-                                    editingItemIndex = idx
-                                    editingItem = it
-                                } label: {
-                                    Text("Sửa")
-                                        .font(.subheadline)
-                                        .fontWeight(.bold)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.orange)
-                            }
-                            let src = it.source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                            if !src.isEmpty {
-                                Text("Nguồn: \(src)")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                            }
-                            let isImportMode = original.mode.lowercased().contains("nhập")
-                            let isMaterialMode = original.mode.lowercased().contains("nguyên liệu")
-                            let matchedMaterial = viewModel.materials.first(where: { $0.name.lowercased() == it.name.lowercased() })
-                            let matchedProduct = viewModel.products.first(where: { $0.name.lowercased() == it.name.lowercased() })
-                            let currentStock = isMaterialMode ? (matchedMaterial?.stockQuantity ?? 0) : (matchedProduct?.stockQuantity ?? 0)
-                            let displayUnit = isMaterialMode ? (matchedMaterial?.unit ?? it.unit) : it.unit
-                            let originalQty = originalQtyMap[it.id] ?? it.quantity
-                            let stockBefore = stockBeforeMap[it.id] ?? (isImportMode ? currentStock - originalQty : currentStock + originalQty)
-                            let stockAfter = isImportMode ? stockBefore + it.quantity : stockBefore - it.quantity
-                            HStack {
-                                Text(isImportMode ? "SL nhập thêm" : "SL xuất")
-                                Spacer()
-                                Text(FormatUtils.formatWeight(it.quantity, unit: it.unit))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(Color.themePrimary)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        editingIndex = idx
-                                        quantityWheelSelection = it.quantity
-                                        editingUnit = it.unit ?? "kg"
-                                        showQuantityWheel = true
-                                    }
-                            }
-                            HStack {
-                                Text(isImportMode ? "SL trước khi nhập" : "SL trước khi xuất")
-                                Spacer()
-                                Text(FormatUtils.formatWeight(stockBefore, unit: displayUnit))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.gray)
-                            }
-                            HStack {
-                                Text(isImportMode ? "SL sau khi nhập" : "SL sau khi xuất")
-                                Spacer()
-                                Text(FormatUtils.formatWeight(stockAfter, unit: displayUnit))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.gray)
-                            }
-                            HStack {
-                                Text(unitPriceTitle)
-                                Spacer()
-                                Text(formatCurrency(it.unitPrice))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(Color.themePrimary)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        editingIndex = idx
-                                        unitPriceWheelSelection = Int(it.unitPrice)
-                                        showUnitPriceWheel = true
-                                    }
-                            }
-                            HStack {
-                                Text("Chi phí")
-                                Spacer()
-                                Text(formatCurrency(it.additionalCost))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(Color.themePrimary)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        editingIndex = idx
-                                        additionalCostWheelSelection = Int(it.additionalCost)
-                                        showAdditionalCostWheel = true
-                                    }
-                            }
-                            HStack {
-                                Text("Đơn giá gồm chi phí")
-                                Spacer()
-                                Text(formatCurrency(it.finalUnitCost))
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.gray)
-                            }
-                        }
-                        .padding(.vertical, 6)
+                        listItemView(idx: idx, it: it)
                     }
                 }
 
@@ -446,7 +478,7 @@ struct TransactionEditView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 8)
                         }
-                        .onChange(of: paidAmount) { _, _ in loadQRImage(url: url) }
+                        .onChange(of: paidAmount) { _ in loadQRImage(url: url) }
                     }
                 }
 
@@ -673,7 +705,7 @@ struct TransactionEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: partialAmountBaseSelection) { _, newValue in
+                            .onChange(of: partialAmountBaseSelection) { newValue in
                                 partialAmountSelection = newValue + partialAmountHundredsSelection
                                 if newValue > partialAmountMax - (step * 5) {
                                     partialAmountMax += step * 100
@@ -690,7 +722,7 @@ struct TransactionEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: partialAmountHundredsSelection) { _, newValue in
+                            .onChange(of: partialAmountHundredsSelection) { newValue in
                                 partialAmountSelection = partialAmountBaseSelection + newValue
                             }
                         }
@@ -723,7 +755,7 @@ struct TransactionEditView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: partialAmountRangeBase) { _, newValue in
+                        .onChange(of: partialAmountRangeBase) { newValue in
                             if newValue >= partialAmountMax - 200_000 {
                                 partialAmountMax += 1_000_000
                             }
@@ -782,7 +814,7 @@ struct TransactionEditView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: quantityWheelSelection) { _, newValue in
+                        .onChange(of: quantityWheelSelection) { newValue in
                             if newValue >= quantityWheelMax - 10 {
                                 quantityWheelMax += 200
                             }
@@ -820,7 +852,7 @@ struct TransactionEditView: View {
                                     }
                                 }
                                 .pickerStyle(.wheel)
-                                .onChange(of: quantityKgSelection) { _, newValue in
+                                .onChange(of: quantityKgSelection) { newValue in
                                     if newValue >= max(0, quantityWheelMax - 10) {
                                         quantityWheelMax += 200
                                     }
@@ -877,7 +909,7 @@ struct TransactionEditView: View {
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: quantityKgRangeBase) { _, newValue in
+                    .onChange(of: quantityKgRangeBase) { newValue in
                         if newValue >= quantityWheelMax - 100 {
                             quantityWheelMax += 500
                         }
@@ -910,7 +942,7 @@ struct TransactionEditView: View {
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: gramsWheelRangeBase) { _, newValue in
+                    .onChange(of: gramsWheelRangeBase) { newValue in
                         if gramsWheelSelection < newValue { gramsWheelSelection = newValue }
                     }
                     HStack {
@@ -939,14 +971,16 @@ struct TransactionEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Triệu").font(.caption).foregroundStyle(.gray)
-                        let millionsMin = unitPriceMillionsRangeBase
+                        let millionsMin: Int = unitPriceMillionsRangeBase
+                        let millionsMax: Int = max(millionsMin, millionsMin + 500)
+                        let millionsRange: [Int] = Array(millionsMin...millionsMax)
                         Picker("", selection: $unitPriceMillionsSelection) {
-                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                            ForEach(millionsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceMillionsSelection) { _, v in
+                        .onChange(of: unitPriceMillionsSelection) { v in
                             unitPriceWheelSelection = v * 1_000_000 + unitPriceThousandsSelection * 1_000 + unitPriceHundredsSelection
                         }
                     }
@@ -958,14 +992,16 @@ struct TransactionEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
-                        let thousandsMin = unitPriceThousandsRangeBase
+                        let thousandsMin: Int = unitPriceThousandsRangeBase
+                        let thousandsMax: Int = min(thousandsMin + 90, 999)
+                        let thousandsRange: [Int] = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $unitPriceThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(thousandsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceThousandsSelection) { _, v in
+                        .onChange(of: unitPriceThousandsSelection) { v in
                             unitPriceWheelSelection = unitPriceMillionsSelection * 1_000_000 + v * 1_000 + unitPriceHundredsSelection
                         }
                     }
@@ -977,14 +1013,16 @@ struct TransactionEditView: View {
                                 .background(Capsule().fill(Color.gray.opacity(0.15)))
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
-                        let hundredsMin = unitPriceHundredsRangeBase
+                        let hundredsMin: Int = unitPriceHundredsRangeBase
+                        let hundredsMax: Int = min(hundredsMin + 90, 990)
+                        let hundredsRange: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
                         Picker("", selection: $unitPriceHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(hundredsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: unitPriceHundredsSelection) { _, v in
+                        .onChange(of: unitPriceHundredsSelection) { v in
                             unitPriceWheelSelection = unitPriceMillionsSelection * 1_000_000 + unitPriceThousandsSelection * 1_000 + v
                         }
                     }
@@ -1083,13 +1121,15 @@ struct TransactionEditView: View {
                         }.buttonStyle(.plain)
                         Text("Triệu").font(.caption).foregroundStyle(.gray)
                         let millionsMin = additionalCostMillionsRangeBase
+                        let millionsMax = max(millionsMin, millionsMin + 500)
+                        let millionsRange = Array(millionsMin...millionsMax)
                         Picker("", selection: $additionalCostMillionsSelection) {
-                            ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                            ForEach(millionsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostMillionsSelection) { _, v in
+                        .onChange(of: additionalCostMillionsSelection) { v in
                             additionalCostWheelSelection = v * 1_000_000 + additionalCostThousandsSelection * 1_000 + additionalCostHundredsSelection
                         }
                     }
@@ -1102,13 +1142,15 @@ struct TransactionEditView: View {
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
                         let thousandsMin = additionalCostThousandsRangeBase
+                        let thousandsMax = min(thousandsMin + 90, 999)
+                        let thousandsRange = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $additionalCostThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(thousandsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostThousandsSelection) { _, v in
+                        .onChange(of: additionalCostThousandsSelection) { v in
                             additionalCostWheelSelection = additionalCostMillionsSelection * 1_000_000 + v * 1_000 + additionalCostHundredsSelection
                         }
                     }
@@ -1121,13 +1163,15 @@ struct TransactionEditView: View {
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
                         let hundredsMin = additionalCostHundredsRangeBase
+                        let hundredsMax = min(hundredsMin + 90, 990)
+                        let hundredsRange = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
                         Picker("", selection: $additionalCostHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(hundredsRange, id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: additionalCostHundredsSelection) { _, v in
+                        .onChange(of: additionalCostHundredsSelection) { v in
                             additionalCostWheelSelection = additionalCostMillionsSelection * 1_000_000 + additionalCostThousandsSelection * 1_000 + v
                         }
                     }

@@ -461,18 +461,13 @@ struct AutoMaterialExportSheetView: View {
                     Button {
                         Task { await saveTemplate() }
                     } label: {
-                        if isSavingTemplate {
-                            ProgressView()
-                        } else {
-                            Text("Lưu")
-                                .fontWeight(.bold)
-                        }
+                        saveButtonLabel
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(hasTemplateChanges ? .blue : .gray)
-                    .scaleEffect(hasTemplateChanges ? (savePulse ? 1.14 : 0.92) : 1)
-                    .opacity(hasTemplateChanges ? (savePulse ? 1 : 0.75) : 1)
-                    .shadow(color: hasTemplateChanges ? Color.blue.opacity(savePulse ? 0.55 : 0.18) : .clear, radius: savePulse ? 10 : 4, x: 0, y: savePulse ? 6 : 2)
+                    .tint(saveButtonTint)
+                    .scaleEffect(saveButtonScaleEffect)
+                    .opacity(saveButtonOpacity)
+                    .shadow(color: saveButtonShadowColor, radius: saveButtonShadowRadius, x: 0, y: saveButtonShadowY)
                     .disabled(isSavingTemplate || !hasTemplateChanges)
                 }
             }
@@ -488,7 +483,7 @@ struct AutoMaterialExportSheetView: View {
                 }
             }
         }
-        .onChange(of: afterBoilKgText) { _, _ in
+        .onChange(of: afterBoilKgText) { _ in
             autoCalcPanCount()
             // Khi main afterBoil thay đổi, phân bổ lại đều cho tất cả sub-sheets
             guard !subSheetStates.isEmpty else { return }
@@ -502,8 +497,8 @@ struct AutoMaterialExportSheetView: View {
                 subSheetStates[i].autoCalcPanCount()
             }
         }
-        .onChange(of: standardPanWeightKgText) { _, _ in autoCalcPanCount() }
-        .onChange(of: hasTemplateChanges) { _, newValue in
+        .onChange(of: standardPanWeightKgText) { _ in autoCalcPanCount() }
+        .onChange(of: hasTemplateChanges) { newValue in
             if newValue {
                 savePulse = false
                 withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
@@ -1356,7 +1351,7 @@ struct AutoMaterialExportSheetView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: subSheetStates[i].surplusThresholdKg) { _, v in
+                        .onChange(of: subSheetStates[i].surplusThresholdKg) { v in
                             if v >= subSheetStates[i].surplusWheelMax - 5 {
                                 subSheetStates[i].surplusWheelMax += 20
                             }
@@ -1789,6 +1784,40 @@ struct AutoMaterialExportSheetView: View {
         return savedData != currentTemplateData
     }
     
+    @ViewBuilder
+    private var saveButtonLabel: some View {
+        if isSavingTemplate {
+            ProgressView()
+        } else {
+            Text("Lưu")
+                .fontWeight(.bold)
+        }
+    }
+    
+    private var saveButtonTint: Color {
+        hasTemplateChanges ? .blue : .gray
+    }
+    
+    private var saveButtonScaleEffect: CGFloat {
+        hasTemplateChanges ? (savePulse ? 1.14 : 0.92) : 1
+    }
+    
+    private var saveButtonOpacity: Double {
+        hasTemplateChanges ? (savePulse ? 1 : 0.75) : 1
+    }
+    
+    private var saveButtonShadowColor: Color {
+        hasTemplateChanges ? Color.blue.opacity(savePulse ? 0.55 : 0.18) : .clear
+    }
+    
+    private var saveButtonShadowRadius: CGFloat {
+        savePulse ? 10 : 4
+    }
+    
+    private var saveButtonShadowY: CGFloat {
+        savePulse ? 6 : 2
+    }
+    
     private func syncSavedSnapshot() {
         lastSavedTemplateId = selectedTemplateId
         lastSavedTemplateName = resolvedTemplateName
@@ -2099,7 +2128,7 @@ private struct BlinkingContainer<Content: View>: View {
                     blinkOn = true
                 }
             }
-            .onChange(of: isActive) { _, newValue in
+            .onChange(of: isActive) { newValue in
                 if newValue {
                     blinkOn = false
                     withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
@@ -2302,7 +2331,7 @@ private struct WeightWheelSheet: View {
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: kgSelection) { _, newValue in
+                    .onChange(of: kgSelection) { newValue in
                         if newValue >= max(0, kgMax - 10) { kgMax += 200 }
                     }
                 }
@@ -2371,7 +2400,7 @@ private struct IntWheelSheet: View {
                 }
             }
             .pickerStyle(.wheel)
-            .onChange(of: selection) { _, newValue in
+            .onChange(of: selection) { newValue in
                 if newValue >= maxValue - 10 { maxValue += 200 }
             }
             HStack {

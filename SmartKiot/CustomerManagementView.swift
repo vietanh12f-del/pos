@@ -2496,7 +2496,7 @@ private struct DebtEditView: View {
                                     }
                                 }
                                 .pickerStyle(.wheel)
-                                .onChange(of: debtAmountBaseSelection) { _, newValue in
+                                .onChange(of: debtAmountBaseSelection) { newValue in
                                     debtAmountSelection = newValue + debtAmountHundredsSelection
                                     if newValue > debtAmountMax - (step * 5) {
                                         debtAmountMax += step * 100
@@ -2513,7 +2513,7 @@ private struct DebtEditView: View {
                                     }
                                 }
                                 .pickerStyle(.wheel)
-                                .onChange(of: debtAmountHundredsSelection) { _, newValue in
+                                .onChange(of: debtAmountHundredsSelection) { newValue in
                                     debtAmountSelection = debtAmountBaseSelection + newValue
                                 }
                             }
@@ -2556,7 +2556,7 @@ private struct DebtEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: debtAmountRangeBase) { _, newValue in
+                            .onChange(of: debtAmountRangeBase) { newValue in
                                 if newValue >= debtAmountMax - 200_000 {
                                     debtAmountMax += 1_000_000
                                 }

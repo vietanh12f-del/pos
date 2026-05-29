@@ -29,8 +29,8 @@ struct VoiceAIButton: View {
                 Image(systemName: isActiveRecording ? "waveform" : "mic.fill")
                     .font(.system(size: size * 0.4, weight: .bold))
                     .foregroundStyle(.white)
-                    .symbolEffect(.variableColor.iterative, isActive: isActiveRecording)
-                    .contentTransition(.symbolEffect(.replace))
+                    .opacity(isActiveRecording ? 0.8 : 1.0)
+                    .animation(.easeInOut(duration: 0.3), value: isActiveRecording)
             }
         }
     }

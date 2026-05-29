@@ -229,7 +229,7 @@ struct ContentView: View {
                         await viewModel.loadData(force: true)
                     }
                 }
-                .onChange(of: storeManager.currentStore?.id) { _, newId in
+                .onChange(of: storeManager.currentStore?.id) { newId in
                     // Khởi động / khởi động lại lắng nghe khách hàng mới từ website
                     WebsiteLeadNotificationService.shared.stop()
                     AppNotificationService.shared.teardown()
@@ -863,7 +863,7 @@ struct ContentView: View {
                             notifService.setup(viewModel: viewModel)
                             await notifService.refresh(viewModel: viewModel)
                         }
-                        .onChange(of: activeRange) { _, _ in
+                        .onChange(of: activeRange) { _ in
                             if productionEnabledGlobal {
                                 Task {
                                     allProductionTx = await viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
@@ -974,6 +974,115 @@ struct ContentView: View {
         @State private var customerSortMode: Int = 0
         @State private var customerSearch: String = ""
         @State private var isKeyboardVisible: Bool = false
+        
+        @ViewBuilder
+        private func orderItemView(_ item: OrderItem) -> some View {
+            HStack(spacing: 12) {
+                if let data = item.imageData, let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 36, height: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                } else {
+                    Image(systemName: item.systemImage ?? "cart.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(Color.themePrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.themePrimary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.name)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                        .onTapGesture {
+                            if let idx = viewModel.products.firstIndex(where: { $0.name == item.name }) {
+                                nameWheelSelectionIndex = idx
+                            } else {
+                                nameWheelSelectionIndex = 0
+                            }
+                            nameWheelItem = item
+                        }
+                    
+                    HStack(spacing: 8) {
+                        Text(formatCurrency(item.price))
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .onTapGesture {
+                                priceWheelSelection = max(0, Int(item.price))
+                                priceEditItem = item
+                            }
+                        if item.discount > 0 {
+                            Text("-\(Int(item.discount/1000))k")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 6) {
+                    Text(formatCurrency(item.total))
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                    
+                    HStack(spacing: 18) {
+                        Button {
+                            viewModel.updateItem(item, newQuantity: item.quantity - 1)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color.gray)
+                        }
+                        
+                        Text("\(item.quantity)")
+                            .font(.title2)
+                            .frame(minWidth: 36)
+                            .padding(.horizontal, 6)
+                            .onTapGesture {
+                                wheelItem = item
+                                wheelSelection = item.quantity
+                                wheelMax = item.quantity + 1000
+                            }
+                        
+                        Button {
+                            viewModel.updateItem(item, newQuantity: item.quantity + 1)
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                        
+                        Button {
+                            viewModel.removeItem(item)
+                        } label: {
+                            Image(systemName: "trash.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+            .id(item.id)
+            .onTapGesture {
+                editingItem = item
+            }
+        }
         
         var searchContentViewOrder: some View {
             Group {
@@ -1310,111 +1419,7 @@ struct ContentView: View {
                     ScrollView {
                         VStack(spacing: 8) {
                             ForEach(viewModel.items) { item in
-                                HStack(spacing: 12) {
-                                    if let data = item.imageData, let uiImage = UIImage(data: data) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 36, height: 36)
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.2), lineWidth: 1))
-                                    } else {
-                                        Image(systemName: item.systemImage ?? "cart.circle.fill")
-                                            .font(.system(size: 18))
-                                            .foregroundStyle(Color.themePrimary)
-                                            .frame(width: 36, height: 36)
-                                            .background(Color.themePrimary.opacity(0.1))
-                                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    }
-                                    
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(item.name)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(Color.themeTextDark)
-                                            .onTapGesture {
-                                                if let idx = viewModel.products.firstIndex(where: { $0.name == item.name }) {
-                                                    nameWheelSelectionIndex = idx
-                                                } else {
-                                                    nameWheelSelectionIndex = 0
-                                                }
-                                                nameWheelItem = item
-                                            }
-                                        
-                                        HStack(spacing: 8) {
-                                            Text(formatCurrency(item.price))
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
-                                                .onTapGesture {
-                                                    priceWheelSelection = max(0, Int(item.price))
-                                                    priceEditItem = item
-                                                }
-                                            if item.discount > 0 {
-                                                Text("-\(Int(item.discount/1000))k")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.red)
-                                            }
-                                        }
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    VStack(alignment: .trailing, spacing: 6) {
-                                        Text(formatCurrency(item.total))
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(Color.themePrimary)
-                                        
-                                        HStack(spacing: 18) {
-                                            Button {
-                                                viewModel.updateItem(item, newQuantity: item.quantity - 1)
-                                            } label: {
-                                                Image(systemName: "minus.circle.fill")
-                                                    .font(.title3)
-                                                    .foregroundStyle(Color.gray)
-                                            }
-                                            
-                                            Text("\(item.quantity)")
-                                                .font(.title2)
-                                                .frame(minWidth: 36)
-                                                .padding(.horizontal, 6)
-                                                .onTapGesture {
-                                                    wheelItem = item
-                                                    wheelSelection = item.quantity
-                                                    wheelMax = item.quantity + 1000
-                                                }
-                                            
-                                            Button {
-                                                viewModel.updateItem(item, newQuantity: item.quantity + 1)
-                                            } label: {
-                                                Image(systemName: "plus.circle.fill")
-                                                    .font(.title3)
-                                                    .foregroundStyle(Color.themePrimary)
-                                            }
-                                            
-                                            Button {
-                                                viewModel.removeItem(item)
-                                            } label: {
-                                                Image(systemName: "trash.circle.fill")
-                                                    .font(.title3)
-                                                    .foregroundStyle(.red)
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding(12)
-                                .background(Color.white)
-                                .cornerRadius(12)
-                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                )
-                                .contentShape(Rectangle())
-                                .id(item.id)
-                                .onTapGesture {
-                                    editingItem = item
-                                }
+                                orderItemView(item)
                             }
                             
                             Button(action: { showManualInput = true }) {
@@ -1433,14 +1438,14 @@ struct ContentView: View {
                         }
                     }
                     .frame(height: 160)
-                    .onChange(of: viewModel.items.count) { _, _ in
+                    .onChange(of: viewModel.items.count) { _ in
                         if let id = viewModel.lastFocusedItemId ?? viewModel.items.last?.id {
                             withAnimation {
                                 proxy.scrollTo(id, anchor: .bottom)
                             }
                         }
                     }
-                    .onChange(of: viewModel.lastFocusedItemId) { _, newId in
+                    .onChange(of: viewModel.lastFocusedItemId) { newId in
                         if let id = newId {
                             withAnimation {
                                 proxy.scrollTo(id, anchor: .center)
@@ -1615,13 +1620,15 @@ struct ContentView: View {
                             }.buttonStyle(.plain)
                             Text("Triệu").font(.caption).foregroundStyle(.gray)
                             let millionsMin = priceMillionsRangeBase
+                            let millionsMax = max(millionsMin, millionsMin + 500)
+                            let millionsRange = Array(millionsMin...millionsMax)
                             Picker("", selection: $priceMillionsSelection) {
-                                ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                                ForEach(millionsRange, id: \.self) { v in
                                     Text("\(v)").tag(v)
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: priceMillionsSelection) { _, v in
+                            .onChange(of: priceMillionsSelection) { v in
                                 priceWheelSelection = v * 1_000_000 + priceThousandsSelection * 1_000 + priceHundredsSelection
                             }
                         }
@@ -1634,13 +1641,15 @@ struct ContentView: View {
                             }.buttonStyle(.plain)
                             Text("Ngàn").font(.caption).foregroundStyle(.gray)
                             let thousandsMin = priceThousandsRangeBase
+                            let thousandsMax = min(thousandsMin + 90, 999)
+                            let thousandsRange = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                             Picker("", selection: $priceThousandsSelection) {
-                                ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                                ForEach(thousandsRange, id: \.self) { v in
                                     Text("\(v)").tag(v)
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: priceThousandsSelection) { _, v in
+                            .onChange(of: priceThousandsSelection) { v in
                                 priceWheelSelection = priceMillionsSelection * 1_000_000 + v * 1_000 + priceHundredsSelection
                             }
                         }
@@ -1653,13 +1662,15 @@ struct ContentView: View {
                             }.buttonStyle(.plain)
                             Text("Trăm").font(.caption).foregroundStyle(.gray)
                             let hundredsMin = priceHundredsRangeBase
+                            let hundredsMax = min(hundredsMin + 90, 990)
+                            let hundredsRange = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
                             Picker("", selection: $priceHundredsSelection) {
-                                ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 90, 990), by: 10)), id: \.self) { v in
+                                ForEach(hundredsRange, id: \.self) { v in
                                     Text("\(v)").tag(v)
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: priceHundredsSelection) { _, v in
+                            .onChange(of: priceHundredsSelection) { v in
                                 priceWheelSelection = priceMillionsSelection * 1_000_000 + priceThousandsSelection * 1_000 + v
                             }
                         }
@@ -2502,7 +2513,7 @@ struct ContentView: View {
                 ImagePicker(image: $receiptImage)
                     .ignoresSafeArea()
             }
-            .onChange(of: receiptImage) { _, img in
+            .onChange(of: receiptImage) { img in
                 guard let img else { return }
                 Task {
                     isUploadingReceipt = true
@@ -2536,7 +2547,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .onChange(of: viewModel.paymentReceiptImageURL) { _, urlString in
+            .onChange(of: viewModel.paymentReceiptImageURL) { urlString in
                 guard let urlString, let u = URL(string: urlString) else { return }
                 if BillReceiptView.ImageCache.shared.image(for: u) == nil {
                     Task {

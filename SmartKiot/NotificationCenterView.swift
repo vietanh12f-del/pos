@@ -355,7 +355,7 @@ struct NotificationTile: View {
         }
         .buttonStyle(.plain)
         .onAppear { startPulse() }
-        .onChange(of: service.hasUnread) { _, has in
+        .onChange(of: service.hasUnread) { has in
             if has { startPulse() } else { pulse = false }
         }
     }

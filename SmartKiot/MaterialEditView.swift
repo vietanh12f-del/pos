@@ -300,7 +300,7 @@ struct MaterialEditView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: costWheelMillionsSelection) { _, newValue in
+                        .onChange(of: costWheelMillionsSelection) { newValue in
                             costWheelSelection = newValue * 1_000_000 + costWheelThousandsSelection * 1_000 + costWheelHundredsSelection
                         }
                     }
@@ -326,7 +326,7 @@ struct MaterialEditView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: costWheelThousandsSelection) { _, newValue in
+                        .onChange(of: costWheelThousandsSelection) { newValue in
                             costWheelSelection = costWheelMillionsSelection * 1_000_000 + newValue * 1_000 + costWheelHundredsSelection
                         }
                     }
@@ -352,7 +352,7 @@ struct MaterialEditView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: costWheelHundredsSelection) { _, newValue in
+                        .onChange(of: costWheelHundredsSelection) { newValue in
                             costWheelSelection = costWheelMillionsSelection * 1_000_000 + costWheelThousandsSelection * 1_000 + newValue
                         }
                     }
@@ -485,7 +485,7 @@ struct MaterialEditView: View {
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: stockWheelSelection) { _, newValue in
+                    .onChange(of: stockWheelSelection) { newValue in
                         if newValue >= stockWheelMax - 10 {
                             stockWheelMax += 200
                         }
@@ -542,7 +542,7 @@ struct MaterialEditView: View {
                         }
                     }
                     .pickerStyle(.wheel)
-                    .onChange(of: stockKgRangeBase) { _, newValue in
+                    .onChange(of: stockKgRangeBase) { newValue in
                         if newValue >= stockWheelMax - 100 {
                             stockWheelMax += 500
                         }

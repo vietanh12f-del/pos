@@ -90,6 +90,11 @@ struct ProductionManagementView: View {
         }
     }
     
+    private func productPriceText(for product: Product) -> String {
+        let price = product.price > product.costPrice ? product.price : product.costPrice * 1.3
+        return formatCurrency(price)
+    }
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
@@ -217,11 +222,11 @@ struct ProductionManagementView: View {
                                                         }
                                                     } label: {
                                                         ProductionProductListRow(
-                                                            name: p.name,
-                                                            priceText: formatCurrency(p.price > p.costPrice ? p.price : p.costPrice * 1.3),
-                                                            stockText: FormatUtils.formatWeight(p.stockQuantity),
-                                                            hasVAT: p.hasVAT
-                                                        )
+                                                        name: p.name,
+                                                        priceText: productPriceText(for: p),
+                                                        stockText: FormatUtils.formatWeight(p.stockQuantity),
+                                                        hasVAT: p.hasVAT
+                                                    )
                                                     }
                                                     Divider().padding(.leading, 0)
                                                 }
@@ -385,7 +390,7 @@ struct ProductionManagementView: View {
                                         }
                                         .padding(.top, 8)
                                     }
-                                    .onChange(of: highlightedTxId) { _, txId in
+                                    .onChange(of: highlightedTxId) { txId in
                                         if let txId {
                                             withAnimation(.easeInOut(duration: 0.5)) {
                                                 proxy.scrollTo(txId, anchor: .center)
@@ -441,7 +446,7 @@ struct ProductionManagementView: View {
                     if let m = selectedMode { await viewModel.loadProductionHistory(mode: m.rawValue) }
                 }
             }
-            .onChange(of: materialTab) { _, newVal in
+            .onChange(of: materialTab) { newVal in
                 // Clear search text when switching tabs
                 if newVal == 0 {
                     historySearchText = ""
@@ -452,7 +457,7 @@ struct ProductionManagementView: View {
                     Task { await viewModel.loadProductionHistory(mode: m.rawValue) }
                 }
             }
-            .onChange(of: selectedMode) { _, m in
+            .onChange(of: selectedMode) { m in
                 Task {
                     if materialTab == 1, let md = m {
                         await viewModel.loadProductionHistory(mode: md.rawValue)

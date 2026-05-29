@@ -80,6 +80,20 @@ struct ProductEditView: View {
     let colors = ["red", "orange", "yellow", "green", "blue", "purple", "pink", "gray", "black", "brown"]
     let icons = ["shippingbox.fill", "rosette", "sun.max.fill", "camera.macro", "gift.fill", "birthday.cake.fill", "cylinder.split.1x2.fill", "scribble.variable", "envelope.fill", "star.fill", "heart.fill", "tag.fill"]
     
+    private func colorCircle(_ color: String) -> some View {
+        Circle()
+            .fill(colorForString(color))
+            .frame(width: 40, height: 40)
+            .overlay(
+                Circle()
+                    .stroke(Color.primary, lineWidth: selectedColor == color ? 3 : 0)
+                    .padding(-2)
+            )
+            .onTapGesture {
+                selectedColor = color
+            }
+    }
+    
     init(viewModel: OrderViewModel, mode: Mode, allowEditCostAndStock: Bool = true) {
         self.viewModel = viewModel
         self.mode = mode
@@ -413,17 +427,7 @@ struct ProductEditView: View {
                         
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 40))], spacing: 12) {
                             ForEach(colors, id: \.self) { color in
-                                Circle()
-                                    .fill(colorForString(color))
-                                    .frame(width: 40, height: 40)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.primary, lineWidth: selectedColor == color ? 3 : 0)
-                                            .padding(-2)
-                                    )
-                                    .onTapGesture {
-                                        selectedColor = color
-                                    }
+                                colorCircle(color)
                             }
                         }
                     }
@@ -775,7 +779,7 @@ struct ProductEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: costMillionsSelection) { _, v in
+                            .onChange(of: costMillionsSelection) { v in
                                 costWheelSelection = v * 1_000_000 + costThousandsSelection * 1_000 + costHundredsSelection
                             }
                         }
@@ -794,7 +798,7 @@ struct ProductEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: costThousandsSelection) { _, v in
+                            .onChange(of: costThousandsSelection) { v in
                                 costWheelSelection = costMillionsSelection * 1_000_000 + v * 1_000 + costHundredsSelection
                             }
                         }
@@ -813,7 +817,7 @@ struct ProductEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: costHundredsSelection) { _, v in
+                            .onChange(of: costHundredsSelection) { v in
                                 costWheelSelection = costMillionsSelection * 1_000_000 + costThousandsSelection * 1_000 + v
                             }
                         }
@@ -918,7 +922,7 @@ struct ProductEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: priceMillionsSelection) { _, v in
+                            .onChange(of: priceMillionsSelection) { v in
                                 priceWheelSelection = v * 1_000_000 + priceThousandsSelection * 1_000 + priceHundredsSelection
                             }
                         }
@@ -937,7 +941,7 @@ struct ProductEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: priceThousandsSelection) { _, v in
+                            .onChange(of: priceThousandsSelection) { v in
                                 priceWheelSelection = priceMillionsSelection * 1_000_000 + v * 1_000 + priceHundredsSelection
                             }
                         }
@@ -956,7 +960,7 @@ struct ProductEditView: View {
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: priceHundredsSelection) { _, v in
+                            .onChange(of: priceHundredsSelection) { v in
                                 priceWheelSelection = priceMillionsSelection * 1_000_000 + priceThousandsSelection * 1_000 + v
                             }
                         }
@@ -1086,7 +1090,7 @@ struct ProductEditView: View {
                                     }
                                 }
                                 .pickerStyle(.wheel)
-                                .onChange(of: stockKgSelection) { _, v in
+                                .onChange(of: stockKgSelection) { v in
                                     if v >= stockWheelMax - 10 { stockWheelMax += 200 }
                                 }
                             }
@@ -1121,7 +1125,7 @@ struct ProductEditView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: stockWheelSelection) { _, v in
+                        .onChange(of: stockWheelSelection) { v in
                             if v > stockWheelMax - 10 { stockWheelMax += 500 }
                         }
                     }
@@ -1163,7 +1167,7 @@ struct ProductEditView: View {
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: stockKgRangeBase) { _, v in
+                        .onChange(of: stockKgRangeBase) { v in
                             if v >= stockWheelMax - 100 { stockWheelMax += 500 }
                         }
                         Button {

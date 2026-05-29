@@ -2163,7 +2163,7 @@ private struct DateRangePickerSheet: View {
                     Section(header: Text("Từ ngày")) {
                         DatePicker("", selection: $rangeStart, in: ...rangeEnd, displayedComponents: .date)
                             .datePickerStyle(.graphical)
-                            .onChange(of: rangeStart) { _, newVal in
+                            .onChange(of: rangeStart) { newVal in
                                 if newVal > rangeEnd { rangeEnd = newVal }
                             }
                     }
