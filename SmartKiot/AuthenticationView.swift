@@ -144,6 +144,24 @@ struct AuthenticationView: View {
                                     verifyOTP()
                                 }
                             }
+                        
+                        // Hiện mã OTP test
+                        if let testOTP = authManager.testOTP {
+                            VStack(spacing: 8) {
+                                Text("Mã OTP của bạn:")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Text(testOTP)
+                                    .font(.title)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(Color.themePrimary)
+                                    .padding()
+                                    .background(Color.themePrimary.opacity(0.1))
+                                    .cornerRadius(8)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 8)
+                        }
                     }
                     
                     Button(action: verifyOTP) {
@@ -196,6 +214,15 @@ struct AuthenticationView: View {
             if success {
                 withAnimation {
                     isOtpSent = true
+                }
+                // Tự điền mã OTP nếu có
+                if let testOTP = authManager.testOTP {
+                    otpCode = testOTP
+                    // Tự xác nhận sau khi điền
+                    Task {
+                        try? await Task.sleep(nanoseconds: 500_000_000) // Chờ 0.5 giây
+                        verifyOTP()
+                    }
                 }
             }
         }

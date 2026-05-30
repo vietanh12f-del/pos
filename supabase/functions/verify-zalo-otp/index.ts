@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.21.0'
 
@@ -21,28 +22,27 @@ serve(async (req) => {
       )
     }
 
-    // Normalize phone - create both formats for comparison
     let normalizedPhoneWithPlus = phone.trim().replace(/\s/g, '')
     let normalizedPhoneWithoutPlus = normalizedPhoneWithPlus
+    
     if (normalizedPhoneWithPlus.startsWith('0')) {
       normalizedPhoneWithPlus = '+84' + normalizedPhoneWithPlus.substring(1)
-      normalizedPhoneWithoutPlus = '84' + normalizedPhoneWithPlus.substring(3)
+      normalizedPhoneWithoutPlus = normalizedPhoneWithPlus.substring(1)
     } else if (normalizedPhoneWithPlus.startsWith('+')) {
       normalizedPhoneWithoutPlus = normalizedPhoneWithPlus.substring(1)
-    } else {
+    } else if (normalizedPhoneWithPlus.startsWith('84')) {
       normalizedPhoneWithPlus = '+' + normalizedPhoneWithPlus
+    } else {
+      normalizedPhoneWithPlus = '+84' + normalizedPhoneWithPlus
+      normalizedPhoneWithoutPlus = normalizedPhoneWithPlus.substring(1)
     }
 
-    // Create Supabase admin client
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Find matching OTP - check both formats
-    console.log('[verify-zalo-otp] Checking OTP:', { phone: normalizedPhoneWithPlus, code, purpose })
-    
     let otpRecords: any[] | null = null
     let fetchError: any = null
 
@@ -74,8 +74,6 @@ serve(async (req) => {
       fetchError = fetchErrorWithPlus
     }
     
-    console.log('[verify-zalo-otp] Found records:', otpRecords)
-    
     if (fetchError || !otpRecords || otpRecords.length === 0) {
       console.error('[verify-zalo-otp] No matching OTP found:', fetchError)
       return new Response(
@@ -86,10 +84,8 @@ serve(async (req) => {
     
     const otpRecord = otpRecords[0]
     
-    // Check expiration in memory
     const now = new Date()
     const expiresAt = new Date(otpRecord.expires_at)
-    console.log('[verify-zalo-otp] Checking expiration:', { now: now.toISOString(), expiresAt: expiresAt.toISOString(), isExpired: now > expiresAt })
     
     if (now > expiresAt) {
       console.error('[verify-zalo-otp] OTP expired')
@@ -98,9 +94,6 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    // Note: Not marking as used here - login-with-zalo-otp will handle it
-    // This allows the same OTP to be used for both verification and login
 
     return new Response(
       JSON.stringify({ 
@@ -120,3 +113,4 @@ serve(async (req) => {
     )
   }
 })
+

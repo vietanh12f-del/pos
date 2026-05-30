@@ -13,6 +13,7 @@ class AuthManager: ObservableObject {
     @Published var phoneLinkConflictPhone: String?
     @Published var currentUserProfile: UserProfile?
     @Published var selectedRole: String = AccountRole.owner.rawValue
+    @Published var testOTP: String? // Mã OTP test để hiện lên màn hình
     private var currentSessionUserId: UUID?
     
     private let client = SupabaseConfig.client
@@ -450,6 +451,13 @@ class AuthManager: ObservableObject {
                 let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
                 let err = responseBody["error"] as? String ?? "HTTP \(http.statusCode)"
                 throw NSError(domain: "ZaloOTP", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: err])
+            }
+
+            // Parse response để lấy mã OTP test
+            let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+            if let otpCode = responseBody["code"] as? String {
+                self.testOTP = otpCode
+                print("✅ Test OTP received: \(otpCode)")
             }
 
             self.isLoading = false
