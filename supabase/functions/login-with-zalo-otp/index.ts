@@ -36,13 +36,16 @@ serve(async (req) => {
     
     if (normalizedPhoneWithPlus.startsWith('0')) {
       normalizedPhoneWithPlus = '+84' + normalizedPhoneWithPlus.substring(1)
-      normalizedPhoneWithoutPlus = '84' + normalizedPhoneWithPlus.substring(3) // Remove +84 and add just 84
+      normalizedPhoneWithoutPlus = normalizedPhoneWithPlus.substring(1) // Remove '+' to get 84xxx
     } else if (normalizedPhoneWithPlus.startsWith('+')) {
       normalizedPhoneWithoutPlus = normalizedPhoneWithPlus.substring(1)
-    } else {
+    } else if (normalizedPhoneWithPlus.startsWith('84')) {
       normalizedPhoneWithPlus = '+' + normalizedPhoneWithPlus
-      // normalizedPhoneWithoutPlus remains as is
+    } else {
+      normalizedPhoneWithPlus = '+84' + normalizedPhoneWithPlus
+      normalizedPhoneWithoutPlus = normalizedPhoneWithPlus.substring(1)
     }
+    console.log('[login-with-zalo-otp] DEBUG Phones for match:', { withPlus: normalizedPhoneWithPlus, withoutPlus: normalizedPhoneWithoutPlus })
     // Create Supabase admin client
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -119,19 +122,69 @@ serve(async (req) => {
     // First, try to find existing user by listing all users
     const { data: userList, error: listError } = await supabaseAdmin.auth.admin.listUsers()
     
+    // Also fetch profiles table in case phone is stored there!
+    const { data: profiles } = await supabaseAdmin.from('profiles').select('id, phone_number, email')
+    console.log('[login-with-zalo-otp] Profiles:', JSON.stringify(profiles))
+    
+    // Helper function to extract only digits from string for comparison
+    const getDigitsOnly = (str: string | null | undefined) => {
+      if (!str) return ''
+      return str.replace(/\D/g, '') // removes anything that's not a digit
+    }
+    
+    // Get digits only for incoming phone to compare
+    const incomingDigits = getDigitsOnly(normalizedPhoneWithPlus)
+    console.log('[login-with-zalo-otp] Looking for user, incoming digits:', incomingDigits)
+    
     if (listError) {
       console.error('[login-with-zalo-otp] Error listing users:', listError)
     } else if (userList?.users) {
-      // More robust comparison - match either format
-      const existingUser = userList.users.find(u => {
-        const userPhone = u.phone?.trim()
-        const matchWithPlus = userPhone === normalizedPhoneWithPlus
-        const matchWithoutPlus = userPhone === normalizedPhoneWithoutPlus
-        return matchWithPlus || matchWithoutPlus
+      // Log all users' phones for debugging!
+      // First, fetch all stores and memberships
+      const { data: allStores } = await supabaseAdmin.from('stores').select('id, name, owner_id')
+      const { data: allMemberships } = await supabaseAdmin.from('store_members').select('*')
+      
+      console.log('[login-with-zalo-otp] All stores:', JSON.stringify(allStores))
+      console.log('[login-with-zalo-otp] All memberships:', JSON.stringify(allMemberships))
+      
+      // Log all users' phones for debugging!
+      console.log('[login-with-zalo-otp] All users (count:', userList.users.length, '):')
+      userList.users.forEach(u => {
+        const userStores = allStores?.filter(s => s.owner_id === u.id)
+        const userMemberships = allMemberships?.filter(m => m.user_id === u.id)
+        console.log('[login-with-zalo-otp] User FULL:', JSON.stringify({ 
+          id: u.id, 
+          email: u.email, 
+          phone: u.phone, 
+          digits: getDigitsOnly(u.phone),
+          created_at: u.created_at,
+          owned_stores: userStores?.map(s => s.name),
+          memberships: userMemberships?.map(m => ({ store: m.store_id, role: m.role }))
+        }))
       })
+      
+      // Try first via auth.users.phone
+      let existingUser = userList.users.find(u => {
+        const userPhoneDigits = getDigitsOnly(u.phone)
+        return userPhoneDigits === incomingDigits
+      })
+      
+      // If not found, try via profiles.phone_number
+      if (!existingUser && profiles) {
+        const matchingProfile = profiles.find(p => {
+          const profilePhoneDigits = getDigitsOnly(p.phone_number)
+          return profilePhoneDigits === incomingDigits
+        })
+        if (matchingProfile) {
+          existingUser = userList.users.find(u => u.id === matchingProfile.id)
+        }
+      }
       
       if (existingUser) {
         userId = existingUser.id
+        console.log('[login-with-zalo-otp] Found existing user:', existingUser.id)
+      } else {
+        console.log('[login-with-zalo-otp] No existing user found with matching digits')
       }
     }
     
@@ -158,8 +211,8 @@ serve(async (req) => {
           const { data: userListRetry, error: listErrorRetry } = await supabaseAdmin.auth.admin.listUsers()
           if (!listErrorRetry && userListRetry?.users) {
             const existingUser = userListRetry.users.find(u => {
-              const userPhone = u.phone?.trim()
-              return userPhone === normalizedPhoneWithPlus || userPhone === normalizedPhoneWithoutPlus
+              const userPhoneDigits = getDigitsOnly(u.phone)
+              return userPhoneDigits === incomingDigits
             })
             if (existingUser) {
               console.log('[login-with-zalo-otp] Found user on retry:', existingUser.id)
@@ -186,24 +239,31 @@ serve(async (req) => {
       )
     }
 
-    // Create a dummy email based on phone number
+    // Get existing user details
+    const { data: existingUserData } = await supabaseAdmin.auth.admin.getUserById(userId)
+    const existingEmail = existingUserData?.user?.email
     const dummyEmail = `${normalizedPhoneWithoutPlus}@example.com`
+    const emailToUse = existingEmail || dummyEmail
+
+    console.log('[login-with-zalo-otp] Using email for login:', emailToUse, '(existingEmail:', existingEmail, ')')
     
-    // First, make sure the user has an email set (for existing users)
-    try {
-      await supabaseAdmin.auth.admin.updateUserById(userId, {
-        email: dummyEmail,
-        email_confirm: true
-      })
-    } catch (updateError) {
-      console.log('[login-with-zalo-otp] User may already have email, continuing...', updateError)
+    // First, make sure the user has an email set (for existing users) - only set if they don't have one
+    if (!existingEmail) {
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          email: dummyEmail,
+          email_confirm: true
+        })
+      } catch (updateError) {
+        console.log('[login-with-zalo-otp] User may already have email, continuing...', updateError)
+      }
     }
 
     // Create session for user using generateLink
-    console.log('[login-with-zalo-otp] Generating link with email:', dummyEmail)
+    console.log('[login-with-zalo-otp] Generating link with email:', emailToUse)
     const { data: signInData, error: signInError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
-      email: dummyEmail,
+      email: emailToUse,
       options: {
         redirectTo: 'https://cgqxrsoaxgyvcskbixuu.supabase.co/auth/v1/callback'
       }
@@ -217,7 +277,7 @@ serve(async (req) => {
     } else if (signInData?.properties?.email_otp) {
       // Now use the email OTP to sign in and get a session
       const { data: sessionData, error: signInOtpError } = await supabaseAdmin.auth.verifyOtp({
-        email: dummyEmail,
+        email: emailToUse,
         token: signInData.properties.email_otp,
         type: 'magiclink'
       })
