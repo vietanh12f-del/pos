@@ -14,7 +14,13 @@ class AuthManager: ObservableObject {
     @Published var currentUserProfile: UserProfile?
     @Published var selectedRole: String = AccountRole.owner.rawValue
     @Published var testOTP: String? // Mã OTP test để hiện lên màn hình
+    @Published var loginMethod: LoginMethod = .phone // Chọn phương thức đăng nhập
     private var currentSessionUserId: UUID?
+    
+    enum LoginMethod {
+        case phone
+        case email
+    }
     
     private let client = SupabaseConfig.client
     
@@ -584,6 +590,110 @@ class AuthManager: ObservableObject {
             self.isLoading = false
             self.errorMessage = "Mã OTP không đúng hoặc đã hết hạn."
             print("❌ Error verifying Zalo OTP: \(error)")
+            return false
+        }
+    }
+    
+    // MARK: - Email OTP Flow
+    
+    @MainActor
+    func sendEmailOTP(email: String, purpose: String = "login") async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        do {
+            guard let url = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/send-email-otp") else {
+                throw NSError(domain: "EmailOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không thể tạo request gửi OTP"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue(SupabaseConfig.key, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(SupabaseConfig.key)", forHTTPHeaderField: "Authorization")
+
+            let requestBody: [String: Any] = ["email": trimmedEmail, "purpose": purpose]
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+
+            if let http = httpResponse as? HTTPURLResponse, http.statusCode >= 400 {
+                let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+                let err = responseBody["error"] as? String ?? "HTTP \(http.statusCode)"
+                throw NSError(domain: "EmailOTP", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: err])
+            }
+
+            // Parse response for test OTP
+            let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+            if let otpCode = responseBody["code"] as? String {
+                self.testOTP = otpCode
+                print("✅ Test Email OTP received: \(otpCode)")
+            }
+
+            self.isLoading = false
+            print("✅ Email OTP sent to \(trimmedEmail)")
+            return true
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Không thể gửi OTP qua email: \(error.localizedDescription)"
+            print("❌ Error sending email OTP: \(error)")
+            return false
+        }
+    }
+    
+    @MainActor
+    func verifyEmailOTP(email: String, code: String, purpose: String = "login") async -> Bool {
+        self.isLoading = true
+        self.errorMessage = nil
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        print("[verifyEmailOTP] Sending: email=\(trimmedEmail), code=\(code), purpose=\(purpose)")
+
+        do {
+            guard let url = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/verify-email-otp") else {
+                throw NSError(domain: "EmailOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không thể tạo request xác thực OTP"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue(SupabaseConfig.key, forHTTPHeaderField: "apikey")
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(SupabaseConfig.key)", forHTTPHeaderField: "Authorization")
+
+            let requestBody: [String: Any] = ["email": trimmedEmail, "code": code, "purpose": purpose]
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+
+            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+
+            if let http = httpResponse as? HTTPURLResponse, http.statusCode >= 400 {
+                let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+                let err = responseBody["error"] as? String ?? "HTTP \(http.statusCode)"
+                throw NSError(domain: "EmailOTP", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: err])
+            }
+
+            let responseBody = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+            guard let userId = responseBody["user_id"] as? String else {
+                throw NSError(domain: "EmailOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không nhận được thông tin người dùng"])
+            }
+
+            // Check if we have access and refresh tokens
+            if let accessToken = responseBody["access_token"] as? String,
+               let refreshToken = responseBody["refresh_token"] as? String {
+                try await client.auth.setSession(accessToken: accessToken, refreshToken: refreshToken)
+                self.isAuthenticated = true
+                await checkProfile(userId: client.auth.currentUser?.id ?? UUID(uuidString: userId)!)
+                self.isLoading = false
+                print("✅ Email OTP login successful: \(trimmedEmail)")
+                return true
+            } else {
+                self.isLoading = false
+                self.errorMessage = "Không thể đăng nhập. Vui lòng thử lại."
+                return false
+            }
+        } catch {
+            self.isLoading = false
+            self.errorMessage = "Mã OTP không đúng hoặc đã hết hạn."
+            print("❌ Error verifying email OTP: \(error)")
             return false
         }
     }

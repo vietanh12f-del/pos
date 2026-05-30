@@ -4,6 +4,7 @@ struct AuthenticationView: View {
     @StateObject private var authManager = AuthManager.shared
     
     @State private var phoneNumber: String = ""
+    @State private var email: String = ""
     @State private var otpCode: String = ""
     @State private var isOtpSent: Bool = false
     @State private var showLegacyLogin: Bool = false
@@ -33,38 +34,76 @@ struct AuthenticationView: View {
             
             VStack(alignment: .leading, spacing: 16) {
                 if !isOtpSent {
-                    VStack(alignment: .leading) {
-                        Text("Số điện thoại")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        
-                        HStack(spacing: 10) {
-                            Text("+84")
-                                .fontWeight(.semibold)
-                                .foregroundStyle(Color.themeTextDark)
-                            TextField("0912345678", text: $phoneNumber)
-                                .keyboardType(.numberPad)
-                        }
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(12)
+                    // Picker for login method
+                    Picker("Phương thức đăng nhập", selection: $authManager.loginMethod) {
+                        Text("Số điện thoại").tag(AuthManager.LoginMethod.phone)
+                        Text("Email").tag(AuthManager.LoginMethod.email)
                     }
+                    .pickerStyle(.segmented)
                     
-                    Button(action: sendOTP) {
-                        if authManager.isLoading {
-                            ProgressView()
-                                .tint(.white)
-                        } else {
-                            Text("Đăng nhập bằng Zalo")
-                                .fontWeight(.bold)
+                    if authManager.loginMethod == .phone {
+                        VStack(alignment: .leading) {
+                            Text("Số điện thoại")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            
+                            HStack(spacing: 10) {
+                                Text("+84")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(Color.themeTextDark)
+                                TextField("0912345678", text: $phoneNumber)
+                                    .keyboardType(.numberPad)
+                            }
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(12)
                         }
+                        
+                        Button(action: sendOTP) {
+                            if authManager.isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text("Đăng nhập bằng Zalo")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.themePrimary)
+                        .foregroundStyle(.white)
+                        .cornerRadius(12)
+                        .disabled(phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).count < 9 || authManager.isLoading)
+                    } else {
+                        VStack(alignment: .leading) {
+                            Text("Email")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            
+                            TextField("email@example.com", text: $email)
+                                .keyboardType(.emailAddress)
+                                .textInputAutocapitalization(.never)
+                                .padding()
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(12)
+                        }
+                        
+                        Button(action: sendEmailOTP) {
+                            if authManager.isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text("Đăng nhập bằng email")
+                                    .fontWeight(.bold)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.themePrimary)
+                        .foregroundStyle(.white)
+                        .cornerRadius(12)
+                        .disabled(email.trimmingCharacters(in: .whitespacesAndNewlines).count < 5 || authManager.isLoading)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.themePrimary)
-                    .foregroundStyle(.white)
-                    .cornerRadius(12)
-                    .disabled(phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).count < 9 || authManager.isLoading)
                     
                     Button(showLegacyLogin ? "Ẩn đăng nhập tài khoản cũ" : "Đăng nhập tài khoản cũ (Google/Apple)") {
                         withAnimation {
@@ -180,7 +219,7 @@ struct AuthenticationView: View {
                     .cornerRadius(12)
                     .disabled(otpCode.count < 6 || authManager.isLoading)
                     
-                    Button("Đổi số / Gửi lại mã") {
+                    Button(authManager.loginMethod == .phone ? "Đổi số / Gửi lại mã" : "Đổi email / Gửi lại mã") {
                         withAnimation {
                             isOtpSent = false
                             otpCode = ""
@@ -209,20 +248,25 @@ struct AuthenticationView: View {
     
     func sendOTP() {
         Task {
-            // Use Zalo OTP instead of SMS
             let success = await authManager.sendZaloOTP(phone: phoneNumber, purpose: "login")
             if success {
-                withAnimation {
-                    isOtpSent = true
-                }
-                // Tự điền mã OTP nếu có
+                withAnimation { isOtpSent = true }
                 if let testOTP = authManager.testOTP {
                     otpCode = testOTP
-                    // Tự xác nhận sau khi điền
-                    Task {
-                        try? await Task.sleep(nanoseconds: 500_000_000) // Chờ 0.5 giây
-                        verifyOTP()
-                    }
+                    Task { try? await Task.sleep(nanoseconds: 500_000_000); verifyOTP() }
+                }
+            }
+        }
+    }
+    
+    func sendEmailOTP() {
+        Task {
+            let success = await authManager.sendEmailOTP(email: email, purpose: "login")
+            if success {
+                withAnimation { isOtpSent = true }
+                if let testOTP = authManager.testOTP {
+                    otpCode = testOTP
+                    Task { try? await Task.sleep(nanoseconds: 500_000_000); verifyOTP() }
                 }
             }
         }
@@ -230,11 +274,15 @@ struct AuthenticationView: View {
 
     func verifyOTP() {
         Task {
-            // Use Zalo OTP verification
-            let success = await authManager.verifyZaloOTP(phone: phoneNumber, code: otpCode, purpose: "login")
+            let success: Bool
+            if authManager.loginMethod == .phone {
+                success = await authManager.verifyZaloOTP(phone: phoneNumber, code: otpCode, purpose: "login")
+            } else {
+                success = await authManager.verifyEmailOTP(email: email, code: otpCode, purpose: "login")
+            }
+            
             if success {
-                // Login successful via Zalo OTP
-                print("✅ Login successful via Zalo OTP")
+                print("✅ Login successful via \(authManager.loginMethod == .phone ? "Zalo OTP" : "Email OTP")")
             }
         }
     }
