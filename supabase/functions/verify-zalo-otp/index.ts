@@ -21,12 +21,16 @@ serve(async (req) => {
       )
     }
 
-    // Normalize phone
-    let normalizedPhone = phone.trim().replace(/\s/g, '')
-    if (normalizedPhone.startsWith('0')) {
-      normalizedPhone = '+84' + normalizedPhone.substring(1)
-    } else if (!normalizedPhone.startsWith('+')) {
-      normalizedPhone = '+' + normalizedPhone
+    // Normalize phone - create both formats for comparison
+    let normalizedPhoneWithPlus = phone.trim().replace(/\s/g, '')
+    let normalizedPhoneWithoutPlus = normalizedPhoneWithPlus
+    if (normalizedPhoneWithPlus.startsWith('0')) {
+      normalizedPhoneWithPlus = '+84' + normalizedPhoneWithPlus.substring(1)
+      normalizedPhoneWithoutPlus = '84' + normalizedPhoneWithPlus.substring(3)
+    } else if (normalizedPhoneWithPlus.startsWith('+')) {
+      normalizedPhoneWithoutPlus = normalizedPhoneWithPlus.substring(1)
+    } else {
+      normalizedPhoneWithPlus = '+' + normalizedPhoneWithPlus
     }
 
     // Create Supabase admin client
@@ -36,18 +40,39 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Find matching OTP (not checking expiration in query, will check in memory)
-    console.log('[verify-zalo-otp] Checking OTP:', { phone: normalizedPhone, code, purpose })
+    // Find matching OTP - check both formats
+    console.log('[verify-zalo-otp] Checking OTP:', { phone: normalizedPhoneWithPlus, code, purpose })
     
-    const { data: otpRecords, error: fetchError } = await supabaseAdmin
+    let otpRecords: any[] | null = null
+    let fetchError: any = null
+
+    const { data: otpRecordsWithPlus, error: fetchErrorWithPlus } = await supabaseAdmin
       .from('otp_codes')
       .select('*')
-      .eq('phone', normalizedPhone)
+      .eq('phone', normalizedPhoneWithPlus)
       .eq('code', code)
       .eq('purpose', purpose)
       .eq('used', false)
       .order('created_at', { ascending: false })
       .limit(1)
+    
+    if (fetchErrorWithPlus || !otpRecordsWithPlus || otpRecordsWithPlus.length === 0) {
+      const { data: otpRecordsWithoutPlus, error: fetchErrorWithoutPlus } = await supabaseAdmin
+        .from('otp_codes')
+        .select('*')
+        .eq('phone', normalizedPhoneWithoutPlus)
+        .eq('code', code)
+        .eq('purpose', purpose)
+        .eq('used', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      otpRecords = otpRecordsWithoutPlus
+      fetchError = fetchErrorWithoutPlus
+    } else {
+      otpRecords = otpRecordsWithPlus
+      fetchError = fetchErrorWithPlus
+    }
     
     console.log('[verify-zalo-otp] Found records:', otpRecords)
     
@@ -74,22 +99,14 @@ serve(async (req) => {
       )
     }
 
-    // Mark as used
-    const { error: updateError } = await supabaseAdmin
-      .from('otp_codes')
-      .update({ used: true })
-      .eq('id', otpRecord.id)
-
-    if (updateError) {
-      console.error('[verify-zalo-otp] Failed to mark OTP as used:', updateError)
-      // Non-critical error, continue
-    }
+    // Note: Not marking as used here - login-with-zalo-otp will handle it
+    // This allows the same OTP to be used for both verification and login
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         verified: true,
-        phone: normalizedPhone,
+        phone: normalizedPhoneWithPlus,
         purpose: purpose
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

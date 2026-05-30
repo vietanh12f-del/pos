@@ -254,11 +254,6 @@ struct ContentView: View {
                     isKeyboardVisibleGlobal = false
                 }
             }
-            .onChange(of: authManager.isAuthenticated) { newValue in
-                if !newValue {
-                    skippedPhoneLink = false
-                }
-            }
         }
     }
     

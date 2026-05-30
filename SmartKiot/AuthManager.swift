@@ -506,7 +506,9 @@ class AuthManager: ObservableObject {
             // For login: use login-with-zalo-otp to create session
             if purpose == "login" {
                 // Call login-with-zalo-otp to get user_id and create session
-                guard let loginUrl = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/login-with-zalo-otp") else {
+                //guard let loginUrl = URL(string: "\(SupabaseConfig.url.absoluteString)/functions/v1/login-with-zalo-otp") else {
+                    // Thay đổi tạm dòng 509
+                    guard let loginUrl = URL(string: "https://cgqxrsoaxgyvcskbixuu.supabase.co/functions/v1/login-with-zalo-otp") else {
                     throw NSError(domain: "ZaloOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không thể tạo request đăng nhập"])
                 }
                 
@@ -532,22 +534,18 @@ class AuthManager: ObservableObject {
                     throw NSError(domain: "ZaloOTP", code: 1, userInfo: [NSLocalizedDescriptionKey: "Không nhận được thông tin người dùng"])
                 }
                 
-                // Now use verifyOTP to sign in (since we already verified with Zalo OTP)
-                do {
-                    // First, we need to set the phone for the user if not already set
-                    // Then use verifyOTP to create session
-                    let session = try await client.auth.verifyOTP(
-                        phone: formattedPhone,
-                        token: code,
-                        type: .sms
-                    )
+                // Check if we got access token and refresh token
+                if let accessToken = responseBody["access_token"] as? String,
+                   let refreshToken = responseBody["refresh_token"] as? String {
+                    // Use setSession to set the session manually
+                    try await client.auth.setSession(accessToken: accessToken, refreshToken: refreshToken)
                     self.isAuthenticated = true
-                    await checkProfile(userId: session.user.id)
+                    await checkProfile(userId: client.auth.currentUser?.id ?? UUID(uuidString: userId)!)
                     self.isLoading = false
                     print("✅ Zalo OTP login successful: \(formattedPhone)")
                     return true
-                } catch {
-                    // If verifyOTP fails, user might need to complete phone verification
+                } else {
+                    // Fallback in case tokens are not available
                     self.isLoading = false
                     self.errorMessage = "Không thể đăng nhập. Vui lòng thử lại."
                     return false
