@@ -27,28 +27,33 @@ struct StoreSelectionView: View {
                                 let hasOwnerStores = !storeManager.myStores.isEmpty
                                 let hasEmployeeStores = !storeManager.memberStores.isEmpty
                                 let hasInvitations = !storeManager.invitedStores.isEmpty
+                                let hasAnyStores = hasOwnerStores || hasEmployeeStores || hasInvitations
                                 
                                 let headerTitle: String = {
-                                    if hasOwnerStores && hasEmployeeStores {
-                                        return "Quản lý Cửa hàng"
-                                    } else if hasOwnerStores {
-                                        return "Quản lý Cửa hàng"
-                                    } else if hasEmployeeStores || hasInvitations {
-                                        return "Cửa hàng làm việc"
+                                    if hasAnyStores {
+                                        if hasOwnerStores && hasEmployeeStores {
+                                            return "Quản lý Cửa hàng"
+                                        } else if hasOwnerStores {
+                                            return "Quản lý Cửa hàng"
+                                        } else {
+                                            return "Cửa hàng làm việc"
+                                        }
                                     } else {
-                                        return "Quản lý Cửa hàng"
+                                        return "Chào mừng bạn đến với SmartKiot"
                                     }
                                 }()
                                 
                                 let headerSubtitle: String = {
-                                    if hasOwnerStores && hasEmployeeStores {
-                                        return "Chọn cửa hàng để quản lý hoặc bắt đầu ca làm việc"
-                                    } else if hasOwnerStores {
-                                        return "Chọn cửa hàng để quản lý hoặc tạo mới"
-                                    } else if hasEmployeeStores || hasInvitations {
-                                        return "Chọn cửa hàng để bắt đầu ca làm việc"
+                                    if hasAnyStores {
+                                        if hasOwnerStores && hasEmployeeStores {
+                                            return "Chọn cửa hàng để quản lý hoặc bắt đầu ca làm việc"
+                                        } else if hasOwnerStores {
+                                            return "Chọn cửa hàng để quản lý hoặc tạo mới"
+                                        } else {
+                                            return "Chọn cửa hàng để bắt đầu ca làm việc"
+                                        }
                                     } else {
-                                        return "Chọn cửa hàng để quản lý hoặc tạo mới"
+                                        return "Chúng tôi cần xác thực tài khoản của bạn"
                                     }
                                 }()
                                 
@@ -68,25 +73,30 @@ struct StoreSelectionView: View {
                             let hasOwnerStores = !storeManager.myStores.isEmpty
                             let hasEmployeeStores = !storeManager.memberStores.isEmpty
                             let hasInvitations = !storeManager.invitedStores.isEmpty
+                            let hasAnyStores = hasOwnerStores || hasEmployeeStores || hasInvitations
                             
                             if !hasOwnerStores && !hasEmployeeStores && !hasInvitations {
                                 VStack(spacing: 24) {
-                                    EmptyStoreStateView(message: "Bạn chưa có cửa hàng nào.")
+                                    VStack(spacing: 16) {
+                                        Image(systemName: "key.horizontal")
+                                            .font(.system(size: 72, weight: .light))
+                                            .foregroundColor(Color.themePrimary.opacity(0.8))
+                                        Text("Hệ thống chỉ cấp tài khoản cho account đã mua máy Kiot")
+                                            .font(.title3)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(Color.themeTextDark)
+                                            .multilineTextAlignment(.center)
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .padding(.horizontal, 32)
                                     
                                     VStack(spacing: 10) {
                                         Image(systemName: "info.circle.fill")
                                             .font(.title2)
                                             .foregroundColor(Color.themePrimary)
-                                        Text("Bước tiếp theo")
+                                        Text("Người đăng nhập vui lòng liên hệ để cấp tài khoản")
                                             .font(.headline)
                                             .foregroundColor(Color.themeTextDark)
-                                        Text("Tài khoản của bạn chưa được liên kết với cửa hàng nào.")
-                                            .font(.subheadline)
-                                            .foregroundColor(Color.themeTextDark.opacity(0.7))
-                                            .multilineTextAlignment(.center)
-                                        Text("Vui lòng liên hệ quản trị viên để được thêm vào cửa hàng.")
-                                            .font(.subheadline)
-                                            .foregroundColor(Color.themeTextDark.opacity(0.7))
                                             .multilineTextAlignment(.center)
                                     }
                                     .padding(20)
