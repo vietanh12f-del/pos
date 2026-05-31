@@ -321,7 +321,7 @@ struct MaterialEditView: View {
                             .foregroundStyle(.gray)
                         let thousandsRangeMin = costWheelThousandsRangeBase
                         Picker("", selection: $costWheelThousandsSelection) {
-                            ForEach(Array(stride(from: thousandsRangeMin, through: min(thousandsRangeMin + 90, 999), by: 1)), id: \.self) { v in
+                            ForEach(Array(stride(from: thousandsRangeMin, through: min(thousandsRangeMin + 99, 999), by: 1)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }

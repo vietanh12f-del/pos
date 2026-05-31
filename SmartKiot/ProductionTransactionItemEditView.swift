@@ -77,7 +77,7 @@ struct ProductionTransactionItemEditView: View {
     
     private var unitPriceThousandsRange: [Int] {
         let thousandsMin = unitPriceThousandsRangeBase
-        let upperBound = min(thousandsMin + 90, 999)
+        let upperBound = min(thousandsMin + 99, 999)
         return Array(thousandsMin...upperBound)
     }
     
@@ -95,7 +95,7 @@ struct ProductionTransactionItemEditView: View {
     
     private var additionalCostThousandsRange: [Int] {
         let thousandsMin = additionalCostThousandsRangeBase
-        let upperBound = min(thousandsMin + 90, 999)
+        let upperBound = min(thousandsMin + 99, 999)
         return Array(thousandsMin...upperBound)
     }
     

@@ -68,7 +68,7 @@ struct RestockEntryView: View {
     }
     
     private func thousandsRange(base: Int) -> StrideThrough<Int> {
-        stride(from: base, through: min(base + 90, 999), by: 1)
+        stride(from: base, through: min(base + 99, 999), by: 1)
     }
     
     private func hundredsRange(base: Int) -> StrideThrough<Int> {
@@ -2306,7 +2306,7 @@ struct ManualRestockItemView: View {
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
                         let thousandsMin: Int = unitPriceThousandsRangeBase
-                        let thousandsMax: Int = min(thousandsMin + 90, 999)
+                        let thousandsMax: Int = min(thousandsMin + 99, 999)
                         let thousandsRangeArray: [Int] = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $unitPriceThousandsSelection) {
                             ForEach(thousandsRangeArray, id: \.self) { v in
@@ -2453,7 +2453,7 @@ struct ManualRestockItemView: View {
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
                         let thousandsMin: Int = additionalCostThousandsRangeBase
-                        let thousandsMax: Int = min(thousandsMin + 90, 999)
+                        let thousandsMax: Int = min(thousandsMin + 99, 999)
                         let thousandsRangeArray: [Int] = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $additionalCostThousandsSelection) {
                             ForEach(thousandsRangeArray, id: \.self) { v in
@@ -2599,7 +2599,7 @@ struct ManualRestockItemView: View {
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
                         let thousandsMin: Int = suggestedPriceThousandsRangeBase
-                        let thousandsMax: Int = min(thousandsMin + 90, 999)
+                        let thousandsMax: Int = min(thousandsMin + 99, 999)
                         let thousandsRangeArray: [Int] = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $suggestedPriceThousandsSelection) {
                             ForEach(thousandsRangeArray, id: \.self) { v in

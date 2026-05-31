@@ -993,7 +993,7 @@ struct TransactionEditView: View {
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
                         let thousandsMin: Int = unitPriceThousandsRangeBase
-                        let thousandsMax: Int = min(thousandsMin + 90, 999)
+                        let thousandsMax: Int = min(thousandsMin + 99, 999)
                         let thousandsRange: [Int] = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $unitPriceThousandsSelection) {
                             ForEach(thousandsRange, id: \.self) { v in
@@ -1142,7 +1142,7 @@ struct TransactionEditView: View {
                         }.buttonStyle(.plain)
                         Text("Ngàn").font(.caption).foregroundStyle(.gray)
                         let thousandsMin = additionalCostThousandsRangeBase
-                        let thousandsMax = min(thousandsMin + 90, 999)
+                        let thousandsMax = min(thousandsMin + 99, 999)
                         let thousandsRange = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                         Picker("", selection: $additionalCostThousandsSelection) {
                             ForEach(thousandsRange, id: \.self) { v in

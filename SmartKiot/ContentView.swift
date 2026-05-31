@@ -1653,7 +1653,7 @@ struct ContentView: View {
                             }.buttonStyle(.plain)
                             Text("Ngàn").font(.caption).foregroundStyle(.gray)
                             let thousandsMin = priceThousandsRangeBase
-                            let thousandsMax = min(thousandsMin + 90, 999)
+                            let thousandsMax = min(thousandsMin + 99, 999)
                             let thousandsRange = Array(stride(from: thousandsMin, through: thousandsMax, by: 1))
                             Picker("", selection: $priceThousandsSelection) {
                                 ForEach(thousandsRange, id: \.self) { v in

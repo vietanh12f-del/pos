@@ -793,7 +793,7 @@ struct ProductEditView: View {
                             Text("Ngàn").font(.caption).foregroundStyle(.gray)
                             let thousandsMin = costThousandsRangeBase
                             Picker("", selection: $costThousandsSelection) {
-                                ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                                ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 99, 999), by: 1)), id: \.self) { v in
                                     Text("\(v)").tag(v)
                                 }
                             }
@@ -936,7 +936,7 @@ struct ProductEditView: View {
                             Text("Ngàn").font(.caption).foregroundStyle(.gray)
                             let thousandsMin = priceThousandsRangeBase
                             Picker("", selection: $priceThousandsSelection) {
-                                ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 90, 999), by: 1)), id: \.self) { v in
+                                ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 99, 999), by: 1)), id: \.self) { v in
                                     Text("\(v)").tag(v)
                                 }
                             }
