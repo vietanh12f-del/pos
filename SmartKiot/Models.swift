@@ -584,6 +584,7 @@ enum StorePermission: String, Codable, CaseIterable, Hashable {
     case deleteEmployee = "delete_employee"
     case viewStatistics = "view_statistics"
     case viewInventoryReports = "view_inventory_reports"
+    case viewProduction = "view_production"
     case manageProduction = "manage_production"
     case manageCustomers = "manage_customers"
     case manageProducts = "manage_products"
@@ -600,7 +601,8 @@ enum StorePermission: String, Codable, CaseIterable, Hashable {
         case .deleteEmployee: return "Xóa Nhân viên"
         case .viewStatistics: return "Xem Thống kê & Doanh thu lợi nhuận"
         case .viewInventoryReports: return "Xem Báo cáo kho"
-        case .manageProduction: return "Báo cáo & Quản lý sản xuất"
+        case .viewProduction: return "Xem Báo cáo sản xuất"
+        case .manageProduction: return "Quản lý sản xuất (Tạo/Sửa/Xóa)"
         case .manageCustomers: return "Quản lý khách hàng"
         case .manageProducts: return "Quản lý sản phẩm"
         }
