@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS production_transactions (
 CREATE INDEX IF NOT EXISTS idx_production_transactions_store_id ON production_transactions(store_id);
 CREATE INDEX IF NOT EXISTS idx_production_transactions_mode ON production_transactions(mode);
 CREATE INDEX IF NOT EXISTS idx_production_transactions_created_at ON production_transactions(created_at);
+CREATE INDEX IF NOT EXISTS idx_production_transactions_supplier_name ON production_transactions(supplier_name);
 
 -- Item table
 CREATE TABLE IF NOT EXISTS production_transaction_items (
@@ -52,6 +53,14 @@ ALTER TABLE production_transactions
   ADD COLUMN IF NOT EXISTS creator_id UUID;
 ALTER TABLE production_transactions
   ADD COLUMN IF NOT EXISTS creator_name TEXT;
+
+-- Migration-safe: ensure supplier info exists (for material import)
+ALTER TABLE production_transactions
+  ADD COLUMN IF NOT EXISTS supplier_name TEXT;
+ALTER TABLE production_transactions
+  ADD COLUMN IF NOT EXISTS supplier_phone TEXT;
+ALTER TABLE production_transactions
+  ADD COLUMN IF NOT EXISTS supplier_address TEXT;
 
 -- Policies: Access transactions if user is a member of the store
 DROP POLICY IF EXISTS "Access production transactions if member" ON production_transactions;

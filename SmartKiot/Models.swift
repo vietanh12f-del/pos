@@ -128,6 +128,10 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     var creatorName: String? = nil
     let totalCost: Double
     var note: String? = nil
+    // Import supplier info (for material import)
+    var supplierName: String? = nil
+    var supplierPhone: String? = nil
+    var supplierAddress: String? = nil
     // Export buyer & payment info
     var buyerName: String? = nil
     var buyerPhone: String? = nil

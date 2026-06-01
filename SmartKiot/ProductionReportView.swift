@@ -1731,8 +1731,12 @@ struct MaterialExportReportView: View {
                 }
             }
             .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
-                ForEach(allFinishedGoodNamesInDay, id: \.self) { name in
-                    Button(name) { selectedFinishedGoodName = name }
+                if allFinishedGoodNamesInDay.isEmpty {
+                    Button("Không có thành phẩm") { }
+                } else {
+                    ForEach(allFinishedGoodNamesInDay, id: \.self) { name in
+                        Button(name) { selectedFinishedGoodName = name }
+                    }
                 }
                 if selectedFinishedGoodName != nil {
                     Button("Tất cả thành phẩm", role: .destructive) { selectedFinishedGoodName = nil }
@@ -1762,8 +1766,12 @@ struct MaterialExportReportView: View {
                 .presentationDetents([.medium])
             }
             .confirmationDialog("Chọn người tạo", isPresented: $showCreatorPicker, titleVisibility: .visible) {
-                ForEach(allCreatorNames, id: \.self) { name in
-                    Button(name) { selectedCreatorName = name }
+                if allCreatorNames.isEmpty {
+                    Button("Không có người tạo") { }
+                } else {
+                    ForEach(allCreatorNames, id: \.self) { name in
+                        Button(name) { selectedCreatorName = name }
+                    }
                 }
                 if selectedCreatorName != nil {
                     Button("Tất cả", role: .destructive) { selectedCreatorName = nil }
@@ -2532,9 +2540,20 @@ struct GenericProductionReportView: View {
         Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
     }
 
-    // Danh sách tên cơ sở (nhập/xuất)
+    // Danh sách tên cơ sở (nhập/xuất) - dùng supplierName cho nhập nguyên liệu
     private var allStoreNames: [String] {
-        Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
+        if reportKind == .materialImport {
+            // For material import, use supplierName (nhà cung cấp/cơ sở nhập)
+            // Fallback to creatorName if supplierName is nil (for backward compatibility with old data)
+            let names = allLoadedTxs.compactMap { tx -> String? in
+                let name = tx.supplierName ?? tx.creatorName
+                return name?.isEmpty == false ? name : nil
+            }
+            return Array(Set(names)).sorted()
+        } else {
+            // For other reports, use creatorName (người tạo phiếu)
+            return Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
+        }
     }
     
     // Danh sách tên thành phẩm (từ items của các transaction, lọc theo VAT)
@@ -2589,10 +2608,17 @@ struct GenericProductionReportView: View {
                 creatorMatch = true
             }
 
-            // Lọc store name
+            // Lọc store name (cơ sở nhập/xuất)
             let storeMatch: Bool
             if let selected = selectedStoreName {
-                storeMatch = tx.creatorName == selected
+                if reportKind == .materialImport {
+                    // For material import, match by supplierName (fallback to creatorName if nil)
+                    let effectiveStoreName = tx.supplierName ?? tx.creatorName
+                    storeMatch = effectiveStoreName == selected
+                } else {
+                    // For other reports, match by creatorName
+                    storeMatch = tx.creatorName == selected
+                }
             } else {
                 storeMatch = true
             }
@@ -3084,8 +3110,12 @@ struct GenericProductionReportView: View {
             .padding(.vertical, 12)
         }
         .confirmationDialog("Chọn người tạo", isPresented: $showCreatorPicker, titleVisibility: .visible) {
-            ForEach(allCreatorNames, id: \.self) { name in
-                Button(name) { selectedCreatorName = name }
+            if allCreatorNames.isEmpty {
+                Button("Không có người tạo") { }
+            } else {
+                ForEach(allCreatorNames, id: \.self) { name in
+                    Button(name) { selectedCreatorName = name }
+                }
             }
             if selectedCreatorName != nil {
                 Button("Tất cả", role: .destructive) { selectedCreatorName = nil }
@@ -3093,8 +3123,12 @@ struct GenericProductionReportView: View {
             Button("Huỷ", role: .cancel) { }
         }
         .confirmationDialog(reportKind == .finishedExport ? "Chọn cơ sở xuất" : "Chọn cơ sở nhập", isPresented: $showStorePicker, titleVisibility: .visible) {
-            ForEach(allStoreNames, id: \.self) { name in
-                Button(name) { selectedStoreName = name }
+            if allStoreNames.isEmpty {
+                Button("Không có dữ liệu") { }
+            } else {
+                ForEach(allStoreNames, id: \.self) { name in
+                    Button(name) { selectedStoreName = name }
+                }
             }
             if selectedStoreName != nil {
                 Button("Tất cả", role: .destructive) { selectedStoreName = nil }
@@ -3102,8 +3136,12 @@ struct GenericProductionReportView: View {
             Button("Huỷ", role: .cancel) { }
         }
         .confirmationDialog("Chọn thành phẩm", isPresented: $showFinishedGoodPicker, titleVisibility: .visible) {
-            ForEach(allFinishedGoodNames, id: \.self) { name in
-                Button(name) { selectedFinishedGoodName = name }
+            if allFinishedGoodNames.isEmpty {
+                Button("Không có thành phẩm") { }
+            } else {
+                ForEach(allFinishedGoodNames, id: \.self) { name in
+                    Button(name) { selectedFinishedGoodName = name }
+                }
             }
             if selectedFinishedGoodName != nil {
                 Button("Tất cả", role: .destructive) { selectedFinishedGoodName = nil }
@@ -3111,8 +3149,12 @@ struct GenericProductionReportView: View {
             Button("Huỷ", role: .cancel) { }
         }
         .confirmationDialog("Chọn nguyên liệu", isPresented: $showMaterialPicker, titleVisibility: .visible) {
-            ForEach(allMaterialNames, id: \.self) { name in
-                Button(name) { selectedMaterialName = name }
+            if allMaterialNames.isEmpty {
+                Button("Không có nguyên liệu") { }
+            } else {
+                ForEach(allMaterialNames, id: \.self) { name in
+                    Button(name) { selectedMaterialName = name }
+                }
             }
             if selectedMaterialName != nil {
                 Button("Tất cả", role: .destructive) { selectedMaterialName = nil }
