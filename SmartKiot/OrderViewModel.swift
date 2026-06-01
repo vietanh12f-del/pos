@@ -2308,6 +2308,13 @@ class OrderViewModel: ObservableObject {
             tx.isPaid = info.isPaid
             tx.expectedPayDate = info.expectedPayDate
             tx.paymentReceiptURL = info.paymentReceiptURL
+            
+            // For material import, also copy to supplier fields (for filter compatibility)
+            if mode.contains("Nhập nguyên liệu") {
+                tx.supplierName = info.buyerName
+                tx.supplierPhone = info.buyerPhone
+                tx.supplierAddress = info.buyerAddress
+            }
         }
         pendingExportNote = nil
         pendingExportPaymentReceiptURL = nil

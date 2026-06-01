@@ -2544,12 +2544,7 @@ struct GenericProductionReportView: View {
     private var allStoreNames: [String] {
         if reportKind == .materialImport {
             // For material import, use supplierName (nhà cung cấp/cơ sở nhập)
-            // Fallback to creatorName if supplierName is nil (for backward compatibility with old data)
-            let names = allLoadedTxs.compactMap { tx -> String? in
-                let name = tx.supplierName ?? tx.creatorName
-                return name?.isEmpty == false ? name : nil
-            }
-            return Array(Set(names)).sorted()
+            return Array(Set(allLoadedTxs.compactMap { $0.supplierName }.filter { !$0.isEmpty })).sorted()
         } else {
             // For other reports, use creatorName (người tạo phiếu)
             return Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
@@ -2612,9 +2607,8 @@ struct GenericProductionReportView: View {
             let storeMatch: Bool
             if let selected = selectedStoreName {
                 if reportKind == .materialImport {
-                    // For material import, match by supplierName (fallback to creatorName if nil)
-                    let effectiveStoreName = tx.supplierName ?? tx.creatorName
-                    storeMatch = effectiveStoreName == selected
+                    // For material import, match by supplierName only
+                    storeMatch = tx.supplierName == selected
                 } else {
                     // For other reports, match by creatorName
                     storeMatch = tx.creatorName == selected
