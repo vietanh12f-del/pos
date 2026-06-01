@@ -795,8 +795,10 @@ struct ContentView: View {
                                         showNewOrder = true
                                     }
                                     
-                                    QuickActionButton(icon: "gearshape", title: "Cài Đặt", isPrimary: false) {
-                                        selectedTab = 6
+                                    if StoreManager.shared.hasPermission(.manageEmployees) || StoreManager.shared.currentMember?.role == .owner {
+                                        QuickActionButton(icon: "gearshape", title: "Cài Đặt", isPrimary: false) {
+                                            selectedTab = 6
+                                        }
                                     }
                                     
                                     if StoreManager.shared.hasPermission(.viewReports) {
@@ -805,7 +807,7 @@ struct ContentView: View {
                                         }
                                     }
                                     
-                                    if productionEnabledGlobal {
+                                    if productionEnabledGlobal && StoreManager.shared.hasPermission(.manageProduction) {
                                         QuickActionButton(icon: "gearshape.2.fill", title: "Quản lý SX", isPrimary: false) {
                                             showProductionManagement = true
                                         }
@@ -817,15 +819,17 @@ struct ContentView: View {
                                         }
                                     }
                                     
-                                    if productionEnabledGlobal {
+                                    if productionEnabledGlobal && StoreManager.shared.hasPermission(.viewProduction) {
                                         QuickActionButton(icon: "doc.text.magnifyingglass", title: "Báo cáo SX", isPrimary: false) {
                                             selectedTab = 8
                                             showProductionReport = true
                                         }
                                     }
                                     
-                                    QuickActionButton(icon: "person.2.fill", title: "Khách hàng", isPrimary: false) {
-                                        showCustomerManagement = true
+                                    if StoreManager.shared.hasPermission(.manageCustomers) {
+                                        QuickActionButton(icon: "person.2.fill", title: "Khách hàng", isPrimary: false) {
+                                            showCustomerManagement = true
+                                        }
                                     }
                                     
                                     if StoreManager.shared.hasPermission(.viewInventory) {
@@ -834,8 +838,10 @@ struct ContentView: View {
                                         }
                                     }
                                     
-                                    QuickActionButton(icon: "calendar.badge.checkmark", title: "Điểm danh", isPrimary: false) {
-                                        showAttendance = true
+                                    if StoreManager.shared.hasPermission(.manageEmployees) {
+                                        QuickActionButton(icon: "calendar.badge.checkmark", title: "Điểm danh", isPrimary: false) {
+                                            showAttendance = true
+                                        }
                                     }
                                 }
                                 .padding(.horizontal)

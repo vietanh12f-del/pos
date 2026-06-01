@@ -197,7 +197,12 @@ struct WheelTabBarView: View {
                 // If they want "Add Product", they can do it inside Restock or via other UI.
                 
                 Button(action: {
-                    showNewRestock = true
+                    if storeManager.hasPermission(.viewInventory) {
+                        showNewRestock = true
+                    } else {
+                        let generator = UINotificationFeedbackGenerator()
+                        generator.notificationOccurred(.error)
+                    }
                 }) {
                     fabVisual(label: "Nhập hàng")
                 }
