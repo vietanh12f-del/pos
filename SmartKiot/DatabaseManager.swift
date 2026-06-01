@@ -1865,6 +1865,7 @@ struct ProductionTransactionItemDTO: Codable {
     let source: String?
     let document_image_url: String?
     let unit: String?
+    let category: String?  // Added for correct cost calculation (materials vs finished goods)
     
     init(from domain: RestockItem, transactionId: UUID) {
         self.id = domain.id
@@ -1876,6 +1877,7 @@ struct ProductionTransactionItemDTO: Codable {
         self.source = domain.source
         self.document_image_url = domain.documentImageURL
         self.unit = domain.unit
+        self.category = domain.category
     }
     
     func toDomain() -> RestockItem {
@@ -1885,6 +1887,7 @@ struct ProductionTransactionItemDTO: Codable {
             quantity: quantity,
             unitPrice: unit_price,
             additionalCost: additional_cost ?? 0,
+            category: category,  // Pass category for correct cost calculation
             source: source,
             documentImageURL: document_image_url,
             unit: unit

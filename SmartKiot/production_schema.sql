@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS production_transaction_items (
   unit_price DOUBLE PRECISION DEFAULT 0,
   additional_cost DOUBLE PRECISION DEFAULT 0,
   source TEXT,
-  document_image_url TEXT
+  document_image_url TEXT,
+  unit TEXT,
+  category TEXT  -- materials or finished_goods for correct cost calculation
 );
 
 CREATE INDEX IF NOT EXISTS idx_production_items_tx_id ON production_transaction_items(transaction_id);
