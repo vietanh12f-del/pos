@@ -347,7 +347,7 @@ struct MaterialEditView: View {
                             .foregroundStyle(.gray)
                         let hundredsRangeMin = costWheelHundredsRangeBase
                         Picker("", selection: $costWheelHundredsSelection) {
-                            ForEach(Array(stride(from: hundredsRangeMin, through: min(hundredsRangeMin + 90, 990), by: 10)), id: \.self) { v in
+                            ForEach(Array(stride(from: hundredsRangeMin, through: min(hundredsRangeMin + 99, 999), by: 1)), id: \.self) { v in
                                 Text("\(v)").tag(v)
                             }
                         }
@@ -412,7 +412,7 @@ struct MaterialEditView: View {
                     Text("Chọn vùng ngàn").font(.headline)
                     Picker("", selection: $costWheelThousandsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }
                     .pickerStyle(.wheel)
@@ -439,12 +439,12 @@ struct MaterialEditView: View {
                     Text("Chọn vùng trăm").font(.headline)
                     Picker("", selection: $costWheelHundredsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }
                     .pickerStyle(.wheel)
                     Button {
-                        if costWheelHundredsSelection < costWheelHundredsRangeBase || costWheelHundredsSelection > costWheelHundredsRangeBase + 90 {
+                        if costWheelHundredsSelection < costWheelHundredsRangeBase || costWheelHundredsSelection > costWheelHundredsRangeBase + 99 {
                             costWheelHundredsSelection = costWheelHundredsRangeBase
                         }
                         showCostWheelHundredsRangePicker = false
@@ -504,7 +504,7 @@ struct MaterialEditView: View {
                         VStack {
                             Text("Gam").font(.caption).foregroundStyle(.gray)
                             Picker("", selection: $stockGramsSelection) {
-                                ForEach(Array(stride(from: 0, through: stockGramsMax, by: 10)), id: \.self) { g in
+                                ForEach(Array(stride(from: 0, through: stockGramsMax, by: 1)), id: \.self) { g in
                                     Text("\(g)").tag(g)
                                 }
                             }

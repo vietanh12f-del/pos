@@ -83,8 +83,8 @@ struct ProductionTransactionItemEditView: View {
     
     private var unitPriceHundredsRange: [Int] {
         let hundredsMin = unitPriceHundredsRangeBase
-        let upperBound = min(hundredsMin + 90, 990)
-        return Array(stride(from: hundredsMin, through: upperBound, by: 10))
+        let upperBound = min(hundredsMin + 99, 999)
+        return Array(stride(from: hundredsMin, through: upperBound, by: 1))
     }
     
     private var additionalCostMillionsRange: [Int] {
@@ -101,8 +101,8 @@ struct ProductionTransactionItemEditView: View {
     
     private var additionalCostHundredsRange: [Int] {
         let hundredsMin = additionalCostHundredsRangeBase
-        let upperBound = min(hundredsMin + 90, 990)
-        return Array(stride(from: hundredsMin, through: upperBound, by: 10))
+        let upperBound = min(hundredsMin + 99, 999)
+        return Array(stride(from: hundredsMin, through: upperBound, by: 1))
     }
     
     private var quantityKgRange: [Int] {
@@ -803,7 +803,7 @@ struct ProductionTransactionItemEditView: View {
                     Text("Chọn vùng ngàn").font(.headline)
                     Picker("", selection: $unitPriceThousandsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
@@ -821,11 +821,11 @@ struct ProductionTransactionItemEditView: View {
                     Text("Chọn vùng trăm").font(.headline)
                     Picker("", selection: $unitPriceHundredsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
-                        if unitPriceHundredsSelection < unitPriceHundredsRangeBase || unitPriceHundredsSelection > unitPriceHundredsRangeBase + 90 { unitPriceHundredsSelection = unitPriceHundredsRangeBase }
+                        if unitPriceHundredsSelection < unitPriceHundredsRangeBase || unitPriceHundredsSelection > unitPriceHundredsRangeBase + 99 { unitPriceHundredsSelection = unitPriceHundredsRangeBase }
                         showUnitPriceHundredsRangePicker = false
                     } label: {
                         Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
@@ -943,7 +943,7 @@ struct ProductionTransactionItemEditView: View {
                     Text("Chọn vùng ngàn").font(.headline)
                     Picker("", selection: $additionalCostThousandsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
@@ -961,11 +961,11 @@ struct ProductionTransactionItemEditView: View {
                     Text("Chọn vùng trăm").font(.headline)
                     Picker("", selection: $additionalCostHundredsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
-                        if additionalCostHundredsSelection < additionalCostHundredsRangeBase || additionalCostHundredsSelection > additionalCostHundredsRangeBase + 90 { additionalCostHundredsSelection = additionalCostHundredsRangeBase }
+                        if additionalCostHundredsSelection < additionalCostHundredsRangeBase || additionalCostHundredsSelection > additionalCostHundredsRangeBase + 99 { additionalCostHundredsSelection = additionalCostHundredsRangeBase }
                         showAdditionalCostHundredsRangePicker = false
                     } label: {
                         Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)

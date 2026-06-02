@@ -72,7 +72,7 @@ struct RestockEntryView: View {
     }
     
     private func hundredsRange(base: Int) -> StrideThrough<Int> {
-        stride(from: base, through: min(base + 90, 990), by: 10)
+        stride(from: base, through: min(base + 99, 999), by: 1)
     }
     
     var body: some View {
@@ -1171,7 +1171,7 @@ struct RestockEntryView: View {
                     Text("Chọn vùng ngàn").font(.headline)
                     Picker("", selection: $summaryPriceThousandsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
@@ -1189,11 +1189,11 @@ struct RestockEntryView: View {
                     Text("Chọn vùng trăm").font(.headline)
                     Picker("", selection: $summaryPriceHundredsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
-                        if summaryPriceHundredsSelection < summaryPriceHundredsRangeBase || summaryPriceHundredsSelection > summaryPriceHundredsRangeBase + 90 { summaryPriceHundredsSelection = summaryPriceHundredsRangeBase }
+                        if summaryPriceHundredsSelection < summaryPriceHundredsRangeBase || summaryPriceHundredsSelection > summaryPriceHundredsRangeBase + 99 { summaryPriceHundredsSelection = summaryPriceHundredsRangeBase }
                         showSummaryPriceHundredsRangePicker = false
                     } label: {
                         Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
@@ -2327,8 +2327,8 @@ struct ManualRestockItemView: View {
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
                         let hundredsMin: Int = unitPriceHundredsRangeBase
-                        let hundredsMax: Int = min(hundredsMin + 90, 990)
-                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
+                        let hundredsMax: Int = min(hundredsMin + 99, 999)
+                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 1))
                         Picker("", selection: $unitPriceHundredsSelection) {
                             ForEach(hundredsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
@@ -2383,7 +2383,7 @@ struct ManualRestockItemView: View {
                     Text("Chọn vùng ngàn").font(.headline)
                     Picker("", selection: $unitPriceThousandsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
@@ -2401,11 +2401,11 @@ struct ManualRestockItemView: View {
                     Text("Chọn vùng trăm").font(.headline)
                     Picker("", selection: $unitPriceHundredsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
-                        if unitPriceHundredsSelection < unitPriceHundredsRangeBase || unitPriceHundredsSelection > unitPriceHundredsRangeBase + 90 { unitPriceHundredsSelection = unitPriceHundredsRangeBase }
+                        if unitPriceHundredsSelection < unitPriceHundredsRangeBase || unitPriceHundredsSelection > unitPriceHundredsRangeBase + 99 { unitPriceHundredsSelection = unitPriceHundredsRangeBase }
                         showUnitPriceHundredsRangePicker = false
                     } label: {
                         Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
@@ -2474,8 +2474,8 @@ struct ManualRestockItemView: View {
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
                         let hundredsMin: Int = additionalCostHundredsRangeBase
-                        let hundredsMax: Int = min(hundredsMin + 90, 990)
-                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
+                        let hundredsMax: Int = min(hundredsMin + 99, 999)
+                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 1))
                         Picker("", selection: $additionalCostHundredsSelection) {
                             ForEach(hundredsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
@@ -2530,7 +2530,7 @@ struct ManualRestockItemView: View {
                     Text("Chọn vùng ngàn").font(.headline)
                     Picker("", selection: $additionalCostThousandsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
@@ -2548,11 +2548,11 @@ struct ManualRestockItemView: View {
                     Text("Chọn vùng trăm").font(.headline)
                     Picker("", selection: $additionalCostHundredsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
-                        if additionalCostHundredsSelection < additionalCostHundredsRangeBase || additionalCostHundredsSelection > additionalCostHundredsRangeBase + 90 { additionalCostHundredsSelection = additionalCostHundredsRangeBase }
+                        if additionalCostHundredsSelection < additionalCostHundredsRangeBase || additionalCostHundredsSelection > additionalCostHundredsRangeBase + 99 { additionalCostHundredsSelection = additionalCostHundredsRangeBase }
                         showAdditionalCostHundredsRangePicker = false
                     } label: {
                         Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
@@ -2620,8 +2620,8 @@ struct ManualRestockItemView: View {
                         }.buttonStyle(.plain)
                         Text("Trăm").font(.caption).foregroundStyle(.gray)
                         let hundredsMin: Int = suggestedPriceHundredsRangeBase
-                        let hundredsMax: Int = min(hundredsMin + 90, 990)
-                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 10))
+                        let hundredsMax: Int = min(hundredsMin + 99, 999)
+                        let hundredsRangeArray: [Int] = Array(stride(from: hundredsMin, through: hundredsMax, by: 1))
                         Picker("", selection: $suggestedPriceHundredsSelection) {
                             ForEach(hundredsRangeArray, id: \.self) { v in
                                 Text("\(v)").tag(v)
@@ -2676,7 +2676,7 @@ struct ManualRestockItemView: View {
                     Text("Chọn vùng ngàn").font(.headline)
                     Picker("", selection: $suggestedPriceThousandsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+99)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
@@ -2694,11 +2694,11 @@ struct ManualRestockItemView: View {
                     Text("Chọn vùng trăm").font(.headline)
                     Picker("", selection: $suggestedPriceHundredsRangeBase) {
                         ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
-                            Text(v == 0 ? ">0" : "\(v)-\(v+90)").tag(v)
+                            Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
                         }
                     }.pickerStyle(.wheel)
                     Button {
-                        if suggestedPriceHundredsSelection < suggestedPriceHundredsRangeBase || suggestedPriceHundredsSelection > suggestedPriceHundredsRangeBase + 90 { suggestedPriceHundredsSelection = suggestedPriceHundredsRangeBase }
+                        if suggestedPriceHundredsSelection < suggestedPriceHundredsRangeBase || suggestedPriceHundredsSelection > suggestedPriceHundredsRangeBase + 99 { suggestedPriceHundredsSelection = suggestedPriceHundredsRangeBase }
                         showSuggestedPriceHundredsRangePicker = false
                     } label: {
                         Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
