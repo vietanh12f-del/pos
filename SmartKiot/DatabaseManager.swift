@@ -1740,6 +1740,7 @@ struct ProductionTransactionDTO: Codable {
     let supplier_name: String?
     let supplier_phone: String?
     let supplier_address: String?
+    let supplier_tax_code: String?
     // Export buyer & payment info
     let buyer_name: String?
     let buyer_phone: String?
@@ -1761,7 +1762,7 @@ struct ProductionTransactionDTO: Codable {
     let delete_note: String?
 
     init(id: UUID, mode: String, total_cost: Double, created_at: Date, note: String?, creator_id: UUID?, creator_name: String?, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?,
-         supplier_name: String? = nil, supplier_phone: String? = nil, supplier_address: String? = nil,
+         supplier_name: String? = nil, supplier_phone: String? = nil, supplier_address: String? = nil, supplier_tax_code: String? = nil,
          buyer_name: String? = nil, buyer_phone: String? = nil, buyer_address: String? = nil, buyer_tax_code: String? = nil,
          grand_total: Double? = nil, paid_amount: Double? = nil, debt_amount: Double? = nil,
          vat_rate: Double? = nil, vat_amount: Double? = nil, is_paid: Bool? = nil,
@@ -1779,6 +1780,7 @@ struct ProductionTransactionDTO: Codable {
         self.supplier_name = supplier_name
         self.supplier_phone = supplier_phone
         self.supplier_address = supplier_address
+        self.supplier_tax_code = supplier_tax_code
         self.buyer_name = buyer_name
         self.buyer_phone = buyer_phone
         self.buyer_address = buyer_address
@@ -1811,6 +1813,7 @@ struct ProductionTransactionDTO: Codable {
         self.supplier_name = domain.supplierName
         self.supplier_phone = domain.supplierPhone
         self.supplier_address = domain.supplierAddress
+        self.supplier_tax_code = domain.supplierTaxCode
         self.buyer_name = domain.buyerName
         self.buyer_phone = domain.buyerPhone
         self.buyer_address = domain.buyerAddress
@@ -1838,6 +1841,7 @@ struct ProductionTransactionDTO: Codable {
         tx.supplierName = supplier_name
         tx.supplierPhone = supplier_phone
         tx.supplierAddress = supplier_address
+        tx.supplierTaxCode = supplier_tax_code
         tx.buyerName = buyer_name
         tx.buyerPhone = buyer_phone
         tx.buyerAddress = buyer_address
@@ -1863,8 +1867,8 @@ struct ProductionTransactionDTO: Codable {
             id: id, mode: mode, total_cost: total_cost, created_at: created_at,
             note: note, creator_id: creator_id, creator_name: creator_name,
             production_transaction_items: production_transaction_items, store_id: storeId,
-            supplier_name: supplier_name, supplier_phone: supplier_phone, supplier_address: supplier_address,
-            buyer_name: buyer_name, buyer_phone: buyer_phone, buyer_address: buyer_address,
+            supplier_name: supplier_name, supplier_phone: supplier_phone, supplier_address: supplier_address, supplier_tax_code: supplier_tax_code,
+            buyer_name: buyer_name, buyer_phone: buyer_phone, buyer_address: buyer_address, buyer_tax_code: buyer_tax_code,
             grand_total: grand_total, paid_amount: paid_amount, debt_amount: debt_amount,
             vat_rate: vat_rate, vat_amount: vat_amount, is_paid: is_paid,
             expected_pay_date: expected_pay_date, payment_receipt_url: payment_receipt_url,

@@ -525,10 +525,18 @@ struct TransactionEditView: View {
                         updated.note = noteText.isEmpty ? nil : noteText
                         // Preserve / update export info
                         if isExportFinishedGoods {
-                            updated.buyerName = buyerName.isEmpty ? nil : buyerName
-                            updated.buyerPhone = buyerPhone.isEmpty ? nil : buyerPhone
-                            updated.buyerAddress = buyerAddress.isEmpty ? nil : buyerAddress
-                            updated.buyerTaxCode = buyerTaxCode.isEmpty ? nil : buyerTaxCode
+                            let isImportMode = original.mode.lowercased().contains("nhập")
+                            if isImportMode {
+                                updated.supplierName = buyerName.isEmpty ? nil : buyerName
+                                updated.supplierPhone = buyerPhone.isEmpty ? nil : buyerPhone
+                                updated.supplierAddress = buyerAddress.isEmpty ? nil : buyerAddress
+                                updated.supplierTaxCode = buyerTaxCode.isEmpty ? nil : buyerTaxCode
+                            } else {
+                                updated.buyerName = buyerName.isEmpty ? nil : buyerName
+                                updated.buyerPhone = buyerPhone.isEmpty ? nil : buyerPhone
+                                updated.buyerAddress = buyerAddress.isEmpty ? nil : buyerAddress
+                                updated.buyerTaxCode = buyerTaxCode.isEmpty ? nil : buyerTaxCode
+                            }
                             updated.grandTotal = grandTotal
                             updated.paidAmount = paidAmount
                             updated.debtAmount = debtAmount
@@ -541,6 +549,11 @@ struct TransactionEditView: View {
                             updated.buyerName = original.buyerName
                             updated.buyerPhone = original.buyerPhone
                             updated.buyerAddress = original.buyerAddress
+                            updated.buyerTaxCode = original.buyerTaxCode
+                            updated.supplierName = original.supplierName
+                            updated.supplierPhone = original.supplierPhone
+                            updated.supplierAddress = original.supplierAddress
+                            updated.supplierTaxCode = original.supplierTaxCode
                             updated.grandTotal = original.grandTotal
                             updated.paidAmount = original.paidAmount
                             updated.debtAmount = original.debtAmount

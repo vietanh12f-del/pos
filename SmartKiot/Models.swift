@@ -132,6 +132,7 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     var supplierName: String? = nil
     var supplierPhone: String? = nil
     var supplierAddress: String? = nil
+    var supplierTaxCode: String? = nil
     // Export buyer & payment info
     var buyerName: String? = nil
     var buyerPhone: String? = nil

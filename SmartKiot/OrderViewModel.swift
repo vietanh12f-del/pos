@@ -2317,6 +2317,7 @@ class OrderViewModel: ObservableObject {
                 tx.supplierName = info.buyerName
                 tx.supplierPhone = info.buyerPhone
                 tx.supplierAddress = info.buyerAddress
+                tx.supplierTaxCode = info.buyerTaxCode
             }
         }
         pendingExportNote = nil
