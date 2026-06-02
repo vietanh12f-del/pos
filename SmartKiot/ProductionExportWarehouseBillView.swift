@@ -38,7 +38,7 @@ struct ProductionExportWarehouseBillView: View {
     }
 
     private var billPartyHeader: String {
-        isExport ? "THÔNG TIN BÊN NHẬN" : "THÔNG TIN BÊN GIAO"
+        isExport ? "THÔNG TIN BÊN NHẬN" : "THÔNG TIN BÊN NHẬP"
     }
 
     var body: some View {
@@ -129,6 +129,9 @@ struct ProductionExportWarehouseBillView: View {
                     if let address = tx.buyerAddress, !address.isEmpty {
                         Text("ĐC: \(address)").font(.caption).foregroundStyle(.gray)
                     }
+                    if let taxCode = tx.buyerTaxCode, !taxCode.isEmpty {
+                        Text("MST: \(taxCode)").font(.caption).foregroundStyle(.gray)
+                    }
                 }
             }
 
@@ -185,14 +188,14 @@ struct ProductionExportWarehouseBillView: View {
                 } else {
                     HStack(alignment: .top) {
                         VStack(spacing: 4) {
-                            Text("Người giao")
+                            Text("Người nhập")
                                 .font(.caption).fontWeight(.semibold).foregroundStyle(.gray)
                             Text(tx.creatorName ?? " ")
                                 .font(.caption).fontWeight(.bold).multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
                         VStack(spacing: 4) {
-                            Text("Người nhận")
+                            Text("Người giao")
                                 .font(.caption).fontWeight(.semibold).foregroundStyle(.gray)
                             Text(" ").font(.caption)
                         }

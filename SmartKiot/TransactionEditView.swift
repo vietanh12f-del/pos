@@ -48,6 +48,7 @@ struct TransactionEditView: View {
     @State private var buyerName: String = ""
     @State private var buyerPhone: String = ""
     @State private var buyerAddress: String = ""
+    @State private var buyerTaxCode: String = ""
     @State private var buyerHistory: [TradingParty] = []
     @State private var showBuyerPicker = false
 
@@ -304,6 +305,10 @@ struct TransactionEditView: View {
                             Text("Địa chỉ").font(.caption).foregroundStyle(.gray).frame(width: 110, alignment: .leading)
                             TextField("Nhập địa chỉ...", text: $buyerAddress)
                         }
+                        HStack {
+                            Text("MST").font(.caption).foregroundStyle(.gray).frame(width: 110, alignment: .leading)
+                            TextField("Nhập mã số thuế...", text: $buyerTaxCode)
+                        }
                     }
 
                     Section(header: Text("Thanh toán")) {
@@ -523,6 +528,7 @@ struct TransactionEditView: View {
                             updated.buyerName = buyerName.isEmpty ? nil : buyerName
                             updated.buyerPhone = buyerPhone.isEmpty ? nil : buyerPhone
                             updated.buyerAddress = buyerAddress.isEmpty ? nil : buyerAddress
+                            updated.buyerTaxCode = buyerTaxCode.isEmpty ? nil : buyerTaxCode
                             updated.grandTotal = grandTotal
                             updated.paidAmount = paidAmount
                             updated.debtAmount = debtAmount
@@ -614,6 +620,7 @@ struct TransactionEditView: View {
                 buyerName = original.buyerName ?? ""
                 buyerPhone = original.buyerPhone ?? ""
                 buyerAddress = original.buyerAddress ?? ""
+                buyerTaxCode = original.buyerTaxCode ?? ""
                 isPaid = original.isPaid
                 expectedPayDate = original.expectedPayDate
                 paymentReceiptURL = original.paymentReceiptURL

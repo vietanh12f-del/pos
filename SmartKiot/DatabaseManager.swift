@@ -1744,6 +1744,7 @@ struct ProductionTransactionDTO: Codable {
     let buyer_name: String?
     let buyer_phone: String?
     let buyer_address: String?
+    let buyer_tax_code: String?
     let grand_total: Double?
     let paid_amount: Double?
     let debt_amount: Double?
@@ -1761,7 +1762,7 @@ struct ProductionTransactionDTO: Codable {
 
     init(id: UUID, mode: String, total_cost: Double, created_at: Date, note: String?, creator_id: UUID?, creator_name: String?, production_transaction_items: [ProductionTransactionItemDTO]?, store_id: UUID?,
          supplier_name: String? = nil, supplier_phone: String? = nil, supplier_address: String? = nil,
-         buyer_name: String? = nil, buyer_phone: String? = nil, buyer_address: String? = nil,
+         buyer_name: String? = nil, buyer_phone: String? = nil, buyer_address: String? = nil, buyer_tax_code: String? = nil,
          grand_total: Double? = nil, paid_amount: Double? = nil, debt_amount: Double? = nil,
          vat_rate: Double? = nil, vat_amount: Double? = nil, is_paid: Bool? = nil,
          expected_pay_date: Date? = nil, payment_receipt_url: String? = nil, sequence_number: String? = nil,
@@ -1781,6 +1782,7 @@ struct ProductionTransactionDTO: Codable {
         self.buyer_name = buyer_name
         self.buyer_phone = buyer_phone
         self.buyer_address = buyer_address
+        self.buyer_tax_code = buyer_tax_code
         self.grand_total = grand_total
         self.paid_amount = paid_amount
         self.debt_amount = debt_amount
@@ -1812,6 +1814,7 @@ struct ProductionTransactionDTO: Codable {
         self.buyer_name = domain.buyerName
         self.buyer_phone = domain.buyerPhone
         self.buyer_address = domain.buyerAddress
+        self.buyer_tax_code = domain.buyerTaxCode
         self.grand_total = domain.grandTotal
         self.paid_amount = domain.paidAmount
         self.debt_amount = domain.debtAmount
@@ -1838,6 +1841,7 @@ struct ProductionTransactionDTO: Codable {
         tx.buyerName = buyer_name
         tx.buyerPhone = buyer_phone
         tx.buyerAddress = buyer_address
+        tx.buyerTaxCode = buyer_tax_code
         tx.grandTotal = grand_total
         tx.paidAmount = paid_amount
         tx.debtAmount = debt_amount

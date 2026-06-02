@@ -136,6 +136,7 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     var buyerName: String? = nil
     var buyerPhone: String? = nil
     var buyerAddress: String? = nil
+    var buyerTaxCode: String? = nil
     var grandTotal: Double? = nil
     var paidAmount: Double? = nil
     var debtAmount: Double? = nil

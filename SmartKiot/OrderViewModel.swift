@@ -1658,6 +1658,7 @@ class OrderViewModel: ObservableObject {
                             exportTx.buyerName = info.buyerName
                             exportTx.buyerPhone = info.buyerPhone
                             exportTx.buyerAddress = info.buyerAddress
+                            exportTx.buyerTaxCode = info.buyerTaxCode
                             exportTx.grandTotal = info.grandTotal
                             exportTx.paidAmount = info.paidAmount
                             exportTx.debtAmount = info.debtAmount
@@ -2301,6 +2302,7 @@ class OrderViewModel: ObservableObject {
             tx.buyerName = info.buyerName
             tx.buyerPhone = info.buyerPhone
             tx.buyerAddress = info.buyerAddress
+            tx.buyerTaxCode = info.buyerTaxCode
             tx.grandTotal = info.grandTotal
             tx.paidAmount = info.paidAmount
             tx.debtAmount = info.debtAmount
