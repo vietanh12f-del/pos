@@ -182,6 +182,9 @@ struct ProductionBillDetailView: View {
                     if let address = tx.buyerAddress, !address.isEmpty {
                         Text("ĐC: \(address)").font(.caption).foregroundStyle(.gray)
                     }
+                    if let taxCode = tx.buyerTaxCode, !taxCode.isEmpty {
+                        Text("MST: \(taxCode)").font(.caption).foregroundStyle(.gray)
+                    }
                 }
             }
 
