@@ -24,6 +24,7 @@ struct ProductionManagementView: View {
     @State private var selectedAutoExportLog: AutoMaterialExportLog?
     @State private var printingTransaction: ProductionTransaction?
     @State private var showPrintSheet = false
+    @State private var showExportWarehousePrintSheet = false
     @State private var highlightedTxId: UUID? = nil
     @State private var showPrintOptions = false
     @State private var printImage: UIImage?
@@ -101,27 +102,7 @@ struct ProductionManagementView: View {
                 // Compact Two-Row Mode Selector
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                     ForEach(Mode.allCases, id: \.self) { m in
-                        Button(action: { selectedMode = m }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: icon(for: m))
-                                    .font(.subheadline)
-                                    .fontWeight(.bold)
-                                Text(m.rawValue)
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .lineLimit(1)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(selectedMode == m ? color(for: m) : Color.white)
-                            .foregroundStyle(selectedMode == m ? .white : color(for: m))
-                            .cornerRadius(12)
-                            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 1)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(color(for: m).opacity(0.2), lineWidth: selectedMode == m ? 0 : 1)
-                            )
-                        }
+                        modeButton(for: m)
                     }
                 }
                 .padding(.horizontal)
@@ -352,52 +333,7 @@ struct ProductionManagementView: View {
                                 }
                                 .frame(maxWidth: .infinity, minHeight: 220)
                             } else {
-                                ScrollViewReader { proxy in
-                                    ScrollView {
-                                        VStack(spacing: 8) {
-                                            ForEach(filteredHistory, id: \.id) { tx in
-                                                ProductionTransactionHistoryCard(
-                                                    tx: tx,
-                                                    selectedMode: selectedMode,
-                                                    editedIds: viewModel.editedProductionTxIds,
-                                                    isHighlighted: highlightedTxId == tx.id,
-                                                    onShowEditHistory: {
-                                                        Task {
-                                                            self.editHistoryEntries = await viewModel.fetchProductionEdits(for: tx.id)
-                                                            self.showEditHistory = true
-                                                        }
-                                                    },
-                                                    onShowAutoExportDetail: {
-                                                        Task {
-                                                            let logs = await viewModel.fetchAutoMaterialExportLogsForTransaction(transactionId: tx.id)
-                                                            await MainActor.run {
-                                                                self.selectedAutoExportLog = logs.first
-                                                                self.showAutoExportDetail = (self.selectedAutoExportLog != nil)
-                                                            }
-                                                        }
-                                                    },
-                                                    onEdit: {
-                                                        editingTransaction = tx
-                                                        showTransactionEdit = true
-                                                    },
-                                                    onPrint: {
-                                                        printingTransaction = tx
-                                                        showPrintSheet = true
-                                                    }
-                                                )
-                                                .id(tx.id)
-                                            }
-                                        }
-                                        .padding(.top, 8)
-                                    }
-                                    .onChange(of: highlightedTxId) { txId in
-                                        if let txId {
-                                            withAnimation(.easeInOut(duration: 0.5)) {
-                                                proxy.scrollTo(txId, anchor: .center)
-                                            }
-                                        }
-                                    }
-                                }
+                                historyListView(for: filteredHistory)
                             }
                         }
                     }
@@ -480,6 +416,11 @@ struct ProductionManagementView: View {
             .sheet(isPresented: $showPrintSheet) {
                 if let tx = printingTransaction {
                     ProductionBillDetailView(tx: tx, viewModel: viewModel)
+                }
+            }
+            .sheet(isPresented: $showExportWarehousePrintSheet) {
+                if let tx = printingTransaction {
+                    ProductionExportWarehouseBillView(tx: tx, viewModel: viewModel)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ProductionScrollToTx"))) { notif in
@@ -607,7 +548,82 @@ struct ProductionManagementView: View {
             }
         }
     }
-    
+
+    // MARK: - History Card Actions
+    private func handleShowEditHistory(txId: UUID) async {
+        let entries = await viewModel.fetchProductionEdits(for: txId)
+        await MainActor.run {
+            editHistoryEntries = entries
+            showEditHistory = true
+        }
+    }
+
+    private func handleShowAutoExportDetail(txId: UUID) async {
+        let logs = await viewModel.fetchAutoMaterialExportLogsForTransaction(transactionId: txId)
+        let firstLog = logs.first
+        await MainActor.run {
+            selectedAutoExportLog = firstLog
+            showAutoExportDetail = (firstLog != nil)
+        }
+    }
+
+    private func handleEdit(tx: ProductionTransaction) {
+        editingTransaction = tx
+        showTransactionEdit = true
+    }
+
+    private func handlePrint(tx: ProductionTransaction) {
+        printingTransaction = tx
+        showPrintSheet = true
+    }
+
+    private func handlePrintExport(tx: ProductionTransaction) {
+        printingTransaction = tx
+        showExportWarehousePrintSheet = true
+    }
+
+    // MARK: - History List View
+    private func historyListView(for history: [ProductionTransaction]) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(history, id: \.id) { tx in
+                        historyCard(for: tx)
+                    }
+                }
+                .padding(.top, 8)
+            }
+            .onChange(of: highlightedTxId) { txId in
+                if let txId {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        proxy.scrollTo(txId, anchor: .center)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func historyCard(for tx: ProductionTransaction) -> some View {
+        let txId = tx.id
+        ProductionTransactionHistoryCard(
+            tx: tx,
+            selectedMode: selectedMode,
+            editedIds: viewModel.editedProductionTxIds,
+            isHighlighted: highlightedTxId == txId,
+            onShowEditHistory: {
+                Task { await handleShowEditHistory(txId: txId) }
+            },
+            onShowAutoExportDetail: {
+                Task { await handleShowAutoExportDetail(txId: txId) }
+            },
+            onEdit: { handleEdit(tx: tx) },
+            onPrint: { handlePrint(tx: tx) },
+            onPrintExport: { handlePrintExport(tx: tx) }
+        )
+        .id(txId)
+    }
+
     func icon(for mode: Mode) -> String {
         switch mode {
         case .nhapNguyenLieu: return "tray.and.arrow.down.fill"
@@ -625,6 +641,34 @@ struct ProductionManagementView: View {
         case .xuatThanhPham: return .purple
         }
     }
+
+    @ViewBuilder
+    func modeButton(for mode: Mode) -> some View {
+        let isSelected = selectedMode == mode
+        let modeColor = color(for: mode)
+        Button(action: { selectedMode = mode }) {
+            HStack(spacing: 8) {
+                Image(systemName: icon(for: mode))
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                Text(mode.rawValue)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(isSelected ? modeColor : Color.white)
+            .foregroundStyle(isSelected ? .white : modeColor)
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(modeColor.opacity(0.2), lineWidth: isSelected ? 0 : 1)
+            )
+        }
+    }
+
     func leftTitle(for mode: Mode) -> String {
         switch mode {
         case .nhapNguyenLieu: return "Nguyên liệu"
@@ -738,11 +782,34 @@ private struct ProductionTransactionHistoryCard: View {
     let tx: ProductionTransaction
     let selectedMode: ProductionManagementView.Mode?
     let editedIds: Set<UUID>
-    var isHighlighted: Bool = false
+    var isHighlighted: Bool
     let onShowEditHistory: () -> Void
     let onShowAutoExportDetail: () -> Void
     let onEdit: () -> Void
     let onPrint: () -> Void
+    let onPrintExport: (() -> Void)?
+
+    init(
+        tx: ProductionTransaction,
+        selectedMode: ProductionManagementView.Mode?,
+        editedIds: Set<UUID>,
+        isHighlighted: Bool = false,
+        onShowEditHistory: @escaping () -> Void,
+        onShowAutoExportDetail: @escaping () -> Void,
+        onEdit: @escaping () -> Void,
+        onPrint: @escaping () -> Void,
+        onPrintExport: (() -> Void)? = nil
+    ) {
+        self.tx = tx
+        self.selectedMode = selectedMode
+        self.editedIds = editedIds
+        self.isHighlighted = isHighlighted
+        self.onShowEditHistory = onShowEditHistory
+        self.onShowAutoExportDetail = onShowAutoExportDetail
+        self.onEdit = onEdit
+        self.onPrint = onPrint
+        self.onPrintExport = onPrintExport
+    }
 
     @State private var showDeleteInfo = false
 
@@ -880,6 +947,20 @@ private struct ProductionTransactionHistoryCard: View {
                         .background(Capsule().fill(Color.purple.opacity(0.85)))
                 }
                 Spacer()
+                // Nút In xuất kho (chỉ hiện khi có callback)
+                if !tx.isDeleted, let onPrintExport = onPrintExport {
+                    Button(action: onPrintExport) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "printer.fill")
+                                .font(.caption)
+                            Text("In xuất kho")
+                                .font(.subheadline).fontWeight(.bold)
+                        }
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(Color.themePrimary))
+                    }
+                }
                 // Nút In đơn
                 if !tx.isDeleted {
                     Button(action: onPrint) {
