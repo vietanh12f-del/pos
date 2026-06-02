@@ -7,6 +7,7 @@ struct BuyerInfo: Identifiable, Codable, Equatable {
     var name: String = ""
     var phone: String = ""
     var address: String = ""
+    var taxCode: String = ""
     var totalDebt: Double = 0
 }
 
@@ -103,6 +104,7 @@ struct FinishedGoodsExportView: View {
     @State private var buyerName: String = ""
     @State private var buyerPhone: String = ""
     @State private var buyerAddress: String = ""
+    @State private var buyerTaxCode: String = ""
     @State private var buyerHistory: [TradingParty] = []
     @State private var showBuyerPicker = false
     @State private var pastDebt: Double = 0
@@ -214,6 +216,7 @@ struct FinishedGoodsExportView: View {
                 buyerName = selected.name
                 buyerPhone = selected.phone
                 buyerAddress = selected.address
+                buyerTaxCode = selected.taxCode ?? ""
                 pastDebt = selected.totalDebt
             }
         }
@@ -368,6 +371,7 @@ struct FinishedGoodsExportView: View {
                 buyerName: buyerName,
                 buyerPhone: buyerPhone,
                 buyerAddress: buyerAddress,
+                buyerTaxCode: buyerTaxCode,
                 items: items,
                 subtotal: subtotal,
                 vatEnabled: vatEnabled,
@@ -513,6 +517,16 @@ struct FinishedGoodsExportView: View {
                             .frame(width: 140, alignment: .leading)
                         TextField("Nhập địa chỉ...", text: $buyerAddress)
                             .font(.subheadline)
+                    }
+                    Divider()
+                    HStack {
+                        Text("MST")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                            .frame(width: 140, alignment: .leading)
+                        TextField("Nhập mã số thuế...", text: $buyerTaxCode)
+                            .font(.subheadline)
+                            .textInputAutocapitalization(.never)
                     }
                 }
                 .padding(10)
@@ -1071,6 +1085,7 @@ struct FinishedGoodsExportView: View {
                 name: buyerName.trimmingCharacters(in: .whitespacesAndNewlines),
                 phone: buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines),
                 address: buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines),
+                taxCode: buyerTaxCode.trimmingCharacters(in: .whitespacesAndNewlines),
                 totalDebt: debtAmount,
                 updatedAt: Date()
             )
@@ -1087,6 +1102,7 @@ struct FinishedGoodsExportView: View {
                 buyerName: party.name,
                 buyerPhone: party.phone,
                 buyerAddress: party.address,
+                buyerTaxCode: buyerTaxCode.isEmpty ? nil : buyerTaxCode,
                 grandTotal: grandTotal,
                 paidAmount: paidAmount,
                 debtAmount: debtAmount,
@@ -1104,6 +1120,7 @@ struct FinishedGoodsExportView: View {
                 buyerName: "Kho thành phẩm",
                 buyerPhone: "",
                 buyerAddress: "",
+                buyerTaxCode: nil,
                 grandTotal: grandTotal,
                 paidAmount: paidAmount,
                 debtAmount: debtAmount,
@@ -1211,6 +1228,7 @@ struct ExportBillPrintView: View {
     let buyerName: String
     let buyerPhone: String
     let buyerAddress: String
+    var buyerTaxCode: String = ""
     let items: [RestockItem]
     let subtotal: Double
     let vatEnabled: Bool
@@ -1338,8 +1356,12 @@ struct ExportBillPrintView: View {
                 if !buyerPhone.isEmpty {
                     Text("SĐT: \(buyerPhone)").font(.caption).foregroundStyle(.gray)
                 }
+                let showTaxCode = !self.buyerTaxCode.isEmpty
                 if !buyerAddress.isEmpty {
                     Text("ĐC: \(buyerAddress)").font(.caption).foregroundStyle(.gray)
+                }
+                if showTaxCode {
+                    Text("MST: \(self.buyerTaxCode)").font(.caption).foregroundStyle(.gray)
                 }
             }
 

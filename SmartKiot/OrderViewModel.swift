@@ -31,6 +31,7 @@ class OrderViewModel: ObservableObject {
         var buyerName: String
         var buyerPhone: String
         var buyerAddress: String
+        var buyerTaxCode: String?
         var grandTotal: Double
         var paidAmount: Double
         var debtAmount: Double

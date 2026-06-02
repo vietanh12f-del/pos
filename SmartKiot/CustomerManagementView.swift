@@ -1258,6 +1258,7 @@ struct PartyEditSheet: View {
     @State private var name: String
     @State private var phone: String
     @State private var address: String
+    @State private var taxCode: String
     @State private var email: String
     @State private var birthday: Date?
     @State private var showBirthdayPicker = false
@@ -1293,6 +1294,7 @@ struct PartyEditSheet: View {
         _name      = State(initialValue: party.name)
         _phone     = State(initialValue: party.phone)
         _address   = State(initialValue: party.address)
+        _taxCode   = State(initialValue: party.taxCode ?? "")
         _email     = State(initialValue: party.email)
         _birthday  = State(initialValue: party.birthday)
         _customerCategory = State(initialValue: party.customerCategory)
@@ -1347,6 +1349,12 @@ struct PartyEditSheet: View {
                             .foregroundStyle(.gray)
                             .frame(width: 22)
                         TextField("Địa chỉ", text: $address)
+                    }
+                    HStack {
+                        Image(systemName: "building.columns")
+                            .foregroundStyle(.gray)
+                            .frame(width: 22)
+                        TextField("MST", text: $taxCode)
                     }
                     HStack {
                         Image(systemName: "envelope.fill")
@@ -1717,6 +1725,7 @@ struct PartyEditSheet: View {
         updated.name      = name.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.phone     = phone.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.address   = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.taxCode   = taxCode.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.email     = email.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.birthday  = birthday
         updated.customerCategory = customerCategory
