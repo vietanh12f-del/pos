@@ -137,7 +137,20 @@ struct CustomerManagementView: View {
                 $0.address.lowercased().contains(q)
             }
         }
-        return list.sorted { $0.updatedAt > $1.updatedAt }
+        return list.sorted { (a, b) in
+            if a.totalDebt > 0 && b.totalDebt <= 0 {
+                return true
+            }
+            if a.totalDebt <= 0 && b.totalDebt > 0 {
+                return false
+            }
+            if a.totalDebt > 0 && b.totalDebt > 0 {
+                if a.totalDebt != b.totalDebt {
+                    return a.totalDebt > b.totalDebt
+                }
+            }
+            return a.updatedAt > b.updatedAt
+        }
     }
 
     private var filteredLeads: [WebsiteLead] {
