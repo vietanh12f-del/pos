@@ -529,7 +529,20 @@ struct PartyDetailView: View {
             let day = cal.startOfDay(for: tx.createdAt)
             map[day, default: []].append(tx)
         }
-        return map.map { (date: $0.key, txs: $0.value.sorted { $0.createdAt > $1.createdAt }) }
+        return map.map { (date: $0.key, txs: $0.value.sorted { (a, b) in
+            if (a.debtAmount ?? 0) > 0 && (b.debtAmount ?? 0) <= 0 {
+                return true
+            }
+            if (a.debtAmount ?? 0) <= 0 && (b.debtAmount ?? 0) > 0 {
+                return false
+            }
+            if (a.debtAmount ?? 0) > 0 && (b.debtAmount ?? 0) > 0 {
+                if (a.debtAmount ?? 0) != (b.debtAmount ?? 0) {
+                    return (a.debtAmount ?? 0) > (b.debtAmount ?? 0)
+                }
+            }
+            return a.createdAt > b.createdAt
+        }) }
             .sorted { $0.date > $1.date }
     }
 
@@ -2286,6 +2299,23 @@ private struct DebtEditView: View {
     @State private var debtAmountRangeBase = 0
     @State private var showDebtAmountRangePicker = false
     
+    private var sortedTransactions: [ProductionTransaction] {
+        transactions.sorted { (a, b) in
+            if (a.debtAmount ?? 0) > 0 && (b.debtAmount ?? 0) <= 0 {
+                return true
+            }
+            if (a.debtAmount ?? 0) <= 0 && (b.debtAmount ?? 0) > 0 {
+                return false
+            }
+            if (a.debtAmount ?? 0) > 0 && (b.debtAmount ?? 0) > 0 {
+                if (a.debtAmount ?? 0) != (b.debtAmount ?? 0) {
+                    return (a.debtAmount ?? 0) > (b.debtAmount ?? 0)
+                }
+            }
+            return a.createdAt > b.createdAt
+        }
+    }
+    
     private func formatDateTime(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "vi_VN")
@@ -2328,7 +2358,7 @@ private struct DebtEditView: View {
                 }
                 
                 List {
-                    ForEach(transactions) { tx in
+                    ForEach(sortedTransactions) { tx in
                         Section {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack {
