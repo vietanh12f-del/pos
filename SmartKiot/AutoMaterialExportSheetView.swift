@@ -192,7 +192,12 @@ struct AutoMaterialExportSheetView: View {
     private var freshRows: [AutoMaterialExportLogRow] {
         freshSelected.compactMap { id in
             guard let m = materialsById[id] else { return nil }
-            let grams = max(0, FormatUtils.parseKgDecimalToGrams(freshExportKgTextById[id] ?? "") ?? 0)
+            let value: Double
+            if m.unit?.lowercased() == "cái" {
+                value = Double(max(0, Int(freshExportKgTextById[id] ?? "") ?? 0))
+            } else {
+                value = Double(max(0, FormatUtils.parseKgDecimalToGrams(freshExportKgTextById[id] ?? "") ?? 0))
+            }
             return AutoMaterialExportLogRow(
                 id: UUID(),
                 materialId: m.id,
@@ -200,7 +205,7 @@ struct AutoMaterialExportSheetView: View {
                 stockGrams: m.stockQuantity,
                 standardPerPanGrams: nil,
                 actualPerPanGrams: nil,
-                totalExportGrams: Double(grams)
+                totalExportGrams: value
             )
         }
         .sorted { $0.name < $1.name }
@@ -209,7 +214,12 @@ struct AutoMaterialExportSheetView: View {
     private var autoRows: [AutoMaterialExportLogRow] {
         autoSelected.compactMap { id in
             guard let m = materialsById[id] else { return nil }
-            let standard = max(0, Double(FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            let standard: Double
+            if m.unit?.lowercased() == "cái" {
+                standard = Double(max(0, Int(autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            } else {
+                standard = Double(max(0, FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            }
             let perPanActual = standard * percentChange
             let total = perPanActual * Double(panCount)
             return AutoMaterialExportLogRow(
@@ -231,7 +241,12 @@ struct AutoMaterialExportSheetView: View {
         let ratio = Double(surplusGrams) / Double(standardPanWeightGrams)
         return autoSelected.compactMap { id in
             guard let m = materialsById[id] else { return nil }
-            let standard = max(0, Double(FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            let standard: Double
+            if m.unit?.lowercased() == "cái" {
+                standard = Double(max(0, Int(autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            } else {
+                standard = Double(max(0, FormatUtils.parseKgDecimalToGrams(autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            }
             let total = standard * ratio
             return AutoMaterialExportLogRow(
                 id: UUID(),
@@ -252,7 +267,12 @@ struct AutoMaterialExportSheetView: View {
         let s = subSheetStates[i]
         return autoSelected.compactMap { id in
             guard let m = materialsById[id] else { return nil }
-            let standard = max(0, Double(FormatUtils.parseKgDecimalToGrams(s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            let standard: Double
+            if m.unit?.lowercased() == "cái" {
+                standard = Double(max(0, Int(s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            } else {
+                standard = Double(max(0, FormatUtils.parseKgDecimalToGrams(s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            }
             let perPanActual = standard * s.percentChange
             let total = perPanActual * Double(s.panCount)
             return AutoMaterialExportLogRow(
@@ -276,7 +296,12 @@ struct AutoMaterialExportSheetView: View {
         let ratio = Double(s.surplusGrams) / Double(s.standardPanWeightGrams)
         return autoSelected.compactMap { id in
             guard let m = materialsById[id] else { return nil }
-            let standard = max(0, Double(FormatUtils.parseKgDecimalToGrams(s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            let standard: Double
+            if m.unit?.lowercased() == "cái" {
+                standard = Double(max(0, Int(s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            } else {
+                standard = Double(max(0, FormatUtils.parseKgDecimalToGrams(s.autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "") ?? 0))
+            }
             let total = standard * ratio
             return AutoMaterialExportLogRow(
                 id: UUID(),
@@ -620,7 +645,33 @@ struct AutoMaterialExportSheetView: View {
                     // Kiểm tra nếu đang chỉnh cho sub-sheet
                     if case .subPanCount(let i) = weightWheelTarget, i < subSheetStates.count {
                         subSheetStates[i].panCountText = String(intWheelSelection)
+                    } else if case let .fresh(id) = weightWheelTarget {
+                        // Handle "cái" units for fresh material
+                        freshExportKgTextById[id] = String(intWheelSelection)
+                        if let stock = materialsById[id]?.stockQuantity {
+                            if intWheelSelection == stock {
+                                freshUseAllStockIds.insert(id)
+                            } else {
+                                freshUseAllStockIds.remove(id)
+                            }
+                        }
+                    } else if case let .autoStandard(id) = weightWheelTarget {
+                        // Handle "cái" units for auto standard material
+                        autoStandardPerPanKgTextById[id] = String(intWheelSelection)
+                    } else if case let .subAfterBoil(i) = weightWheelTarget, i < subSheetStates.count {
+                        // sub after boil for "cái"
+                        // Wait after boil should still be in kg probably, but just in case
+                        subSheetStates[i].afterBoilKgText = String(intWheelSelection)
+                        subSheetStates[i].autoCalcPanCount()
+                    } else if case let .subStandardPanWeight(i) = weightWheelTarget, i < subSheetStates.count {
+                        // sub standard for "cái"
+                        subSheetStates[i].standardPanWeightKgText = String(intWheelSelection)
+                        subSheetStates[i].autoCalcPanCount()
+                    } else if case let .subAutoStandard(i, id) = weightWheelTarget, i < subSheetStates.count {
+                        // sub auto standard for "cái"
+                        subSheetStates[i].autoStandardPerPanKgTextById[id] = String(intWheelSelection)
                     } else {
+                        // Regular pan count
                         panCountText = String(intWheelSelection)
                     }
                     weightWheelTarget = nil
@@ -807,30 +858,61 @@ struct AutoMaterialExportSheetView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(freshRows) { row in
-                        let mid = row.materialId
-                        let grams = max(0, FormatUtils.parseKgDecimalToGrams(mid == nil ? "" : (freshExportKgTextById[mid!] ?? "")) ?? 0)
-                        let isOver = grams > row.stockGrams
-                        let isAll = mid == nil ? false : freshUseAllStockIds.contains(mid!)
-                        FreshRowWheelView(
-                            name: row.name,
-                            stockText: FormatUtils.formatWeight(row.stockGrams),
-                            valueText: (mid == nil ? "0" : (freshExportKgTextById[mid!] ?? "0")),
-                            isOver: isOver,
-                            isAll: isAll,
-                            onToggleAll: {
-                                guard let id = mid else { return }
-                                if freshUseAllStockIds.contains(id) {
-                                    freshUseAllStockIds.remove(id)
+                        Group {
+                            if let mid = row.materialId, let m = materialsById[mid] {
+                                if m.unit?.lowercased() == "cái" {
+                                    let count = max(0, Int(freshExportKgTextById[m.id] ?? "") ?? 0)
+                                    FreshRowWheelView(
+                                        name: row.name,
+                                        stockText: "\(m.stockQuantity) cái",
+                                        valueText: "\(count) cái",
+                                        isOver: count > m.stockQuantity,
+                                        isAll: freshUseAllStockIds.contains(m.id),
+                                        onToggleAll: {
+                                            if freshUseAllStockIds.contains(m.id) {
+                                                freshUseAllStockIds.remove(m.id)
+                                            } else {
+                                                freshUseAllStockIds.insert(m.id)
+                                                freshExportKgTextById[m.id] = String(m.stockQuantity)
+                                            }
+                                        },
+                                        onTap: {
+                                            openWeightWheel(target: .fresh(m.id), currentText: freshExportKgTextById[m.id] ?? "0")
+                                        }
+                                    )
                                 } else {
-                                    freshUseAllStockIds.insert(id)
-                                    freshExportKgTextById[id] = FormatUtils.formatKgDecimal(fromGrams: row.stockGrams)
+                                    let grams = max(0, FormatUtils.parseKgDecimalToGrams(freshExportKgTextById[m.id] ?? "") ?? 0)
+                                    FreshRowWheelView(
+                                        name: row.name,
+                                        stockText: FormatUtils.formatWeight(m.stockQuantity),
+                                        valueText: freshExportKgTextById[m.id] ?? "0",
+                                        isOver: grams > m.stockQuantity,
+                                        isAll: freshUseAllStockIds.contains(m.id),
+                                        onToggleAll: {
+                                            if freshUseAllStockIds.contains(m.id) {
+                                                freshUseAllStockIds.remove(m.id)
+                                            } else {
+                                                freshUseAllStockIds.insert(m.id)
+                                                freshExportKgTextById[m.id] = FormatUtils.formatKgDecimal(fromGrams: m.stockQuantity)
+                                            }
+                                        },
+                                        onTap: {
+                                            openWeightWheel(target: .fresh(m.id), currentText: freshExportKgTextById[m.id] ?? "0")
+                                        }
+                                    )
                                 }
-                            },
-                            onTap: {
-                                guard let id = mid else { return }
-                                openWeightWheel(target: .fresh(id), currentText: freshExportKgTextById[id] ?? "0")
+                            } else {
+                                FreshRowWheelView(
+                                    name: row.name,
+                                    stockText: FormatUtils.formatWeight(0),
+                                    valueText: "0",
+                                    isOver: false,
+                                    isAll: false,
+                                    onToggleAll: {},
+                                    onTap: {}
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -1124,19 +1206,48 @@ struct AutoMaterialExportSheetView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(autoRows) { row in
-                        let mid = row.materialId
-                        AutoRowWheelView(
-                            name: row.name,
-                            stockText: FormatUtils.formatWeight(row.stockGrams),
-                            standardText: (mid == nil ? "0" : (autoStandardPerPanKgTextById[mid!] ?? "0")),
-                            perPanActualText: FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())),
-                            totalText: FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())),
-                            isOver: Int(row.totalExportGrams.rounded()) > row.stockGrams,
-                            onTapStandard: {
-                                guard let id = mid else { return }
-                                openWeightWheel(target: .autoStandard(id), currentText: autoStandardPerPanKgTextById[id] ?? "0")
+                        Group {
+                            if let mid = row.materialId, let m = materialsById[mid] {
+                                if m.unit?.lowercased() == "cái" {
+                                    let standardCount = Int(autoStandardPerPanKgTextById[m.id] ?? "") ?? 0
+                                    let perPanActualCount = Int((row.actualPerPanGrams ?? 0).rounded())
+                                    let totalCount = Int(row.totalExportGrams.rounded())
+                                    AutoRowWheelView(
+                                        name: row.name,
+                                        stockText: "\(m.stockQuantity) cái",
+                                        standardText: "\(standardCount) cái",
+                                        perPanActualText: "\(perPanActualCount) cái",
+                                        totalText: "\(totalCount) cái",
+                                        isOver: totalCount > m.stockQuantity,
+                                        onTapStandard: {
+                                            openWeightWheel(target: .autoStandard(m.id), currentText: autoStandardPerPanKgTextById[m.id] ?? "0")
+                                        }
+                                    )
+                                } else {
+                                    AutoRowWheelView(
+                                        name: row.name,
+                                        stockText: FormatUtils.formatWeight(row.stockGrams),
+                                        standardText: autoStandardPerPanKgTextById[m.id] ?? "0",
+                                        perPanActualText: FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())),
+                                        totalText: FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())),
+                                        isOver: Int(row.totalExportGrams.rounded()) > row.stockGrams,
+                                        onTapStandard: {
+                                            openWeightWheel(target: .autoStandard(m.id), currentText: autoStandardPerPanKgTextById[m.id] ?? "0")
+                                        }
+                                    )
+                                }
+                            } else {
+                                AutoRowWheelView(
+                                    name: row.name,
+                                    stockText: FormatUtils.formatWeight(0),
+                                    standardText: "0",
+                                    perPanActualText: "0",
+                                    totalText: "0",
+                                    isOver: false,
+                                    onTapStandard: {}
+                                )
                             }
-                        )
+                        }
                     }
                 }
                 
@@ -1157,26 +1268,71 @@ struct AutoMaterialExportSheetView: View {
                     
                     VStack(spacing: 10) {
                         ForEach(autoRowsForExtraPan) { row in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(row.name)
-                                        .font(.subheadline)
-                                        .foregroundStyle(Color.orange)
-                                    Text("Kho: \(FormatUtils.formatWeight(row.stockGrams))")
-                                        .font(.caption)
-                                        .foregroundStyle(.gray)
+                            Group {
+                                if let mat = row.materialId.flatMap({ materialsById[$0] }) {
+                                    if mat.unit?.lowercased() == "cái" {
+                                        let totalCount = Int(row.totalExportGrams.rounded())
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(row.name)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(Color.orange)
+                                                Text("Kho: \(mat.stockQuantity) cái")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                            }
+                                            Spacer()
+                                            Text("\(totalCount) cái")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(Color.orange)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                                        }
+                                    } else {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(row.name)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(Color.orange)
+                                                Text("Kho: \(FormatUtils.formatWeight(row.stockGrams))")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                            }
+                                            Spacer()
+                                            Text(FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())))
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(Color.orange)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                                            Text("kg")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                } else {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(row.name)
+                                                .font(.subheadline)
+                                                .foregroundStyle(Color.orange)
+                                            Text("Kho: \(FormatUtils.formatWeight(0))")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        Spacer()
+                                        Text("0")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Color.orange)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                                    }
                                 }
-                                Spacer()
-                                Text(FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())))
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(Color.orange)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
-                                Text("kg")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
                             }
                         }
                     }
@@ -1468,20 +1624,48 @@ struct AutoMaterialExportSheetView: View {
                 let rows = autoRowsForSubSheet(i)
                 VStack(spacing: 10) {
                     ForEach(rows) { row in
-                        let mid = row.materialId
-                        AutoRowWheelView(
-                            name: row.name,
-                            stockText: FormatUtils.formatWeight(row.stockGrams),
-                            standardText: (mid == nil ? "0" : (subSheetStates[i].autoStandardPerPanKgTextById[mid!] ?? autoStandardPerPanKgTextById[mid!] ?? "0")),
-                            perPanActualText: FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())),
-                            totalText: FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())),
-                            isOver: Int(row.totalExportGrams.rounded()) > row.stockGrams,
-                            onTapStandard: {
-                                guard let id = mid else { return }
-                                let current = subSheetStates[i].autoStandardPerPanKgTextById[id] ?? autoStandardPerPanKgTextById[id] ?? "0"
-                                openWeightWheel(target: .subAutoStandard(i, id), currentText: current)
+                        Group {
+                            if let mid = row.materialId, let m = materialsById[mid] {
+                                if m.unit?.lowercased() == "cái" {
+                                    let standardCount = Int(subSheetStates[i].autoStandardPerPanKgTextById[m.id] ?? autoStandardPerPanKgTextById[m.id] ?? "") ?? 0
+                                    let perPanActualCount = Int((row.actualPerPanGrams ?? 0).rounded())
+                                    let totalCount = Int(row.totalExportGrams.rounded())
+                                    AutoRowWheelView(
+                                        name: row.name,
+                                        stockText: "\(m.stockQuantity) cái",
+                                        standardText: "\(standardCount) cái",
+                                        perPanActualText: "\(perPanActualCount) cái",
+                                        totalText: "\(totalCount) cái",
+                                        isOver: totalCount > m.stockQuantity,
+                                        onTapStandard: {
+                                            openWeightWheel(target: .subAutoStandard(i, m.id), currentText: subSheetStates[i].autoStandardPerPanKgTextById[m.id] ?? autoStandardPerPanKgTextById[m.id] ?? "0")
+                                        }
+                                    )
+                                } else {
+                                    AutoRowWheelView(
+                                        name: row.name,
+                                        stockText: FormatUtils.formatWeight(row.stockGrams),
+                                        standardText: subSheetStates[i].autoStandardPerPanKgTextById[m.id] ?? autoStandardPerPanKgTextById[m.id] ?? "0",
+                                        perPanActualText: FormatUtils.formatKgDecimal(fromGrams: Int((row.actualPerPanGrams ?? 0).rounded())),
+                                        totalText: FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())),
+                                        isOver: Int(row.totalExportGrams.rounded()) > row.stockGrams,
+                                        onTapStandard: {
+                                            openWeightWheel(target: .subAutoStandard(i, m.id), currentText: subSheetStates[i].autoStandardPerPanKgTextById[m.id] ?? autoStandardPerPanKgTextById[m.id] ?? "0")
+                                        }
+                                    )
+                                }
+                            } else {
+                                AutoRowWheelView(
+                                    name: row.name,
+                                    stockText: FormatUtils.formatWeight(0),
+                                    standardText: "0",
+                                    perPanActualText: "0",
+                                    totalText: "0",
+                                    isOver: false,
+                                    onTapStandard: {}
+                                )
                             }
-                        )
+                        }
                     }
                 }
 
@@ -1495,17 +1679,71 @@ struct AutoMaterialExportSheetView: View {
                     }
                     VStack(spacing: 10) {
                         ForEach(extraRows) { row in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(row.name).font(.subheadline).foregroundStyle(Color.orange)
-                                    Text("Kho: \(FormatUtils.formatWeight(row.stockGrams))").font(.caption).foregroundStyle(.gray)
+                            Group {
+                                if let m = row.materialId.flatMap({ materialsById[$0] }) {
+                                    if m.unit?.lowercased() == "cái" {
+                                        let totalCount = Int(row.totalExportGrams.rounded())
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(row.name)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(Color.orange)
+                                                Text("Kho: \(m.stockQuantity) cái")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                            }
+                                            Spacer()
+                                            Text("\(totalCount) cái")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(Color.orange)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                                        }
+                                    } else {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(row.name)
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(Color.orange)
+                                                Text("Kho: \(FormatUtils.formatWeight(row.stockGrams))")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                            }
+                                            Spacer()
+                                            Text(FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())))
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(Color.orange)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                                            Text("kg")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                } else {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(row.name)
+                                                .font(.subheadline)
+                                                .foregroundStyle(Color.orange)
+                                            Text("Kho: \(FormatUtils.formatWeight(0))")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        Spacer()
+                                        Text("0")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Color.orange)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
+                                    }
                                 }
-                                Spacer()
-                                Text(FormatUtils.formatKgDecimal(fromGrams: Int(row.totalExportGrams.rounded())))
-                                    .font(.subheadline).fontWeight(.semibold).foregroundStyle(Color.orange)
-                                    .padding(.horizontal, 10).padding(.vertical, 6)
-                                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.orange.opacity(0.10)))
-                                Text("kg").font(.caption).foregroundStyle(.gray)
                             }
                         }
                     }
@@ -1910,6 +2148,38 @@ struct AutoMaterialExportSheetView: View {
     }
     
     private func openWeightWheel(target: WeightWheelTarget, currentText: String) {
+        // Check if the target is for a material and that material is in "cái" units
+        if case let .fresh(id) = target, let mat = materialsById[id], mat.unit?.lowercased() == "cái" {
+            // Open IntWheel for "cái" units
+            weightWheelTarget = target
+            let count = max(0, Int(currentText) ?? 0)
+            intWheelSelection = count
+            intWheelMax = max(200, count + 200)
+            intWheelRangeBase = (count / 100) * 100
+            showIntWheel = true
+            return
+        }
+        if case let .autoStandard(id) = target, let mat = materialsById[id], mat.unit?.lowercased() == "cái" {
+            // Open IntWheel for "cái" units
+            weightWheelTarget = target
+            let count = max(0, Int(currentText) ?? 0)
+            intWheelSelection = count
+            intWheelMax = max(200, count + 200)
+            intWheelRangeBase = (count / 100) * 100
+            showIntWheel = true
+            return
+        }
+        if case let .subAutoStandard(_, id) = target, let mat = materialsById[id], mat.unit?.lowercased() == "cái" {
+            // Open IntWheel for "cái" units
+            weightWheelTarget = target
+            let count = max(0, Int(currentText) ?? 0)
+            intWheelSelection = count
+            intWheelMax = max(200, count + 200)
+            intWheelRangeBase = (count / 100) * 100
+            showIntWheel = true
+            return
+        }
+        // Otherwise, use WeightWheel for weight-based units
         weightWheelTarget = target
         let grams = max(0, FormatUtils.parseKgDecimalToGrams(currentText) ?? 0)
         weightWheelKgSelection = max(0, grams / 1000)
