@@ -803,6 +803,23 @@ struct PartyDetailView: View {
                                     Text(status.label)
                                         .font(.caption)
                                         .foregroundStyle(status.color)
+                                    if orderViewModel.editedProductionTxIds.contains(tx.id) {
+                                        Button {
+                                            Task {
+                                                let edits = await orderViewModel.fetchProductionEdits(for: tx.id)
+                                                await MainActor.run {
+                                                    selectedEditHistoryTxId = tx.id
+                                                    editHistoryEntries = edits
+                                                    showEditHistoryPopover = true
+                                                }
+                                            }
+                                        } label: {
+                                            Image(systemName: "clock.arrow.circlepath")
+                                                .font(.caption)
+                                                .foregroundStyle(.orange)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                     Spacer()
                                 }
                                 HStack {
@@ -835,6 +852,60 @@ struct PartyDetailView: View {
                                 showDebtHistory = false
                             }
                         }
+                    }
+                    .sheet(isPresented: $showEditHistoryPopover) {
+                        NavigationStack {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Lịch sử chỉnh sửa")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                
+                                if editHistoryEntries.isEmpty {
+                                    Text("Không có lịch sử chỉnh sửa")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray)
+                                } else {
+                                    List(editHistoryEntries) { edit in
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            HStack {
+                                                Text(formatDateTime(edit.createdAt))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.gray)
+                                                Spacer()
+                                                if let editorName = edit.editorName {
+                                                    Text(editorName)
+                                                        .font(.caption)
+                                                        .foregroundStyle(.gray)
+                                                }
+                                            }
+                                            
+                                            if let details = edit.details, !details.isEmpty {
+                                                ForEach(details, id: \.self) { detail in
+                                                    Text("• \(detail)")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.gray)
+                                                }
+                                            }
+                                        }
+                                        .padding(.vertical, 8)
+                                    }
+                                    .listStyle(.plain)
+                                }
+                                
+                                Spacer()
+                            }
+                            .padding()
+                            .navigationTitle("Lịch sử chỉnh sửa")
+                            .navigationBarTitleDisplayMode(.inline)
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) {
+                                    Button("Đóng") {
+                                        showEditHistoryPopover = false
+                                    }
+                                }
+                            }
+                        }
+                        .presentationDetents([.medium, .large])
                     }
                 }
             }
