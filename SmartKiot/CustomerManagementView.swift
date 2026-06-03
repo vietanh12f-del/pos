@@ -770,7 +770,7 @@ struct PartyDetailView: View {
                     },
                     editedTransactions: $editedTransactions,
                     onSave: {
-                        Task { await saveDebtEdits() }
+                        await saveDebtEdits()
                     },
                     onCancel: {
                         showDebtEdit = false
@@ -2483,7 +2483,7 @@ private struct DebtEditView: View {
     let editedTxIds: Set<UUID>
     let fetchEdits: (UUID) async -> [ProductionEdit]
     @Binding var editedTransactions: [UUID: (debtAmount: Double, expectedPayDate: Date?)]
-    let onSave: () -> Void
+    let onSave: () async -> Void
     let onCancel: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var showEditHistory = false
@@ -2502,6 +2502,7 @@ private struct DebtEditView: View {
     @State private var showDebtAmountThousandsRangePicker = false
     @State private var showDebtAmountHundredsRangePicker = false
     @State private var showPayOffAll = false
+    @State private var isSaving = false
     
     private var debtAmountMillionsRange: [Int] {
         let millionsMin = debtAmountMillionsRangeBase
@@ -2685,10 +2686,35 @@ private struct DebtEditView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Hủy") { onCancel() }
+                        .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Lưu") { onSave() }
+                    Button("Lưu") {
+                        Task {
+                            isSaving = true
+                            await onSave()
+                            isSaving = false
+                        }
+                    }
                         .fontWeight(.bold)
+                        .disabled(isSaving)
+                }
+            }
+            .overlay {
+                if isSaving {
+                    ZStack {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("Đang lưu...")
+                                .font(.subheadline)
+                                .foregroundStyle(.white)
+                        }
+                        .padding(24)
+                        .background(Color.gray.opacity(0.9))
+                        .cornerRadius(16)
+                    }
                 }
             }
             .sheet(isPresented: $showEditHistory) {
@@ -2796,7 +2822,11 @@ private struct DebtEditView: View {
                                 }
                             }
                             showPayOffAll = false
-                            onSave()
+                            Task {
+                                isSaving = true
+                                await onSave()
+                                isSaving = false
+                            }
                         } label: {
                             Text("Xác nhận trả hết")
                                 .font(.headline)
@@ -2807,6 +2837,7 @@ private struct DebtEditView: View {
                                 .background(Color.themePrimary)
                                 .cornerRadius(12)
                         }
+                        .disabled(isSaving)
                         .padding(.horizontal)
                         .padding(.vertical, 16)
                     }
