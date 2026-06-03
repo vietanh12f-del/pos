@@ -2293,11 +2293,33 @@ private struct DebtEditView: View {
     @State private var showDebtAmountWheel = false
     @State private var selectedDebtTxId: UUID?
     @State private var debtAmountSelection = 0
-    @State private var debtAmountBaseSelection = 0
+    @State private var debtAmountMillionsSelection = 0
+    @State private var debtAmountThousandsSelection = 0
     @State private var debtAmountHundredsSelection = 0
-    @State private var debtAmountMax = 5_000_000
-    @State private var debtAmountRangeBase = 0
-    @State private var showDebtAmountRangePicker = false
+    @State private var debtAmountMillionsRangeBase = 0
+    @State private var debtAmountThousandsRangeBase = 0
+    @State private var debtAmountHundredsRangeBase = 0
+    @State private var showDebtAmountMillionsRangePicker = false
+    @State private var showDebtAmountThousandsRangePicker = false
+    @State private var showDebtAmountHundredsRangePicker = false
+    
+    private var debtAmountMillionsRange: [Int] {
+        let millionsMin = debtAmountMillionsRangeBase
+        let upperBound = max(millionsMin, millionsMin + 500)
+        return Array(millionsMin...upperBound)
+    }
+    
+    private var debtAmountThousandsRange: [Int] {
+        let thousandsMin = debtAmountThousandsRangeBase
+        let upperBound = min(thousandsMin + 999, 999)
+        return Array(thousandsMin...upperBound)
+    }
+    
+    private var debtAmountHundredsRange: [Int] {
+        let hundredsMin = debtAmountHundredsRangeBase
+        let upperBound = min(hundredsMin + 99, 999)
+        return Array(stride(from: hundredsMin, through: upperBound, by: 1))
+    }
     
     private var sortedTransactions: [ProductionTransaction] {
         transactions.sorted { (a, b) in
@@ -2522,54 +2544,70 @@ private struct DebtEditView: View {
                 NavigationStack {
                     VStack(spacing: 12) {
                         Text(isSupplier ? "Sửa thiếu nợ" : "Sửa công nợ").font(.headline)
-                        let step = StoreManager.shared.priceStep
-                        let rangeMin = max(0, (debtAmountRangeBase / step) * step)
-                        HStack {
-                            Button {
-                                showDebtAmountRangePicker = true
-                            } label: {
-                                Text(debtAmountRangeBase <= 0 ? ">0" : ">\(debtAmountRangeBase / 1000)k")
-                                    .fontWeight(.bold)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
-                            }
-                            .buttonStyle(.plain)
-                            Spacer()
-                        }
-                        HStack {
-                            VStack {
-                                Text("Giá")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                Picker("", selection: $debtAmountBaseSelection) {
-                                    ForEach(Array(stride(from: rangeMin, through: debtAmountMax, by: step)), id: \.self) { v in
-                                        Text(formatCurrency(Double(v))).tag(v)
-                                    }
+                        Text(formatCurrency(Double(debtAmountSelection)))
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        HStack(alignment: .top) {
+                            VStack(spacing: 2) {
+                                Button { showDebtAmountMillionsRangePicker = true } label: {
+                                    Text(debtAmountMillionsRangeBase <= 0 ? ">0" : ">\(debtAmountMillionsRangeBase)tr")
+                                        .fontWeight(.bold).font(.caption2)
+                                        .padding(.horizontal, 6).padding(.vertical, 4)
+                                        .background(Capsule().fill(Color.gray.opacity(0.15)))
                                 }
-                                .pickerStyle(.wheel)
-                                .onChange(of: debtAmountBaseSelection) { newValue in
-                                    debtAmountSelection = newValue + debtAmountHundredsSelection
-                                    if newValue > debtAmountMax - (step * 5) {
-                                        debtAmountMax += step * 100
-                                    }
-                                }
-                            }
-                            VStack {
-                                Text("Trăm")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                Picker("", selection: $debtAmountHundredsSelection) {
-                                    ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                .buttonStyle(.plain)
+                                Text("Triệu")
+                                    .font(.caption).foregroundStyle(.gray)
+                                Picker("", selection: $debtAmountMillionsSelection) {
+                                    ForEach(debtAmountMillionsRange, id: \.self) { v in
                                         Text("\(v)").tag(v)
                                     }
                                 }
                                 .pickerStyle(.wheel)
-                                .onChange(of: debtAmountHundredsSelection) { newValue in
-                                    debtAmountSelection = debtAmountBaseSelection + newValue
+                                .onChange(of: debtAmountMillionsSelection) { v in
+                                    debtAmountSelection = v * 1_000_000 + debtAmountThousandsSelection * 1_000 + debtAmountHundredsSelection
                                 }
                             }
-                            .frame(width: 110)
+                            VStack(spacing: 2) {
+                                Button { showDebtAmountThousandsRangePicker = true } label: {
+                                    Text(debtAmountThousandsRangeBase <= 0 ? ">0" : ">\(debtAmountThousandsRangeBase)")
+                                        .fontWeight(.bold).font(.caption2)
+                                        .padding(.horizontal, 6).padding(.vertical, 4)
+                                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                                }
+                                .buttonStyle(.plain)
+                                Text("Ngàn")
+                                    .font(.caption).foregroundStyle(.gray)
+                                Picker("", selection: $debtAmountThousandsSelection) {
+                                    ForEach(debtAmountThousandsRange, id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: debtAmountThousandsSelection) { v in
+                                    debtAmountSelection = debtAmountMillionsSelection * 1_000_000 + v * 1_000 + debtAmountHundredsSelection
+                                }
+                            }
+                            VStack(spacing: 2) {
+                                Button { showDebtAmountHundredsRangePicker = true } label: {
+                                    Text(debtAmountHundredsRangeBase <= 0 ? ">0" : "\(debtAmountHundredsRangeBase)")
+                                        .fontWeight(.bold).font(.caption2)
+                                        .padding(.horizontal, 6).padding(.vertical, 4)
+                                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                                }
+                                .buttonStyle(.plain)
+                                Text("Trăm")
+                                    .font(.caption).foregroundStyle(.gray)
+                                Picker("", selection: $debtAmountHundredsSelection) {
+                                    ForEach(debtAmountHundredsRange, id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: debtAmountHundredsSelection) { v in
+                                    debtAmountSelection = debtAmountMillionsSelection * 1_000_000 + debtAmountThousandsSelection * 1_000 + v
+                                }
+                            }
                         }
                         HStack {
                             Button("Đóng") { showDebtAmountWheel = false }
@@ -2589,35 +2627,86 @@ private struct DebtEditView: View {
                         .font(.headline)
                     }
                     .padding()
-                    .presentationDetents([.height(300)])
+                    .presentationDetents([.height(340)])
                     .onAppear {
-                        let step = StoreManager.shared.priceStep
                         let current = max(0, debtAmountSelection)
-                        debtAmountRangeBase = (current / 100000) * 100000
-                        debtAmountBaseSelection = (current / step) * step
-                        let remainder = max(0, current - debtAmountBaseSelection)
-                        debtAmountHundredsSelection = min(900, (remainder / 100) * 100)
+                        debtAmountMillionsSelection = current / 1_000_000
+                        debtAmountMillionsRangeBase = (debtAmountMillionsSelection / 10) * 10
+                        let rem1 = current % 1_000_000
+                        debtAmountThousandsSelection = rem1 / 1_000
+                        debtAmountThousandsRangeBase = (debtAmountThousandsSelection / 100) * 100
+                        let rem2 = rem1 % 1_000
+                        debtAmountHundredsRangeBase = (rem2 / 100) * 100
+                        debtAmountHundredsSelection = (rem2 / 10) * 10
                     }
-                    .sheet(isPresented: $showDebtAmountRangePicker) {
+                    .sheet(isPresented: $showDebtAmountMillionsRangePicker) {
                         VStack(spacing: 16) {
-                            Text("Chọn vùng giá trị").font(.headline)
-                            let step = StoreManager.shared.priceStep
-                            Picker("", selection: $debtAmountRangeBase) {
-                                ForEach(Array(stride(from: 0, through: min(debtAmountMax, 10_000_000), by: 100_000)), id: \.self) { v in
-                                    Text(v == 0 ? ">0" : ">\(v / 1000)k").tag(v)
+                            Text("Chọn vùng triệu").font(.headline)
+                            Picker("", selection: $debtAmountMillionsRangeBase) {
+                                ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
+                                    Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: debtAmountRangeBase) { newValue in
-                                if newValue >= debtAmountMax - 200_000 {
-                                    debtAmountMax += 1_000_000
+                            Button {
+                                if debtAmountMillionsSelection < debtAmountMillionsRangeBase {
+                                    debtAmountMillionsSelection = debtAmountMillionsRangeBase
+                                }
+                                showDebtAmountMillionsRangePicker = false
+                            } label: {
+                                Text("Xong")
+                                    .font(.subheadline).fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.themePrimary)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding()
+                        .presentationDetents([.height(300)])
+                    }
+                    .sheet(isPresented: $showDebtAmountThousandsRangePicker) {
+                        VStack(spacing: 16) {
+                            Text("Chọn vùng ngàn").font(.headline)
+                            Picker("", selection: $debtAmountThousandsRangeBase) {
+                                ForEach(Array(stride(from: 0, through: 999, by: 100)), id: \.self) { v in
+                                    Text(v == 0 ? ">0" : ">\(v)").tag(v)
                                 }
                             }
-                            
+                            .pickerStyle(.wheel)
                             Button {
-                                let rangeMin = max(0, (debtAmountRangeBase / step) * step)
-                                if debtAmountBaseSelection < rangeMin { debtAmountBaseSelection = rangeMin }
-                                showDebtAmountRangePicker = false
+                                if debtAmountThousandsSelection < debtAmountThousandsRangeBase {
+                                    debtAmountThousandsSelection = debtAmountThousandsRangeBase
+                                }
+                                showDebtAmountThousandsRangePicker = false
+                            } label: {
+                                Text("Xong")
+                                    .font(.subheadline).fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.themePrimary)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding()
+                        .presentationDetents([.height(300)])
+                    }
+                    .sheet(isPresented: $showDebtAmountHundredsRangePicker) {
+                        VStack(spacing: 16) {
+                            Text("Chọn vùng trăm").font(.headline)
+                            Picker("", selection: $debtAmountHundredsRangeBase) {
+                                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                    Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            Button {
+                                if debtAmountHundredsSelection < debtAmountHundredsRangeBase || debtAmountHundredsSelection > debtAmountHundredsRangeBase + 99 {
+                                    debtAmountHundredsSelection = debtAmountHundredsRangeBase
+                                }
+                                showDebtAmountHundredsRangePicker = false
                             } label: {
                                 Text("Xong")
                                     .font(.subheadline).fontWeight(.bold)
