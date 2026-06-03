@@ -2672,6 +2672,7 @@ private struct DebtEditView: View {
                                 }
                             }
                             showPayOffAll = false
+                            onSave()
                         } label: {
                             Text("Xác nhận trả hết")
                                 .font(.headline)
