@@ -110,6 +110,7 @@ struct CustomerManagementView: View {
     }
 
     @State private var statusFilter: LeadStatusFilter = .all
+    @State private var allProductionTransactions: [ProductionTransaction] = []
 
     enum PartyTypeFilter: String, CaseIterable {
         case buyer = "Khách hàng"
@@ -138,17 +139,40 @@ struct CustomerManagementView: View {
             }
         }
         return list.sorted { (a, b) in
+            // First, prioritize customers with debt
             if a.totalDebt > 0 && b.totalDebt <= 0 {
                 return true
             }
             if a.totalDebt <= 0 && b.totalDebt > 0 {
                 return false
             }
+            
+            // Now, within debt or non-debt groups
+            let aLastTx = getLastTransactionDate(for: a)
+            let bLastTx = getLastTransactionDate(for: b)
+            
+            // Prioritize customers with recent transactions
+            switch (aLastTx, bLastTx) {
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            case (.some(let aDate), .some(let bDate)):
+                if aDate != bDate {
+                    return aDate > bDate
+                }
+            case (.none, .none):
+                break
+            }
+            
+            // If both have debt and same last tx date, sort by debt amount descending
             if a.totalDebt > 0 && b.totalDebt > 0 {
                 if a.totalDebt != b.totalDebt {
                     return a.totalDebt > b.totalDebt
                 }
             }
+            
+            // Fallback to updatedAt
             return a.updatedAt > b.updatedAt
         }
     }
@@ -226,6 +250,8 @@ struct CustomerManagementView: View {
             .task { await loadAll() }
             .sheet(item: $selectedParty) { party in
                 PartyDetailView(party: party, onDeleted: {
+                    Task { await loadAll() }
+                }, onDebtSaved: {
                     Task { await loadAll() }
                 })
             }
@@ -391,6 +417,17 @@ struct CustomerManagementView: View {
             return matchName || matchPhone
         }.reduce(0) { $0 + ($1.debtAmount ?? 0) }
     }
+    
+    private func getLastTransactionDate(for party: TradingParty) -> Date? {
+        let name = party.name.lowercased()
+        let phone = party.phone
+        return allProductionTransactions.filter { tx in
+            guard !tx.isDeleted else { return false }
+            let matchName = tx.buyerName?.lowercased() == name
+            let matchPhone = phone.isEmpty ? false : tx.buyerPhone == phone
+            return matchName || matchPhone
+        }.max { $0.createdAt < $1.createdAt }?.createdAt
+    }
 
     private func loadAll() async {
         isLoading = true
@@ -403,6 +440,10 @@ struct CustomerManagementView: View {
         for mode in modes {
             let txs = (try? await db.fetchProductionTransactions(mode: mode)) ?? []
             allProductionTxs += txs
+        }
+        
+        await MainActor.run {
+            self.allProductionTransactions = allProductionTxs
         }
         
         // Then fetch buyers and suppliers
@@ -507,6 +548,7 @@ private struct PartyRowView: View {
 struct PartyDetailView: View {
     let party: TradingParty
     var onDeleted: (() -> Void)? = nil
+    var onDebtSaved: (() async -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var transactions: [ProductionTransaction] = []
     @State private var allPartyTxs: [ProductionTransaction] = [] // All transactions for the party (all time)
@@ -526,9 +568,10 @@ struct PartyDetailView: View {
     @State private var selectedEditHistoryTxId: UUID?
     @State private var editHistoryEntries: [ProductionEdit] = []
 
-    init(party: TradingParty, onDeleted: (() -> Void)? = nil) {
+    init(party: TradingParty, onDeleted: (() -> Void)? = nil, onDebtSaved: (() async -> Void)? = nil) {
         self.party = party
         self.onDeleted = onDeleted
+        self.onDebtSaved = onDebtSaved
         _currentParty = State(initialValue: party)
     }
 
@@ -760,6 +803,7 @@ struct PartyDetailView: View {
         
         await loadTransactions()
         await viewModel.loadEditedProductionTxIds()
+        await onDebtSaved?()
     }
 
     // MARK: - Info card
