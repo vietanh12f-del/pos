@@ -430,7 +430,20 @@ struct CustomerManagementView: View {
             updatedParties.append(updated)
         }
         
-        parties = updatedParties
+        // Deduplicate parties by name + phone, keep the one with latest updatedAt
+        var uniquePartiesDict: [String: TradingParty] = [:]
+        for party in updatedParties {
+            let key = "\(party.name.lowercased())|\(party.phone.lowercased())"
+            if let existing = uniquePartiesDict[key] {
+                if party.updatedAt > existing.updatedAt {
+                    uniquePartiesDict[key] = party
+                }
+            } else {
+                uniquePartiesDict[key] = party
+            }
+        }
+        
+        parties = Array(uniquePartiesDict.values)
         leads = l
     }
 }
@@ -1732,6 +1745,23 @@ struct PartyEditSheet: View {
     private func save() async {
         isSaving = true
         defer { isSaving = false }
+        
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check for existing party first (only if it's a new party or name/phone changed)
+        var finalId = party.id
+        let db = SupabaseDatabaseService()
+        do {
+            if let existing = try await db.fetchTradingPartyByNameOrPhone(trimmedName, trimmedPhone, party.partyType) {
+                // If existing ID is different from current party's, use existing ID to prevent duplicates
+                if existing.id != party.id {
+                    finalId = existing.id
+                }
+            }
+        } catch {
+            print("⚠️ Could not check for existing party: \(error)")
+        }
 
         // Upload pending images
         var newURLs: [String] = []
@@ -1740,7 +1770,7 @@ struct PartyEditSheet: View {
             guard let data = img.jpegData(compressionQuality: 0.82) else { continue }
             let fileName = UUID().uuidString
             if let url = try? await StorageManager.shared.uploadPartyImage(
-                data: data, partyId: party.id, fileName: fileName
+                data: data, partyId: finalId, fileName: fileName
             ) {
                 newURLs.append(url)
             }
@@ -1748,8 +1778,9 @@ struct PartyEditSheet: View {
         }
 
         var updated = party
-        updated.name      = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        updated.phone     = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.id = finalId
+        updated.name      = trimmedName
+        updated.phone     = trimmedPhone
         updated.address   = address.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.taxCode   = taxCode.trimmingCharacters(in: .whitespacesAndNewlines)
         updated.email     = email.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1763,7 +1794,7 @@ struct PartyEditSheet: View {
         updated.updatedAt = Date()
 
         do {
-            try await SupabaseDatabaseService().upsertTradingParty(updated)
+            try await db.upsertTradingParty(updated)
             onSaved(updated)
             dismiss()
         } catch {

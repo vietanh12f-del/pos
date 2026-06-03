@@ -86,6 +86,7 @@ protocol DatabaseService {
     func upsertTradingParty(_ party: TradingParty) async throws
     func deleteTradingParty(id: UUID) async throws
     func fetchTradingPartyByName(_ name: String, type: String) async throws -> TradingParty?
+    func fetchTradingPartyByNameOrPhone(_ name: String, _ phone: String, _ type: String) async throws -> TradingParty?
 
     // Website leads
     func fetchWebsiteLeads() async throws -> [WebsiteLead]
@@ -207,6 +208,37 @@ class SupabaseDatabaseService: DatabaseService {
             .limit(1)
             .execute()
             .value
+        return rows.first?.toDomain()
+    }
+    
+    func fetchTradingPartyByNameOrPhone(_ name: String, _ phone: String, _ type: String) async throws -> TradingParty? {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return nil }
+        
+        var query = client.database
+            .from("trading_parties")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .eq("party_type", value: type)
+        
+        var orConditions: [String] = []
+        
+        if !name.trimmingCharacters(in: .whitespaces).isEmpty {
+            orConditions.append("name.ilike.%\(name)%")
+        }
+        if !phone.trimmingCharacters(in: .whitespaces).isEmpty {
+            orConditions.append("phone.eq.\(phone)")
+        }
+        
+        if !orConditions.isEmpty {
+            query = query.or(orConditions.joined(separator: ","))
+        }
+        
+        let rows: [TradingPartyDTO] = try await query
+            .order("updated_at", ascending: false)
+            .limit(1)
+            .execute()
+            .value
+        
         return rows.first?.toDomain()
     }
 
@@ -1128,6 +1160,7 @@ class SupabaseDatabaseService: DatabaseService {
     func upsertTradingParty(_ party: TradingParty) async throws { print("⚠️ upsertTradingParty: Mocked success") }
     func deleteTradingParty(id: UUID) async throws { print("⚠️ deleteTradingParty: Mocked success") }
     func fetchTradingPartyByName(_ name: String, type: String) async throws -> TradingParty? { return nil }
+    func fetchTradingPartyByNameOrPhone(_ name: String, _ phone: String, _ type: String) async throws -> TradingParty? { return nil }
     func fetchWebsiteLeads() async throws -> [WebsiteLead] { return [] }
     func updateWebsiteLeadStatus(id: UUID, status: String, note: String?) async throws { print("⚠️ updateWebsiteLeadStatus: Mocked success") }
     func upsertAttendanceRecord(_ record: AttendanceRecordDB) async throws { print("⚠️ upsertAttendanceRecord: Mocked success") }

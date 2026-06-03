@@ -114,11 +114,33 @@ struct FinishedGoodsExportView: View {
     @State private var partialAmountText: String = ""
     @State private var showPartialAmountWheel = false
     @State private var partialAmountSelection = 0
-    @State private var partialAmountBaseSelection = 0
+    @State private var partialAmountMillionsSelection = 0
+    @State private var partialAmountThousandsSelection = 0
     @State private var partialAmountHundredsSelection = 0
-    @State private var partialAmountMax = 5_000_000
-    @State private var partialAmountRangeBase = 0
-    @State private var showPartialAmountRangePicker = false
+    @State private var partialAmountMillionsRangeBase = 0
+    @State private var partialAmountThousandsRangeBase = 0
+    @State private var partialAmountHundredsRangeBase = 0
+    @State private var showPartialAmountMillionsRangePicker = false
+    @State private var showPartialAmountThousandsRangePicker = false
+    @State private var showPartialAmountHundredsRangePicker = false
+    
+    private var partialAmountMillionsRange: [Int] {
+        let millionsMin = partialAmountMillionsRangeBase
+        let upperBound = max(millionsMin, millionsMin + 500)
+        return Array(millionsMin...upperBound)
+    }
+    
+    private var partialAmountThousandsRange: [Int] {
+        let thousandsMin = partialAmountThousandsRangeBase
+        let upperBound = min(thousandsMin + 999, 999)
+        return Array(thousandsMin...upperBound)
+    }
+    
+    private var partialAmountHundredsRange: [Int] {
+        let hundredsMin = partialAmountHundredsRangeBase
+        let upperBound = min(hundredsMin + 99, 999)
+        return Array(stride(from: hundredsMin, through: upperBound, by: 1))
+    }
     @State private var expectedPayDate: Date? = nil
     @State private var showDatePicker = false
     @State private var paymentReceiptImage: UIImage? = nil
@@ -262,54 +284,70 @@ struct FinishedGoodsExportView: View {
             NavigationStack {
                 VStack(spacing: 12) {
                     Text("Số tiền trả").font(.headline)
-                    let step = StoreManager.shared.priceStep
-                    let rangeMin = max(0, (partialAmountRangeBase / step) * step)
-                    HStack {
-                        Button {
-                            showPartialAmountRangePicker = true
-                        } label: {
-                            Text(partialAmountRangeBase <= 0 ? ">0" : ">\(partialAmountRangeBase / 1000)k")
-                                .fontWeight(.bold)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Capsule().fill(Color.gray.opacity(0.15)))
-                        }
-                        .buttonStyle(.plain)
-                        Spacer()
-                    }
-                    HStack {
-                        VStack {
-                            Text("Giá")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            Picker("", selection: $partialAmountBaseSelection) {
-                                ForEach(Array(stride(from: rangeMin, through: partialAmountMax, by: step)), id: \.self) { v in
-                                    Text(formatCurrency(Double(v))).tag(v)
-                                }
+                    Text(formatCurrency(Double(partialAmountSelection)))
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themePrimary)
+                    HStack(alignment: .top) {
+                        VStack(spacing: 2) {
+                            Button { showPartialAmountMillionsRangePicker = true } label: {
+                                Text(partialAmountMillionsRangeBase <= 0 ? ">0" : ">\(partialAmountMillionsRangeBase)tr")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
                             }
-                            .pickerStyle(.wheel)
-                            .onChange(of: partialAmountBaseSelection) { newValue in
-                                partialAmountSelection = newValue + partialAmountHundredsSelection
-                                if newValue > partialAmountMax - (step * 5) {
-                                    partialAmountMax += step * 100
-                                }
-                            }
-                        }
-                        VStack {
-                            Text("Trăm")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            Picker("", selection: $partialAmountHundredsSelection) {
-                                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                            .buttonStyle(.plain)
+                            Text("Triệu")
+                                .font(.caption).foregroundStyle(.gray)
+                            Picker("", selection: $partialAmountMillionsSelection) {
+                                ForEach(partialAmountMillionsRange, id: \.self) { v in
                                     Text("\(v)").tag(v)
                                 }
                             }
                             .pickerStyle(.wheel)
-                            .onChange(of: partialAmountHundredsSelection) { newValue in
-                                partialAmountSelection = partialAmountBaseSelection + newValue
+                            .onChange(of: partialAmountMillionsSelection) { v in
+                                partialAmountSelection = v * 1_000_000 + partialAmountThousandsSelection * 1_000 + partialAmountHundredsSelection
                             }
                         }
-                        .frame(width: 110)
+                        VStack(spacing: 2) {
+                            Button { showPartialAmountThousandsRangePicker = true } label: {
+                                Text(partialAmountThousandsRangeBase <= 0 ? ">0" : ">\(partialAmountThousandsRangeBase)")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                            Text("Ngàn")
+                                .font(.caption).foregroundStyle(.gray)
+                            Picker("", selection: $partialAmountThousandsSelection) {
+                                ForEach(partialAmountThousandsRange, id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: partialAmountThousandsSelection) { v in
+                                partialAmountSelection = partialAmountMillionsSelection * 1_000_000 + v * 1_000 + partialAmountHundredsSelection
+                            }
+                        }
+                        VStack(spacing: 2) {
+                            Button { showPartialAmountHundredsRangePicker = true } label: {
+                                Text(partialAmountHundredsRangeBase <= 0 ? ">0" : "\(partialAmountHundredsRangeBase)")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
+                            Text("Trăm")
+                                .font(.caption).foregroundStyle(.gray)
+                            Picker("", selection: $partialAmountHundredsSelection) {
+                                ForEach(partialAmountHundredsRange, id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: partialAmountHundredsSelection) { v in
+                                partialAmountSelection = partialAmountMillionsSelection * 1_000_000 + partialAmountThousandsSelection * 1_000 + v
+                            }
+                        }
                     }
                     HStack {
                         Button("Đóng") { showPartialAmountWheel = false }
@@ -319,35 +357,86 @@ struct FinishedGoodsExportView: View {
                     .font(.headline)
                 }
                 .padding()
-                .presentationDetents([.height(300)])
+                .presentationDetents([.height(340)])
                 .onAppear {
-                    let step = StoreManager.shared.priceStep
                     let current = max(0, partialAmountSelection)
-                    partialAmountRangeBase = (current / 100000) * 100000
-                    partialAmountBaseSelection = (current / step) * step
-                    let remainder = max(0, current - partialAmountBaseSelection)
-                    partialAmountHundredsSelection = min(900, (remainder / 100) * 100)
+                    partialAmountMillionsSelection = current / 1_000_000
+                    partialAmountMillionsRangeBase = (partialAmountMillionsSelection / 10) * 10
+                    let rem1 = current % 1_000_000
+                    partialAmountThousandsSelection = rem1 / 1_000
+                    partialAmountThousandsRangeBase = (partialAmountThousandsSelection / 100) * 100
+                    let rem2 = rem1 % 1_000
+                    partialAmountHundredsRangeBase = (rem2 / 100) * 100
+                    partialAmountHundredsSelection = (rem2 / 10) * 10
                 }
-                .sheet(isPresented: $showPartialAmountRangePicker) {
+                .sheet(isPresented: $showPartialAmountMillionsRangePicker) {
                     VStack(spacing: 16) {
-                        Text("Chọn vùng giá trị").font(.headline)
-                        let step = StoreManager.shared.priceStep
-                        Picker("", selection: $partialAmountRangeBase) {
-                            ForEach(Array(stride(from: 0, through: min(partialAmountMax, 10_000_000), by: 100_000)), id: \.self) { v in
-                                Text(v == 0 ? ">0" : ">\(v / 1000)k").tag(v)
+                        Text("Chọn vùng triệu").font(.headline)
+                        Picker("", selection: $partialAmountMillionsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
+                                Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
                             }
                         }
                         .pickerStyle(.wheel)
-                        .onChange(of: partialAmountRangeBase) { newValue in
-                            if newValue >= partialAmountMax - 200_000 {
-                                partialAmountMax += 1_000_000
+                        Button {
+                            if partialAmountMillionsSelection < partialAmountMillionsRangeBase {
+                                partialAmountMillionsSelection = partialAmountMillionsRangeBase
+                            }
+                            showPartialAmountMillionsRangePicker = false
+                        } label: {
+                            Text("Xong")
+                                .font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary)
+                                .cornerRadius(10)
+                        }
+                    }
+                    .padding()
+                    .presentationDetents([.height(300)])
+                }
+                .sheet(isPresented: $showPartialAmountThousandsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng ngàn").font(.headline)
+                        Picker("", selection: $partialAmountThousandsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 999, by: 100)), id: \.self) { v in
+                                Text(v == 0 ? ">0" : ">\(v)").tag(v)
                             }
                         }
-                        
+                        .pickerStyle(.wheel)
                         Button {
-                            let rangeMin = max(0, (partialAmountRangeBase / step) * step)
-                            if partialAmountBaseSelection < rangeMin { partialAmountBaseSelection = rangeMin }
-                            showPartialAmountRangePicker = false
+                            if partialAmountThousandsSelection < partialAmountThousandsRangeBase {
+                                partialAmountThousandsSelection = partialAmountThousandsRangeBase
+                            }
+                            showPartialAmountThousandsRangePicker = false
+                        } label: {
+                            Text("Xong")
+                                .font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary)
+                                .cornerRadius(10)
+                        }
+                    }
+                    .padding()
+                    .presentationDetents([.height(300)])
+                }
+                .sheet(isPresented: $showPartialAmountHundredsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng trăm").font(.headline)
+                        Picker("", selection: $partialAmountHundredsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
+                            }
+                        }
+                        .pickerStyle(.wheel)
+                        Button {
+                            if partialAmountHundredsSelection < partialAmountHundredsRangeBase || partialAmountHundredsSelection > partialAmountHundredsRangeBase + 99 {
+                                partialAmountHundredsSelection = partialAmountHundredsRangeBase
+                            }
+                            showPartialAmountHundredsRangePicker = false
                         } label: {
                             Text("Xong")
                                 .font(.subheadline).fontWeight(.bold)
@@ -1077,13 +1166,28 @@ struct FinishedGoodsExportView: View {
 
         // Save party to DB (only if not FG import)
         if !isImportFromFG {
+            let trimmedName = buyerName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedPhone = buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Check for existing party from DB first
+            var partyId: UUID? = buyerHistory.first(where: {
+                $0.name.lowercased() == buyerName.lowercased() && $0.phone == buyerPhone
+            })?.id
+            
+            if partyId == nil {
+                do {
+                    let dbExisting = try await viewModel.databaseService.fetchTradingPartyByNameOrPhone(trimmedName, trimmedPhone, partyType)
+                    partyId = dbExisting?.id
+                } catch {
+                    print("⚠️ Could not check for existing party: \(error)")
+                }
+            }
+            
             let party = TradingParty(
-                id: buyerHistory.first(where: {
-                    $0.name.lowercased() == buyerName.lowercased() && $0.phone == buyerPhone
-                })?.id ?? UUID(),
+                id: partyId ?? UUID(),
                 partyType: partyType,
-                name: buyerName.trimmingCharacters(in: .whitespacesAndNewlines),
-                phone: buyerPhone.trimmingCharacters(in: .whitespacesAndNewlines),
+                name: trimmedName,
+                phone: trimmedPhone,
                 address: buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines),
                 taxCode: buyerTaxCode.trimmingCharacters(in: .whitespacesAndNewlines),
                 totalDebt: debtAmount,
