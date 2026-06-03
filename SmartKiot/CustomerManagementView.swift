@@ -2302,6 +2302,7 @@ private struct DebtEditView: View {
     @State private var showDebtAmountMillionsRangePicker = false
     @State private var showDebtAmountThousandsRangePicker = false
     @State private var showDebtAmountHundredsRangePicker = false
+    @State private var showPayOffAll = false
     
     private var debtAmountMillionsRange: [Int] {
         let millionsMin = debtAmountMillionsRangeBase
@@ -2368,16 +2369,21 @@ private struct DebtEditView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if totalEditedDebt > 0 {
-                    HStack {
+                HStack {
+                    if totalEditedDebt > 0 {
                         Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
                         Text("Tổng \(isSupplier ? "thiếu nợ" : "công nợ"): \(formatCurrency(totalEditedDebt))")
                             .font(.subheadline).fontWeight(.semibold).foregroundStyle(.orange)
-                        Spacer()
                     }
-                    .padding(.horizontal).padding(.vertical, 8)
-                    .background(Color.orange.opacity(0.06))
+                    Spacer()
+                    Button("Trả hết") {
+                        showPayOffAll = true
+                    }
+                    .font(.subheadline).fontWeight(.semibold)
+                    .foregroundStyle(Color.themePrimary)
                 }
+                .padding(.horizontal).padding(.vertical, 8)
+                .background(totalEditedDebt > 0 ? Color.orange.opacity(0.06) : Color.clear)
                 
                 List {
                     ForEach(sortedTransactions) { tx in
@@ -2534,6 +2540,82 @@ private struct DebtEditView: View {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Đóng") {
                                 showEditHistory = false
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showPayOffAll) {
+                NavigationStack {
+                    VStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Xác nhận trả hết")
+                                .font(.headline)
+                                .fontWeight(.bold)
+                            Text("Tổng số tiền cần trả: \(formatCurrency(totalEditedDebt))")
+                                .font(.subheadline)
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 16)
+                        
+                        Divider()
+                        
+                        List {
+                            ForEach(sortedTransactions) { tx in
+                                let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
+                                if currentDebt > 0 {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(tx.mode)
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                            Text(formatDateOnly(tx.createdAt))
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        Spacer()
+                                        Text(formatCurrency(currentDebt))
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.red)
+                                    }
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
+                        
+                        Divider()
+                        
+                        Button {
+                            for tx in transactions {
+                                if var existing = editedTransactions[tx.id] {
+                                    existing.debtAmount = 0
+                                    editedTransactions[tx.id] = existing
+                                } else if (tx.debtAmount ?? 0) > 0 {
+                                    editedTransactions[tx.id] = (debtAmount: 0, expectedPayDate: tx.expectedPayDate)
+                                }
+                            }
+                            showPayOffAll = false
+                        } label: {
+                            Text("Xác nhận trả hết")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color.themePrimary)
+                                .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 16)
+                    }
+                    .navigationTitle("Trả hết nợ")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") {
+                                showPayOffAll = false
                             }
                         }
                     }
