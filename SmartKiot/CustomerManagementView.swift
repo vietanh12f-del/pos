@@ -567,6 +567,7 @@ struct PartyDetailView: View {
     @State private var showEditHistoryPopover = false
     @State private var selectedEditHistoryTxId: UUID?
     @State private var editHistoryEntries: [ProductionEdit] = []
+    @State private var showDebtHistory = false
 
     init(party: TradingParty, onDeleted: (() -> Void)? = nil, onDebtSaved: (() async -> Void)? = nil) {
         self.party = party
@@ -576,6 +577,68 @@ struct PartyDetailView: View {
     }
 
     private var isSupplier: Bool { currentParty.partyType == "supplier" }
+    
+    private enum DebtStatus {
+        case onTime
+        case extended
+        case overdue(days: Int)
+        case paid
+        case noDueDate
+        
+        var label: String {
+            switch self {
+            case .onTime: return "Trả đúng hạn"
+            case .extended: return "Gia hạn"
+            case .overdue(let days): return "Trả trễ \(days) ngày"
+            case .paid: return "Đã trả"
+            case .noDueDate: return "Chưa xác định hạn trả"
+            }
+        }
+        
+        var color: Color {
+            switch self {
+            case .onTime: return .green
+            case .extended: return .orange
+            case .overdue: return .red
+            case .paid: return .green
+            case .noDueDate: return .gray
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .onTime: return "checkmark.circle.fill"
+            case .extended: return "clock.arrow.2.circlepath"
+            case .overdue: return "exclamationmark.circle.fill"
+            case .paid: return "checkmark.circle.fill"
+            case .noDueDate: return "questionmark.circle.fill"
+            }
+        }
+    }
+    
+    private func getDebtStatus(for tx: ProductionTransaction) -> DebtStatus {
+        let hasDebt = (tx.debtAmount ?? 0) > 0
+        guard let dueDate = tx.expectedPayDate else {
+            return hasDebt ? .noDueDate : .paid
+        }
+        
+        if !hasDebt {
+            let cal = Calendar.current
+            let txDate = cal.startOfDay(for: tx.createdAt)
+            let dueDateStart = cal.startOfDay(for: dueDate)
+            return txDate <= dueDateStart ? .onTime : .overdue(days: cal.dateComponents([.day], from: dueDateStart, to: txDate).day ?? 0)
+        }
+        
+        let today = Calendar.current.startOfDay(for: Date())
+        let dueDateStart = Calendar.current.startOfDay(for: dueDate)
+        
+        if dueDateStart > today {
+            return .extended
+        }
+        
+        let daysOverdue = Calendar.current.dateComponents([.day], from: dueDateStart, to: today).day ?? 0
+        return .overdue(days: daysOverdue)
+    }
 
     // Group transactions by day
     private var groupedByDay: [(date: Date, txs: [ProductionTransaction])] {
@@ -610,9 +673,7 @@ struct PartyDetailView: View {
                     infoCard
 
                     // Debt summary
-                    if totalDebt > 0 {
-                        debtCard
-                    }
+                    debtCard
 
                     // Transactions
                     if isLoading {
@@ -715,6 +776,62 @@ struct PartyDetailView: View {
                         showDebtEdit = false
                     }
                 )
+            }
+            .sheet(isPresented: $showDebtHistory) {
+                NavigationStack {
+                    List {
+                        ForEach(allPartyTxs.sorted(by: { $0.createdAt > $1.createdAt })) { tx in
+                            let status = getDebtStatus(for: tx)
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text(tx.mode)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                    Spacer()
+                                    Text(formatDateOnly(tx.createdAt))
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                HStack {
+                                    Image(systemName: status.icon)
+                                        .foregroundStyle(status.color)
+                                    Text(status.label)
+                                        .font(.caption)
+                                        .foregroundStyle(status.color)
+                                    Spacer()
+                                }
+                                HStack {
+                                    Text("Công nợ:")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text(formatCurrency(tx.debtAmount ?? 0))
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                }
+                                if let dueDate = tx.expectedPayDate {
+                                    HStack {
+                                        Text("Hạn trả:")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        Text(formatDateOnly(dueDate))
+                                            .font(.caption)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .navigationTitle(isSupplier ? "Lịch sử thiếu nợ" : "Lịch sử công nợ")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") {
+                                showDebtHistory = false
+                            }
+                        }
+                    }
+                }
             }
             .sheet(isPresented: $showEditHistoryPopover) {
                 NavigationStack {
@@ -983,9 +1100,9 @@ struct PartyDetailView: View {
 
     private var debtCard: some View {
         HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: totalDebt > 0 ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                 .font(.title2)
-                .foregroundStyle(.red)
+                .foregroundStyle(totalDebt > 0 ? .red : .green)
             VStack(alignment: .leading, spacing: 4) {
                 Text(isSupplier ? "Thiếu nợ hiện tại" : "Công nợ hiện tại")
                     .font(.caption)
@@ -993,7 +1110,7 @@ struct PartyDetailView: View {
                 Text(formatCurrency(totalDebt))
                     .font(.title3)
                     .fontWeight(.bold)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(totalDebt > 0 ? .red : .green)
             }
             Spacer()
             Button {
@@ -1012,9 +1129,16 @@ struct PartyDetailView: View {
                     .font(.title)
                     .foregroundStyle(Color.themePrimary)
             }
+            Button {
+                showDebtHistory = true
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.title)
+                    .foregroundStyle(Color.themePrimary)
+            }
         }
         .padding(14)
-        .background(Color.red.opacity(0.06))
+        .background(totalDebt > 0 ? Color.red.opacity(0.06) : Color.green.opacity(0.06))
         .cornerRadius(14)
         .padding(.horizontal)
     }
@@ -1225,7 +1349,7 @@ struct PartyDetailView: View {
         .padding(.horizontal)
     }
 
-    enum DebtStatus {
+    enum TransactionDebtHighlightStatus {
         case normal, warning, overdue
         var color: Color {
             switch self {
@@ -1236,7 +1360,7 @@ struct PartyDetailView: View {
         }
     }
 
-    private func debtHighlight(_ tx: ProductionTransaction) -> DebtStatus {
+    private func debtHighlight(_ tx: ProductionTransaction) -> TransactionDebtHighlightStatus {
         guard let debt = tx.debtAmount, debt > 0, let payDate = tx.expectedPayDate else {
             return .normal
         }
