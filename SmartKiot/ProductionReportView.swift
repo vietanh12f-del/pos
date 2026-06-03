@@ -2240,6 +2240,11 @@ private struct GenericTxCard: View {
                         Text(formatTime(tx.createdAt))
                             .font(.subheadline).fontWeight(.semibold)
                             .foregroundStyle(tx.isDeleted ? .gray : Color.themeTextDark)
+                        if let stt = tx.sequenceNumber {
+                            Text("• \(stt)")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
                         if let name = tx.creatorName, !name.isEmpty {
                             Text("•").font(.caption).foregroundStyle(.gray)
                             Text(name).font(.subheadline).foregroundStyle(.gray)
@@ -3565,6 +3570,10 @@ private struct FilteredTransactionPrintRow: View {
             Text(formatDateTime(tx.createdAt))
                 .font(.caption)
                 .fontWeight(.semibold)
+            if let stt = tx.sequenceNumber {
+                Text("• \(stt)")
+                    .font(.caption)
+            }
             Spacer()
             if tx.isDeleted {
                 Text("ĐÃ XOÁ")

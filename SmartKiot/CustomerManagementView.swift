@@ -2597,6 +2597,11 @@ private struct DebtEditView: View {
                                 HStack {
                                     Text(tx.mode)
                                         .font(.subheadline).fontWeight(.semibold)
+                                    if let stt = tx.sequenceNumber {
+                                        Text("• \(stt)")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
                                     Spacer()
                                     Text(formatDateOnly(tx.createdAt))
                                         .font(.caption).foregroundStyle(.gray)
