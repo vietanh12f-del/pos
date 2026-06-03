@@ -2548,8 +2548,8 @@ struct GenericProductionReportView: View {
     // Danh sách tên cơ sở (nhập/xuất) - dùng supplierName cho nhập nguyên liệu
     private var allStoreNames: [String] {
         if reportKind == .materialImport {
-            // For material import, use supplierName (nhà cung cấp/cơ sở nhập)
-            return Array(Set(allLoadedTxs.compactMap { $0.supplierName }.filter { !$0.isEmpty })).sorted()
+            // For material import, use ALL suppliers from viewModel.suppliers (not just those in transactions)
+            return viewModel.suppliers.map { $0.name }.sorted()
         } else {
             // For other reports, use creatorName (người tạo phiếu)
             return Array(Set(allLoadedTxs.compactMap { $0.creatorName }.filter { !$0.isEmpty })).sorted()
@@ -3300,6 +3300,14 @@ struct GenericProductionReportView: View {
         materials = await viewModel.fetchMaterials()
         if reportKind == .finishedExport && viewModel.products.isEmpty {
             await viewModel.loadProducts()
+        }
+        if reportKind == .materialImport && viewModel.suppliers.isEmpty {
+            // Load suppliers if they're empty
+            if let suppliers = try? await viewModel.databaseService.fetchTradingParties(type: "supplier") {
+                await MainActor.run {
+                    viewModel.suppliers = suppliers
+                }
+            }
         }
         await reloadRange()
     }
