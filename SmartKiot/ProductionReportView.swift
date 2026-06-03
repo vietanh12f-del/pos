@@ -2479,7 +2479,7 @@ struct GenericProductionReportView: View {
     @State private var selectedCreatorName: String? = nil
     @State private var selectedStoreName: String? = nil
     @State private var selectedFinishedGoodName: String? = nil
-    @State private var selectedMaterialName: String? = nil
+    @State private var selectedMaterialNames: Set<String> = []  // Changed to set for multi-selection
     @State private var showCreatorPicker = false
     @State private var showStorePicker = false
     @State private var showFinishedGoodPicker = false
@@ -2632,8 +2632,8 @@ struct GenericProductionReportView: View {
             
             // Lọc nguyên liệu
             let materialMatch: Bool
-            if let selected = selectedMaterialName {
-                materialMatch = tx.items.contains(where: { $0.name == selected })
+            if !selectedMaterialNames.isEmpty {
+                materialMatch = tx.items.contains(where: { selectedMaterialNames.contains($0.name) })
             } else {
                 materialMatch = true
             }
@@ -2659,10 +2659,10 @@ struct GenericProductionReportView: View {
         // only sum the cost of items matching that material
         // For finishedImport with specific finished good selected, only sum that finished good's cost
         let totalCost: Double
-        if reportKind == .materialImport, let selectedMaterial = selectedMaterialName {
+        if reportKind == .materialImport, !selectedMaterialNames.isEmpty {
             totalCost = active.reduce(0) { sum, tx in
                 let matchingItemsCost = tx.items
-                    .filter { $0.name == selectedMaterial }
+                    .filter { selectedMaterialNames.contains($0.name) }
                     .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
                 return sum + matchingItemsCost
             }
@@ -2888,11 +2888,9 @@ struct GenericProductionReportView: View {
                                         selectedFinishedGoodName = nil
                                     }
                                 }
-                                if let selected = selectedMaterialName {
-                                    let newNames = allMaterialNames
-                                    if !newNames.contains(selected) {
-                                        selectedMaterialName = nil
-                                    }
+                                if !selectedMaterialNames.isEmpty {
+                                    let newNames = Set(allMaterialNames)
+                                    selectedMaterialNames.formIntersection(newNames)
                                 }
                             } label: {
                                 Text(option.rawValue)
@@ -2983,21 +2981,21 @@ struct GenericProductionReportView: View {
                             Button {
                                 showMaterialPicker = true
                             } label: {
-                                Text(selectedMaterialName ?? "Tất cả")
+                                Text(selectedMaterialNames.isEmpty ? "Tất cả" : "\(selectedMaterialNames.count) nguyên liệu")
                                     .font(.caption)
-                                    .fontWeight(selectedMaterialName != nil ? .semibold : .regular)
-                                    .foregroundStyle(selectedMaterialName != nil ? .white : Color.themeTextDark)
+                                    .fontWeight(!selectedMaterialNames.isEmpty ? .semibold : .regular)
+                                    .foregroundStyle(!selectedMaterialNames.isEmpty ? .white : Color.themeTextDark)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
                                     .background(
                                         Capsule()
-                                            .fill(selectedMaterialName != nil ? accentColor : Color.gray.opacity(0.1))
+                                            .fill(!selectedMaterialNames.isEmpty ? accentColor : Color.gray.opacity(0.1))
                                     )
                             }
                             .buttonStyle(.plain)
-                            if selectedMaterialName != nil {
+                            if !selectedMaterialNames.isEmpty {
                                 Button {
-                                    selectedMaterialName = nil
+                                    selectedMaterialNames.removeAll()
                                 } label: {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.caption)
@@ -3147,18 +3145,44 @@ struct GenericProductionReportView: View {
             }
             Button("Huỷ", role: .cancel) { }
         }
-        .confirmationDialog("Chọn nguyên liệu", isPresented: $showMaterialPicker, titleVisibility: .visible) {
-            if allMaterialNames.isEmpty {
-                Button("Không có nguyên liệu") { }
-            } else {
-                ForEach(allMaterialNames, id: \.self) { name in
-                    Button(name) { selectedMaterialName = name }
+        .sheet(isPresented: $showMaterialPicker) {
+            NavigationStack {
+                List {
+                    ForEach(allMaterialNames, id: \.self) { name in
+                        HStack {
+                            Text(name)
+                            Spacer()
+                            if selectedMaterialNames.contains(name) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(accentColor)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if selectedMaterialNames.contains(name) {
+                                selectedMaterialNames.remove(name)
+                            } else {
+                                selectedMaterialNames.insert(name)
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Chọn nguyên liệu")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Huỷ") {
+                            showMaterialPicker = false
+                        }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Xong") {
+                            showMaterialPicker = false
+                        }
+                        .fontWeight(.bold)
+                    }
                 }
             }
-            if selectedMaterialName != nil {
-                Button("Tất cả", role: .destructive) { selectedMaterialName = nil }
-            }
-            Button("Huỷ", role: .cancel) { }
         }
         .sheet(isPresented: $showTransactionDetail) {
             if let tx = selectedTransaction {
@@ -3252,7 +3276,7 @@ struct GenericProductionReportView: View {
             vatFilter: selectedVATFilter.rawValue,
             creatorName: selectedCreatorName,
             storeName: selectedStoreName,
-            materialName: selectedMaterialName,
+            materialNames: selectedMaterialNames,
             finishedGoodName: selectedFinishedGoodName,
             txs: allTxs,
             isMaterial: isMaterial,
@@ -3335,7 +3359,7 @@ private struct FilteredTransactionsPrintView: View {
     let vatFilter: String
     let creatorName: String?
     let storeName: String?
-    let materialName: String?
+    let materialNames: Set<String>  // Changed to set for multi-selection
     let finishedGoodName: String?
     let txs: [ProductionTransaction]
     let isMaterial: Bool
@@ -3344,10 +3368,10 @@ private struct FilteredTransactionsPrintView: View {
     private var totalCost: Double {
         let active = txs.filter { !$0.isDeleted }
         // For materialImport with specific material selected, only sum matching items
-        if reportKind == .materialImport, let selectedMaterial = materialName {
+        if reportKind == .materialImport, !materialNames.isEmpty {
             return active.reduce(0) { sum, tx in
                 let matchingItemsCost = tx.items
-                    .filter { $0.name == selectedMaterial }
+                    .filter { materialNames.contains($0.name) }
                     .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
                 return sum + matchingItemsCost
             }
@@ -3385,9 +3409,9 @@ private struct FilteredTransactionsPrintView: View {
     private var totalQty: Int {
         let active = txs.filter { !$0.isDeleted }
         // For materialImport with specific material selected, only count matching items
-        if reportKind == .materialImport, let selectedMaterial = materialName {
+        if reportKind == .materialImport, !materialNames.isEmpty {
             return active.flatMap { $0.items }
-                .filter { $0.name == selectedMaterial }
+                .filter { materialNames.contains($0.name) }
                 .reduce(0) { $0 + $1.quantity }
         }
         // For finishedExport with specific finished good selected, only count matching items
@@ -3459,8 +3483,9 @@ private struct FilteredTransactionsPrintView: View {
                 if let name = storeName {
                     Text("• Cơ sở: \(name)")
                 }
-                if let name = materialName {
-                    Text("• Nguyên liệu: \(name)")
+                if !materialNames.isEmpty {
+                    let materialList = materialNames.sorted().joined(separator: ", ")
+                    Text("• Nguyên liệu: \(materialList)")
                 }
                 if let name = finishedGoodName {
                     Text("• Thành phẩm: \(name)")
@@ -3519,7 +3544,7 @@ private struct FilteredTransactionsPrintView: View {
             // Transactions
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(txs.sorted { $0.createdAt > $1.createdAt }) { tx in
-                    FilteredTransactionPrintRow(tx: tx, materialName: materialName, finishedGoodName: finishedGoodName, reportKind: reportKind)
+                    FilteredTransactionPrintRow(tx: tx, materialNames: materialNames, finishedGoodName: finishedGoodName, reportKind: reportKind)
                 }
             }
 
@@ -3548,7 +3573,7 @@ private struct FilteredTransactionsPrintView: View {
 
 private struct FilteredTransactionPrintRow: View {
     let tx: ProductionTransaction
-    let materialName: String?
+    let materialNames: Set<String>
     let finishedGoodName: String?
     let reportKind: ProductionReportKind
 
@@ -3601,8 +3626,8 @@ private struct FilteredTransactionPrintRow: View {
     }
     
     private var filteredItems: [RestockItem] {
-        if reportKind == .materialImport, let selectedMaterial = materialName {
-            return tx.items.filter { $0.name == selectedMaterial }
+        if reportKind == .materialImport, !materialNames.isEmpty {
+            return tx.items.filter { materialNames.contains($0.name) }
         }
         if reportKind == .finishedExport, let selectedFG = finishedGoodName {
             return tx.items.filter { $0.name == selectedFG }
@@ -3623,9 +3648,9 @@ private struct FilteredTransactionPrintRow: View {
     }
     
     private var rowTotal: Double {
-        if reportKind == .materialImport, let selectedMaterial = materialName {
+        if reportKind == .materialImport, !materialNames.isEmpty {
             return tx.items
-                .filter { $0.name == selectedMaterial }
+                .filter { materialNames.contains($0.name) }
                 .reduce(0) { $0 + (Double($1.quantity) / 1000.0 * $1.unitPrice) }
         }
         if reportKind == .finishedExport, let selectedFG = finishedGoodName {
