@@ -1917,6 +1917,25 @@ struct MaterialExportReportView: View {
 
     // MARK: - Reusable sections
 
+    private func computeAutoSectionData(
+        logs: [ProductionReportRow],
+        finishedImports: [ProductionTransaction]
+    ) -> (allNames: [String], totalGrams: Int, onSelect: () -> Void) {
+        let allNames = Array(Set(finishedImports.flatMap { $0.items.map { $0.name } })).sorted()
+        let allItems = finishedImports.flatMap { $0.items }
+        let totalGrams: Int
+        if let name = selectedFinishedGoodName {
+            totalGrams = allItems.filter { $0.name == name }.reduce(0) { $0 + $1.quantity }
+        } else {
+            totalGrams = allItems.reduce(0) { $0 + $1.quantity }
+        }
+        let onSelect: () -> Void = { [self] in
+            self.finishedImports = finishedImports
+            self.showFinishedGoodPicker = true
+        }
+        return (allNames, totalGrams, onSelect)
+    }
+
     @ViewBuilder
     private func autoSection(logs: [ProductionReportRow], finishedImports: [ProductionTransaction]) -> some View {
         HStack {
@@ -1932,16 +1951,15 @@ struct MaterialExportReportView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal).padding(.bottom, 10)
         } else {
-            let allNames = Array(Set(finishedImports.flatMap { $0.items.map { $0.name } })).sorted()
-            let totalGrams = finishedImports.flatMap { $0.items }.reduce(0) { $0 + $1.quantity }
+            let data = computeAutoSectionData(logs: logs, finishedImports: finishedImports)
             VStack(spacing: 12) {
                 ForEach(logs, id: \.log.id) { row in
                     ProductionReportCard(
                         row: row,
                         selectedFinishedGoodName: selectedFinishedGoodName,
-                        totalFinishedImportGramsInDay: totalGrams,
-                        hasMultipleFinishedGoods: allNames.count > 1,
-                        onSelectFinishedGood: { showFinishedGoodPicker = true }
+                        totalFinishedImportGramsInDay: data.totalGrams,
+                        hasMultipleFinishedGoods: data.allNames.count > 1,
+                        onSelectFinishedGood: data.onSelect
                     )
                 }
             }
