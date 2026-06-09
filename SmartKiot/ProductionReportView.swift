@@ -44,7 +44,7 @@ struct ProductionReportView: View {
     /// Phiếu nhập NL trong kỳ đang chọn
     private var filteredImportTx: [ProductionTransaction] {
         let (start, end) = dateInterval(for: activeRange)
-        return materialImportTx.filter { $0.createdAt >= start && $0.createdAt <= end }
+        return materialImportTx.filter { $0.createdAt >= start && $0.createdAt <= end && !$0.isDeleted }
     }
 
     private var importTxCount: Int { filteredImportTx.count }
@@ -68,7 +68,7 @@ struct ProductionReportView: View {
     // MARK: - Export NL computed
     private var filteredExportTx: [ProductionTransaction] {
         let (start, end) = dateInterval(for: activeRange)
-        return materialExportTx.filter { $0.createdAt >= start && $0.createdAt <= end }
+        return materialExportTx.filter { $0.createdAt >= start && $0.createdAt <= end && !$0.isDeleted }
     }
 
     private var autoExportIds: Set<UUID> {
@@ -90,7 +90,7 @@ struct ProductionReportView: View {
     // MARK: - Finished import computed
     private var filteredFinishedImportTx: [ProductionTransaction] {
         let (start, end) = dateInterval(for: activeRange)
-        return finishedImportTx.filter { $0.createdAt >= start && $0.createdAt <= end }
+        return finishedImportTx.filter { $0.createdAt >= start && $0.createdAt <= end && !$0.isDeleted }
     }
 
     private var finishedImportCount: Int { filteredFinishedImportTx.count }
@@ -124,7 +124,7 @@ struct ProductionReportView: View {
     // MARK: - Finished export computed
     private var filteredFinishedExportTx: [ProductionTransaction] {
         let (start, end) = dateInterval(for: activeRange)
-        return finishedExportTx.filter { $0.createdAt >= start && $0.createdAt <= end }
+        return finishedExportTx.filter { $0.createdAt >= start && $0.createdAt <= end && !$0.isDeleted }
     }
 
     private var finishedExportCount: Int { filteredFinishedExportTx.count }
@@ -360,6 +360,32 @@ struct ProductionReportView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Đóng") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isLoadingStats = true
+                        Task {
+                            async let txTask = viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu")
+                            async let exportTask = viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
+                            async let logsTask = viewModel.fetchAutoMaterialExportLogs(limit: 2000)
+                            async let finishedImportTask = viewModel.fetchProductionTransactions(mode: "Nhập Thành Phẩm")
+                            async let finishedExportTask = viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
+                            if viewModel.materials.isEmpty {
+                                await viewModel.loadMaterials()
+                            }
+                            if viewModel.products.isEmpty {
+                                await viewModel.loadProducts()
+                            }
+                            materialImportTx    = await txTask
+                            materialExportTx    = await exportTask
+                            materialAutoExportLogs = await logsTask
+                            finishedImportTx    = await finishedImportTask
+                            finishedExportTx    = await finishedExportTask
+                            isLoadingStats = false
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
             }
             .task {
                 isLoadingStats = true
@@ -380,6 +406,28 @@ struct ProductionReportView: View {
                 finishedImportTx    = await finishedImportTask
                 finishedExportTx    = await finishedExportTask
                 isLoadingStats = false
+            }
+            .onAppear {
+                isLoadingStats = true
+                Task {
+                    async let txTask = viewModel.fetchProductionTransactions(mode: "Nhập Nguyên liệu")
+                    async let exportTask = viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
+                    async let logsTask = viewModel.fetchAutoMaterialExportLogs(limit: 2000)
+                    async let finishedImportTask = viewModel.fetchProductionTransactions(mode: "Nhập Thành Phẩm")
+                    async let finishedExportTask = viewModel.fetchProductionTransactions(mode: "Xuất Thành Phẩm")
+                    if viewModel.materials.isEmpty {
+                        await viewModel.loadMaterials()
+                    }
+                    if viewModel.products.isEmpty {
+                        await viewModel.loadProducts()
+                    }
+                    materialImportTx    = await txTask
+                    materialExportTx    = await exportTask
+                    materialAutoExportLogs = await logsTask
+                    finishedImportTx    = await finishedImportTask
+                    finishedExportTx    = await finishedExportTask
+                    isLoadingStats = false
+                }
             }
             .sheet(isPresented: $showCustomPicker) {
                 NavigationStack {
@@ -1563,15 +1611,16 @@ struct MaterialExportReportView: View {
     }
 
     private var reportRows: [ProductionReportRow] {
-        autoLogs.sorted { $0.createdAt > $1.createdAt }.map { log in
+        autoLogs.sorted { $0.createdAt > $1.createdAt }.compactMap { log in
             let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
             let afterBoil = max(0, log.data.afterBoilGrams)
             let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
             let importTx = finishedImports.filter { $0.createdAt >= log.createdAt }.min(by: { $0.createdAt < $1.createdAt })
             let exportTx = allExportTxs.first(where: { $0.id == log.productionTransactionId })
+            guard let tx = exportTx, !tx.isDeleted else { return nil }
             var row = ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
                 yieldPercent: ratio, finishedImportTx: importTx, materials: materials)
-            row.transaction = exportTx
+            row.transaction = tx
             return row
         }
     }
@@ -1718,10 +1767,17 @@ struct MaterialExportReportView: View {
                     Button("Đóng") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        renderMaterialExportReport()
-                    } label: {
-                        Image(systemName: "printer")
+                    HStack(spacing: 16) {
+                        Button {
+                            Task { await reload() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        Button {
+                            renderMaterialExportReport()
+                        } label: {
+                            Image(systemName: "printer")
+                        }
                     }
                 }
             }
@@ -1780,6 +1836,10 @@ struct MaterialExportReportView: View {
             }
         }
         .task { await reload() }
+        .onAppear {
+            // Reload data when view appears
+            Task { await reload() }
+        }
     }
 
     // MARK: - Single day content
@@ -1943,15 +2003,16 @@ struct MaterialExportReportView: View {
     // MARK: - Helpers
 
     private func makeRows(logs: [AutoMaterialExportLog], finishedImports: [ProductionTransaction]) -> [ProductionReportRow] {
-        logs.sorted { $0.createdAt > $1.createdAt }.map { log in
+        logs.sorted { $0.createdAt > $1.createdAt }.compactMap { log in
             let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
             let afterBoil = max(0, log.data.afterBoilGrams)
             let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
             let importTx = finishedImports.filter { $0.createdAt >= log.createdAt }.min(by: { $0.createdAt < $1.createdAt })
             let exportTx = allExportTxs.first(where: { $0.id == log.productionTransactionId })
+            guard let tx = exportTx, !tx.isDeleted else { return nil }
             var row = ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
                 yieldPercent: ratio, finishedImportTx: importTx, materials: materials)
-            row.transaction = exportTx
+            row.transaction = tx
             return row
         }
     }
@@ -1972,13 +2033,20 @@ struct MaterialExportReportView: View {
         let start = startOfDay(selectedDate)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
         let logs = await viewModel.fetchAutoMaterialExportLogs(limit: 500)
-        autoLogs = logs.filter { $0.createdAt >= start && $0.createdAt < end }
         let imports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
         finishedImports = imports.filter { $0.createdAt >= start && $0.createdAt < end }
         let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
         allExportTxs = allExports
+        
+        // Filter logs to only those with non-deleted transactions
+        autoLogs = logs.filter { log in
+            guard log.createdAt >= start && log.createdAt < end else { return false }
+            let exportTx = allExportTxs.first(where: { $0.id == log.productionTransactionId })
+            return exportTx != nil && !exportTx!.isDeleted
+        }
+        
         let autoIds = Set(autoLogs.map { $0.productionTransactionId })
-        manualExports = allExports.filter { $0.createdAt >= start && $0.createdAt < end && !autoIds.contains($0.id) }
+        manualExports = allExports.filter { $0.createdAt >= start && $0.createdAt < end && !autoIds.contains($0.id) && !$0.isDeleted }
         selectedFinishedGoodName = nil
     }
 
@@ -1988,6 +2056,10 @@ struct MaterialExportReportView: View {
         let allImports = await viewModel.fetchProductionTransactions(mode: "Nhập thành phẩm")
         let allExports = await viewModel.fetchProductionTransactions(mode: "Xuất nguyên liệu")
         allExportTxs = allExports  // lưu để makeRows dùng
+        print("🔍 DEBUG reloadRange - allExportTxs count: \(allExports.count), deleted count: \(allExports.filter { $0.isDeleted }.count)")
+        for tx in allExports {
+            print("🔍 tx id: \(tx.id), isDeleted: \(tx.isDeleted)")
+        }
         let allAutoIds = Set(allLogs.map { $0.productionTransactionId })
         var result: [String: DayReportData] = [:]
         var cursor = startOfDay(start)
@@ -1995,9 +2067,23 @@ struct MaterialExportReportView: View {
         while cursor <= endDay {
             let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: cursor) ?? cursor
             let key = dayKey(cursor)
-            let dayLogs = allLogs.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
-            let dayManual = allExports.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd && !allAutoIds.contains($0.id) }
+            
+            // Filter logs to only those with non-deleted transactions
+            let dayLogs = allLogs.filter { log in
+                guard log.createdAt >= cursor && log.createdAt < dayEnd else { return false }
+                let exportTx = allExportTxs.first(where: { $0.id == log.productionTransactionId })
+                // If exportTx is nil → transaction was deleted, exclude it
+                let isExcluded = exportTx == nil || exportTx!.isDeleted
+                print("🔍 auto log tx id: \(log.productionTransactionId), exportTx found: \(exportTx != nil), isExcluded: \(isExcluded)")
+                return !isExcluded
+            }
+            
+            let dayManual = allExports.filter { tx in
+                tx.createdAt >= cursor && tx.createdAt < dayEnd && !allAutoIds.contains(tx.id) && !tx.isDeleted
+            }
+            
             let dayImports = allImports.filter { $0.createdAt >= cursor && $0.createdAt < dayEnd }
+            
             if !dayLogs.isEmpty || !dayManual.isEmpty {
                 result[key] = DayReportData(date: cursor, autoLogs: dayLogs, manualExports: dayManual, finishedImports: dayImports)
             }
@@ -2020,8 +2106,15 @@ struct MaterialExportReportView: View {
     // MARK: - Print
 
     private func renderMaterialExportReport() {
-        let allManualExports = rangeData.values.flatMap { filteredExports($0.manualExports) }
-        let allAutoLogs = rangeData.values.flatMap { $0.autoLogs }
+        // Collect all active (non-deleted) auto logs and manual exports for the selected range
+        var allAutoLogs: [AutoMaterialExportLog] = []
+        var allManualExports: [ProductionTransaction] = []
+        for dayData in sortedRangeDays {
+            let dayRows = makeRows(logs: dayData.autoLogs, finishedImports: dayData.finishedImports)
+            allAutoLogs.append(contentsOf: dayRows.map { $0.log })
+            allManualExports.append(contentsOf: filteredExports(dayData.manualExports))
+        }
+        
         let view = MaterialExportPrintView(
             rangeLabel: rangeLabel,
             vatFilter: selectedVATFilter.rawValue,
@@ -2798,10 +2891,17 @@ struct GenericProductionReportView: View {
                     Button("Đóng") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        renderFilteredReport()
-                    } label: {
-                        Image(systemName: "printer")
+                    HStack(spacing: 16) {
+                        Button {
+                            Task { await reload() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        Button {
+                            renderFilteredReport()
+                        } label: {
+                            Image(systemName: "printer")
+                        }
                     }
                 }
             }
@@ -2840,6 +2940,10 @@ struct GenericProductionReportView: View {
             }
         }
         .task { await reload() }
+        .onAppear {
+            // Reload data when view appears
+            Task { await reload() }
+        }
     }
 
     // MARK: - Single day
