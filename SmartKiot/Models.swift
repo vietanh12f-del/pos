@@ -166,6 +166,7 @@ struct MaterialItem: Identifiable, Codable, Equatable {
     var barcode: String? = nil
     var unit: String? = nil
     var hasVAT: Bool = false
+    var minStockAlertThreshold: Int? = nil
 }
 
 struct OperatingExpense: Identifiable, Codable, Equatable {

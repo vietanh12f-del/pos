@@ -1709,9 +1709,10 @@ struct MaterialDTO: Codable {
     let barcode: String?
     let unit: String?
     let has_vat: Bool?
+    let min_stock_alert_threshold: Int?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode, unit, has_vat
+        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode, unit, has_vat, min_stock_alert_threshold
     }
     
     init(from decoder: Decoder) throws {
@@ -1726,9 +1727,10 @@ struct MaterialDTO: Codable {
         barcode = try c.decodeIfPresent(String.self, forKey: .barcode)
         unit = try c.decodeIfPresent(String.self, forKey: .unit)
         has_vat = try c.decodeIfPresent(Bool.self, forKey: .has_vat)
+        min_stock_alert_threshold = try c.decodeIfPresent(Int.self, forKey: .min_stock_alert_threshold)
     }
     
-    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil, unit: String? = nil, has_vat: Bool? = nil) {
+    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil, unit: String? = nil, has_vat: Bool? = nil, min_stock_alert_threshold: Int? = nil) {
         self.id = id
         self.name = name
         self.stock_quantity = stock_quantity
@@ -1739,6 +1741,7 @@ struct MaterialDTO: Codable {
         self.barcode = barcode
         self.unit = unit
         self.has_vat = has_vat
+        self.min_stock_alert_threshold = min_stock_alert_threshold
     }
     
     init(from domain: MaterialItem, storeId: UUID?) {
@@ -1752,10 +1755,11 @@ struct MaterialDTO: Codable {
         self.barcode = domain.barcode
         self.unit = domain.unit
         self.has_vat = domain.hasVAT
+        self.min_stock_alert_threshold = domain.minStockAlertThreshold
     }
     
     func toDomain() -> MaterialItem {
-        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue, barcode: barcode, unit: unit, hasVAT: has_vat ?? false)
+        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue, barcode: barcode, unit: unit, hasVAT: has_vat ?? false, minStockAlertThreshold: min_stock_alert_threshold)
     }
 }
 

@@ -248,39 +248,41 @@ struct ProductionManagementView: View {
                                         ScrollView {
                                             LazyVStack(spacing: 0) {
                             ForEach(sortedMaterials) { item in
-                                                    Button {
-                                                        editingMaterial = item
-                                                        showMaterialEdit = true
-                                                    } label: {
-                                                        HStack {
-                                                            Text(item.name)
-                                                                .font(.subheadline)
-                                                                .foregroundStyle(Color.themeTextDark)
-                                                                .lineLimit(2)
-                                                            if item.hasVAT {
-                                                                Text("VAT")
-                                                                    .font(.system(size: 9, weight: .bold))
-                                                                    .foregroundStyle(.white)
-                                                                    .padding(.horizontal, 5)
-                                                                    .padding(.vertical, 2)
-                                                                    .background(Color.green.opacity(0.85))
-                                                                    .clipShape(Capsule())
-                                                            }
-                                                            Spacer()
-                                                            Text(formatCurrency(item.lastUnitPrice))
-                                                                .font(.subheadline)
-                                                                .foregroundStyle(Color.themePrimary)
-                                                                .frame(width: 120, alignment: .trailing)
-                                                            Text(FormatUtils.formatWeight(item.stockQuantity, unit: item.unit))
-                                                                .font(.subheadline)
-                                                                .foregroundStyle(.gray)
-                                                                .frame(width: 80, alignment: .trailing)
-                                                        }
-                                                        .padding(.horizontal)
-                                                        .padding(.vertical, 10)
-                                                        .background(Color.white)
-                                                    }
-                                                    Divider().padding(.leading, 0)
+                                let shouldHighlightRed = item.stockQuantity == 0 || (item.minStockAlertThreshold != nil && item.stockQuantity <= item.minStockAlertThreshold!)
+                                Button {
+                                    editingMaterial = item
+                                    showMaterialEdit = true
+                                } label: {
+                                    HStack {
+                                        Text(item.name)
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.themeTextDark)
+                                            .lineLimit(2)
+                                        if item.hasVAT {
+                                            Text("VAT")
+                                                .font(.system(size: 9, weight: .bold))
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 5)
+                                                .padding(.vertical, 2)
+                                                .background(Color.green.opacity(0.85))
+                                                .clipShape(Capsule())
+                                        }
+                                        Spacer()
+                                        Text(formatCurrency(item.lastUnitPrice))
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.themePrimary)
+                                            .frame(width: 120, alignment: .trailing)
+                                        Text(FormatUtils.formatWeight(item.stockQuantity, unit: item.unit))
+                                            .font(.subheadline)
+                                            .fontWeight(shouldHighlightRed ? .bold : .regular)
+                                            .foregroundStyle(shouldHighlightRed ? .red : .gray)
+                                            .frame(width: 80, alignment: .trailing)
+                                    }
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 10)
+                                    .background(Color.white)
+                                }
+                                Divider().padding(.leading, 0)
                                                 }
                                             }
                                         }

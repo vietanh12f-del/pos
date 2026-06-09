@@ -13,7 +13,7 @@ struct AppNotificationItem: Identifiable, Codable {
     var isRead: Bool = false
 
     enum NotifType: String, Codable {
-        case websiteLead, attendance, leaveRequest, newOrder, wholesaleOrder, debt
+        case websiteLead, attendance, leaveRequest, newOrder, wholesaleOrder, debt, lowStockMaterial
         var icon: String {
             switch self {
             case .websiteLead:    return "globe"
@@ -22,6 +22,7 @@ struct AppNotificationItem: Identifiable, Codable {
             case .newOrder:       return "cart.fill"
             case .wholesaleOrder: return "shippingbox.fill"
             case .debt:           return "exclamationmark.triangle.fill"
+            case .lowStockMaterial: return "exclamationmark.circle.fill"
             }
         }
         var color: Color {
@@ -32,6 +33,7 @@ struct AppNotificationItem: Identifiable, Codable {
             case .newOrder:       return Color.themePrimary
             case .wholesaleOrder: return .purple
             case .debt:           return .red
+            case .lowStockMaterial: return .orange
             }
         }
     }
@@ -259,6 +261,21 @@ class AppNotificationService: ObservableObject {
                     action: .openProductionManagement
                 ))
             }
+        }
+        
+        // 6. Nguyên liệu sắp hết hoặc đã hết
+        let lowStockMaterials = viewModel.materials.filter { mat in
+            mat.stockQuantity == 0 || (mat.minStockAlertThreshold != nil && mat.stockQuantity <= mat.minStockAlertThreshold!)
+        }
+        if !lowStockMaterials.isEmpty {
+            let names = lowStockMaterials.map { $0.name }.joined(separator: ", ")
+            fresh.append(AppNotificationItem(
+                type: .lowStockMaterial,
+                title: "Nguyên liệu sắp hết",
+                body: "\(lowStockMaterials.count) nguyên liệu cần nhập thêm: \(names)",
+                createdAt: Date(),
+                action: .openProductionManagement
+            ))
         }
 
         // Merge: giữ isRead của item cũ nếu cùng type+title

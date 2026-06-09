@@ -40,6 +40,8 @@ struct MaterialEditView: View {
     @State private var showBarcodeScanner = false
     @State private var showPrintBarcode = false
     @State private var hasVAT: Bool = false
+    @State private var minStockAlertThreshold: Int? = nil
+    @State private var showSetThresholdSheet = false
     
     // MARK: - Summary Section State
     @State private var summaryStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
@@ -100,6 +102,12 @@ struct MaterialEditView: View {
                         Text(FormatUtils.formatWeight(stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0), unit: selectedUnit))
                             .fontWeight(.semibold)
                             .foregroundStyle(.gray)
+                        Button {
+                            showSetThresholdSheet = true
+                        } label: {
+                            Image(systemName: minStockAlertThreshold != nil ? "bell.fill" : "bell")
+                                .foregroundStyle(minStockAlertThreshold != nil ? .orange : .gray)
+                        }
                     }
                     
                     Toggle(isOn: $hasVAT) {
@@ -649,6 +657,19 @@ struct MaterialEditView: View {
             .padding()
             .presentationDetents([.height(300)])
         }
+        .sheet(isPresented: $showSetThresholdSheet) {
+            SetMinStockThresholdSheet(
+                currentThreshold: minStockAlertThreshold,
+                unit: selectedUnit,
+                onSave: { threshold in
+                    minStockAlertThreshold = threshold
+                    showSetThresholdSheet = false
+                },
+                onCancel: {
+                    showSetThresholdSheet = false
+                }
+            )
+        }
         .onAppear {
             if case .edit(let material) = mode {
                 name = material.name
@@ -660,6 +681,7 @@ struct MaterialEditView: View {
                 selectedUnit = material.unit ?? "kg"
                 barcode = material.barcode ?? ""
                 hasVAT = material.hasVAT
+                minStockAlertThreshold = material.minStockAlertThreshold
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -773,7 +795,7 @@ struct MaterialEditView: View {
         guard let unit = Double(importPrice), let qty = Int(stock) else { return }
         switch mode {
         case .add:
-            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT)
+            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT, minStockAlertThreshold: minStockAlertThreshold)
             Task {
                 try? await viewModel.databaseSaveMaterial(material)
                 viewModel.addMaterialCategory(selectedCategoryName)
@@ -781,7 +803,7 @@ struct MaterialEditView: View {
                 dismiss()
             }
         case .edit(let m):
-            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT)
+            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT, minStockAlertThreshold: minStockAlertThreshold)
             Task {
                 try? await viewModel.databaseUpdateMaterial(updated)
                 viewModel.addMaterialCategory(selectedCategoryName)
@@ -797,6 +819,85 @@ struct MaterialEditView: View {
                 try? await viewModel.databaseDeleteMaterial(m.id)
                 await viewModel.loadMaterials()
                 dismiss()
+            }
+        }
+    }
+}
+
+struct SetMinStockThresholdSheet: View {
+    let currentThreshold: Int?
+    let unit: String
+    let onSave: (Int?) -> Void
+    let onCancel: () -> Void
+    
+    @State private var thresholdValue: Int = 0
+    @State private var isThresholdEnabled: Bool = false
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Bật cảnh báo tồn kho thấp", isOn: $isThresholdEnabled)
+                        .tint(.orange)
+                    
+                    if isThresholdEnabled {
+                        HStack {
+                            Text("Cảnh báo khi còn")
+                            Spacer()
+                            if unit.lowercased() == "cái" {
+                                Stepper("\(thresholdValue) cái", value: $thresholdValue, in: 0...10000)
+                            } else {
+                                HStack(spacing: 4) {
+                                    let kg = thresholdValue / 1000
+                                    let grams = thresholdValue % 1000
+                                    if kg > 0 {
+                                        Text("\(kg) kg")
+                                            .fontWeight(.semibold)
+                                    }
+                                    if grams > 0 {
+                                        Text("\(grams) gam")
+                                            .fontWeight(.semibold)
+                                    }
+                                    if kg == 0 && grams == 0 {
+                                        Text("0 gam")
+                                            .fontWeight(.semibold)
+                                    }
+                                    Stepper("", value: $thresholdValue, in: 0...1000000, step: 100)
+                                        .labelsHidden()
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Cài đặt cảnh báo")
+                } footer: {
+                    Text("Khi tồn kho của nguyên liệu đạt mức này, sẽ có cảnh báo trên Trang chủ và được đánh dấu màu đỏ.")
+                }
+            }
+            .navigationTitle("Cảnh báo tồn kho")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Huỷ") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Lưu") {
+                        if isThresholdEnabled {
+                            onSave(thresholdValue)
+                        } else {
+                            onSave(nil)
+                        }
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                if let current = currentThreshold {
+                    isThresholdEnabled = true
+                    thresholdValue = current
+                }
             }
         }
     }

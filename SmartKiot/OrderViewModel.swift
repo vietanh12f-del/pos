@@ -2396,6 +2396,8 @@ class OrderViewModel: ObservableObject {
                 self.materials = rows
                 let base = Set(Category.allCases.filter { $0 != .all }.map { $0.rawValue })
                 self.materialCategories = self.materialCategories.union(cats).union(base)
+                // Post notification to refresh app notifications (for low stock alerts)
+                NotificationCenter.default.post(name: .appNotificationShouldRefresh, object: nil)
             }
         } catch {
             print("⚠️ loadMaterials error: \(error)")
