@@ -2213,11 +2213,11 @@ struct MaterialExportReportView: View {
 
     private func renderMaterialExportReport() {
         // Collect all active (non-deleted) auto logs and manual exports for the selected range
-        var allAutoLogs: [AutoMaterialExportLog] = []
+        var allAutoRows: [ProductionReportRow] = []
         var allManualExports: [ProductionTransaction] = []
         for dayData in sortedRangeDays {
             let dayRows = makeRows(logs: dayData.autoLogs, finishedImports: dayData.finishedImports)
-            allAutoLogs.append(contentsOf: dayRows.map { $0.log })
+            allAutoRows.append(contentsOf: dayRows)
             allManualExports.append(contentsOf: filteredExports(dayData.manualExports))
         }
         
@@ -2225,7 +2225,7 @@ struct MaterialExportReportView: View {
             rangeLabel: rangeLabel,
             vatFilter: selectedVATFilter.rawValue,
             creatorName: selectedCreatorName,
-            autoLogs: allAutoLogs,
+            autoRows: allAutoRows,
             manualExports: allManualExports,
             materials: materials
         )
@@ -2246,16 +2246,16 @@ private struct MaterialExportPrintView: View {
     let rangeLabel: String
     let vatFilter: String
     let creatorName: String?
-    let autoLogs: [AutoMaterialExportLog]
+    let autoRows: [ProductionReportRow]
     let manualExports: [ProductionTransaction]
     let materials: [MaterialItem]
 
     private var totalFreshGrams: Int {
-        autoLogs.reduce(0) { $0 + $1.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) } }
+        autoRows.reduce(0) { $0 + $1.freshTotalGrams }
     }
 
     private var totalAfterBoilGrams: Int {
-        autoLogs.reduce(0) { $0 + max(0, $1.data.afterBoilGrams) }
+        autoRows.reduce(0) { $0 + $1.afterBoilGrams }
     }
 
     var body: some View {
@@ -2301,7 +2301,7 @@ private struct MaterialExportPrintView: View {
                     Text("Số phiếu tự động")
                         .font(.caption)
                         .foregroundStyle(.gray)
-                    Text(String(autoLogs.count))
+                    Text(String(autoRows.count))
                         .font(.headline)
                         .fontWeight(.bold)
                 }
@@ -2325,7 +2325,7 @@ private struct MaterialExportPrintView: View {
             }
 
             // Automatic Exports Details
-            if !autoLogs.isEmpty {
+            if !autoRows.isEmpty {
                 Divider()
                 
                 VStack(alignment: .leading, spacing: 8) {
@@ -2333,8 +2333,8 @@ private struct MaterialExportPrintView: View {
                         .font(.headline)
                         .fontWeight(.semibold)
                     
-                    ForEach(autoLogs.sorted { $0.createdAt < $1.createdAt }, id: \.id) { log in
-                        autoExportLogCard(log: log)
+                    ForEach(autoRows.sorted { $0.log.createdAt < $1.log.createdAt }, id: \.log.id) { row in
+                        autoExportRowCard(row: row)
                     }
                 }
             }
@@ -2363,19 +2363,22 @@ private struct MaterialExportPrintView: View {
 
     // MARK: - Automatic Export Card
     @ViewBuilder
-    private func autoExportLogCard(log: AutoMaterialExportLog) -> some View {
+    private func autoExportRowCard(row: ProductionReportRow) -> some View {
+        let totalFinishedImportGrams = row.finishedImportTx?.items.reduce(0) { $0 + $1.quantity } ?? 0
+        let finishedProductLossPercent = row.finishedProductLossPercent(importGrams: totalFinishedImportGrams)
+        
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(log.templateName)
+                Text(row.log.templateName)
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 Spacer()
-                Text(formatTime(log.createdAt))
+                Text(formatTime(row.log.createdAt))
                     .font(.caption)
                     .foregroundStyle(.gray)
             }
             
-            if let creator = log.creatorName, !creator.isEmpty {
+            if let creator = row.log.creatorName, !creator.isEmpty {
                 Text("Người tạo: \(creator)")
                     .font(.caption)
                     .foregroundStyle(.gray)
@@ -2384,48 +2387,69 @@ private struct MaterialExportPrintView: View {
             Divider()
                 .padding(.vertical, 4)
             
-            // Summary stats
-            let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
-            let afterBoil = max(0, log.data.afterBoilGrams)
-            let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
-            
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 2) {
+            // Summary stats grid
+            VStack(spacing: 4) {
+                HStack {
                     Text("Nguyên liệu tươi")
                         .font(.caption)
                         .foregroundStyle(.gray)
-                    Text(FormatUtils.formatWeight(freshTotal))
+                    Spacer()
+                    Text(FormatUtils.formatWeight(row.freshTotalGrams))
                         .font(.caption)
                         .fontWeight(.semibold)
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Sau luộc")
+                
+                HStack {
+                    Text("Còn sau luộc")
                         .font(.caption)
                         .foregroundStyle(.gray)
-                    Text(FormatUtils.formatWeight(afterBoil))
+                    Spacer()
+                    Text(FormatUtils.formatWeight(row.afterBoilGrams))
                         .font(.caption)
                         .fontWeight(.semibold)
                 }
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Tỉ lệ")
+                
+                HStack {
+                    Text("Tỉ lệ hao hụt")
                         .font(.caption)
                         .foregroundStyle(.gray)
-                    Text(String(format: "%.1f%%", ratio))
+                    Spacer()
+                    Text(String(format: "%.2f%%", row.yieldPercent))
                         .font(.caption)
                         .fontWeight(.semibold)
+                }
+                
+                HStack {
+                    Text("Nhập thành phẩm")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text(totalFinishedImportGrams > 0 ? FormatUtils.formatWeight(totalFinishedImportGrams) : "—")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                
+                HStack {
+                    Text("Tỉ lệ hao hụt thành phẩm")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text(String(format: "%.2f%%", finishedProductLossPercent))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(finishedProductLossPercent > 0 ? .green : .gray)
                 }
             }
             
             // Fresh materials
-            if !log.data.fresh.isEmpty {
+            if !row.log.data.fresh.isEmpty {
                 Divider()
                     .padding(.vertical, 4)
-                Text(log.data.freshTitle)
+                Text(row.log.data.freshTitle)
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundStyle(.purple)
-                ForEach(log.data.fresh, id: \.id) { item in
+                ForEach(row.log.data.fresh, id: \.id) { item in
                     HStack {
                         Text(item.name)
                             .font(.caption)
@@ -2433,26 +2457,97 @@ private struct MaterialExportPrintView: View {
                         Text(FormatUtils.formatWeight(Int(item.totalExportGrams)))
                             .font(.caption)
                             .fontWeight(.semibold)
+                        
+                        let price = row.getMaterialPrice(materialId: item.materialId)
+                        if price > 0 {
+                            let weightKg = item.totalExportGrams / 1000.0
+                            let cost = price * weightKg
+                            Text(formatCurrency(cost))
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
             
             // Auto materials
-            if !log.data.autoMaterials.isEmpty {
-                if !log.data.fresh.isEmpty {
+            if !row.log.data.autoMaterials.isEmpty {
+                if !row.log.data.fresh.isEmpty {
                     Divider()
                         .padding(.vertical, 4)
                 }
-                Text(log.data.autoMaterialsTitle)
+                Text(row.log.data.autoMaterialsTitle)
                     .font(.caption)
                     .fontWeight(.semibold)
                     .foregroundStyle(.purple)
-                ForEach(log.data.autoMaterials, id: \.id) { item in
+                ForEach(row.log.data.autoMaterials, id: \.id) { item in
                     HStack {
                         Text(item.name)
                             .font(.caption)
                         Spacer()
                         Text(FormatUtils.formatWeight(Int(item.totalExportGrams)))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                        
+                        let price = row.getMaterialPrice(materialId: item.materialId)
+                        if price > 0 {
+                            let weightKg = item.totalExportGrams / 1000.0
+                            let cost = price * weightKg
+                            Text(formatCurrency(cost))
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                }
+            }
+            
+            // Total material cost
+            Divider()
+                .padding(.vertical, 4)
+            HStack {
+                Text("Tổng tiền nguyên liệu")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(formatCurrency(row.totalMaterialCost))
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.purple)
+            }
+            
+            // Finished import details
+            if let importTx = row.finishedImportTx {
+                Divider()
+                    .padding(.vertical, 4)
+                Text("Chi tiết nhập thành phẩm")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.blue)
+                
+                HStack {
+                    if let seq = importTx.sequenceNumber {
+                        Text(seq)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    }
+                    Spacer()
+                    Text(formatTime(importTx.createdAt))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                
+                if let note = importTx.note, !note.isEmpty {
+                    Text("Ghi chú: \(note)")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                
+                ForEach(importTx.items) { item in
+                    HStack {
+                        Text(item.name)
+                            .font(.caption)
+                        Spacer()
+                        Text(FormatUtils.formatWeight(item.quantity, unit: item.unit))
                             .font(.caption)
                             .fontWeight(.semibold)
                     }
