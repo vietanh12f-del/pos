@@ -1710,9 +1710,11 @@ struct MaterialDTO: Codable {
     let unit: String?
     let has_vat: Bool?
     let min_stock_alert_threshold: Int?
+    let expiry_date: Date?
+    let expiry_alert_days: Int?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode, unit, has_vat, min_stock_alert_threshold
+        case id, name, stock_quantity, stock_weight_kg, last_unit_price, category, store_id, barcode, unit, has_vat, min_stock_alert_threshold, expiry_date, expiry_alert_days
     }
     
     init(from decoder: Decoder) throws {
@@ -1728,9 +1730,11 @@ struct MaterialDTO: Codable {
         unit = try c.decodeIfPresent(String.self, forKey: .unit)
         has_vat = try c.decodeIfPresent(Bool.self, forKey: .has_vat)
         min_stock_alert_threshold = try c.decodeIfPresent(Int.self, forKey: .min_stock_alert_threshold)
+        expiry_date = try c.decodeIfPresent(Date.self, forKey: .expiry_date)
+        expiry_alert_days = try c.decodeIfPresent(Int.self, forKey: .expiry_alert_days)
     }
     
-    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil, unit: String? = nil, has_vat: Bool? = nil, min_stock_alert_threshold: Int? = nil) {
+    init(id: UUID, name: String, stock_quantity: Int, stock_weight_kg: Double?, last_unit_price: Double, category: String?, store_id: UUID?, barcode: String? = nil, unit: String? = nil, has_vat: Bool? = nil, min_stock_alert_threshold: Int? = nil, expiry_date: Date? = nil, expiry_alert_days: Int? = nil) {
         self.id = id
         self.name = name
         self.stock_quantity = stock_quantity
@@ -1742,6 +1746,8 @@ struct MaterialDTO: Codable {
         self.unit = unit
         self.has_vat = has_vat
         self.min_stock_alert_threshold = min_stock_alert_threshold
+        self.expiry_date = expiry_date
+        self.expiry_alert_days = expiry_alert_days
     }
     
     init(from domain: MaterialItem, storeId: UUID?) {
@@ -1756,10 +1762,24 @@ struct MaterialDTO: Codable {
         self.unit = domain.unit
         self.has_vat = domain.hasVAT
         self.min_stock_alert_threshold = domain.minStockAlertThreshold
+        self.expiry_date = domain.expiryDate
+        self.expiry_alert_days = domain.expiryAlertDays
     }
     
     func toDomain() -> MaterialItem {
-        return MaterialItem(id: id, name: name, stockQuantity: stock_quantity, lastUnitPrice: last_unit_price, category: category ?? Category.materials.rawValue, barcode: barcode, unit: unit, hasVAT: has_vat ?? false, minStockAlertThreshold: min_stock_alert_threshold)
+        return MaterialItem(
+            id: id, 
+            name: name, 
+            stockQuantity: stock_quantity, 
+            lastUnitPrice: last_unit_price, 
+            category: category ?? Category.materials.rawValue, 
+            barcode: barcode, 
+            unit: unit, 
+            hasVAT: has_vat ?? false, 
+            minStockAlertThreshold: min_stock_alert_threshold,
+            expiryDate: expiry_date,
+            expiryAlertDays: expiry_alert_days
+        )
     }
 }
 
@@ -1989,6 +2009,8 @@ struct MaterialNoUnitDTO: Codable {
     let store_id: UUID?
     let barcode: String?
     let min_stock_alert_threshold: Int?
+    let expiry_date: Date?
+    let expiry_alert_days: Int?
     
     init(from domain: MaterialItem, storeId: UUID?) {
         self.id = domain.id
@@ -2000,6 +2022,8 @@ struct MaterialNoUnitDTO: Codable {
         self.store_id = storeId
         self.barcode = domain.barcode
         self.min_stock_alert_threshold = domain.minStockAlertThreshold
+        self.expiry_date = domain.expiryDate
+        self.expiry_alert_days = domain.expiryAlertDays
     }
 }
 

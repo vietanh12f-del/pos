@@ -13,7 +13,7 @@ struct AppNotificationItem: Identifiable, Codable {
     var isRead: Bool = false
 
     enum NotifType: String, Codable {
-        case websiteLead, attendance, leaveRequest, newOrder, wholesaleOrder, debt, lowStockMaterial
+        case websiteLead, attendance, leaveRequest, newOrder, wholesaleOrder, debt, lowStockMaterial, expiryMaterial
         var icon: String {
             switch self {
             case .websiteLead:    return "globe"
@@ -23,6 +23,7 @@ struct AppNotificationItem: Identifiable, Codable {
             case .wholesaleOrder: return "shippingbox.fill"
             case .debt:           return "exclamationmark.triangle.fill"
             case .lowStockMaterial: return "exclamationmark.circle.fill"
+            case .expiryMaterial: return "clock.badge.exclamationmark.fill"
             }
         }
         var color: Color {
@@ -34,6 +35,7 @@ struct AppNotificationItem: Identifiable, Codable {
             case .wholesaleOrder: return .purple
             case .debt:           return .red
             case .lowStockMaterial: return .orange
+            case .expiryMaterial: return .red
             }
         }
     }
@@ -276,6 +278,49 @@ class AppNotificationService: ObservableObject {
                 createdAt: Date(),
                 action: .openProductionManagement
             ))
+        }
+        
+        // 7. Nguyên liệu sắp hết hạn hoặc đã hết hạn
+        let now = Date()
+        let calendar = Calendar.current
+        let expiringMaterials = viewModel.materials.filter { mat in
+            guard let expiryDate = mat.expiryDate, let alertDays = mat.expiryAlertDays else { return false }
+            if let alertDate = calendar.date(byAdding: .day, value: -alertDays, to: expiryDate) {
+                return now >= alertDate
+            }
+            return false
+        }
+        let expiredMaterials = viewModel.materials.filter { mat in
+            guard let expiryDate = mat.expiryDate else { return false }
+            return now >= expiryDate
+        }
+        
+        if !expiredMaterials.isEmpty {
+            let names = expiredMaterials.map { $0.name }.joined(separator: ", ")
+            fresh.append(AppNotificationItem(
+                type: .expiryMaterial,
+                title: "Nguyên liệu đã hết hạn!",
+                body: "\(expiredMaterials.count) nguyên liệu đã hết hạn: \(names)",
+                createdAt: Date(),
+                action: .openProductionManagement
+            ))
+        }
+        
+        if !expiringMaterials.isEmpty {
+            let expiringSoon = expiringMaterials.filter { mat in
+                guard let expiryDate = mat.expiryDate else { return false }
+                return now < expiryDate
+            }
+            if !expiringSoon.isEmpty {
+                let names = expiringSoon.map { $0.name }.joined(separator: ", ")
+                fresh.append(AppNotificationItem(
+                    type: .expiryMaterial,
+                    title: "Nguyên liệu sắp hết hạn",
+                    body: "\(expiringSoon.count) nguyên liệu sắp hết hạn: \(names)",
+                    createdAt: Date(),
+                    action: .openProductionManagement
+                ))
+            }
         }
 
         // Merge: giữ isRead của item cũ nếu cùng type+title

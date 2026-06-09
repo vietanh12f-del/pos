@@ -42,6 +42,10 @@ struct MaterialEditView: View {
     @State private var hasVAT: Bool = false
     @State private var minStockAlertThreshold: Int? = nil
     @State private var showSetThresholdSheet = false
+    @State private var expiryDate: Date? = nil
+    @State private var expiryAlertDays: Int? = nil
+    @State private var showExpiryDatePicker = false
+    @State private var showExpiryAlertSheet = false
     
     // MARK: - Summary Section State
     @State private var summaryStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
@@ -117,6 +121,30 @@ struct MaterialEditView: View {
                         }
                     }
                     .tint(Color.themePrimary)
+                    
+                    HStack {
+                        Text("Ngày hết hạn")
+                        Spacer()
+                        if let date = expiryDate {
+                            Text(formattedDate(date))
+                                .foregroundStyle(.blue)
+                        } else {
+                            Text("Chọn ngày")
+                                .foregroundStyle(.gray)
+                        }
+                        Button {
+                            showExpiryDatePicker = true
+                        } label: {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(.gray)
+                        }
+                        Button {
+                            showExpiryAlertSheet = true
+                        } label: {
+                            Image(systemName: expiryAlertDays != nil ? "bell.fill" : "bell")
+                                .foregroundStyle(expiryAlertDays != nil ? .orange : .gray)
+                        }
+                    }
                 }
                 
                 if case .edit(_) = mode, StoreManager.shared.currentMember?.role == .owner {
@@ -670,6 +698,46 @@ struct MaterialEditView: View {
                 }
             )
         }
+        .sheet(isPresented: $showExpiryDatePicker) {
+            VStack(spacing: 20) {
+                Text("Chọn ngày hết hạn")
+                    .font(.headline)
+                
+                DatePicker("", selection: Binding(
+                    get: { expiryDate ?? Date() },
+                    set: { expiryDate = $0 }
+                ), displayedComponents: .date)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                
+                HStack(spacing: 20) {
+                    Button("Xóa ngày") {
+                        expiryDate = nil
+                        showExpiryDatePicker = false
+                    }
+                    Spacer()
+                    Button("Đóng") {
+                        showExpiryDatePicker = false
+                    }
+                }
+                .padding()
+            }
+            .padding()
+            .presentationDetents([.height(380)])
+        }
+        .sheet(isPresented: $showExpiryAlertSheet) {
+            SetExpiryAlertSheet(
+                currentDays: expiryAlertDays,
+                expiryDate: expiryDate,
+                onSave: { days in
+                    expiryAlertDays = days
+                    showExpiryAlertSheet = false
+                },
+                onCancel: {
+                    showExpiryAlertSheet = false
+                }
+            )
+        }
         .onAppear {
             if case .edit(let material) = mode {
                 name = material.name
@@ -682,6 +750,8 @@ struct MaterialEditView: View {
                 barcode = material.barcode ?? ""
                 hasVAT = material.hasVAT
                 minStockAlertThreshold = material.minStockAlertThreshold
+                expiryDate = material.expiryDate
+                expiryAlertDays = material.expiryAlertDays
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -692,6 +762,13 @@ struct MaterialEditView: View {
         case .add: return "Thêm nguyên liệu"
         case .edit: return "Sửa nguyên liệu"
         }
+    }
+    
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.locale = Locale(identifier: "vi_VN")
+        return formatter.string(from: date)
     }
     
     // MARK: - Material Import Summary Computed Properties
@@ -796,7 +873,19 @@ struct MaterialEditView: View {
         let qty = stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)
         switch mode {
         case .add:
-            let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT, minStockAlertThreshold: minStockAlertThreshold)
+            let material = MaterialItem(
+                id: UUID(), 
+                name: name, 
+                stockQuantity: qty, 
+                lastUnitPrice: unit, 
+                category: selectedCategoryName, 
+                barcode: barcode.isEmpty ? nil : barcode, 
+                unit: selectedUnit, 
+                hasVAT: hasVAT, 
+                minStockAlertThreshold: minStockAlertThreshold,
+                expiryDate: expiryDate,
+                expiryAlertDays: expiryAlertDays
+            )
             Task {
                 try? await viewModel.databaseSaveMaterial(material)
                 viewModel.addMaterialCategory(selectedCategoryName)
@@ -804,7 +893,19 @@ struct MaterialEditView: View {
                 dismiss()
             }
         case .edit(let m):
-            let updated = MaterialItem(id: m.id, name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT, minStockAlertThreshold: minStockAlertThreshold)
+            let updated = MaterialItem(
+                id: m.id, 
+                name: name, 
+                stockQuantity: qty, 
+                lastUnitPrice: unit, 
+                category: selectedCategoryName, 
+                barcode: barcode.isEmpty ? nil : barcode, 
+                unit: selectedUnit, 
+                hasVAT: hasVAT, 
+                minStockAlertThreshold: minStockAlertThreshold,
+                expiryDate: expiryDate,
+                expiryAlertDays: expiryAlertDays
+            )
             Task {
                 try? await viewModel.databaseUpdateMaterial(updated)
                 viewModel.addMaterialCategory(selectedCategoryName)
@@ -972,6 +1073,88 @@ struct SetMinStockThresholdSheet: View {
                         gramsSelection = remainder
                         kgRangeBase = (kgSelection / 100) * 100
                     }
+                }
+            }
+        }
+    }
+}
+
+struct SetExpiryAlertSheet: View {
+    let currentDays: Int?
+    let expiryDate: Date?
+    let onSave: (Int?) -> Void
+    let onCancel: () -> Void
+    
+    @State private var alertDays: Int = 7
+    @State private var isAlertEnabled: Bool = false
+    
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.locale = Locale(identifier: "vi_VN")
+        return formatter.string(from: date)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Text("Cảnh báo hết hạn")
+                    .font(.headline)
+                
+                if let expiryDate = expiryDate {
+                    Text("Ngày hết hạn: \(formattedDate(expiryDate))")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                } else {
+                    Text("Vui lòng chọn ngày hết hạn trước")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                
+                Toggle("Bật cảnh báo trước khi hết hạn", isOn: $isAlertEnabled)
+                    .tint(.orange)
+                    .disabled(expiryDate == nil)
+                
+                if isAlertEnabled && expiryDate != nil {
+                    HStack(spacing: 12) {
+                        Text("Nhắc trước")
+                        Spacer()
+                        Picker("", selection: $alertDays) {
+                            Text("1 ngày").tag(1)
+                            Text("3 ngày").tag(3)
+                            Text("7 ngày").tag(7)
+                            Text("14 ngày").tag(14)
+                            Text("30 ngày").tag(30)
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .padding(.horizontal)
+                }
+                
+                Spacer()
+                
+                HStack {
+                    Button("Huỷ") {
+                        onCancel()
+                    }
+                    Spacer()
+                    Button("Lưu") {
+                        if isAlertEnabled && expiryDate != nil {
+                            onSave(alertDays)
+                        } else {
+                            onSave(nil)
+                        }
+                    }
+                    .fontWeight(.semibold)
+                }
+                .font(.headline)
+            }
+            .padding()
+            .presentationDetents([.height(350)])
+            .onAppear {
+                if let current = currentDays, expiryDate != nil {
+                    isAlertEnabled = true
+                    alertDays = current
                 }
             }
         }
