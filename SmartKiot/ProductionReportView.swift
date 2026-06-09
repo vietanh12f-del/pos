@@ -1108,17 +1108,29 @@ private struct ProductionReportRow {
 private struct ProductionReportCard: View {
     let row: ProductionReportRow
     let selectedFinishedGoodName: String?
-    let totalFinishedImportGramsInDay: Int
     let hasMultipleFinishedGoods: Bool
     let onSelectFinishedGood: () -> Void
+    let allDayImports: [ProductionTransaction]
+    let onSelectImport: (UUID) -> Void
 
     @State private var showMaterialDetails = false
     @State private var showDeleteInfo = false
+    @State private var showImportDetails = false
+    @State private var showImportPicker = false
 
     private var isDeleted: Bool { row.transaction?.isDeleted ?? false }
 
+    private var totalFinishedImportGrams: Int {
+        guard let importTx = row.finishedImportTx else { return 0 }
+        let allItems = importTx.items
+        if let name = selectedFinishedGoodName {
+            return allItems.filter { $0.name == name }.reduce(0) { $0 + $1.quantity }
+        }
+        return allItems.reduce(0) { $0 + $1.quantity }
+    }
+
     private var lossPercent: Double {
-        row.finishedProductLossPercent(importGrams: totalFinishedImportGramsInDay)
+        row.finishedProductLossPercent(importGrams: totalFinishedImportGrams)
     }
 
     var body: some View {
@@ -1226,7 +1238,7 @@ private struct ProductionReportCard: View {
                         }
                     }
                     Spacer()
-                    Text(totalFinishedImportGramsInDay > 0 ? FormatUtils.formatWeight(totalFinishedImportGramsInDay) : "—")
+                    Text(totalFinishedImportGrams > 0 ? FormatUtils.formatWeight(totalFinishedImportGrams) : "—")
                         .fontWeight(.bold).foregroundStyle(isDeleted ? .gray : Color.themePrimary)
                 }
                 GridRow {
@@ -1238,6 +1250,21 @@ private struct ProductionReportCard: View {
             }
             .font(.subheadline)
             .opacity(isDeleted ? 0.5 : 1)
+
+            // Import details button
+            if let importTx = row.finishedImportTx, !isDeleted {
+                Divider()
+                Button { showImportDetails.toggle() } label: {
+                    HStack {
+                        Text("Chi tiết nhập thành phẩm").font(.subheadline).fontWeight(.medium)
+                        Spacer()
+                        Image(systemName: showImportDetails ? "chevron.up" : "chevron.down").font(.caption)
+                    }
+                    .foregroundStyle(Color.themePrimary)
+                }
+                .buttonStyle(.plain)
+                if showImportDetails { importDetailsSection(importTx: importTx) }
+            }
 
             if !isDeleted {
                 Divider()
@@ -1258,6 +1285,61 @@ private struct ProductionReportCard: View {
         .cornerRadius(14)
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(isDeleted ? Color.red.opacity(0.2) : Color.clear, lineWidth: 1))
         .shadow(color: isDeleted ? .clear : .black.opacity(0.04), radius: 5, x: 0, y: 2)
+        .confirmationDialog("Chọn phiếu nhập thành phẩm", isPresented: $showImportPicker) {
+            ForEach(allDayImports.sorted(by: { $0.createdAt < $1.createdAt })) { importTx in
+                Button(importTx.sequenceNumber ?? "Phiếu nhập \(formatTime(importTx.createdAt))") {
+                    onSelectImport(importTx.id)
+                }
+            }
+            Button("Huỷ", role: .cancel) { }
+        }
+    }
+
+    // MARK: Import details
+    @ViewBuilder
+    private func importDetailsSection(importTx: ProductionTransaction) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                if let seq = importTx.sequenceNumber {
+                    Label(seq, systemImage: "doc.text").font(.subheadline).fontWeight(.semibold)
+                } else {
+                    Label("Phiếu nhập", systemImage: "doc.text").font(.subheadline).fontWeight(.semibold)
+                }
+                Spacer()
+                // Button to change import
+                Button { showImportPicker = true } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(Color.themePrimary)
+                }
+                .buttonStyle(.plain)
+            }
+            HStack {
+                Text(formatTime(importTx.createdAt)).font(.caption).foregroundStyle(.gray)
+                if let creator = importTx.creatorName {
+                    Text("•").font(.caption).foregroundStyle(.gray)
+                    Text("Người tạo: \(creator)").font(.caption)
+                }
+            }
+            if let note = importTx.note, !note.isEmpty {
+                HStack(alignment: .top) {
+                    Text("Ghi chú:").font(.caption).foregroundStyle(.gray)
+                    Text(note).font(.caption)
+                }
+            }
+            Divider()
+            ForEach(importTx.items) { item in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.name).font(.subheadline).fontWeight(.medium)
+                    HStack {
+                        Text("Số lượng:").font(.caption).foregroundStyle(.gray)
+                        Text(FormatUtils.formatWeight(item.quantity)).font(.caption).fontWeight(.semibold)
+                    }
+                }
+                .padding(8).background(Color.themePrimary.opacity(0.05)).cornerRadius(8)
+            }
+        }
+        .padding(.top, 4)
     }
 
     // MARK: Material details
@@ -1581,6 +1663,9 @@ struct MaterialExportReportView: View {
     @State private var rangeData: [String: DayReportData] = [:]
     @State private var expandedDays: Set<String> = []
     @State private var allExportTxs: [ProductionTransaction] = []
+    
+    // Track selected import per log
+    @State private var selectedImportByLogId: [UUID: UUID] = [:]
 
     struct DayReportData {
         let date: Date
@@ -1847,7 +1932,9 @@ struct MaterialExportReportView: View {
     private var singleDayContent: some View {
         ScrollView {
             VStack(spacing: 0) {
-                autoSection(logs: reportRows, finishedImports: finishedImports)
+                autoSection(logs: reportRows, finishedImports: finishedImports, onSelectImport: { logId, importId in
+                    selectedImportByLogId[logId] = importId
+                })
                 Divider().padding(.horizontal)
                 manualSection(exports: filteredExports(manualExports))
             }
@@ -1897,7 +1984,9 @@ struct MaterialExportReportView: View {
 
                             if isExpanded {
                                 VStack(spacing: 0) {
-                                    autoSection(logs: dayRows, finishedImports: dayData.finishedImports)
+                                    autoSection(logs: dayRows, finishedImports: dayData.finishedImports, onSelectImport: { logId, importId in
+                                        selectedImportByLogId[logId] = importId
+                                    })
                                     Divider().padding(.horizontal)
                                     manualSection(exports: filteredExports(dayData.manualExports))
                                 }
@@ -1917,27 +2006,12 @@ struct MaterialExportReportView: View {
 
     // MARK: - Reusable sections
 
-    private func computeAutoSectionData(
-        logs: [ProductionReportRow],
-        finishedImports: [ProductionTransaction]
-    ) -> (allNames: [String], totalGrams: Int, onSelect: () -> Void) {
-        let allNames = Array(Set(finishedImports.flatMap { $0.items.map { $0.name } })).sorted()
-        let allItems = finishedImports.flatMap { $0.items }
-        let totalGrams: Int
-        if let name = selectedFinishedGoodName {
-            totalGrams = allItems.filter { $0.name == name }.reduce(0) { $0 + $1.quantity }
-        } else {
-            totalGrams = allItems.reduce(0) { $0 + $1.quantity }
-        }
-        let onSelect: () -> Void = { [self] in
-            self.finishedImports = finishedImports
-            self.showFinishedGoodPicker = true
-        }
-        return (allNames, totalGrams, onSelect)
-    }
-
     @ViewBuilder
-    private func autoSection(logs: [ProductionReportRow], finishedImports: [ProductionTransaction]) -> some View {
+    private func autoSection(
+        logs: [ProductionReportRow], 
+        finishedImports: [ProductionTransaction],
+        onSelectImport: @escaping (UUID, UUID) -> Void // (logId, importId)
+    ) -> some View {
         HStack {
             Label("Báo cáo xuất tự động", systemImage: "wand.and.stars")
                 .font(.subheadline).fontWeight(.semibold).foregroundStyle(.purple)
@@ -1951,15 +2025,20 @@ struct MaterialExportReportView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal).padding(.bottom, 10)
         } else {
-            let data = computeAutoSectionData(logs: logs, finishedImports: finishedImports)
+            let allNames = Array(Set(finishedImports.flatMap { $0.items.map { $0.name } })).sorted()
+            let onSelect: () -> Void = { [self] in
+                self.finishedImports = finishedImports
+                self.showFinishedGoodPicker = true
+            }
             VStack(spacing: 12) {
                 ForEach(logs, id: \.log.id) { row in
                     ProductionReportCard(
                         row: row,
                         selectedFinishedGoodName: selectedFinishedGoodName,
-                        totalFinishedImportGramsInDay: data.totalGrams,
-                        hasMultipleFinishedGoods: data.allNames.count > 1,
-                        onSelectFinishedGood: data.onSelect
+                        hasMultipleFinishedGoods: allNames.count > 1,
+                        onSelectFinishedGood: onSelect,
+                        allDayImports: finishedImports,
+                        onSelectImport: { importId in onSelectImport(row.log.id, importId) }
                     )
                 }
             }
@@ -2025,7 +2104,16 @@ struct MaterialExportReportView: View {
             let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
             let afterBoil = max(0, log.data.afterBoilGrams)
             let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
-            let importTx = finishedImports.filter { $0.createdAt >= log.createdAt }.min(by: { $0.createdAt < $1.createdAt })
+            
+            // Use selected import if available, else default to first after log time
+            let importTx: ProductionTransaction?
+            if let selectedId = selectedImportByLogId[log.id],
+               let tx = finishedImports.first(where: { $0.id == selectedId }) {
+                importTx = tx
+            } else {
+                importTx = finishedImports.filter { $0.createdAt >= log.createdAt }.min(by: { $0.createdAt < $1.createdAt })
+            }
+            
             let exportTx = allExportTxs.first(where: { $0.id == log.productionTransactionId })
             guard let tx = exportTx, !tx.isDeleted else { return nil }
             var row = ProductionReportRow(log: log, freshTotalGrams: freshTotal, afterBoilGrams: afterBoil,
