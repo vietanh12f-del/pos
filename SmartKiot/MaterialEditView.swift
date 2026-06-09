@@ -792,7 +792,8 @@ struct MaterialEditView: View {
     }
     
     private func save() {
-        guard let unit = Double(importPrice), let qty = Int(stock) else { return }
+        let unit = Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))
+        let qty = stockWheelSelection > 0 ? stockWheelSelection : (Int(stock) ?? 0)
         switch mode {
         case .add:
             let material = MaterialItem(id: UUID(), name: name, stockQuantity: qty, lastUnitPrice: unit, category: selectedCategoryName, barcode: barcode.isEmpty ? nil : barcode, unit: selectedUnit, hasVAT: hasVAT, minStockAlertThreshold: minStockAlertThreshold)
@@ -832,71 +833,145 @@ struct SetMinStockThresholdSheet: View {
     
     @State private var thresholdValue: Int = 0
     @State private var isThresholdEnabled: Bool = false
+    // Wheel picker states
+    @State private var wheelValue: Int = 0
+    @State private var wheelMax: Int = 1000
+    @State private var kgSelection: Int = 0
+    @State private var gramsSelection: Int = 0
+    @State private var gramsMax: Int = 990
+    @State private var kgRangeBase: Int = 0
+    @State private var showKgRangePicker: Bool = false
     
     var body: some View {
         NavigationStack {
-            Form {
+            VStack(spacing: 12) {
+                Text("Cảnh báo tồn kho")
+                    .font(.headline)
+                
                 Section {
                     Toggle("Bật cảnh báo tồn kho thấp", isOn: $isThresholdEnabled)
                         .tint(.orange)
                     
                     if isThresholdEnabled {
                         HStack {
-                            Text("Cảnh báo khi còn")
+                            Button {
+                                showKgRangePicker = true
+                            } label: {
+                                Text(kgRangeBase <= 0 ? ">0" : ">\(kgRangeBase)")
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }
+                            .buttonStyle(.plain)
                             Spacer()
-                            if unit.lowercased() == "cái" {
-                                Stepper("\(thresholdValue) cái", value: $thresholdValue, in: 0...10000)
-                            } else {
-                                HStack(spacing: 4) {
-                                    let kg = thresholdValue / 1000
-                                    let grams = thresholdValue % 1000
-                                    if kg > 0 {
-                                        Text("\(kg) kg")
-                                            .fontWeight(.semibold)
+                        }
+                        .padding(.horizontal)
+                        
+                        if unit.lowercased() == "cái" {
+                            Picker("", selection: $wheelValue) {
+                                ForEach(Array(0...wheelMax), id: \.self) { v in
+                                    Text("\(v) cái").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: wheelValue) { newValue in
+                                if newValue >= wheelMax - 10 {
+                                    wheelMax += 200
+                                }
+                            }
+                        } else {
+                            HStack {
+                                VStack {
+                                    Text("Kg").font(.caption).foregroundStyle(.gray)
+                                    Picker("", selection: $kgSelection) {
+                                        ForEach(Array(kgRangeBase...wheelMax), id: \.self) { kg in
+                                            Text("\(kg)").tag(kg)
+                                        }
                                     }
-                                    if grams > 0 {
-                                        Text("\(grams) gam")
-                                            .fontWeight(.semibold)
+                                    .pickerStyle(.wheel)
+                                }
+                                VStack {
+                                    Text("Gam").font(.caption).foregroundStyle(.gray)
+                                    Picker("", selection: $gramsSelection) {
+                                        ForEach(Array(stride(from: 0, through: gramsMax, by: 1)), id: \.self) { g in
+                                            Text("\(g)").tag(g)
+                                        }
                                     }
-                                    if kg == 0 && grams == 0 {
-                                        Text("0 gam")
-                                            .fontWeight(.semibold)
-                                    }
-                                    Stepper("", value: $thresholdValue, in: 0...1000000, step: 100)
-                                        .labelsHidden()
+                                    .pickerStyle(.wheel)
                                 }
                             }
                         }
                     }
-                } header: {
-                    Text("Cài đặt cảnh báo")
-                } footer: {
-                    Text("Khi tồn kho của nguyên liệu đạt mức này, sẽ có cảnh báo trên Trang chủ và được đánh dấu màu đỏ.")
                 }
-            }
-            .navigationTitle("Cảnh báo tồn kho")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                
+                Spacer()
+                
+                HStack {
                     Button("Huỷ") {
                         onCancel()
                     }
-                }
-                ToolbarItem(placement: .primaryAction) {
+                    Spacer()
                     Button("Lưu") {
+                        let total = unit.lowercased() == "cái" 
+                            ? wheelValue 
+                            : kgSelection * 1000 + gramsSelection
                         if isThresholdEnabled {
-                            onSave(thresholdValue)
+                            onSave(total)
                         } else {
                             onSave(nil)
                         }
                     }
                     .fontWeight(.semibold)
                 }
+                .font(.headline)
+            }
+            .padding()
+            .presentationDetents([.height(380)])
+            .sheet(isPresented: $showKgRangePicker) {
+                VStack(spacing: 16) {
+                    Text("Chọn vùng giá trị").font(.headline)
+                    Picker("", selection: $kgRangeBase) {
+                        ForEach(Array(stride(from: 0, through: wheelMax, by: 100)), id: \.self) { v in
+                            Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                        }
+                    }
+                    .pickerStyle(.wheel)
+                    .onChange(of: kgRangeBase) { newValue in
+                        if newValue >= wheelMax - 100 {
+                            wheelMax += 500
+                        }
+                    }
+                    
+                    HStack(spacing: 12) {
+                        Button {
+                            if kgSelection < kgRangeBase { kgSelection = kgRangeBase }
+                            showKgRangePicker = false
+                        } label: {
+                            Text("Xong")
+                                .font(.subheadline).fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary)
+                                .cornerRadius(10)
+                        }
+                    }
+                }
+                .padding()
+                .presentationDetents([.height(320)])
             }
             .onAppear {
                 if let current = currentThreshold {
                     isThresholdEnabled = true
-                    thresholdValue = current
+                    if unit.lowercased() == "cái" {
+                        wheelValue = current
+                    } else {
+                        kgSelection = max(0, current / 1000)
+                        let remainder = max(0, current % 1000)
+                        gramsSelection = remainder
+                        kgRangeBase = (kgSelection / 100) * 100
+                    }
                 }
             }
         }
