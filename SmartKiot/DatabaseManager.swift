@@ -1710,7 +1710,7 @@ struct MaterialDTO: Codable {
     let unit: String?
     let has_vat: Bool?
     let min_stock_alert_threshold: Int?
-    let expiry_date: Date?
+    let expiry_date: String?
     let expiry_alert_days: Int?
     
     enum CodingKeys: String, CodingKey {
@@ -1730,7 +1730,7 @@ struct MaterialDTO: Codable {
         unit = try c.decodeIfPresent(String.self, forKey: .unit)
         has_vat = try c.decodeIfPresent(Bool.self, forKey: .has_vat)
         min_stock_alert_threshold = try c.decodeIfPresent(Int.self, forKey: .min_stock_alert_threshold)
-        expiry_date = try c.decodeIfPresent(Date.self, forKey: .expiry_date)
+        expiry_date = try c.decodeIfPresent(String.self, forKey: .expiry_date)
         expiry_alert_days = try c.decodeIfPresent(Int.self, forKey: .expiry_alert_days)
     }
     
@@ -1746,7 +1746,15 @@ struct MaterialDTO: Codable {
         self.unit = unit
         self.has_vat = has_vat
         self.min_stock_alert_threshold = min_stock_alert_threshold
-        self.expiry_date = expiry_date
+        
+        if let date = expiry_date {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.expiry_date = formatter.string(from: date)
+        } else {
+            self.expiry_date = nil
+        }
+        
         self.expiry_alert_days = expiry_alert_days
     }
     
@@ -1762,11 +1770,40 @@ struct MaterialDTO: Codable {
         self.unit = domain.unit
         self.has_vat = domain.hasVAT
         self.min_stock_alert_threshold = domain.minStockAlertThreshold
-        self.expiry_date = domain.expiryDate
+        
+        if let date = domain.expiryDate {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.expiry_date = formatter.string(from: date)
+        } else {
+            self.expiry_date = nil
+        }
+        
         self.expiry_alert_days = domain.expiryAlertDays
     }
     
     func toDomain() -> MaterialItem {
+        let date: Date?
+        if let dateStr = expiry_date {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let d = formatter.date(from: dateStr) {
+                date = d
+            } else {
+                formatter.formatOptions = [.withInternetDateTime]
+                if let d = formatter.date(from: dateStr) {
+                    date = d
+                } else {
+                    let simpleFormatter = DateFormatter()
+                    simpleFormatter.dateFormat = "yyyy-MM-dd"
+                    simpleFormatter.locale = Locale(identifier: "en_US_POSIX")
+                    date = simpleFormatter.date(from: dateStr)
+                }
+            }
+        } else {
+            date = nil
+        }
+        
         return MaterialItem(
             id: id, 
             name: name, 
@@ -1777,7 +1814,7 @@ struct MaterialDTO: Codable {
             unit: unit, 
             hasVAT: has_vat ?? false, 
             minStockAlertThreshold: min_stock_alert_threshold,
-            expiryDate: expiry_date,
+            expiryDate: date,
             expiryAlertDays: expiry_alert_days
         )
     }
@@ -2009,7 +2046,7 @@ struct MaterialNoUnitDTO: Codable {
     let store_id: UUID?
     let barcode: String?
     let min_stock_alert_threshold: Int?
-    let expiry_date: Date?
+    let expiry_date: String?
     let expiry_alert_days: Int?
     
     init(from domain: MaterialItem, storeId: UUID?) {
@@ -2022,7 +2059,15 @@ struct MaterialNoUnitDTO: Codable {
         self.store_id = storeId
         self.barcode = domain.barcode
         self.min_stock_alert_threshold = domain.minStockAlertThreshold
-        self.expiry_date = domain.expiryDate
+        
+        if let date = domain.expiryDate {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.expiry_date = formatter.string(from: date)
+        } else {
+            self.expiry_date = nil
+        }
+        
         self.expiry_alert_days = domain.expiryAlertDays
     }
 }
