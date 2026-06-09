@@ -2287,6 +2287,9 @@ private struct MaterialExportPrintView: View {
                 if let name = creatorName {
                     Text("• Người tạo: " + name)
                 }
+                if vatFilter == "Tất cả" && creatorName == nil {
+                    Text("• Không áp dụng bộ lọc")
+                }
             }
             .font(.caption)
 
@@ -2321,16 +2324,33 @@ private struct MaterialExportPrintView: View {
                 }
             }
 
+            // Automatic Exports Details
+            if !autoLogs.isEmpty {
+                Divider()
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Chi tiết xuất tự động")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    ForEach(autoLogs.sorted { $0.createdAt < $1.createdAt }, id: \.id) { log in
+                        autoExportLogCard(log: log)
+                    }
+                }
+            }
+
+            // Manual Exports Details
             if !manualExports.isEmpty {
                 Divider()
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Xuất thủ công:")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Chi tiết xuất thủ công")
                         .font(.headline)
                         .fontWeight(.semibold)
-                    Text(String(manualExports.count) + " phiếu")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
+                    
+                    ForEach(manualExports.sorted { $0.createdAt < $1.createdAt }, id: \.id) { tx in
+                        manualExportCard(tx: tx)
+                    }
                 }
             }
 
@@ -2341,11 +2361,198 @@ private struct MaterialExportPrintView: View {
         .background(Color.white)
     }
 
+    // MARK: - Automatic Export Card
+    @ViewBuilder
+    private func autoExportLogCard(log: AutoMaterialExportLog) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(log.templateName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(formatTime(log.createdAt))
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            
+            if let creator = log.creatorName, !creator.isEmpty {
+                Text("Người tạo: \(creator)")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            // Summary stats
+            let freshTotal = log.data.fresh.reduce(0) { $0 + Int(max(0, $1.totalExportGrams.rounded())) }
+            let afterBoil = max(0, log.data.afterBoilGrams)
+            let ratio: Double = freshTotal > 0 ? (Double(afterBoil) / Double(freshTotal) * 100) : 0
+            
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Nguyên liệu tươi")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text(FormatUtils.formatWeight(freshTotal))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Sau luộc")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text(FormatUtils.formatWeight(afterBoil))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("Tỉ lệ")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text(String(format: "%.1f%%", ratio))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+            }
+            
+            // Fresh materials
+            if !log.data.fresh.isEmpty {
+                Divider()
+                    .padding(.vertical, 4)
+                Text(log.data.freshTitle)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.purple)
+                ForEach(log.data.fresh, id: \.id) { item in
+                    HStack {
+                        Text(item.name)
+                            .font(.caption)
+                        Spacer()
+                        Text(FormatUtils.formatWeight(Int(item.totalExportGrams)))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+            
+            // Auto materials
+            if !log.data.autoMaterials.isEmpty {
+                if !log.data.fresh.isEmpty {
+                    Divider()
+                        .padding(.vertical, 4)
+                }
+                Text(log.data.autoMaterialsTitle)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.purple)
+                ForEach(log.data.autoMaterials, id: \.id) { item in
+                    HStack {
+                        Text(item.name)
+                            .font(.caption)
+                        Spacer()
+                        Text(FormatUtils.formatWeight(Int(item.totalExportGrams)))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    // MARK: - Manual Export Card
+    @ViewBuilder
+    private func manualExportCard(tx: ProductionTransaction) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Xuất thủ công")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(formatTime(tx.createdAt))
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            
+            if let creator = tx.creatorName, !creator.isEmpty {
+                Text("Người tạo: \(creator)")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            
+            if let note = tx.note, !note.isEmpty {
+                Text("Ghi chú: \(note)")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            ForEach(tx.items) { item in
+                HStack {
+                    Text(item.name)
+                        .font(.caption)
+                    Spacer()
+                    Text(FormatUtils.formatWeight(item.quantity, unit: item.unit))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+            }
+            
+            // Total cost
+            let totalCost = tx.items.reduce(0.0) { sum, item in
+                let pricePerKg = getMaterialPrice(for: item.name)
+                let weightKg = Double(item.quantity) / 1000.0
+                return sum + (pricePerKg * weightKg)
+            }
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            HStack {
+                Text("Tổng tiền")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(formatCurrency(totalCost))
+                    .font(.caption)
+                    .fontWeight(.bold)
+            }
+        }
+        .padding(12)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private func getMaterialPrice(for name: String) -> Double {
+        materials.first(where: { $0.name.lowercased() == name.lowercased() })?.lastUnitPrice ?? 0
+    }
+
     private func formatDateTime(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "vi_VN")
         f.dateFormat = "dd/MM/yyyy HH:mm"
         return f.string(from: date)
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
+        f.dateFormat = "dd/MM HH:mm"
+        return f.string(from: date)
+    }
+
+    private func formatCurrency(_ value: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "VND"
+        f.locale = Locale(identifier: "vi_VN")
+        return f.string(from: NSNumber(value: value)) ?? "\(value) đ"
     }
 }
 
