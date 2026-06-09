@@ -1988,6 +1988,7 @@ struct MaterialNoUnitDTO: Codable {
     let category: String?
     let store_id: UUID?
     let barcode: String?
+    let min_stock_alert_threshold: Int?
     
     init(from domain: MaterialItem, storeId: UUID?) {
         self.id = domain.id
@@ -1998,6 +1999,7 @@ struct MaterialNoUnitDTO: Codable {
         self.category = domain.category
         self.store_id = storeId
         self.barcode = domain.barcode
+        self.min_stock_alert_threshold = domain.minStockAlertThreshold
     }
 }
 
