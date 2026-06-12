@@ -3475,69 +3475,128 @@ struct ContentView: View {
                 }
                 .padding()
                 
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .center, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Quét mã thanh toán")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.gray)
+                if showButtons {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .center, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Quét mã thanh toán")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.gray)
+                                let bankName = StoreManager.shared.currentStore?.bankName ?? ""
+                                let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? ""
+                                if bankName.isEmpty || bankAccount.isEmpty {
+                                    Text("Chưa cài đặt ngân hàng")
+                                        .font(.footnote)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(Color.red)
+                                        .lineLimit(nil)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                } else {
+                                    Text("\(bankName) - \(bankAccount)")
+                                        .font(.footnote)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(Color.themeTextDark)
+                                        .lineLimit(nil)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            Spacer()
                             let bankName = StoreManager.shared.currentStore?.bankName ?? ""
                             let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? ""
                             if bankName.isEmpty || bankAccount.isEmpty {
-                                Text("Chưa cài đặt ngân hàng")
-                                    .font(.footnote)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(Color.red)
-                                    .lineLimit(nil)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                if showButtons {
+                                    Button {
+                                        onOpenBankSettings?()
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "building.columns")
+                                            Text("Cài đặt ngân hàng")
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                }
                             } else {
-                                Text("\(bankName) - \(bankAccount)")
-                                    .font(.footnote)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(Color.themeTextDark)
-                                    .lineLimit(nil)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                if let image = qrImage {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .interpolation(.none)
+                                        .scaledToFit()
+                                        .frame(width: 200, height: 200)
+                                } else if let url = qrURL {
+                                    AsyncImage(url: url) { phase in
+                                        if let image = phase.image {
+                                            image.resizable().interpolation(.none).scaledToFit().frame(width: 200, height: 200)
+                                        } else {
+                                            ProgressView().frame(width: 200, height: 200)
+                                        }
+                                    }
+                                } else if let payload = billPayload {
+                                    QRCodeView(payload: payload).frame(width: 200, height: 200)
+                                }
                             }
                         }
-                        Spacer()
-                        let bankName = StoreManager.shared.currentStore?.bankName ?? ""
-                        let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber ?? ""
-                        if bankName.isEmpty || bankAccount.isEmpty {
-                            if showButtons {
-                                Button {
-                                    onOpenBankSettings?()
-                                } label: {
-                                    HStack {
-                                        Image(systemName: "building.columns")
-                                        Text("Cài đặt ngân hàng")
-                                    }
-                                }
-                                .buttonStyle(.borderedProminent)
+                        .padding()
+                        .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
+                    }
+                    .padding(.horizontal).padding(.bottom)
+                } else {
+                    // Show payment info when printing
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Thông tin thanh toán")
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.themeTextDark)
+                        
+                        HStack {
+                            Text("Tổng tiền")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(grandTotal))
+                                .font(.caption)
+                                .fontWeight(.bold)
+                        }
+                        
+                        HStack {
+                            Text("Đã trả")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(payFullAmount ? grandTotal : partialAmount))
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.green)
+                        }
+                        
+                        if !payFullAmount && (grandTotal - partialAmount) > 0 {
+                            HStack {
+                                Text("Công nợ")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Spacer()
+                                Text(formatCurrency(grandTotal - partialAmount))
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.red)
                             }
-                        } else {
-                            if let image = qrImage {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .interpolation(.none)
-                                    .scaledToFit()
-                                    .frame(width: 200, height: 200)
-                            } else if let url = qrURL {
-                                AsyncImage(url: url) { phase in
-                                    if let image = phase.image {
-                                        image.resizable().interpolation(.none).scaledToFit().frame(width: 200, height: 200)
-                                    } else {
-                                        ProgressView().frame(width: 200, height: 200)
-                                    }
-                                }
-                            } else if let payload = billPayload {
-                                QRCodeView(payload: payload).frame(width: 200, height: 200)
+                        }
+                        
+                        if let expectedDate = expectedPayDate {
+                            HStack {
+                                Text("Ngày dự kiến trả")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Spacer()
+                                Text(formatDateOnly(expectedDate))
+                                    .font(.caption)
+                                    .fontWeight(.bold)
                             }
                         }
                     }
                     .padding()
-                    .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.05)))
+                    .padding(.horizontal).padding(.bottom)
                 }
-                .padding(.horizontal).padding(.bottom)
                 
                 if showButtons {
                     VStack(alignment: .leading, spacing: 12) {
