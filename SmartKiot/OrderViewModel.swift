@@ -25,6 +25,31 @@ class OrderViewModel: ObservableObject {
     @Published var walkInAddress: String = ""
     @Published var walkInEmail: String = ""
     @Published var paymentReceiptImageURL: String? = nil
+    @Published var payFullAmount: Bool = true
+    @Published var partialAmount: Double = 0
+    @Published var expectedPayDate: Date? = nil
+    
+    var totalAmountWithVAT: Double {
+        let baseTotal = items.reduce(0) { $0 + $1.total }
+        if let vatRate = vatRate, StoreManager.shared.currentStoreVATEnabled() {
+            return baseTotal + (baseTotal * vatRate / 100)
+        }
+        return baseTotal
+    }
+    
+    var debtAmount: Double {
+        if payFullAmount {
+            return 0
+        }
+        return max(0, totalAmountWithVAT - partialAmount)
+    }
+    
+    var paidAmount: Double {
+        if payFullAmount {
+            return totalAmountWithVAT
+        }
+        return partialAmount
+    }
     
     // Pending export info (set by FinishedGoodsExportView before confirming)
     var pendingExportNote: String? = nil
@@ -3119,6 +3144,9 @@ class OrderViewModel: ObservableObject {
         discountAmountValue = 0
         discountFinalPriceTarget = nil
         vatRate = nil
+        payFullAmount = true
+        partialAmount = 0
+        expectedPayDate = nil
     }
     
     // MARK: - Calendar Stats
@@ -3346,8 +3374,9 @@ class OrderViewModel: ObservableObject {
     func makeBill(isPaid: Bool = false) -> Bill? {
         guard !items.isEmpty else { return nil }
         let cost = items.reduce(0) { $0 + $1.totalCost }
-        var bill = Bill(id: UUID(), createdAt: Date(), items: items, total: totalAmount, totalCost: cost)
-        bill.isPaid = isPaid
+        let grandTotal = totalAmountWithVAT
+        var bill = Bill(id: UUID(), createdAt: Date(), items: items, total: grandTotal, totalCost: cost)
+        bill.isPaid = debtAmount <= 0
         bill.customerName = walkInName
         bill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
         bill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
@@ -3355,11 +3384,15 @@ class OrderViewModel: ObservableObject {
         bill.paymentReceiptURL = paymentReceiptImageURL
         bill.sequenceNumber = currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
         bill.vatRate = vatRate
+        bill.paidAmount = paidAmount
+        bill.debtAmount = debtAmount
+        bill.expectedPayDate = expectedPayDate
         
         // Calculate VAT amount
         let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
         let rate = vatRate ?? StoreManager.shared.currentStoreVATRate()
-        bill.vatAmount = vatEnabled ? (totalAmount * rate / 100.0) : 0
+        let baseTotal = items.reduce(0) { $0 + $1.total }
+        bill.vatAmount = vatEnabled ? (baseTotal * rate / 100.0) : 0
         
         // Populate creator info
         if let profile = AuthManager.shared.currentUserProfile {
@@ -3390,7 +3423,7 @@ class OrderViewModel: ObservableObject {
     }
     
     func vietQRURL() -> URL? {
-        guard let bill = makeBill(), bill.total > 0 else { return nil }
+        guard let bill = makeBill(), (bill.paidAmount ?? bill.total) > 0 else { return nil }
         guard let rawBankName = StoreManager.shared.currentStore?.bankName, !rawBankName.isEmpty else { return nil }
         guard let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber, !bankAccount.isEmpty else { return nil }
         var bankName = rawBankName
@@ -3400,7 +3433,7 @@ class OrderViewModel: ObservableObject {
             bankName = String(cleanCode)
         }
         let finalBankAccount = bankAccount
-        let amount = Int(bill.total)
+        let amount = Int(bill.paidAmount ?? bill.total)
         let base = "https://img.vietqr.io/image/\(bankName)-\(finalBankAccount)-compact.png"
         let infoBase: String
         let shortId = bill.id.uuidString.prefix(8)

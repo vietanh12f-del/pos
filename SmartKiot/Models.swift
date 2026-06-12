@@ -92,6 +92,9 @@ struct Bill: Identifiable, Codable, Equatable {
     var sequenceNumber: String? = nil // Unique order number
     var vatRate: Double? = nil // VAT rate percentage (e.g., 10 for 10%)
     var vatAmount: Double = 0 // VAT amount
+    var paidAmount: Double? = nil // Amount paid
+    var debtAmount: Double? = nil // Remaining debt
+    var expectedPayDate: Date? = nil // Expected payment date
     
     var profit: Double {
         total - totalCost

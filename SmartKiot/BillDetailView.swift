@@ -59,10 +59,74 @@ struct BillDetailView: View {
                 onPickedReceiptImage: { img in receiptImage = img },
                 onEditDiscount: nil,
                 sequenceNumber: bill.sequenceNumber,
-                customVATRate: bill.vatRate
+                customVATRate: bill.vatRate,
+                payFullAmount: .constant(bill.paidAmount == nil || bill.paidAmount == bill.total),
+                partialAmount: .constant(bill.paidAmount ?? bill.total),
+                expectedPayDate: .constant(bill.expectedPayDate),
+                grandTotal: bill.total
             )
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+                
+                // Payment information
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Thông tin thanh toán")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                    
+                    HStack {
+                        Text("Tổng tiền")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        Text(formatCurrency(bill.total))
+                            .font(.caption)
+                            .fontWeight(.bold)
+                    }
+                    
+                    if let paidAmount = bill.paidAmount {
+                        HStack {
+                            Text("Đã trả")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(paidAmount))
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    
+                    if let debtAmount = bill.debtAmount {
+                        HStack {
+                            Text("Công nợ")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatCurrency(debtAmount))
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    
+                    if let expectedDate = bill.expectedPayDate {
+                        HStack {
+                            Text("Ngày dự kiến trả")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(formatDateOnly(expectedDate))
+                                .font(.caption)
+                                .fontWeight(.bold)
+                        }
+                    }
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
                 
                 if !dbEdits.isEmpty || viewModel.hasHistory(for: bill.id) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -249,7 +313,11 @@ struct BillDetailView: View {
                 onPickedReceiptImage: nil,
                 onEditDiscount: nil,
                 sequenceNumber: bill.sequenceNumber,
-                customVATRate: bill.vatRate
+                customVATRate: bill.vatRate,
+                payFullAmount: .constant(bill.paidAmount == nil || bill.paidAmount == bill.total),
+                partialAmount: .constant(bill.paidAmount ?? bill.total),
+                expectedPayDate: .constant(bill.expectedPayDate),
+                grandTotal: bill.total
             )
             .frame(width: 375)
             .background(Color.white)
@@ -288,6 +356,13 @@ struct BillDetailView: View {
             f.locale = Locale(identifier: "vi_VN")
             f.dateFormat = "dd/MM/yyyy HH:mm"
             return f.string(from: date)
+        }
+        private func formatCurrency(_ amount: Double) -> String {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .currency
+            formatter.locale = Locale(identifier: "vi_VN")
+            formatter.currencySymbol = "₫"
+            return formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
         }
     }
     
@@ -339,6 +414,13 @@ struct BillDetailView: View {
             f.dateFormat = "dd/MM/yyyy HH:mm"
             return f.string(from: date)
         }
+        private func formatCurrency(_ amount: Double) -> String {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .currency
+            formatter.locale = Locale(identifier: "vi_VN")
+            formatter.currencySymbol = "₫"
+            return formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
+        }
     }
     
     struct EditHistorySheet2: View {
@@ -359,6 +441,21 @@ struct BillDetailView: View {
         formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "dd/MM/yyyy HH:mm"
         return formatter.string(from: date)
+    }
+    
+    func formatDateOnly(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter.string(from: date)
+    }
+    
+    func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.currencySymbol = "₫"
+        return formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
     }
     
     private func generateQRURL(for bill: Bill) -> URL? {

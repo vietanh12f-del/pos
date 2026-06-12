@@ -2643,7 +2643,11 @@ struct ContentView: View {
                             onEditVAT: {
                                 vatRateInputText = String(format: "%.0f", viewModel.vatRate ?? StoreManager.shared.currentStoreVATRate())
                                 showVATRatePicker = true
-                            }
+                            },
+                            payFullAmount: $viewModel.payFullAmount,
+                            partialAmount: $viewModel.partialAmount,
+                            expectedPayDate: $viewModel.expectedPayDate,
+                            grandTotal: viewModel.totalAmountWithVAT
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -2802,7 +2806,11 @@ struct ContentView: View {
                     onPickedReceiptImage: nil,
                     onEditDiscount: nil,
                     sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber,
-                    customVATRate: viewModel.vatRate
+                    customVATRate: viewModel.vatRate,
+                    payFullAmount: .constant(true),
+                    partialAmount: .constant(viewModel.totalAmount),
+                    expectedPayDate: .constant(nil),
+                    grandTotal: viewModel.totalAmount
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -2846,7 +2854,11 @@ struct ContentView: View {
                 onPickedReceiptImage: nil,
                 onEditDiscount: nil,
                 sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber,
-                customVATRate: viewModel.vatRate
+                customVATRate: viewModel.vatRate,
+                payFullAmount: .constant(true),
+                partialAmount: .constant(viewModel.totalAmount),
+                expectedPayDate: .constant(nil),
+                grandTotal: viewModel.totalAmount
             )
             .frame(width: 375)
             let renderer = ImageRenderer(content: renderView)
@@ -3086,13 +3098,54 @@ struct ContentView: View {
         let sequenceNumber: String?
         var customVATRate: Double?
         var onEditVAT: (() -> Void)?
+        @Binding var payFullAmount: Bool
+        @Binding var partialAmount: Double
+        @Binding var expectedPayDate: Date?
+        let grandTotal: Double
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
         @State private var previewURL: URL?
         @StateObject private var previewLoader = CachedImageLoader()
         @StateObject private var originalLoader = CachedImageLoader()
+        @State private var showPartialAmountWheel = false
+        @State private var partialAmountMillionsSelection = 0
+        @State private var partialAmountThousandsSelection = 0
+        @State private var partialAmountHundredsSelection = 0
+        @State private var partialAmountMillionsRangeBase = 0
+        @State private var partialAmountThousandsRangeBase = 0
+        @State private var partialAmountHundredsRangeBase = 0
+        @State private var showPartialAmountMillionsRangePicker = false
+        @State private var showPartialAmountThousandsRangePicker = false
+        @State private var showPartialAmountHundredsRangePicker = false
+        @State private var showDatePicker = false
+        @State private var partialAmountSelection = 0
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil) {
+        private var partialAmountMillionsRange: ClosedRange<Int> {
+            let start = partialAmountMillionsRangeBase
+            let end = max(start, start + 500)
+            return start...end
+        }
+        
+        private var partialAmountThousandsRange: ClosedRange<Int> {
+            let start = partialAmountThousandsRangeBase
+            let end = min(start + 999, 999)
+            return start...end
+        }
+        
+        private var partialAmountHundredsRange: [Int] {
+            let start = partialAmountHundredsRangeBase
+            let end = min(start + 999, 999)
+            return Array(stride(from: start, through: end, by: 10))
+        }
+        
+        private func formatDateOnly(_ date: Date) -> String {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "vi_VN")
+            formatter.dateFormat = "dd/MM/yyyy"
+            return formatter.string(from: date)
+        }
+        
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, grandTotal: Double) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3113,6 +3166,10 @@ struct ContentView: View {
             self.sequenceNumber = sequenceNumber
             self.customVATRate = customVATRate
             self.onEditVAT = onEditVAT
+            self._payFullAmount = payFullAmount
+            self._partialAmount = partialAmount
+            self._expectedPayDate = expectedPayDate
+            self.grandTotal = grandTotal
         }
         
         var body: some View {
@@ -3282,7 +3339,7 @@ struct ContentView: View {
                             .fontWeight(.bold)
                             .foregroundStyle(Color.themeTextDark)
                         Spacer()
-                        Text(formatCurrency(totalAmount + vatAmount))
+                        Text(formatCurrency(grandTotal))
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.themePrimary)
@@ -3302,6 +3359,117 @@ struct ContentView: View {
                                 .onTapGesture {
                                     onEditDiscount?()
                                 }
+                        }
+                    }
+                    
+                    // Payment Options
+                    if showButtons {
+                        Divider()
+                            .padding(.vertical, 8)
+                        
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Thanh toán")
+                                .font(.headline)
+                                .foregroundStyle(Color.themeTextDark)
+                            
+                            // Payment Option Buttons
+                            HStack(spacing: 12) {
+                                Button {
+                                    payFullAmount = true
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: payFullAmount ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(payFullAmount ? Color.themePrimary : .gray)
+                                        Text("100%")
+                                            .font(.subheadline)
+                                            .fontWeight(payFullAmount ? .bold : .regular)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(payFullAmount ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08)))
+                                }
+                                .buttonStyle(.plain)
+
+                                Button {
+                                    payFullAmount = false
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: !payFullAmount ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(!payFullAmount ? Color.themePrimary : .gray)
+                                        Text("Trả một phần")
+                                            .font(.subheadline)
+                                            .fontWeight(!payFullAmount ? .bold : .regular)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(Capsule().fill(!payFullAmount ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08)))
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            if !payFullAmount {
+                                VStack(spacing: 12) {
+                                    HStack {
+                                        Text("Số tiền trả:")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.gray)
+                                        Spacer()
+                                        Button {
+                                            showPartialAmountWheel = true
+                                            let current = max(0, Int(partialAmount))
+                                            partialAmountMillionsSelection = current / 1_000_000
+                                            partialAmountThousandsSelection = (current % 1_000_000) / 1_000
+                                            partialAmountHundredsSelection = (current % 1_000) / 10
+                                        } label: {
+                                            Text(formatCurrency(partialAmount))
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(Color.themePrimary)
+                                        }
+                                    }
+                                    
+                                    let debt = max(0, grandTotal - partialAmount)
+                                    if debt > 0 {
+                                        HStack {
+                                            Text("Công nợ:")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.gray)
+                                            Spacer()
+                                            Text(formatCurrency(debt))
+                                                .font(.subheadline)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(.red)
+                                        }
+
+                                        // Expected Pay Date
+                                        HStack {
+                                            Text("Dự kiến trả hết:")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.gray)
+                                            Spacer()
+                                            Button {
+                                                showDatePicker = true
+                                            } label: {
+                                                HStack(spacing: 4) {
+                                                    Text(expectedPayDate == nil ? "Chưa xác định" : formatDateOnly(expectedPayDate!))
+                                                        .font(.subheadline)
+                                                        .fontWeight(.semibold)
+                                                        .foregroundStyle(expectedPayDate == nil ? .gray : Color.themePrimary)
+                                                    Image(systemName: "calendar")
+                                                        .font(.caption)
+                                                        .foregroundStyle(expectedPayDate == nil ? .gray : Color.themePrimary)
+                                                }
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 5)
+                                                .background(Capsule().fill(Color.gray.opacity(0.1)))
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                }
+                                .padding(10)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.05)))
+                            }
                         }
                     }
                 }
@@ -3537,6 +3705,231 @@ struct ContentView: View {
             }
             .background(Color.white)
             .cornerRadius(20)
+            // Partial Amount Wheel
+            .sheet(isPresented: $showPartialAmountWheel) {
+                NavigationStack {
+                    VStack(spacing: 12) {
+                        Text("Số tiền trả")
+                            .font(.headline)
+                        Text(formatCurrency(Double(partialAmountSelection)))
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        HStack(alignment: .top) {
+                            VStack(spacing: 2) {
+                                Button { showPartialAmountMillionsRangePicker = true } label: {
+                                    Text(partialAmountMillionsRangeBase <= 0 ? ">0" : ">\(partialAmountMillionsRangeBase)tr")
+                                        .fontWeight(.bold)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                                }
+                                .buttonStyle(.plain)
+                                Text("Triệu")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $partialAmountMillionsSelection) {
+                                    ForEach(partialAmountMillionsRange, id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: partialAmountMillionsSelection) { v in
+                                    partialAmountSelection = v * 1_000_000 + partialAmountThousandsSelection * 1_000 + partialAmountHundredsSelection
+                                }
+                            }
+                            VStack(spacing: 2) {
+                                Button { showPartialAmountThousandsRangePicker = true } label: {
+                                    Text(partialAmountThousandsRangeBase <= 0 ? ">0" : ">\(partialAmountThousandsRangeBase)")
+                                        .fontWeight(.bold)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                                }
+                                .buttonStyle(.plain)
+                                Text("Ngàn")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $partialAmountThousandsSelection) {
+                                    ForEach(partialAmountThousandsRange, id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: partialAmountThousandsSelection) { v in
+                                    partialAmountSelection = partialAmountMillionsSelection * 1_000_000 + v * 1_000 + partialAmountHundredsSelection
+                                }
+                            }
+                            VStack(spacing: 2) {
+                                Button { showPartialAmountHundredsRangePicker = true } label: {
+                                    Text(partialAmountHundredsRangeBase <= 0 ? ">0" : "\(partialAmountHundredsRangeBase)")
+                                        .fontWeight(.bold)
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 4)
+                                        .background(Capsule().fill(Color.gray.opacity(0.15)))
+                                }
+                                .buttonStyle(.plain)
+                                Text("Trăm")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Picker("", selection: $partialAmountHundredsSelection) {
+                                    ForEach(partialAmountHundredsRange, id: \.self) { v in
+                                        Text("\(v)").tag(v)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
+                                .onChange(of: partialAmountHundredsSelection) { v in
+                                    partialAmountSelection = partialAmountMillionsSelection * 1_000_000 + partialAmountThousandsSelection * 1_000 + v
+                                }
+                            }
+                        }
+                        HStack {
+                            Button("Đóng") {
+                                showPartialAmountWheel = false
+                            }
+                            Spacer()
+                            Button("Lưu") {
+                                partialAmount = Double(partialAmountSelection)
+                                showPartialAmountWheel = false
+                            }
+                        }
+                        .font(.headline)
+                    }
+                    .padding()
+                    .presentationDetents([.height(340)])
+                    // Range pickers
+                    .sheet(isPresented: $showPartialAmountMillionsRangePicker) {
+                        VStack(spacing: 16) {
+                            Text("Chọn vùng triệu")
+                                .font(.headline)
+                            Picker("", selection: $partialAmountMillionsRangeBase) {
+                                ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
+                                    Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            Button {
+                                if partialAmountMillionsSelection < partialAmountMillionsRangeBase {
+                                    partialAmountMillionsSelection = partialAmountMillionsRangeBase
+                                }
+                                showPartialAmountMillionsRangePicker = false
+                            } label: {
+                                Text("Xong")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.themePrimary)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding()
+                        .presentationDetents([.height(300)])
+                    }
+                    .sheet(isPresented: $showPartialAmountThousandsRangePicker) {
+                        VStack(spacing: 16) {
+                            Text("Chọn vùng ngàn")
+                                .font(.headline)
+                            Picker("", selection: $partialAmountThousandsRangeBase) {
+                                ForEach(Array(stride(from: 0, through: 999, by: 100)), id: \.self) { v in
+                                    Text(v == 0 ? ">0" : ">\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            Button {
+                                if partialAmountThousandsSelection < partialAmountThousandsRangeBase {
+                                    partialAmountThousandsSelection = partialAmountThousandsRangeBase
+                                }
+                                showPartialAmountThousandsRangePicker = false
+                            } label: {
+                                Text("Xong")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.themePrimary)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding()
+                        .presentationDetents([.height(300)])
+                    }
+                    .sheet(isPresented: $showPartialAmountHundredsRangePicker) {
+                        VStack(spacing: 16) {
+                            Text("Chọn vùng trăm")
+                                .font(.headline)
+                            Picker("", selection: $partialAmountHundredsRangeBase) {
+                                ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                    Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            Button {
+                                if partialAmountHundredsSelection < partialAmountHundredsRangeBase || partialAmountHundredsSelection > partialAmountHundredsRangeBase + 99 {
+                                    partialAmountHundredsSelection = partialAmountHundredsRangeBase
+                                }
+                                showPartialAmountHundredsRangePicker = false
+                            } label: {
+                                Text("Xong")
+                                    .font(.subheadline)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(Color.themePrimary)
+                                    .cornerRadius(10)
+                            }
+                        }
+                        .padding()
+                        .presentationDetents([.height(300)])
+                    }
+                }
+            }
+            // Date Picker
+            .sheet(isPresented: $showDatePicker) {
+                NavigationStack {
+                    VStack {
+                        DatePicker("Ngày dự kiến trả", selection: Binding(
+                            get: { expectedPayDate ?? Date() },
+                            set: { expectedPayDate = $0 }
+                        ), displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .padding()
+                        Spacer()
+                    }
+                    .navigationTitle("Ngày dự kiến trả")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showDatePicker = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Xong") { showDatePicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium])
+            }
+            .onAppear {
+                let initialPartialAmount = partialAmount
+                let millions = Int(initialPartialAmount / 1_000_000)
+                let thousands = Int((initialPartialAmount.truncatingRemainder(dividingBy: 1_000_000)) / 1_000)
+                let hundreds = Int(initialPartialAmount.truncatingRemainder(dividingBy: 1_000))
+                
+                partialAmountMillionsSelection = millions
+                partialAmountThousandsSelection = thousands
+                partialAmountHundredsSelection = hundreds
+                partialAmountSelection = millions * 1_000_000 + thousands * 1_000 + hundreds
+                
+                partialAmountMillionsRangeBase = max(0, millions - 500)
+                partialAmountThousandsRangeBase = max(0, thousands - 500)
+                partialAmountHundredsRangeBase = max(0, (hundreds / 100) * 100)
+            }
         }
         
         

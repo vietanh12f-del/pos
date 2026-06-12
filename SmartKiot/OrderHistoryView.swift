@@ -273,6 +273,13 @@ struct OrderHistoryView: View {
         return formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
     }
     
+    private func formatDateOnly(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter.string(from: date)
+    }
+    
     private func billItemsSummary(_ bill: Bill) -> String {
         if bill.items.count == 1 {
             return bill.items[0].name
@@ -360,7 +367,21 @@ private struct OrderHistoryRow: View {
                         .fontWeight(.bold)
                         .foregroundStyle(bill.isPaid ? Color.themePrimary : Color.red)
                     
-                    if !bill.isPaid {
+                    if let paidAmount = bill.paidAmount {
+                        Text("Đã trả: \(formatCurrency(paidAmount))")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
+                    if let debtAmount = bill.debtAmount, debtAmount > 0 {
+                        Text("Công nợ: \(formatCurrency(debtAmount))")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(4)
+                    } else if !bill.isPaid {
                         Text("Chưa nhận tiền")
                             .font(.caption2)
                             .fontWeight(.bold)
@@ -369,6 +390,11 @@ private struct OrderHistoryRow: View {
                             .padding(.vertical, 2)
                             .background(Color.red.opacity(0.1))
                             .cornerRadius(4)
+                    }
+                    if let expectedDate = bill.expectedPayDate {
+                        Text("Đến hạn: \(formatDateOnly(expectedDate))")
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
                     }
                 }
             }
@@ -408,6 +434,13 @@ private struct OrderHistoryRow: View {
         formatter.locale = Locale(identifier: "vi_VN")
         formatter.currencySymbol = "₫"
         return formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
+    }
+    
+    private func formatDateOnly(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter.string(from: date)
     }
     
     private func billItemsSummary(_ bill: Bill) -> String {
