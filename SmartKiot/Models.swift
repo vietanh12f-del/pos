@@ -85,6 +85,9 @@ struct Bill: Identifiable, Codable, Equatable {
     var creatorId: UUID? = nil // ID of the user who created the order
     var creatorName: String? = nil // Name of the user who created the order
     var customerName: String? = nil // Walk-in customer name (edited in order)
+    var customerPhone: String? = nil // Walk-in customer phone
+    var customerAddress: String? = nil // Walk-in customer address
+    var customerEmail: String? = nil // Walk-in customer email
     var paymentReceiptURL: String? = nil // URL to payment receipt image
     var sequenceNumber: String? = nil // Unique order number
     var vatRate: Double? = nil // VAT rate percentage (e.g., 10 for 10%)

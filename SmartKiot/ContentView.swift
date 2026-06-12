@@ -992,6 +992,7 @@ struct ContentView: View {
         @State private var customerSortMode: Int = 0
         @State private var customerSearch: String = ""
         @State private var isKeyboardVisible: Bool = false
+        @State private var showWalkInCustomerSheet = false
         
         @ViewBuilder
         private func orderItemView(_ item: OrderItem) -> some View {
@@ -1394,23 +1395,15 @@ struct ContentView: View {
                                 }
                             Spacer()
                             Button {
-                                if viewModel.speechRecognizer.isRecording {
-                                    viewModel.speechRecognizer.stopRecording()
-                                    viewModel.isRecordingCustomerName = false
-                                } else {
-                                    do {
-                                        try viewModel.speechRecognizer.startRecording()
-                                        viewModel.isRecordingCustomerName = true
-                                    } catch { }
-                                }
+                                showWalkInCustomerSheet = true
                             } label: {
                                 ZStack {
                                     Circle()
-                                        .fill((viewModel.isRecordingCustomerName ? Color.red : Color.gray).opacity(0.15))
+                                        .fill(Color.themePrimary.opacity(0.15))
                                         .frame(width: 40, height: 40)
-                                    Image(systemName: viewModel.isRecordingCustomerName ? "waveform" : "mic.fill")
-                                        .font(.system(size: 20, weight: .bold))
-                                        .foregroundStyle(viewModel.isRecordingCustomerName ? Color.red : .gray)
+                                    Image(systemName: "pencil")
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundStyle(Color.themePrimary)
                                 }
                             }
                             .buttonStyle(.plain)
@@ -1975,6 +1968,14 @@ struct ContentView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showWalkInCustomerSheet) {
+                WalkInCustomerEditSheet(
+                    name: $viewModel.walkInName,
+                    phone: $viewModel.walkInPhone,
+                    address: $viewModel.walkInAddress,
+                    email: $viewModel.walkInEmail
+                )
+            }
                 .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { output in
                     if let value = output.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
                         keyboardHeight = value.cgRectValue.height
@@ -2036,6 +2037,59 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
     }
+    
+    struct WalkInCustomerEditSheet: View {
+        @Binding var name: String
+        @Binding var phone: String
+        @Binding var address: String
+        @Binding var email: String
+        @Environment(\.dismiss) var dismiss
+        
+        var body: some View {
+            NavigationStack {
+                Form {
+                    Section(header: Text("Thông tin khách hàng")) {
+                        HStack {
+                            Image(systemName: "person.fill")
+                                .foregroundStyle(.gray)
+                                .frame(width: 22)
+                            TextField("Tên", text: $name)
+                                .textInputAutocapitalization(.words)
+                        }
+                        HStack {
+                            Image(systemName: "phone.fill")
+                                .foregroundStyle(.gray)
+                                .frame(width: 22)
+                            TextField("Số điện thoại", text: $phone)
+                                .keyboardType(.phonePad)
+                        }
+                        HStack {
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundStyle(.gray)
+                                .frame(width: 22)
+                            TextField("Địa chỉ", text: $address)
+                        }
+                        HStack {
+                            Image(systemName: "envelope.fill")
+                                .foregroundStyle(.gray)
+                                .frame(width: 22)
+                            TextField("Email", text: $email)
+                                .keyboardType(.emailAddress)
+                                .autocapitalization(.none)
+                        }
+                    }
+                }
+                .navigationTitle("Thông tin khách hàng")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Xong") { dismiss() }
+                    }
+                }
+            }
+        }
+    }
+    
     struct ProductCustomizeView: View {
         let product: Product
         @ObservedObject var viewModel: OrderViewModel
@@ -2454,6 +2508,9 @@ struct ContentView: View {
                                 }
                             },
                             customerName: viewModel.walkInName,
+                            customerPhone: viewModel.walkInPhone,
+                            customerAddress: viewModel.walkInAddress,
+                            customerEmail: viewModel.walkInEmail,
                             onOpenBankSettings: {
                                 showBankSettings = true
                             },
@@ -2620,6 +2677,9 @@ struct ContentView: View {
                     showButtons: false,
                     onComplete: nil,
                     customerName: viewModel.walkInName,
+                    customerPhone: viewModel.walkInPhone,
+                    customerAddress: viewModel.walkInAddress,
+                    customerEmail: viewModel.walkInEmail,
                     onOpenBankSettings: nil,
                     onCaptureReceipt: nil,
                     receiptImageURL: nil,
@@ -2661,6 +2721,9 @@ struct ContentView: View {
                 showButtons: false,
                 onComplete: nil,
                 customerName: viewModel.walkInName,
+                customerPhone: viewModel.walkInPhone,
+                customerAddress: viewModel.walkInAddress,
+                customerEmail: viewModel.walkInEmail,
                 onOpenBankSettings: nil,
                 onCaptureReceipt: nil,
                 receiptImageURL: nil,
@@ -2896,6 +2959,9 @@ struct ContentView: View {
         let showButtons: Bool
         let onComplete: ((Bool) -> Void)?
         let customerName: String
+        let customerPhone: String?
+        let customerAddress: String?
+        let customerEmail: String?
         let onOpenBankSettings: (() -> Void)?
         let onCaptureReceipt: (() -> Void)?
         let receiptImageURL: String?
@@ -2910,7 +2976,7 @@ struct ContentView: View {
         @StateObject private var previewLoader = CachedImageLoader()
         @StateObject private var originalLoader = CachedImageLoader()
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -2920,6 +2986,9 @@ struct ContentView: View {
             self.showButtons = showButtons
             self.onComplete = onComplete
             self.customerName = customerName
+            self.customerPhone = customerPhone
+            self.customerAddress = customerAddress
+            self.customerEmail = customerEmail
             self.onOpenBankSettings = onOpenBankSettings
             self.onCaptureReceipt = onCaptureReceipt
             self.receiptImageURL = receiptImageURL
@@ -2953,6 +3022,30 @@ struct ContentView: View {
                         .foregroundStyle(Color.themeTextDark)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
+                        
+                        if let phone = customerPhone, !phone.isEmpty {
+                            Text("SĐT: \(phone)")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        
+                        if let address = customerAddress, !address.isEmpty {
+                            Text("Địa chỉ: \(address)")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        
+                        if let email = customerEmail, !email.isEmpty {
+                            Text("Email: \(email)")
+                                .font(.subheadline)
+                                .foregroundStyle(.gray)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     
                     HStack {
                         Text(dateString)

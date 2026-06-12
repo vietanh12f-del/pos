@@ -21,6 +21,9 @@ class OrderViewModel: ObservableObject {
     }
     @Published var currentSequenceNumber: String? = nil
     @Published var walkInName: String = "Khách lẻ"
+    @Published var walkInPhone: String = ""
+    @Published var walkInAddress: String = ""
+    @Published var walkInEmail: String = ""
     @Published var paymentReceiptImageURL: String? = nil
     
     // Pending export info (set by FinishedGoodsExportView before confirming)
@@ -361,6 +364,9 @@ class OrderViewModel: ObservableObject {
         var updatedBill = Bill(id: original.id, createdAt: original.createdAt, items: items, total: newTotal)
         updatedBill.sequenceNumber = original.sequenceNumber
         updatedBill.customerName = walkInName
+        updatedBill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
+        updatedBill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
+        updatedBill.customerEmail = walkInEmail.isEmpty ? nil : walkInEmail
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? original.paymentReceiptURL
         updatedBill.isPaid = original.isPaid
         updatedBill.vatRate = vatRate
@@ -424,6 +430,9 @@ class OrderViewModel: ObservableObject {
         self.totalOperatingCost = 0
         self.todayStats = nil
         self.walkInName = "Khách lẻ"
+        self.walkInPhone = ""
+        self.walkInAddress = ""
+        self.walkInEmail = ""
     }
     
     @MainActor
@@ -3004,6 +3013,9 @@ class OrderViewModel: ObservableObject {
         currentInput = ""
         vatRate = bill.vatRate
         walkInName = bill.customerName ?? "Khách lẻ"
+        walkInPhone = bill.customerPhone ?? ""
+        walkInAddress = bill.customerAddress ?? ""
+        walkInEmail = bill.customerEmail ?? ""
         paymentReceiptImageURL = bill.paymentReceiptURL
     }
     
@@ -3015,6 +3027,9 @@ class OrderViewModel: ObservableObject {
         let newTotal = totalAmount
         var updatedBill = Bill(id: originalBill.id, createdAt: originalBill.createdAt, items: items, total: newTotal)
         updatedBill.customerName = walkInName
+        updatedBill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
+        updatedBill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
+        updatedBill.customerEmail = walkInEmail.isEmpty ? nil : walkInEmail
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? originalBill.paymentReceiptURL
         updatedBill.sequenceNumber = originalBill.sequenceNumber
         updatedBill.isPaid = originalBill.isPaid
@@ -3095,6 +3110,9 @@ class OrderViewModel: ObservableObject {
         currentSequenceNumber = nil
         editingBill = nil
         walkInName = "Khách lẻ"
+        walkInPhone = ""
+        walkInAddress = ""
+        walkInEmail = ""
         paymentReceiptImageURL = nil
         discountMode = .amount
         discountPercent = 0
@@ -3331,6 +3349,9 @@ class OrderViewModel: ObservableObject {
         var bill = Bill(id: UUID(), createdAt: Date(), items: items, total: totalAmount, totalCost: cost)
         bill.isPaid = isPaid
         bill.customerName = walkInName
+        bill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
+        bill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
+        bill.customerEmail = walkInEmail.isEmpty ? nil : walkInEmail
         bill.paymentReceiptURL = paymentReceiptImageURL
         bill.sequenceNumber = currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
         bill.vatRate = vatRate
