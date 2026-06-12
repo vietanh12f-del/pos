@@ -2044,6 +2044,7 @@ struct ContentView: View {
         @Binding var address: String
         @Binding var email: String
         @Environment(\.dismiss) var dismiss
+        @State private var showCustomerHistory = false
         
         var body: some View {
             NavigationStack {
@@ -2082,10 +2083,125 @@ struct ContentView: View {
                 .navigationTitle("Thông tin khách hàng")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: { showCustomerHistory = true }) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .foregroundStyle(.blue)
+                        }
+                    }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Xong") { dismiss() }
                     }
                 }
+                .sheet(isPresented: $showCustomerHistory) {
+                    CustomerHistoryListView(
+                        onSelectCustomer: { customer in
+                            name = customer.name
+                            phone = customer.phone
+                            address = customer.address
+                            email = customer.email
+                            showCustomerHistory = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+    
+    struct CustomerHistoryListView: View {
+        let onSelectCustomer: (TradingParty) -> Void
+        @Environment(\.dismiss) var dismiss
+        @State private var customers: [TradingParty] = []
+        @State private var isLoading = true
+        @State private var searchText: String = ""
+        
+        private var filteredCustomers: [TradingParty] {
+            if searchText.isEmpty {
+                return customers
+            } else {
+                return customers.filter { customer in
+                    customer.name.lowercased().contains(searchText.lowercased()) ||
+                    customer.phone.lowercased().contains(searchText.lowercased())
+                }
+            }
+        }
+        
+        var body: some View {
+            NavigationStack {
+                VStack {
+                    if isLoading {
+                        ProgressView("Đang tải...")
+                            .padding()
+                    } else if filteredCustomers.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "person.2.slash")
+                                .font(.system(size: 50))
+                                .foregroundStyle(.gray.opacity(0.4))
+                            Text("Chưa có khách hàng nào")
+                                .foregroundStyle(.gray)
+                        }
+                        .padding(.top, 60)
+                    } else {
+                        List(filteredCustomers) { customer in
+                            Button(action: { onSelectCustomer(customer) }) {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.teal.opacity(0.12))
+                                            .frame(width: 44, height: 44)
+                                        Image(systemName: "person.fill")
+                                            .foregroundStyle(.teal)
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(customer.name)
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        
+                                        if !customer.phone.isEmpty {
+                                            Text(customer.phone)
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .listRowBackground(Color.white)
+                        }
+                        .listStyle(.plain)
+                        .searchable(text: $searchText, prompt: "Tìm tên hoặc số điện thoại...")
+                    }
+                }
+                .navigationTitle("Chọn khách hàng")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { dismiss() }
+                    }
+                }
+                .background(Color.themeBackgroundLight)
+                .task { await loadCustomers() }
+            }
+        }
+        
+        private func loadCustomers() async {
+            isLoading = true
+            defer { isLoading = false }
+            
+            do {
+                let db = SupabaseDatabaseService()
+                let allParties = try await db.fetchTradingParties(type: "buyer")
+                await MainActor.run { customers = allParties }
+            } catch {
+                print("❌ Failed to load customers: \(error)")
             }
         }
     }
