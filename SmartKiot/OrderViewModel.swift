@@ -1377,8 +1377,8 @@ class OrderViewModel: ObservableObject {
     
     func recalculateStats() {
         // Global Stats
-        revenue = pastOrders.filter { $0.isPaid }.reduce(0) { $0 + $1.total }
-        orderCount = pastOrders.count
+        revenue = pastOrders.filter { $0.isPaid && !$0.isDeleted }.reduce(0) { $0 + $1.total }
+        orderCount = pastOrders.filter { !$0.isDeleted }.count
         
         // Total Restock Cost (Import Price + Fees)
         totalRestockCost = restockHistory.filter { !$0.isDeleted }.reduce(0) { $0 + $1.totalCost }
@@ -3204,7 +3204,7 @@ class OrderViewModel: ObservableObject {
     func revenue(for date: Date) -> Double {
         let calendar = Calendar.current
         return pastOrders
-            .filter { $0.isPaid && calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .filter { $0.isPaid && !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
             .reduce(0) { $0 + $1.total }
     }
     
@@ -3218,7 +3218,7 @@ class OrderViewModel: ObservableObject {
     func cogs(for date: Date) -> Double {
         let calendar = Calendar.current
         return pastOrders
-            .filter { $0.isPaid && calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .filter { $0.isPaid && !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
             .reduce(0) { $0 + $1.totalCost }
     }
     
@@ -3247,7 +3247,7 @@ class OrderViewModel: ObservableObject {
     
     func grossProfit(for date: Date) -> Double {
         let calendar = Calendar.current
-        let dailyOrders = pastOrders.filter { $0.isPaid && calendar.isDate($0.createdAt, inSameDayAs: date) }
+        let dailyOrders = pastOrders.filter { $0.isPaid && !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
         return dailyOrders.reduce(0) { $0 + $1.profit }
     }
     
@@ -3278,7 +3278,7 @@ class OrderViewModel: ObservableObject {
     func orders(for date: Date) -> [Bill] {
         let calendar = Calendar.current
         return pastOrders
-            .filter { calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .filter { !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
     }
 
     // MARK: - Range Stats (dùng cho trang tổng quan)
@@ -3309,28 +3309,28 @@ class OrderViewModel: ObservableObject {
     func revenue(for range: ReportDateRange) -> Double {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.isPaid && $0.createdAt >= start && $0.createdAt <= end }
+            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
             .reduce(0) { $0 + $1.total }
     }
 
     func cogs(for range: ReportDateRange) -> Double {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.isPaid && $0.createdAt >= start && $0.createdAt <= end }
+            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
             .reduce(0) { $0 + $1.totalCost }
     }
 
     func grossProfit(for range: ReportDateRange) -> Double {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.isPaid && $0.createdAt >= start && $0.createdAt <= end }
+            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
             .reduce(0) { $0 + $1.profit }
     }
 
     func orders(for range: ReportDateRange) -> [Bill] {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.createdAt >= start && $0.createdAt <= end }
+            .filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
