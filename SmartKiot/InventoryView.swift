@@ -24,6 +24,7 @@ struct InventoryView: View {
     @State private var restockBillForHistory: RestockBill?
     @State private var showFilterSheet = false
     @State private var showInventoryReport = false
+    @State private var showDeletedBills = false // Toggle to show deleted bills
     
     // Filter states
     enum DateFilterMode: String, CaseIterable, Identifiable {
@@ -229,6 +230,9 @@ struct InventoryView: View {
     
     var filteredRestockHistory: [RestockBill] {
         var result = viewModel.restockHistory
+        
+        // Filter by deleted state
+        result = result.filter { showDeletedBills ? $0.isDeleted : !$0.isDeleted }
         
         // Filter by date
         result = result.filter { isDateInSelectedRange($0.createdAt) }
@@ -535,11 +539,17 @@ struct InventoryView: View {
                                 .foregroundStyle(.gray)
                                 .lineLimit(1)
                         } else {
-                            Text("Tất cả")
+                            Text(showDeletedBills ? "Phiếu đã xoá" : "Tất cả")
                                 .font(.subheadline)
                                 .foregroundStyle(.gray)
                         }
                         Spacer()
+                        Button {
+                            showDeletedBills.toggle()
+                        } label: {
+                            Label("Lịch sử xoá", systemImage: showDeletedBills ? "trash.fill" : "trash")
+                                .foregroundColor(showDeletedBills ? .red : .gray)
+                        }
                     }
                     .padding(10)
                     .background(Color.white)
