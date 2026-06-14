@@ -1897,6 +1897,35 @@ class OrderViewModel: ObservableObject {
     }
     
     @MainActor
+    private func revertInventoryForBill(_ bill: Bill) async {
+        for item in bill.items {
+            let lowerName = item.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            let product = products.first(where: { $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == lowerName })
+            let isFG = product?.isFinishedGood ?? false
+            let invKey = getInventoryKey(name: lowerName, isFinishedGood: isFG)
+            
+            if let current = inventory[invKey] {
+                let newQuantity = current + item.quantity
+                inventory[invKey] = newQuantity
+                
+                if var p = product {
+                    p.stockQuantity = newQuantity
+                    if let index = products.firstIndex(where: { $0.id == p.id }) {
+                        products[index] = p
+                    }
+                    
+                    do {
+                        print("📦 [OrderViewModel] Reverting sales order product stock: \(p.name), type: \(p.isFinishedGood ? "FG" : "Good")")
+                        try await database.updateProduct(p)
+                    } catch {
+                        print("❌ Error reverting product stock for sales order: \(error)")
+                    }
+                }
+            }
+        }
+    }
+    
+    @MainActor
     private func applyInventoryForRestockItems(_ items: [RestockItem]) async {
         for item in items {
             let key = item.name.lowercased()
@@ -3102,6 +3131,7 @@ class OrderViewModel: ObservableObject {
             pastOrders.remove(at: index)
             
             Task {
+                await revertInventoryForBill(bill)
                 try? await database.deleteOrder(bill.id)
             }
             
@@ -3115,6 +3145,7 @@ class OrderViewModel: ObservableObject {
         
         Task {
             for order in ordersToDelete {
+                await revertInventoryForBill(order)
                 try? await database.deleteOrder(order.id)
             }
         }
