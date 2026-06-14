@@ -124,7 +124,6 @@ struct OrderHistoryView: View {
                     }
                 }
             }
-            .navigationTitle("Lịch sử đơn hàng")
             .overlay(alignment: .bottomTrailing) {
                 Button {
                     showInventoryReport = true
