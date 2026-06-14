@@ -263,11 +263,29 @@ struct ProductEditView: View {
                     HStack {
                         Text("Tồn kho")
                         Spacer()
-                        Text(stockUnit == "kg"
-                             ? FormatUtils.formatWeight(Int(quantity) ?? 0)
-                             : "\(Int(quantity) ?? 0) cái")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.gray)
+                        if StoreManager.shared.currentMember?.role == .owner {
+                            Button {
+                                if let v = Int(quantity) { 
+                                    stockWheelSelection = v
+                                    if stockUnit == "kg" {
+                                        stockKgSelection = v / 1000
+                                        stockGramsSelection = v % 1000
+                                    }
+                                }
+                                showStockWheel = true
+                            } label: {
+                                Text(stockUnit == "kg"
+                                     ? FormatUtils.formatWeight(Int(quantity) ?? 0)
+                                     : "\(Int(quantity) ?? 0) cái")
+                                    .fontWeight(.semibold)
+                            }
+                        } else {
+                            Text(stockUnit == "kg"
+                                 ? FormatUtils.formatWeight(Int(quantity) ?? 0)
+                                 : "\(Int(quantity) ?? 0) cái")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
+                        }
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
