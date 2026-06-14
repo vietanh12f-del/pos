@@ -354,17 +354,6 @@ private struct OrderHistoryRow: View {
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.themePrimary)
                         }
-                        
-                        if bill.isDeleted {
-                            Text("Đã xoá")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.red)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(4)
-                        }
                     }
                     
                     Text(billItemsSummary(bill))
@@ -403,6 +392,16 @@ private struct OrderHistoryRow: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 4) {
+                    if bill.isDeleted {
+                        Text("Đã xoá")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.red)
+                            .cornerRadius(6)
+                    }
                     Text(formatCurrency(bill.total))
                         .font(.headline)
                         .fontWeight(.bold)
