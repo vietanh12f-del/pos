@@ -10,6 +10,7 @@ struct OrderHistoryView: View {
     @State private var soldStartDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var soldEndDate: Date = Date()
     @State private var showInventoryReport: Bool = false
+    @State private var showDeletedBills: Bool = false
     
     init(viewModel: OrderViewModel, navigateToBillId: Binding<UUID?> = .constant(nil)) {
         self.viewModel = viewModel
@@ -31,70 +32,99 @@ struct OrderHistoryView: View {
                 
                 if !StoreManager.shared.hasPermission(.viewOrders) {
                     VStack(spacing: 16) {
+                        // Title + Buttons
+                        HStack {
+                            Text("Lịch sử đơn hàng")
+                                .font(.title)
+                                .fontWeight(.bold)
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.top)
+                        
                         Image(systemName: "lock.fill")
-                        .font(.system(size: 60))
-                        .foregroundStyle(Color.gray.opacity(0.3))
+                            .font(.system(size: 60))
+                            .foregroundStyle(Color.gray.opacity(0.3))
                         Text("Bạn không có quyền xem lịch sử đơn hàng")
                             .font(.headline)
                             .foregroundStyle(Color.gray)
                     }
-                } else if viewModel.pastOrders.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 60))
-                            .foregroundStyle(Color.gray.opacity(0.3))
-                        Text("Chưa có đơn hàng nào")
-                            .font(.headline)
-                            .foregroundStyle(Color.gray)
-                    }
                 } else {
-                    ScrollViewReader { proxy in
-                        List {
-                            ForEach(sections, id: \.title) { section in
-                                Section(header: OrderHistorySectionHeader(title: section.title)) {
-                                    ForEach(section.bills) { bill in
-                                        OrderHistoryRow(
-                                            bill: bill,
-                                            viewModel: viewModel,
-                                            highlightedBillId: $highlightedBillId,
-                                            selectedBill: $selectedBill
-                                        )
-                                        .id(bill.id)
-                                    }
-                                    .onDelete { indexSet in
-                                        for index in indexSet {
-                                            let bill = section.bills[index]
-                                            viewModel.deleteOrder(bill)
+                    VStack(spacing: 0) {
+                        // Title + Buttons
+                        HStack {
+                            Text("Lịch sử đơn hàng")
+                                .font(.title)
+                                .fontWeight(.bold)
+                            Spacer()
+                            Button {
+                                showSoldSearch = true
+                            } label: {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.headline)
+                            }
+                            .padding(.trailing, 8)
+                            Button {
+                                showDeletedBills.toggle()
+                            } label: {
+                                Label("Lịch sử xoá", systemImage: showDeletedBills ? "trash.fill" : "trash")
+                                    .foregroundColor(showDeletedBills ? .red : .gray)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top)
+                        
+                        if sections.isEmpty {
+                            VStack(spacing: 16) {
+                                Spacer()
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .font(.system(size: 60))
+                                    .foregroundStyle(Color.gray.opacity(0.3))
+                                Text(showDeletedBills ? "Chưa có đơn hàng nào bị xoá" : "Chưa có đơn hàng nào")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.gray)
+                                Spacer()
+                            }
+                        } else {
+                            ScrollViewReader { proxy in
+                                List {
+                                    ForEach(sections, id: \.title) { section in
+                                        Section(header: OrderHistorySectionHeader(title: section.title)) {
+                                            ForEach(section.bills) { bill in
+                                                OrderHistoryRow(
+                                                    bill: bill,
+                                                    viewModel: viewModel,
+                                                    highlightedBillId: $highlightedBillId,
+                                                    selectedBill: $selectedBill
+                                                )
+                                                .id(bill.id)
+                                            }
+                                            .onDelete { indexSet in
+                                                for index in indexSet {
+                                                    let bill = section.bills[index]
+                                                    viewModel.deleteOrder(bill)
+                                                }
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        }
-                        .listStyle(.insetGrouped)
-                        .refreshable { await viewModel.loadData(force: true) }
-                        .scrollContentBackground(.hidden)
-                        .background(Color.themeBackgroundLight)
-                        .onChange(of: highlightedBillId) { billId in
-                            if let billId = billId {
-                                withAnimation(.easeInOut(duration: 0.5)) {
-                                    proxy.scrollTo(billId, anchor: .center)
+                                .listStyle(.insetGrouped)
+                                .refreshable { await viewModel.loadData(force: true) }
+                                .scrollContentBackground(.hidden)
+                                .background(Color.themeBackgroundLight)
+                                .onChange(of: highlightedBillId) { billId in
+                                    if let billId = billId {
+                                        withAnimation(.easeInOut(duration: 0.5)) {
+                                            proxy.scrollTo(billId, anchor: .center)
+                                        }
+                                    }
                                 }
-                            }
+                            } // end ScrollViewReader
                         }
-                    } // end ScrollViewReader
-                }
-            }
-            .navigationTitle("Lịch sử đơn hàng")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSoldSearch = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.headline)
                     }
                 }
             }
+            .navigationTitle("Lịch sử đơn hàng")
             .overlay(alignment: .bottomTrailing) {
                 Button {
                     showInventoryReport = true
@@ -237,7 +267,8 @@ struct OrderHistoryView: View {
     }
     
     var sections: [(title: String, bills: [Bill])] {
-        let grouped = Dictionary(grouping: viewModel.pastOrders) { bill -> Date in
+        let filteredBills = viewModel.pastOrders.filter { showDeletedBills ? $0.isDeleted : !$0.isDeleted }
+        let grouped = Dictionary(grouping: filteredBills) { bill -> Date in
             Calendar.current.startOfDay(for: bill.createdAt)
         }
         
@@ -324,6 +355,17 @@ private struct OrderHistoryRow: View {
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.themePrimary)
                         }
+                        
+                        if bill.isDeleted {
+                            Text("Đã xoá")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.red)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(4)
+                        }
                     }
                     
                     Text(billItemsSummary(bill))
@@ -401,6 +443,7 @@ private struct OrderHistoryRow: View {
             .padding(.vertical, 8)
         }
         .listRowBackground(rowBackground)
+        .opacity(bill.isDeleted ? 0.6 : 1)
         .contextMenu {
             Button {
                 viewModel.startEditing(bill)

@@ -3127,30 +3127,44 @@ class OrderViewModel: ObservableObject {
     
     // MARK: - Deleting
     func deleteOrder(_ bill: Bill) {
-        if let index = pastOrders.firstIndex(where: { $0.id == bill.id }) {
-            pastOrders.remove(at: index)
-            
-            Task {
-                await revertInventoryForBill(bill)
-                try? await database.deleteOrder(bill.id)
-            }
-            
-            recalculateStats()
+        Task { @MainActor in
+            await softDeleteOrder(bill)
         }
+    }
+    
+    @MainActor
+    func softDeleteOrder(_ bill: Bill) async {
+        guard !bill.isDeleted else { return }
+        
+        let deletedAt = Date()
+        let deletedBy = AuthManager.shared.currentUserProfile?.id
+        
+        await revertInventoryForBill(bill)
+        
+        if let index = pastOrders.firstIndex(where: { $0.id == bill.id }) {
+            var updated = pastOrders[index]
+            updated.isDeleted = true
+            updated.deletedAt = deletedAt
+            updated.deletedBy = deletedBy
+            pastOrders[index] = updated
+        }
+        
+        do {
+            try await database.softDeleteOrder(bill.id, deletedAt: deletedAt, deletedBy: deletedBy)
+        } catch {
+            print("❌ Error soft deleting order: \(error)")
+        }
+        
+        recalculateStats()
     }
     
     func deleteOrder(at offsets: IndexSet) {
         let ordersToDelete = offsets.map { pastOrders[$0] }
-        pastOrders.remove(atOffsets: offsets)
-        
-        Task {
+        Task { @MainActor in
             for order in ordersToDelete {
-                await revertInventoryForBill(order)
-                try? await database.deleteOrder(order.id)
+                await softDeleteOrder(order)
             }
         }
-        
-        recalculateStats()
     }
     
     func updateOrder(_ bill: Bill) async throws {

@@ -16,6 +16,7 @@ protocol DatabaseService {
     func saveOrder(_ bill: Bill) async throws
     func updateOrder(_ bill: Bill) async throws
     func deleteOrder(_ id: UUID) async throws
+    func softDeleteOrder(_ id: UUID, deletedAt: Date, deletedBy: UUID?) async throws
     
     func fetchRestockHistory() async throws -> [RestockBill]
     func fetchRestockBill(id: UUID) async throws -> RestockBill?
@@ -525,6 +526,23 @@ class SupabaseDatabaseService: DatabaseService {
             .from("orders")
             .delete()
             .eq("id", value: id)
+            .execute()
+    }
+    
+    func softDeleteOrder(_ id: UUID, deletedAt: Date, deletedBy: UUID?) async throws {
+        guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
+        
+        struct Payload: Encodable {
+            let is_deleted: Bool
+            let deleted_at: Date
+            let deleted_by: UUID?
+        }
+        
+        try await client.database
+            .from("orders")
+            .update(Payload(is_deleted: true, deleted_at: deletedAt, deleted_by: deletedBy))
+            .eq("id", value: id)
+            .eq("store_id", value: storeId)
             .execute()
     }
     
@@ -1351,12 +1369,15 @@ struct OrderDTO: Codable {
     let debt_amount: Double?
     let expected_pay_date: Date?
     let note: String?
+    let is_deleted: Bool?
+    let deleted_at: Date?
+    let deleted_by: UUID?
     
     enum CodingKeys: String, CodingKey {
-        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date, note
+        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date, note, is_deleted, deleted_at, deleted_by
     }
     
-    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?, paid_amount: Double?, debt_amount: Double?, expected_pay_date: Date?, note: String?) {
+    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?, paid_amount: Double?, debt_amount: Double?, expected_pay_date: Date?, note: String?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
         self.id = id
         self.total_amount = total_amount
         self.created_at = created_at
@@ -1374,6 +1395,9 @@ struct OrderDTO: Codable {
         self.debt_amount = debt_amount
         self.expected_pay_date = expected_pay_date
         self.note = note
+        self.is_deleted = is_deleted
+        self.deleted_at = deleted_at
+        self.deleted_by = deleted_by
     }
     
     init(from decoder: Decoder) throws {
@@ -1395,6 +1419,9 @@ struct OrderDTO: Codable {
         debt_amount = try container.decodeIfPresent(Double.self, forKey: .debt_amount)
         expected_pay_date = try container.decodeIfPresent(Date.self, forKey: .expected_pay_date)
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        is_deleted = try container.decodeIfPresent(Bool.self, forKey: .is_deleted)
+        deleted_at = try container.decodeIfPresent(Date.self, forKey: .deleted_at)
+        deleted_by = try container.decodeIfPresent(UUID.self, forKey: .deleted_by)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -1416,6 +1443,9 @@ struct OrderDTO: Codable {
         try container.encodeIfPresent(debt_amount, forKey: .debt_amount)
         try container.encodeIfPresent(expected_pay_date, forKey: .expected_pay_date)
         try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(is_deleted, forKey: .is_deleted)
+        try container.encodeIfPresent(deleted_at, forKey: .deleted_at)
+        try container.encodeIfPresent(deleted_by, forKey: .deleted_by)
     }
     
     init(from domain: Bill) {
@@ -1436,6 +1466,9 @@ struct OrderDTO: Codable {
         self.debt_amount = domain.debtAmount
         self.expected_pay_date = domain.expectedPayDate
         self.note = domain.note
+        self.is_deleted = domain.isDeleted
+        self.deleted_at = domain.deletedAt
+        self.deleted_by = domain.deletedBy
     }
     
     func toDomain() -> Bill {
@@ -1455,11 +1488,14 @@ struct OrderDTO: Codable {
         bill.debtAmount = debt_amount
         bill.expectedPayDate = expected_pay_date
         bill.note = note
+        bill.isDeleted = is_deleted ?? false
+        bill.deletedAt = deleted_at
+        bill.deletedBy = deleted_by
         return bill
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note)
+        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
     }
 }
 

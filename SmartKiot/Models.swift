@@ -96,6 +96,9 @@ struct Bill: Identifiable, Codable, Equatable {
     var debtAmount: Double? = nil // Remaining debt
     var expectedPayDate: Date? = nil // Expected payment date
     var note: String? = nil // Notes for the order
+    var isDeleted: Bool = false
+    var deletedAt: Date? = nil
+    var deletedBy: UUID? = nil
     
     var profit: Double {
         total - totalCost
