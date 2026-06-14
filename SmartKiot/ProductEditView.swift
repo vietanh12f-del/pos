@@ -103,7 +103,9 @@ struct ProductEditView: View {
         case .add:
             _name = State(initialValue: "")
             _price = State(initialValue: "")
+            _priceWheelSelection = State(initialValue: 0)
             _importPrice = State(initialValue: "")
+            _costWheelSelection = State(initialValue: 0)
             _additionalCost = State(initialValue: "0")
             _quantity = State(initialValue: "0")
             _stockUnit = State(initialValue: "cái")
@@ -115,8 +117,14 @@ struct ProductEditView: View {
             _markupPercent = State(initialValue: 0)
         case .edit(let product):
             _name = State(initialValue: product.name)
-            _price = State(initialValue: String(Int(product.price)))
-            _importPrice = State(initialValue: String(Int(product.costPrice)))
+            let initialPrice = Int(product.price)
+            _price = State(initialValue: String(initialPrice))
+            _priceWheelSelection = State(initialValue: initialPrice)
+            
+            let initialCost = Int(product.costPrice)
+            _importPrice = State(initialValue: String(initialCost))
+            _costWheelSelection = State(initialValue: initialCost)
+            
             _additionalCost = State(initialValue: "0")
             let stockQty = product.isFinishedGood ? product.stockQuantity : viewModel.stockLevel(for: product.name)
             _quantity = State(initialValue: String(stockQty))
@@ -130,8 +138,12 @@ struct ProductEditView: View {
             _isFinishedGood = State(initialValue: product.isFinishedGood)
             _hasVAT = State(initialValue: product.hasVAT)
             // markupPercent: tính ngược từ giá bán / giá vốn nếu có
-            if product.costPrice > 0 && product.price > product.costPrice {
-                _markupPercent = State(initialValue: ((product.price / product.costPrice) - 1) * 100)
+            if product.costPrice > 0 {
+                if product.price > product.costPrice {
+                    _markupPercent = State(initialValue: ((product.price / product.costPrice) - 1) * 100)
+                } else {
+                    _markupPercent = State(initialValue: 0)
+                }
             }
             if let data = product.imageData, let uiImage = UIImage(data: data) {
                 _capturedImage = State(initialValue: uiImage)
@@ -660,6 +672,14 @@ struct ProductEditView: View {
             }
             .alert(pickerAlertMessage ?? "", isPresented: Binding(get: { pickerAlertMessage != nil }, set: { _ in pickerAlertMessage = nil })) {
                 Button("OK", role: .cancel) { }
+            }
+            .onAppear {
+                // Nếu markupPercent là 0% và giá vốn >0, đảm bảo giá bán = giá vốn
+                let costVal = costWheelSelection > 0 ? Double(costWheelSelection) : (Double(importPrice) ?? 0)
+                if markupPercent == 0 && costVal > 0 {
+                    price = String(Int(costVal))
+                    priceWheelSelection = Int(costVal)
+                }
             }
             .sheet(isPresented: $showBarcodeScanner) {
                 BarcodeScannerView(onScan: { code in
