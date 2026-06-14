@@ -120,6 +120,7 @@ struct RestockBill: Identifiable, Codable, Equatable {
     var supplierName: String? = nil
     var supplierPhone: String? = nil
     var supplierAddress: String? = nil
+    var note: String? = nil
     
     static func == (lhs: RestockBill, rhs: RestockBill) -> Bool {
         return lhs.id == rhs.id

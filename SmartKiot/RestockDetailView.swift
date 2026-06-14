@@ -76,6 +76,17 @@ struct RestockDetailView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    if let note = bill.note, !note.isEmpty {
+                        HStack(alignment: .top) {
+                            Text("Ghi chú")
+                                .foregroundStyle(.gray)
+                            Spacer()
+                            Text(note)
+                                .fontWeight(.medium)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                     if bill.isDeleted {
                         HStack {
                             Text("Trạng thái")

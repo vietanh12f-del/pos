@@ -1538,8 +1538,9 @@ struct RestockBillDTO: Codable {
     let supplier_name: String?
     let supplier_phone: String?
     let supplier_address: String?
+    let note: String?
     
-    init(id: UUID, total_cost: Double, created_at: Date, creator_id: UUID?, creator_name: String?, restock_items: [RestockItemDTO]?, store_id: UUID?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?, sequence_number: String?, supplier_name: String?, supplier_phone: String?, supplier_address: String?) {
+    init(id: UUID, total_cost: Double, created_at: Date, creator_id: UUID?, creator_name: String?, restock_items: [RestockItemDTO]?, store_id: UUID?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?, sequence_number: String?, supplier_name: String?, supplier_phone: String?, supplier_address: String?, note: String?) {
         self.id = id
         self.total_cost = total_cost
         self.created_at = created_at
@@ -1554,6 +1555,7 @@ struct RestockBillDTO: Codable {
         self.supplier_name = supplier_name
         self.supplier_phone = supplier_phone
         self.supplier_address = supplier_address
+        self.note = note
     }
     
     init(from domain: RestockBill) {
@@ -1571,6 +1573,7 @@ struct RestockBillDTO: Codable {
         self.supplier_name = domain.supplierName
         self.supplier_phone = domain.supplierPhone
         self.supplier_address = domain.supplierAddress
+        self.note = domain.note
     }
     
     func toDomain() -> RestockBill {
@@ -1585,11 +1588,12 @@ struct RestockBillDTO: Codable {
         bill.supplierName = supplier_name
         bill.supplierPhone = supplier_phone
         bill.supplierAddress = supplier_address
+        bill.note = note
         return bill
     }
     
     func withStore(_ storeId: UUID) -> RestockBillDTO {
-        return RestockBillDTO(id: id, total_cost: total_cost, created_at: created_at, creator_id: creator_id, creator_name: creator_name, restock_items: restock_items, store_id: storeId, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by, sequence_number: sequence_number, supplier_name: supplier_name, supplier_phone: supplier_phone, supplier_address: supplier_address)
+        return RestockBillDTO(id: id, total_cost: total_cost, created_at: created_at, creator_id: creator_id, creator_name: creator_name, restock_items: restock_items, store_id: storeId, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by, sequence_number: sequence_number, supplier_name: supplier_name, supplier_phone: supplier_phone, supplier_address: supplier_address, note: note)
     }
 }
 

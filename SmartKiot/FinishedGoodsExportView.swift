@@ -99,6 +99,9 @@ struct FinishedGoodsExportView: View {
     @State private var customVATRate: Double? = nil
     @State private var showVATRatePicker = false
     @State private var vatRateInputText: String = ""
+    
+    // Note
+    @State private var note: String = ""
 
     // Buyer
     @State private var buyerName: String = ""
@@ -209,10 +212,11 @@ struct FinishedGoodsExportView: View {
                     }
                     itemsSummarySection
                     if !isFinishedGoodsImport {
-                        paymentSection
-                    }
-                    qrSection
-                    actionButtons
+                paymentSection
+            }
+            noteSection
+            qrSection
+            actionButtons
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 12)
@@ -229,6 +233,10 @@ struct FinishedGoodsExportView: View {
         .onAppear {
             Task { await loadPartyHistory() }
             loadQRImage()
+            if let editingBill = viewModel.editingRestockBill {
+                // Pre-fill note from existing bill
+                note = editingBill.note ?? ""
+            }
         }
         .onChange(of: paidAmount) { _ in loadQRImage() }
         .onChange(of: buyerName) { _ in updatePastDebt() }
@@ -785,6 +793,19 @@ struct FinishedGoodsExportView: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
     }
 
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Ghi chú")
+                .font(.headline)
+            
+            TextField("Nhập ghi chú...", text: $note, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(5...)
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+    }
+    
     private var paymentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Thanh toán")
@@ -1197,10 +1218,10 @@ struct FinishedGoodsExportView: View {
                 try? await viewModel.databaseService.upsertTradingParty(party)
             }
 
-            // Build note
-            let note = "\(isImport ? "Cơ sở cung cấp" : "Bên mua"): \(party.name) | SĐT: \(party.phone) | ĐC: \(party.address) | Thanh toán: \(formatCurrency(paidAmount)) | \(debtLabel): \(formatCurrency(debtAmount))"
+            // Build auto note for pendingExportNote
+            let autoNote = "\(isImport ? "Cơ sở cung cấp" : "Bên mua"): \(party.name) | SĐT: \(party.phone) | ĐC: \(party.address) | Thanh toán: \(formatCurrency(paidAmount)) | \(debtLabel): \(formatCurrency(debtAmount))"
 
-            viewModel.pendingExportNote = note
+            viewModel.pendingExportNote = autoNote
             viewModel.pendingExportPaymentReceiptURL = paymentReceiptURL
             viewModel.pendingExportInfo = OrderViewModel.PendingExportInfo(
                 buyerName: party.name,
@@ -1214,7 +1235,8 @@ struct FinishedGoodsExportView: View {
                 vatAmount: vatAmount,
                 isPaid: isPaid,
                 expectedPayDate: expectedPayDate,
-                paymentReceiptURL: paymentReceiptURL
+                paymentReceiptURL: paymentReceiptURL,
+                note: self.note.isEmpty ? nil : self.note
             )
         } else {
             // FG Import case
@@ -1232,7 +1254,8 @@ struct FinishedGoodsExportView: View {
                 vatAmount: vatAmount,
                 isPaid: isPaid,
                 expectedPayDate: expectedPayDate,
-                paymentReceiptURL: paymentReceiptURL
+                paymentReceiptURL: paymentReceiptURL,
+                note: self.note.isEmpty ? nil : self.note
             )
         }
         

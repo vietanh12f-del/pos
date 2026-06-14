@@ -69,6 +69,7 @@ class OrderViewModel: ObservableObject {
         var isPaid: Bool
         var expectedPayDate: Date?
         var paymentReceiptURL: String?
+        var note: String?
     }
     var pendingExportInfo: PendingExportInfo? = nil
     
@@ -1584,10 +1585,12 @@ class OrderViewModel: ObservableObject {
             bill.supplierName = original.supplierName
             bill.supplierPhone = original.supplierPhone
             bill.supplierAddress = original.supplierAddress
+            bill.note = original.note
         } else if let info = exportInfoSnapshot {
             bill.supplierName = info.buyerName
             bill.supplierPhone = info.buyerPhone
             bill.supplierAddress = info.buyerAddress
+            bill.note = info.note
         }
         
         pendingExportNote = nil
