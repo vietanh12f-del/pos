@@ -2,4 +2,5 @@
 ALTER TABLE orders
 ADD COLUMN IF NOT EXISTS paid_amount numeric,
 ADD COLUMN IF NOT EXISTS debt_amount numeric,
-ADD COLUMN IF NOT EXISTS expected_pay_date timestamptz;
+ADD COLUMN IF NOT EXISTS expected_pay_date timestamptz,
+ADD COLUMN IF NOT EXISTS note text;

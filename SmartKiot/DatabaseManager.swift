@@ -1350,12 +1350,13 @@ struct OrderDTO: Codable {
     let paid_amount: Double?
     let debt_amount: Double?
     let expected_pay_date: Date?
+    let note: String?
     
     enum CodingKeys: String, CodingKey {
-        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date
+        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date, note
     }
     
-    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?, paid_amount: Double?, debt_amount: Double?, expected_pay_date: Date?) {
+    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?, paid_amount: Double?, debt_amount: Double?, expected_pay_date: Date?, note: String?) {
         self.id = id
         self.total_amount = total_amount
         self.created_at = created_at
@@ -1372,6 +1373,7 @@ struct OrderDTO: Codable {
         self.paid_amount = paid_amount
         self.debt_amount = debt_amount
         self.expected_pay_date = expected_pay_date
+        self.note = note
     }
     
     init(from decoder: Decoder) throws {
@@ -1392,6 +1394,7 @@ struct OrderDTO: Codable {
         paid_amount = try container.decodeIfPresent(Double.self, forKey: .paid_amount)
         debt_amount = try container.decodeIfPresent(Double.self, forKey: .debt_amount)
         expected_pay_date = try container.decodeIfPresent(Date.self, forKey: .expected_pay_date)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
     }
     
     func encode(to encoder: Encoder) throws {
@@ -1412,6 +1415,7 @@ struct OrderDTO: Codable {
         try container.encodeIfPresent(paid_amount, forKey: .paid_amount)
         try container.encodeIfPresent(debt_amount, forKey: .debt_amount)
         try container.encodeIfPresent(expected_pay_date, forKey: .expected_pay_date)
+        try container.encodeIfPresent(note, forKey: .note)
     }
     
     init(from domain: Bill) {
@@ -1431,6 +1435,7 @@ struct OrderDTO: Codable {
         self.paid_amount = domain.paidAmount
         self.debt_amount = domain.debtAmount
         self.expected_pay_date = domain.expectedPayDate
+        self.note = domain.note
     }
     
     func toDomain() -> Bill {
@@ -1449,11 +1454,12 @@ struct OrderDTO: Codable {
         bill.paidAmount = paid_amount
         bill.debtAmount = debt_amount
         bill.expectedPayDate = expected_pay_date
+        bill.note = note
         return bill
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date)
+        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note)
     }
 }
 

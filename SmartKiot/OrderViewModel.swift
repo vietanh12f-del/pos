@@ -28,6 +28,7 @@ class OrderViewModel: ObservableObject {
     @Published var payFullAmount: Bool = true
     @Published var partialAmount: Double = 0
     @Published var expectedPayDate: Date? = nil
+    @Published var note: String = ""
     
     var totalAmountWithVAT: Double {
         let baseTotal = items.reduce(0) { $0 + $1.total }
@@ -3042,6 +3043,7 @@ class OrderViewModel: ObservableObject {
         walkInAddress = bill.customerAddress ?? ""
         walkInEmail = bill.customerEmail ?? ""
         paymentReceiptImageURL = bill.paymentReceiptURL
+        note = bill.note ?? ""
     }
     
     func saveEditedOrder() {
@@ -3147,6 +3149,7 @@ class OrderViewModel: ObservableObject {
         payFullAmount = true
         partialAmount = 0
         expectedPayDate = nil
+        note = ""
     }
     
     // MARK: - Calendar Stats
@@ -3387,6 +3390,7 @@ class OrderViewModel: ObservableObject {
         bill.paidAmount = paidAmount
         bill.debtAmount = debtAmount
         bill.expectedPayDate = expectedPayDate
+        bill.note = note.isEmpty ? nil : note
         
         // Calculate VAT amount
         let vatEnabled = StoreManager.shared.currentStoreVATEnabled()

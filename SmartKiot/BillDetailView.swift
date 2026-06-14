@@ -63,6 +63,7 @@ struct BillDetailView: View {
                 payFullAmount: .constant(bill.paidAmount == nil || bill.paidAmount == bill.total),
                 partialAmount: .constant(bill.paidAmount ?? bill.total),
                 expectedPayDate: .constant(bill.expectedPayDate),
+                note: .constant(bill.note ?? ""),
                 grandTotal: bill.total
             )
                 .padding()
@@ -317,6 +318,7 @@ struct BillDetailView: View {
                 payFullAmount: .constant(bill.paidAmount == nil || bill.paidAmount == bill.total),
                 partialAmount: .constant(bill.paidAmount ?? bill.total),
                 expectedPayDate: .constant(bill.expectedPayDate),
+                note: .constant(bill.note ?? ""),
                 grandTotal: bill.total
             )
             .frame(width: 375)

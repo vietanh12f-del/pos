@@ -2647,6 +2647,7 @@ struct ContentView: View {
                             payFullAmount: $viewModel.payFullAmount,
                             partialAmount: $viewModel.partialAmount,
                             expectedPayDate: $viewModel.expectedPayDate,
+                            note: $viewModel.note,
                             grandTotal: viewModel.totalAmountWithVAT
                         )
                         .padding()
@@ -2810,6 +2811,7 @@ struct ContentView: View {
                     payFullAmount: .constant(true),
                     partialAmount: .constant(viewModel.totalAmount),
                     expectedPayDate: .constant(nil),
+                    note: .constant(viewModel.note),
                     grandTotal: viewModel.totalAmount
                 )
                     .frame(width: 375) // Standard width for image
@@ -2858,6 +2860,7 @@ struct ContentView: View {
                 payFullAmount: .constant(true),
                 partialAmount: .constant(viewModel.totalAmount),
                 expectedPayDate: .constant(nil),
+                note: .constant(viewModel.note),
                 grandTotal: viewModel.totalAmount
             )
             .frame(width: 375)
@@ -3101,6 +3104,7 @@ struct ContentView: View {
         @Binding var payFullAmount: Bool
         @Binding var partialAmount: Double
         @Binding var expectedPayDate: Date?
+        @Binding var note: String
         let grandTotal: Double
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
@@ -3145,7 +3149,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, grandTotal: Double) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3169,6 +3173,7 @@ struct ContentView: View {
             self._payFullAmount = payFullAmount
             self._partialAmount = partialAmount
             self._expectedPayDate = expectedPayDate
+            self._note = note
             self.grandTotal = grandTotal
         }
         
@@ -3476,6 +3481,18 @@ struct ContentView: View {
                 .padding()
                 
                 if showButtons {
+                    // Note section
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ghi chú")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                        TextField("Nhập ghi chú...", text: $note, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(3...5)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 12)
+                    
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .center, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -3590,6 +3607,17 @@ struct ContentView: View {
                                 Text(formatDateOnly(expectedDate))
                                     .font(.caption)
                                     .fontWeight(.bold)
+                            }
+                        }
+                        
+                        if !note.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Ghi chú")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                                Text(note)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.themeTextDark)
                             }
                         }
                     }
