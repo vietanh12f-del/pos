@@ -112,6 +112,7 @@ struct ProductEditView: View {
             _selectedColor = State(initialValue: "gray")
             _selectedIcon = State(initialValue: "shippingbox.fill")
             _isFinishedGood = State(initialValue: false)
+            _markupPercent = State(initialValue: 0)
         case .edit(let product):
             _name = State(initialValue: product.name)
             _price = State(initialValue: String(Int(product.price)))
@@ -762,7 +763,7 @@ struct ProductEditView: View {
                             }
                         }
                     )) {
-                        ForEach(1...999, id: \.self) { pct in
+                        ForEach(0...999, id: \.self) { pct in
                             Text("+\(pct)%").tag(pct)
                         }
                     }
