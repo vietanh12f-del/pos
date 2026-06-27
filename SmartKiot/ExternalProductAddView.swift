@@ -122,6 +122,8 @@ struct ExternalProductAddView: View {
         let newProduct = Product(
             name: name,
             price: priceVal,
+            productPrice: costVal,
+            shippingCost: 0,
             costPrice: costVal,
             category: "Đồ uống", // Default or let user pick? Assuming Beverage/FMCG often
             imageName: "cup.and.saucer.fill", // Default icon
@@ -136,6 +138,8 @@ struct ExternalProductAddView: View {
              viewModel.createProduct(
                 name: name,
                 price: priceVal,
+                productPrice: costVal,
+                shippingCost: 0,
                 costPrice: costVal,
                 category: .others,
                 imageName: "cup.and.saucer.fill",

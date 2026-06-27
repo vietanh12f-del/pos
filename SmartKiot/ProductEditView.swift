@@ -16,6 +16,8 @@ struct ProductEditView: View {
     
     @State private var name: String = ""
     @State private var price: String = ""
+    @State private var productPrice: String = ""
+    @State private var shippingCost: String = ""
     @State private var importPrice: String = ""
     @State private var additionalCost: String = ""
     @State private var quantity: String = "0"
@@ -55,6 +57,31 @@ struct ProductEditView: View {
     @State private var priceHundredsSelection = 0
     @State private var priceHundredsRangeBase = 0
     @State private var showPriceHundredsRangePicker = false
+    
+    @State private var showProductPriceWheel = false
+    @State private var productPriceWheelSelection = 0
+    @State private var productPriceMillionsSelection = 0
+    @State private var productPriceMillionsRangeBase = 0
+    @State private var showProductPriceMillionsRangePicker = false
+    @State private var productPriceThousandsSelection = 0
+    @State private var productPriceThousandsRangeBase = 0
+    @State private var showProductPriceThousandsRangePicker = false
+    @State private var productPriceHundredsSelection = 0
+    @State private var productPriceHundredsRangeBase = 0
+    @State private var showProductPriceHundredsRangePicker = false
+    
+    @State private var showShippingCostWheel = false
+    @State private var shippingCostWheelSelection = 0
+    @State private var shippingCostMillionsSelection = 0
+    @State private var shippingCostMillionsRangeBase = 0
+    @State private var showShippingCostMillionsRangePicker = false
+    @State private var shippingCostThousandsSelection = 0
+    @State private var shippingCostThousandsRangeBase = 0
+    @State private var showShippingCostThousandsRangePicker = false
+    @State private var shippingCostHundredsSelection = 0
+    @State private var shippingCostHundredsRangeBase = 0
+    @State private var showShippingCostHundredsRangePicker = false
+    
     @State private var showStockWheel = false
     @State private var stockWheelSelection = 0
     @State private var stockWheelMax = 1000
@@ -104,6 +131,10 @@ struct ProductEditView: View {
             _name = State(initialValue: "")
             _price = State(initialValue: "")
             _priceWheelSelection = State(initialValue: 0)
+            _productPrice = State(initialValue: "")
+            _productPriceWheelSelection = State(initialValue: 0)
+            _shippingCost = State(initialValue: "")
+            _shippingCostWheelSelection = State(initialValue: 0)
             _importPrice = State(initialValue: "")
             _costWheelSelection = State(initialValue: 0)
             _additionalCost = State(initialValue: "0")
@@ -120,6 +151,14 @@ struct ProductEditView: View {
             let initialPrice = Int(product.price)
             _price = State(initialValue: String(initialPrice))
             _priceWheelSelection = State(initialValue: initialPrice)
+            
+            let initialProductPrice = Int(product.productPrice)
+            _productPrice = State(initialValue: String(initialProductPrice))
+            _productPriceWheelSelection = State(initialValue: initialProductPrice)
+            
+            let initialShippingCost = Int(product.shippingCost)
+            _shippingCost = State(initialValue: String(initialShippingCost))
+            _shippingCostWheelSelection = State(initialValue: initialShippingCost)
             
             let initialCost = Int(product.costPrice)
             _importPrice = State(initialValue: String(initialCost))
@@ -220,21 +259,38 @@ struct ProductEditView: View {
                     }
                     
                     HStack {
+                        Text("Giá sản phẩm")
+                        Spacer()
+                        Button {
+                            if let v = Double(productPrice) { productPriceWheelSelection = Int(v) }
+                            showProductPriceWheel = true
+                        } label: {
+                            Text(formatCurrency(Double(productPriceWheelSelection > 0 ? productPriceWheelSelection : (Int(Double(productPrice) ?? 0)))))
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    
+                    HStack {
+                        Text("Chi phí vận chuyển")
+                        Spacer()
+                        Button {
+                            if let v = Double(shippingCost) { shippingCostWheelSelection = Int(v) }
+                            showShippingCostWheel = true
+                        } label: {
+                            Text(formatCurrency(Double(shippingCostWheelSelection > 0 ? shippingCostWheelSelection : (Int(Double(shippingCost) ?? 0)))))
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    
+                    HStack {
                         Text("Giá vốn")
                         Spacer()
-                        if allowEditCostAndStock {
-                            Button {
-                                if let v = Double(importPrice) { costWheelSelection = Int(v) }
-                                showCostWheel = true
-                            } label: {
-                                Text(formatCurrency(Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))))
-                                    .fontWeight(.semibold)
-                            }
-                        } else {
-                            Text(formatCurrency(Double(costWheelSelection > 0 ? costWheelSelection : (Int(Double(importPrice) ?? 0)))))
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.gray)
-                        }
+                        let pPrice = Double(productPrice) ?? 0
+                        let sCost = Double(shippingCost) ?? 0
+                        let totalCost = pPrice + sCost
+                        Text(formatCurrency(totalCost))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.gray)
                     }
                     
                     Toggle(isOn: $hasVAT) {
@@ -692,6 +748,8 @@ struct ProductEditView: View {
                     id: { if case .edit(let p) = mode { return p.id } else { return UUID() } }(),
                     name: name,
                     price: Double(price) ?? 0,
+                    productPrice: Double(importPrice) ?? 0,
+                    shippingCost: 0,
                     costPrice: Double(importPrice) ?? 0,
                     category: selectedCategory.rawValue,
                     imageName: selectedIcon,
@@ -1085,6 +1143,292 @@ struct ProductEditView: View {
                     }.padding().presentationDetents([.height(300)])
                 }
             }
+            .sheet(isPresented: $showProductPriceWheel) {
+                VStack(spacing: 12) {
+                    Text("Sửa giá sản phẩm").font(.headline)
+                    Text(formatCurrency(Double(productPriceWheelSelection)))
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themePrimary)
+                    HStack(alignment: .top) {
+                        VStack(spacing: 2) {
+                            Button { showProductPriceMillionsRangePicker = true } label: {
+                                Text(productPriceMillionsRangeBase <= 0 ? ">0" : ">\(productPriceMillionsRangeBase)tr")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Triệu").font(.caption).foregroundStyle(.gray)
+                            let millionsMin = productPriceMillionsRangeBase
+                            Picker("", selection: $productPriceMillionsSelection) {
+                                ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: productPriceMillionsSelection) { v in
+                                productPriceWheelSelection = v * 1_000_000 + productPriceThousandsSelection * 1_000 + productPriceHundredsSelection
+                            }
+                        }
+                        VStack(spacing: 2) {
+                            Button { showProductPriceThousandsRangePicker = true } label: {
+                                Text(productPriceThousandsRangeBase <= 0 ? ">0" : ">\(productPriceThousandsRangeBase)")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Ngàn").font(.caption).foregroundStyle(.gray)
+                            let thousandsMin = productPriceThousandsRangeBase
+                            Picker("", selection: $productPriceThousandsSelection) {
+                                ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 99, 999), by: 1)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: productPriceThousandsSelection) { v in
+                                productPriceWheelSelection = productPriceMillionsSelection * 1_000_000 + v * 1_000 + productPriceHundredsSelection
+                            }
+                        }
+                        VStack(spacing: 2) {
+                            Button { showProductPriceHundredsRangePicker = true } label: {
+                                Text(productPriceHundredsRangeBase <= 0 ? ">0" : "\(productPriceHundredsRangeBase)")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Trăm").font(.caption).foregroundStyle(.gray)
+                            let hundredsMin = productPriceHundredsRangeBase
+                            Picker("", selection: $productPriceHundredsSelection) {
+                                ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 99, 999), by: 1)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: productPriceHundredsSelection) { v in
+                                productPriceWheelSelection = productPriceMillionsSelection * 1_000_000 + productPriceThousandsSelection * 1_000 + v
+                            }
+                        }
+                    }
+                    HStack {
+                        Button("Đóng") { showProductPriceWheel = false }
+                        Spacer()
+                        Button("Lưu") {
+                            productPrice = String(productPriceWheelSelection)
+                            showProductPriceWheel = false
+                        }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(340)])
+                .onAppear {
+                    let current = max(0, productPriceWheelSelection)
+                    productPriceMillionsSelection = current / 1_000_000
+                    productPriceMillionsRangeBase = (productPriceMillionsSelection / 10) * 10
+                    let rem1 = current % 1_000_000
+                    productPriceThousandsSelection = rem1 / 1_000
+                    productPriceThousandsRangeBase = (productPriceThousandsSelection / 100) * 100
+                    let rem2 = rem1 % 1_000
+                    productPriceHundredsRangeBase = (rem2 / 100) * 100
+                    productPriceHundredsSelection = (rem2 / 10) * 10
+                }
+                .sheet(isPresented: $showProductPriceMillionsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng triệu").font(.headline)
+                        Picker("", selection: $productPriceMillionsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
+                                Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if productPriceMillionsSelection < productPriceMillionsRangeBase { productPriceMillionsSelection = productPriceMillionsRangeBase }
+                            showProductPriceMillionsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }.padding().presentationDetents([.height(300)])
+                }
+                .sheet(isPresented: $showProductPriceThousandsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng ngàn").font(.headline)
+                        Picker("", selection: $productPriceThousandsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if productPriceThousandsSelection < productPriceThousandsRangeBase || productPriceThousandsSelection > productPriceThousandsRangeBase + 99 { productPriceThousandsSelection = productPriceThousandsRangeBase }
+                            showProductPriceThousandsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }.padding().presentationDetents([.height(300)])
+                }
+                .sheet(isPresented: $showProductPriceHundredsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng trăm").font(.headline)
+                        Picker("", selection: $productPriceHundredsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if productPriceHundredsSelection < productPriceHundredsRangeBase || productPriceHundredsSelection > productPriceHundredsRangeBase + 99 { productPriceHundredsSelection = productPriceHundredsRangeBase }
+                            showProductPriceHundredsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }.padding().presentationDetents([.height(300)])
+                }
+            }
+            .sheet(isPresented: $showShippingCostWheel) {
+                VStack(spacing: 12) {
+                    Text("Sửa chi phí vận chuyển").font(.headline)
+                    Text(formatCurrency(Double(shippingCostWheelSelection)))
+                        .font(.subheadline).fontWeight(.semibold)
+                        .foregroundStyle(Color.themePrimary)
+                    HStack(alignment: .top) {
+                        VStack(spacing: 2) {
+                            Button { showShippingCostMillionsRangePicker = true } label: {
+                                Text(shippingCostMillionsRangeBase <= 0 ? ">0" : ">\(shippingCostMillionsRangeBase)tr")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Triệu").font(.caption).foregroundStyle(.gray)
+                            let millionsMin = shippingCostMillionsRangeBase
+                            Picker("", selection: $shippingCostMillionsSelection) {
+                                ForEach(Array(millionsMin...max(millionsMin, millionsMin + 500)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: shippingCostMillionsSelection) { v in
+                                shippingCostWheelSelection = v * 1_000_000 + shippingCostThousandsSelection * 1_000 + shippingCostHundredsSelection
+                            }
+                        }
+                        VStack(spacing: 2) {
+                            Button { showShippingCostThousandsRangePicker = true } label: {
+                                Text(shippingCostThousandsRangeBase <= 0 ? ">0" : ">\(shippingCostThousandsRangeBase)")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Ngàn").font(.caption).foregroundStyle(.gray)
+                            let thousandsMin = shippingCostThousandsRangeBase
+                            Picker("", selection: $shippingCostThousandsSelection) {
+                                ForEach(Array(stride(from: thousandsMin, through: min(thousandsMin + 99, 999), by: 1)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: shippingCostThousandsSelection) { v in
+                                shippingCostWheelSelection = shippingCostMillionsSelection * 1_000_000 + v * 1_000 + shippingCostHundredsSelection
+                            }
+                        }
+                        VStack(spacing: 2) {
+                            Button { showShippingCostHundredsRangePicker = true } label: {
+                                Text(shippingCostHundredsRangeBase <= 0 ? ">0" : "\(shippingCostHundredsRangeBase)")
+                                    .fontWeight(.bold).font(.caption2)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Capsule().fill(Color.gray.opacity(0.15)))
+                            }.buttonStyle(.plain)
+                            Text("Trăm").font(.caption).foregroundStyle(.gray)
+                            let hundredsMin = shippingCostHundredsRangeBase
+                            Picker("", selection: $shippingCostHundredsSelection) {
+                                ForEach(Array(stride(from: hundredsMin, through: min(hundredsMin + 99, 999), by: 1)), id: \.self) { v in
+                                    Text("\(v)").tag(v)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .onChange(of: shippingCostHundredsSelection) { v in
+                                shippingCostWheelSelection = shippingCostMillionsSelection * 1_000_000 + shippingCostThousandsSelection * 1_000 + v
+                            }
+                        }
+                    }
+                    HStack {
+                        Button("Đóng") { showShippingCostWheel = false }
+                        Spacer()
+                        Button("Lưu") {
+                            shippingCost = String(shippingCostWheelSelection)
+                            showShippingCostWheel = false
+                        }
+                    }
+                    .font(.headline)
+                }
+                .padding()
+                .presentationDetents([.height(340)])
+                .onAppear {
+                    let current = max(0, shippingCostWheelSelection)
+                    shippingCostMillionsSelection = current / 1_000_000
+                    shippingCostMillionsRangeBase = (shippingCostMillionsSelection / 10) * 10
+                    let rem1 = current % 1_000_000
+                    shippingCostThousandsSelection = rem1 / 1_000
+                    shippingCostThousandsRangeBase = (shippingCostThousandsSelection / 100) * 100
+                    let rem2 = rem1 % 1_000
+                    shippingCostHundredsRangeBase = (rem2 / 100) * 100
+                    shippingCostHundredsSelection = (rem2 / 10) * 10
+                }
+                .sheet(isPresented: $showShippingCostMillionsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng triệu").font(.headline)
+                        Picker("", selection: $shippingCostMillionsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 50)), id: \.self) { v in
+                                Text(v == 0 ? ">0" : ">\(v)tr").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if shippingCostMillionsSelection < shippingCostMillionsRangeBase { shippingCostMillionsSelection = shippingCostMillionsRangeBase }
+                            showShippingCostMillionsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }.padding().presentationDetents([.height(300)])
+                }
+                .sheet(isPresented: $showShippingCostThousandsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng ngàn").font(.headline)
+                        Picker("", selection: $shippingCostThousandsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if shippingCostThousandsSelection < shippingCostThousandsRangeBase || shippingCostThousandsSelection > shippingCostThousandsRangeBase + 99 { shippingCostThousandsSelection = shippingCostThousandsRangeBase }
+                            showShippingCostThousandsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }.padding().presentationDetents([.height(300)])
+                }
+                .sheet(isPresented: $showShippingCostHundredsRangePicker) {
+                    VStack(spacing: 16) {
+                        Text("Chọn vùng trăm").font(.headline)
+                        Picker("", selection: $shippingCostHundredsRangeBase) {
+                            ForEach(Array(stride(from: 0, through: 900, by: 100)), id: \.self) { v in
+                                Text(v == 0 ? "0-99" : "\(v)-\(v+99)").tag(v)
+                            }
+                        }.pickerStyle(.wheel)
+                        Button {
+                            if shippingCostHundredsSelection < shippingCostHundredsRangeBase || shippingCostHundredsSelection > shippingCostHundredsRangeBase + 99 { shippingCostHundredsSelection = shippingCostHundredsRangeBase }
+                            showShippingCostHundredsRangePicker = false
+                        } label: {
+                            Text("Xong").font(.subheadline).fontWeight(.bold).foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                                .background(Color.themePrimary).cornerRadius(10)
+                        }
+                    }.padding().presentationDetents([.height(300)])
+                }
+            }
             .sheet(isPresented: $showStockWheel) {
                 VStack(spacing: 12) {
                     Text("Sửa tồn kho")
@@ -1408,22 +1752,19 @@ struct ProductEditView: View {
         }
         guard let priceValue = Double(price) else { return }
         let quantityValue = Int(quantity) ?? 0
-        let importPriceValue = Double(importPrice) ?? 0
-        let additionalCostValue = Double(additionalCost) ?? 0
+        let productPriceValue = Double(productPrice) ?? 0
+        let shippingCostValue = Double(shippingCost) ?? 0
         
-        var finalCostPrice = importPriceValue
-        if quantityValue > 0 && additionalCostValue > 0 {
-            finalCostPrice += (additionalCostValue / Double(quantityValue))
-        }
+        let finalCostPrice = productPriceValue + shippingCostValue
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood)
+            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood)
         case .edit(let product):
             var updatedProduct = product
             updatedProduct.isFinishedGood = isFinishedGood
             updatedProduct.hasVAT = hasVAT
-            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL)
+            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL)
         }
         dismiss()
     }

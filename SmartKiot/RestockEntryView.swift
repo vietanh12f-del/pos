@@ -2853,6 +2853,8 @@ struct ManualRestockItemView: View {
                     p,
                     name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                     price: priceValue,
+                    productPrice: p.productPrice,
+                    shippingCost: p.shippingCost,
                     costPrice: p.costPrice,
                     category: Category(rawValue: selectedCategoryName) ?? .others,
                     imageName: p.imageName,

@@ -163,14 +163,14 @@ class OrderViewModel: ObservableObject {
     // Catalog & Dashboard
     @Published var selectedCategory: Category = .all
     @Published var products: [Product] = [
-        Product(name: "Hoa hồng đỏ", price: 20000, category: "Hoa tươi", imageName: "rosette", color: "red"),
-        Product(name: "Hoa hướng dương", price: 30000, category: "Hoa tươi", imageName: "sun.max.fill", color: "yellow"),
-        Product(name: "Hoa tulip", price: 25000, category: "Hoa tươi", imageName: "camera.macro", color: "purple"),
-        Product(name: "Bó hoa hỗn hợp", price: 350000, category: "Bó hoa", imageName: "gift.fill", color: "pink"),
-        Product(name: "Bó hoa sinh nhật", price: 500000, category: "Bó hoa", imageName: "birthday.cake.fill", color: "blue"),
-        Product(name: "Bình hoa", price: 150000, category: "Phụ kiện", imageName: "cylinder.split.1x2.fill", color: "gray"),
-        Product(name: "Ruy băng", price: 10000, category: "Phụ kiện", imageName: "scribble.variable", color: "red"),
-        Product(name: "Thiệp chúc mừng", price: 15000, category: "Phụ kiện", imageName: "envelope.fill", color: "orange")
+        Product(name: "Hoa hồng đỏ", price: 20000, productPrice: 15000, shippingCost: 2000, costPrice: 17000, category: "Hoa tươi", imageName: "rosette", color: "red"),
+        Product(name: "Hoa hướng dương", price: 30000, productPrice: 25000, shippingCost: 3000, costPrice: 28000, category: "Hoa tươi", imageName: "sun.max.fill", color: "yellow"),
+        Product(name: "Hoa tulip", price: 25000, productPrice: 20000, shippingCost: 2000, costPrice: 22000, category: "Hoa tươi", imageName: "camera.macro", color: "purple"),
+        Product(name: "Bó hoa hỗn hợp", price: 350000, productPrice: 300000, shippingCost: 20000, costPrice: 320000, category: "Bó hoa", imageName: "gift.fill", color: "pink"),
+        Product(name: "Bó hoa sinh nhật", price: 500000, productPrice: 450000, shippingCost: 20000, costPrice: 470000, category: "Bó hoa", imageName: "birthday.cake.fill", color: "blue"),
+        Product(name: "Bình hoa", price: 150000, productPrice: 120000, shippingCost: 10000, costPrice: 130000, category: "Phụ kiện", imageName: "cylinder.split.1x2.fill", color: "gray"),
+        Product(name: "Ruy băng", price: 10000, productPrice: 8000, shippingCost: 1000, costPrice: 9000, category: "Phụ kiện", imageName: "scribble.variable", color: "red"),
+        Product(name: "Thiệp chúc mừng", price: 15000, productPrice: 12000, shippingCost: 1000, costPrice: 13000, category: "Phụ kiện", imageName: "envelope.fill", color: "orange")
     ]
     
     var filteredProducts: [Product] {
@@ -2017,6 +2017,8 @@ class OrderViewModel: ObservableObject {
                     id: UUID(),
                     name: item.name,
                     price: item.suggestedPrice ?? (item.finalUnitCost * 1.3),
+                    productPrice: item.finalUnitCost,
+                    shippingCost: 0,
                     costPrice: item.finalUnitCost,
                     category: catValue,
                     imageName: "shippingbox.fill",
@@ -2773,6 +2775,8 @@ class OrderViewModel: ObservableObject {
                         id: UUID(),
                         name: it.name,
                         price: salePrice,
+                        productPrice: costPrice,
+                        shippingCost: 0,
                         costPrice: costPrice,
                         category: it.category ?? Category.others.rawValue,
                         imageName: "shippingbox.fill",
@@ -2823,7 +2827,7 @@ class OrderViewModel: ObservableObject {
                     let q = max(0, delta)
                     let pr = max(0, info.newPrice ?? 0)
                     let cat = info.newCat ?? Category.others.rawValue
-                    let newProduct = Product(id: UUID(), name: name, price: pr, costPrice: 0, category: cat, imageName: "shippingbox.fill", color: "gray", imageData: nil, imageURL: nil, stockQuantity: q, barcode: nil, isFinishedGood: true)
+                    let newProduct = Product(id: UUID(), name: name, price: pr, productPrice: 0, shippingCost: 0, costPrice: 0, category: cat, imageName: "shippingbox.fill", color: "gray", imageData: nil, imageURL: nil, stockQuantity: q, barcode: nil, isFinishedGood: true)
                     try? await database.saveProduct(newProduct)
                     current.append(newProduct)
                 }
@@ -2910,12 +2914,14 @@ class OrderViewModel: ObservableObject {
     }
     // MARK: - Product Catalog Management
     
-    func createProduct(name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, isFinishedGood: Bool = false) {
+    func createProduct(name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, isFinishedGood: Bool = false) {
         let tempId = UUID()
         var newProduct = Product(
             id: tempId,
             name: name,
             price: price,
+            productPrice: productPrice,
+            shippingCost: shippingCost,
             costPrice: costPrice,
             category: category.rawValue,
             imageName: imageName,
@@ -2960,7 +2966,7 @@ class OrderViewModel: ObservableObject {
         }
     }
     
-    func updateProduct(_ product: Product, name: String, price: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil) {
+    func updateProduct(_ product: Product, name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil) {
         print("🔄 [OrderViewModel] updateProduct called for: \(product.name), isFinishedGood: \(product.isFinishedGood)")
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             let originalProduct = products[index]
@@ -2980,6 +2986,8 @@ class OrderViewModel: ObservableObject {
                 id: product.id,
                 name: name,
                 price: price,
+                productPrice: productPrice,
+                shippingCost: shippingCost,
                 costPrice: costPrice,
                 category: category.rawValue,
                 imageName: imageName,

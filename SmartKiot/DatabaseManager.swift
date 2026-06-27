@@ -1249,6 +1249,8 @@ struct ProductDTO: Codable {
     let id: UUID
     let name: String
     let price: Double
+    let product_price: Double?
+    let shipping_cost: Double?
     let category: String
     let image_name: String?
     let color: String?
@@ -1262,14 +1264,16 @@ struct ProductDTO: Codable {
     let has_vat: Bool?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, price, category, image_name, color, stock_quantity, stock_weight_kg, cost_price, store_id, barcode, image_url, is_finished_good, has_vat
+        case id, name, price, product_price, shipping_cost, category, image_name, color, stock_quantity, stock_weight_kg, cost_price, store_id, barcode, image_url, is_finished_good, has_vat
         case costPrice // Fallback for camelCase
     }
     
-    init(id: UUID, name: String, price: Double, category: String, image_name: String?, color: String?, stock_quantity: Int, stock_weight_kg: Double?, cost_price: Double?, store_id: UUID?, barcode: String?, image_url: String?, is_finished_good: Bool? = nil, has_vat: Bool? = nil) {
+    init(id: UUID, name: String, price: Double, product_price: Double? = nil, shipping_cost: Double? = nil, category: String, image_name: String?, color: String?, stock_quantity: Int, stock_weight_kg: Double?, cost_price: Double?, store_id: UUID?, barcode: String?, image_url: String?, is_finished_good: Bool? = nil, has_vat: Bool? = nil) {
         self.id = id
         self.name = name
         self.price = price
+        self.product_price = product_price
+        self.shipping_cost = shipping_cost
         self.category = category
         self.image_name = image_name
         self.color = color
@@ -1288,6 +1292,8 @@ struct ProductDTO: Codable {
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         price = try container.decode(Double.self, forKey: .price)
+        product_price = try container.decodeIfPresent(Double.self, forKey: .product_price)
+        shipping_cost = try container.decodeIfPresent(Double.self, forKey: .shipping_cost)
         category = try container.decode(String.self, forKey: .category)
         image_name = try container.decodeIfPresent(String.self, forKey: .image_name)
         color = try container.decodeIfPresent(String.self, forKey: .color)
@@ -1312,6 +1318,8 @@ struct ProductDTO: Codable {
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(price, forKey: .price)
+        try container.encodeIfPresent(product_price, forKey: .product_price)
+        try container.encodeIfPresent(shipping_cost, forKey: .shipping_cost)
         try container.encode(category, forKey: .category)
         try container.encode(image_name, forKey: .image_name)
         try container.encode(color, forKey: .color)
@@ -1329,6 +1337,8 @@ struct ProductDTO: Codable {
         self.id = domain.id
         self.name = domain.name
         self.price = domain.price
+        self.product_price = domain.productPrice
+        self.shipping_cost = domain.shippingCost
         self.category = domain.category
         self.image_name = domain.imageName
         self.color = domain.color
@@ -1343,11 +1353,11 @@ struct ProductDTO: Codable {
     }
     
     func toDomain() -> Product {
-        return Product(id: id, name: name, price: price, costPrice: cost_price ?? 0, category: category, imageName: image_name ?? "shippingbox", color: color ?? "gray", imageData: nil, imageURL: image_url, stockQuantity: stock_quantity, barcode: barcode, isFinishedGood: is_finished_good ?? false, hasVAT: has_vat ?? false)
+        return Product(id: id, name: name, price: price, productPrice: product_price ?? 0, shippingCost: shipping_cost ?? 0, costPrice: cost_price ?? 0, category: category, imageName: image_name ?? "shippingbox", color: color ?? "gray", imageData: nil, imageURL: image_url, stockQuantity: stock_quantity, barcode: barcode, isFinishedGood: is_finished_good ?? false, hasVAT: has_vat ?? false)
     }
     
     func withStore(_ storeId: UUID) -> ProductDTO {
-        return ProductDTO(id: id, name: name, price: price, category: category, image_name: image_name, color: color, stock_quantity: stock_quantity, stock_weight_kg: stock_weight_kg, cost_price: cost_price, store_id: storeId, barcode: barcode, image_url: image_url, is_finished_good: is_finished_good, has_vat: has_vat)
+        return ProductDTO(id: id, name: name, price: price, product_price: product_price, shipping_cost: shipping_cost, category: category, image_name: image_name, color: color, stock_quantity: stock_quantity, stock_weight_kg: stock_weight_kg, cost_price: cost_price, store_id: storeId, barcode: barcode, image_url: image_url, is_finished_good: is_finished_good, has_vat: has_vat)
     }
 }
 

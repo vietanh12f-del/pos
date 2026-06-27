@@ -614,6 +614,8 @@ struct MaterialEditView: View {
                 id: { if case .edit(let m) = mode { return m.id } else { return UUID() } }(),
                 name: name,
                 price: Double(importPrice) ?? 0,
+                productPrice: Double(importPrice) ?? 0,
+                shippingCost: 0,
                 costPrice: Double(importPrice) ?? 0,
                 category: selectedCategoryName,
                 imageName: "shippingbox.fill",

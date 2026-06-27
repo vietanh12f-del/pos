@@ -455,7 +455,9 @@ struct Product: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var price: Double
-    var costPrice: Double = 0 // Moving Average Unit Cost
+    var productPrice: Double = 0 // Giá sản phẩm
+    var shippingCost: Double = 0 // Chi phí vận chuyển
+    var costPrice: Double = 0 // Moving Average Unit Cost (giá sản phẩm + chi phí vận chuyển)
     var category: String
     var imageName: String
     var color: String
@@ -466,10 +468,12 @@ struct Product: Identifiable, Codable, Hashable {
     var isFinishedGood: Bool = false
     var hasVAT: Bool = false // Hàng hoá nhập có VAT hay không
     
-    init(id: UUID = UUID(), name: String, price: Double, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false, hasVAT: Bool = false) {
+    init(id: UUID = UUID(), name: String, price: Double, productPrice: Double = 0, shippingCost: Double = 0, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false, hasVAT: Bool = false) {
         self.id = id
         self.name = name
         self.price = price
+        self.productPrice = productPrice
+        self.shippingCost = shippingCost
         self.costPrice = costPrice
         self.category = category
         self.imageName = imageName
