@@ -97,6 +97,7 @@ struct ProductEditView: View {
     @State private var hasVAT: Bool = false
     @State private var markupPercent: Double = 30
     @State private var showMarkupPicker = false
+    @State private var additionalInfo: String = ""
     
     // MARK: - Summary Section State for Finished Goods
     @State private var summaryStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
@@ -146,6 +147,7 @@ struct ProductEditView: View {
             _selectedIcon = State(initialValue: "shippingbox.fill")
             _isFinishedGood = State(initialValue: false)
             _markupPercent = State(initialValue: 0)
+            _additionalInfo = State(initialValue: "")
         case .edit(let product):
             _name = State(initialValue: product.name)
             let initialPrice = Int(product.price)
@@ -176,6 +178,7 @@ struct ProductEditView: View {
             _selectedImageURL = State(initialValue: product.imageURL)
             _isFinishedGood = State(initialValue: product.isFinishedGood)
             _hasVAT = State(initialValue: product.hasVAT)
+            _additionalInfo = State(initialValue: product.additionalInfo ?? "")
             // markupPercent: tính ngược từ giá bán / giá vốn nếu có
             if product.costPrice > 0 {
                 if product.price > product.costPrice {
@@ -363,14 +366,14 @@ struct ProductEditView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Mã vạch")
                             .font(.caption)
-                            .foregroundStyle(.gray)
+                            .foregroundColor(.gray)
                         TextField("Nhập hoặc quét mã", text: $barcode)
                             .overlay(
                                 HStack {
                                     Spacer()
                                     Button(action: { showBarcodeScanner = true }) {
                                         Image(systemName: "barcode.viewfinder")
-                                            .foregroundStyle(.gray)
+                                            .foregroundColor(.gray)
                                     }
                                 }
                             )
@@ -381,7 +384,7 @@ struct ProductEditView: View {
                             barcode = BarcodeGenerator.shared.generateRandomBarcode()
                         }
                         .font(.caption)
-                        .foregroundStyle(.blue)
+                        .foregroundColor(.blue)
                     } else {
                         Button {
                             showPrintBarcode = true
@@ -389,6 +392,14 @@ struct ProductEditView: View {
                             Label("In mã vạch", systemImage: "printer")
                                 .font(.caption)
                         }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Thông tin thêm")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        TextEditor(text: $additionalInfo)
+                            .frame(minHeight: 80)
                     }
                 }
                 
@@ -1759,12 +1770,12 @@ struct ProductEditView: View {
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood)
+            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
         case .edit(let product):
             var updatedProduct = product
             updatedProduct.isFinishedGood = isFinishedGood
             updatedProduct.hasVAT = hasVAT
-            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL)
+            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
         }
         dismiss()
     }

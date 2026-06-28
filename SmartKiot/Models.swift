@@ -467,8 +467,9 @@ struct Product: Identifiable, Codable, Hashable {
     var barcode: String? // New barcode field
     var isFinishedGood: Bool = false
     var hasVAT: Bool = false // Hàng hoá nhập có VAT hay không
-    
-    init(id: UUID = UUID(), name: String, price: Double, productPrice: Double = 0, shippingCost: Double = 0, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false, hasVAT: Bool = false) {
+    var additionalInfo: String? // Thông tin thêm
+
+    init(id: UUID = UUID(), name: String, price: Double, productPrice: Double = 0, shippingCost: Double = 0, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false, hasVAT: Bool = false, additionalInfo: String? = nil) {
         self.id = id
         self.name = name
         self.price = price
@@ -484,6 +485,7 @@ struct Product: Identifiable, Codable, Hashable {
         self.barcode = barcode
         self.isFinishedGood = isFinishedGood
         self.hasVAT = hasVAT
+        self.additionalInfo = additionalInfo
     }
 }
 

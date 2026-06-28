@@ -1262,13 +1262,14 @@ struct ProductDTO: Codable {
     let image_url: String?
     let is_finished_good: Bool?
     let has_vat: Bool?
+    let additional_info: String?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, price, product_price, shipping_cost, category, image_name, color, stock_quantity, stock_weight_kg, cost_price, store_id, barcode, image_url, is_finished_good, has_vat
+        case id, name, price, product_price, shipping_cost, category, image_name, color, stock_quantity, stock_weight_kg, cost_price, store_id, barcode, image_url, is_finished_good, has_vat, additional_info
         case costPrice // Fallback for camelCase
     }
     
-    init(id: UUID, name: String, price: Double, product_price: Double? = nil, shipping_cost: Double? = nil, category: String, image_name: String?, color: String?, stock_quantity: Int, stock_weight_kg: Double?, cost_price: Double?, store_id: UUID?, barcode: String?, image_url: String?, is_finished_good: Bool? = nil, has_vat: Bool? = nil) {
+    init(id: UUID, name: String, price: Double, product_price: Double? = nil, shipping_cost: Double? = nil, category: String, image_name: String?, color: String?, stock_quantity: Int, stock_weight_kg: Double?, cost_price: Double?, store_id: UUID?, barcode: String?, image_url: String?, is_finished_good: Bool? = nil, has_vat: Bool? = nil, additional_info: String? = nil) {
         self.id = id
         self.name = name
         self.price = price
@@ -1285,6 +1286,7 @@ struct ProductDTO: Codable {
         self.image_url = image_url
         self.is_finished_good = is_finished_good
         self.has_vat = has_vat
+        self.additional_info = additional_info
     }
     
     init(from decoder: Decoder) throws {
@@ -1304,6 +1306,7 @@ struct ProductDTO: Codable {
         image_url = try container.decodeIfPresent(String.self, forKey: .image_url)
         is_finished_good = try container.decodeIfPresent(Bool.self, forKey: .is_finished_good)
         has_vat = try container.decodeIfPresent(Bool.self, forKey: .has_vat)
+        additional_info = try container.decodeIfPresent(String.self, forKey: .additional_info)
         
         // Robust decoding: Try cost_price (snake_case) first, then costPrice (camelCase)
         if let cp = try container.decodeIfPresent(Double.self, forKey: .cost_price) {
@@ -1331,6 +1334,7 @@ struct ProductDTO: Codable {
         try container.encode(image_url, forKey: .image_url)
         try container.encode(is_finished_good ?? false, forKey: .is_finished_good)
         try container.encodeIfPresent(has_vat, forKey: .has_vat)
+        try container.encodeIfPresent(additional_info, forKey: .additional_info)
     }
     
     init(from domain: Product, inventory: [String: Int] = [:]) {
@@ -1350,14 +1354,15 @@ struct ProductDTO: Codable {
         self.image_url = domain.imageURL
         self.is_finished_good = domain.isFinishedGood
         self.has_vat = domain.hasVAT
+        self.additional_info = domain.additionalInfo
     }
     
     func toDomain() -> Product {
-        return Product(id: id, name: name, price: price, productPrice: product_price ?? 0, shippingCost: shipping_cost ?? 0, costPrice: cost_price ?? 0, category: category, imageName: image_name ?? "shippingbox", color: color ?? "gray", imageData: nil, imageURL: image_url, stockQuantity: stock_quantity, barcode: barcode, isFinishedGood: is_finished_good ?? false, hasVAT: has_vat ?? false)
+        return Product(id: id, name: name, price: price, productPrice: product_price ?? 0, shippingCost: shipping_cost ?? 0, costPrice: cost_price ?? 0, category: category, imageName: image_name ?? "shippingbox", color: color ?? "gray", imageData: nil, imageURL: image_url, stockQuantity: stock_quantity, barcode: barcode, isFinishedGood: is_finished_good ?? false, hasVAT: has_vat ?? false, additionalInfo: additional_info)
     }
     
     func withStore(_ storeId: UUID) -> ProductDTO {
-        return ProductDTO(id: id, name: name, price: price, product_price: product_price, shipping_cost: shipping_cost, category: category, image_name: image_name, color: color, stock_quantity: stock_quantity, stock_weight_kg: stock_weight_kg, cost_price: cost_price, store_id: storeId, barcode: barcode, image_url: image_url, is_finished_good: is_finished_good, has_vat: has_vat)
+        return ProductDTO(id: id, name: name, price: price, product_price: product_price, shipping_cost: shipping_cost, category: category, image_name: image_name, color: color, stock_quantity: stock_quantity, stock_weight_kg: stock_weight_kg, cost_price: cost_price, store_id: storeId, barcode: barcode, image_url: image_url, is_finished_good: is_finished_good, has_vat: has_vat, additional_info: additional_info)
     }
 }
 

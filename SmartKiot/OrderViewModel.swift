@@ -2914,7 +2914,7 @@ class OrderViewModel: ObservableObject {
     }
     // MARK: - Product Catalog Management
     
-    func createProduct(name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, isFinishedGood: Bool = false) {
+    func createProduct(name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, isFinishedGood: Bool = false, additionalInfo: String? = nil) {
         let tempId = UUID()
         var newProduct = Product(
             id: tempId,
@@ -2929,7 +2929,8 @@ class OrderViewModel: ObservableObject {
             imageData: imageData,
             stockQuantity: quantity,
             barcode: barcode,
-            isFinishedGood: isFinishedGood
+            isFinishedGood: isFinishedGood,
+            additionalInfo: additionalInfo
         )
         products.append(newProduct)
         
@@ -2966,7 +2967,7 @@ class OrderViewModel: ObservableObject {
         }
     }
     
-    func updateProduct(_ product: Product, name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil) {
+    func updateProduct(_ product: Product, name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil, additionalInfo: String? = nil) {
         print("🔄 [OrderViewModel] updateProduct called for: \(product.name), isFinishedGood: \(product.isFinishedGood)")
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             let originalProduct = products[index]
@@ -2997,7 +2998,8 @@ class OrderViewModel: ObservableObject {
                 stockQuantity: quantity,
                 barcode: barcode,
                 isFinishedGood: product.isFinishedGood,
-                hasVAT: product.hasVAT // Preserve hasVAT từ product đã được set trước khi gọi hàm này
+                hasVAT: product.hasVAT, // Preserve hasVAT từ product đã được set trước khi gọi hàm này
+                additionalInfo: additionalInfo
             )
             print("📦 [OrderViewModel] Updated product: \(updatedProduct.name), isFinishedGood: \(updatedProduct.isFinishedGood)")
             products[index] = updatedProduct
