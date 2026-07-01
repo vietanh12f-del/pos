@@ -128,6 +128,15 @@ struct AutoMaterialExportSheetView: View {
     @State private var showPanCountInfoPopover = false
     @State private var showPanWeightStdInfoPopover = false
     @State private var showPanWeightActualInfoPopover = false
+    
+    @State private var showBoilPercentageSheet = false
+    @State private var boilPercentageWheelSelection: Double = 0.0
+    
+    private var boilPercentage: Double {
+        guard totalFreshGrams > 0 else { return 0 }
+        guard afterBoilGrams > 0 else { return 0 }
+        return (Double(afterBoilGrams) / Double(totalFreshGrams)) * 100
+    }
 
     init(viewModel: OrderViewModel, defaultHeaderName: String) {
         self.viewModel = viewModel
@@ -172,6 +181,10 @@ struct AutoMaterialExportSheetView: View {
     private var surplusGrams: Int {
         guard standardPanWeightGrams > 0, panCount > 0 else { return 0 }
         return max(0, afterBoilGrams - standardPanWeightGrams * panCount)
+    }
+    
+    private var totalFreshGrams: Int {
+        freshRows.reduce(0) { $0 + Int($1.totalExportGrams.rounded()) }
     }
     
     // Có cần tách chảo thêm không: surplusThresholdKg > 0 và số dư > ngưỡng
@@ -752,6 +765,53 @@ struct AutoMaterialExportSheetView: View {
         } message: {
             Text(errorAlertMessage)
         }
+        .sheet(isPresented: $showBoilPercentageSheet) {
+            VStack(spacing: 20) {
+                Text("Tỷ lệ còn sau luộc")
+                    .font(.headline)
+                
+                Text(String(format: "%.0f%%", boilPercentageWheelSelection))
+                    .font(.system(size: 48, weight: .bold))
+                    .foregroundColor(Color.themePrimary)
+                
+                Picker("", selection: $boilPercentageWheelSelection) {
+                    ForEach(Array(stride(from: 0, through: 100, by: 0.5)), id: \.self) { value in
+                        Text(String(format: "%.1f%%", value)).tag(value)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(height: 200)
+                
+                HStack(spacing: 16) {
+                    Button("Đóng") {
+                        showBoilPercentageSheet = false
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.1)))
+                    
+                    Button("Lưu") {
+                        // Calculate new afterBoilGrams based on percentage
+                        guard totalFreshGrams > 0 else {
+                            showBoilPercentageSheet = false
+                            return
+                        }
+                        let newAfterBoilGrams = Int((Double(totalFreshGrams) * boilPercentageWheelSelection / 100).rounded())
+                        afterBoilKgText = FormatUtils.formatKgDecimal(fromGrams: newAfterBoilGrams)
+                        showBoilPercentageSheet = false
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.themePrimary))
+                    .foregroundColor(.white)
+                }
+                .padding(.horizontal)
+            }
+            .padding()
+            .presentationDetents([.height(400)])
+        }
     }
     
     private var headerSection: some View {
@@ -951,11 +1011,23 @@ struct AutoMaterialExportSheetView: View {
                 }
                 Spacer()
                 Button {
+                    boilPercentageWheelSelection = boilPercentage
+                    showBoilPercentageSheet = true
+                } label: {
+                    Text(String(format: "%.0f%%", boilPercentage))
+                        .fontWeight(.bold)
+                        .foregroundColor(Color.themeTextDark)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.blue.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+                Button {
                     openWeightWheel(target: .afterBoil, currentText: afterBoilKgText)
                 } label: {
                     Text(FormatUtils.formatKgDecimal(fromGrams: afterBoilGrams))
                         .fontWeight(.bold)
-                        .foregroundStyle(Color.themeTextDark)
+                        .foregroundColor(Color.themeTextDark)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                         .background(RoundedRectangle(cornerRadius: 10).fill(Color.yellow.opacity(0.18)))
@@ -963,7 +1035,7 @@ struct AutoMaterialExportSheetView: View {
                 .buttonStyle(.plain)
                 Text("kg")
                     .font(.caption)
-                    .foregroundStyle(.gray)
+                    .foregroundColor(.gray)
             }
         }
         .padding(12)
