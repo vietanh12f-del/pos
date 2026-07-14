@@ -38,8 +38,8 @@ struct MoreView: View {
             items.append(MenuItem(id: 101, title: "Quản Lý Khách Hàng", icon: "person.2.fill", color: .teal))
         }
         
-        // Điểm danh - manageEmployees
-        if storeManager.hasPermission(.manageEmployees) {
+        // Điểm danh - available to all employees (cần quyền viewHome)
+        if storeManager.hasPermission(.viewHome) {
             items.append(MenuItem(id: 102, title: "Điểm danh", icon: "calendar.badge.checkmark", color: .indigo))
         }
         
