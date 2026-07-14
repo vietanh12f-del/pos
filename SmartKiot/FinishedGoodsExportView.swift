@@ -170,11 +170,17 @@ struct FinishedGoodsExportView: View {
         return items.reduce(0) { sum, item in
             let isLegacyGramAsCai = !isRegularRestock && item.unit?.lowercased() == "cái" && item.quantity >= 1000
             let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
+            let isFinishedGoodsExport = !isImport && !isExportMaterials && !isRegularRestock
+            let itemUnitPrice: Double = {
+                if isFinishedGoodsImport { return item.suggestedPrice ?? item.unitPrice }
+                if isFinishedGoodsExport { return item.suggestedPrice ?? item.unitPrice }
+                return item.unitPrice
+            }()
             let lineTotal: Double
             if isRegularRestock || isCai {
-                lineTotal = Double(item.quantity) * item.unitPrice + item.additionalCost
+                lineTotal = Double(item.quantity) * itemUnitPrice + item.additionalCost
             } else {
-                lineTotal = Double(item.quantity) / 1000.0 * item.unitPrice + item.additionalCost
+                lineTotal = Double(item.quantity) / 1000.0 * itemUnitPrice + item.additionalCost
             }
             return sum + lineTotal
         }
@@ -662,7 +668,12 @@ struct FinishedGoodsExportView: View {
                     .font(.caption)
                     .foregroundStyle(.gray)
                     .frame(width: 72, alignment: .trailing)
-                Text(isFinishedGoodsImport ? "Giá bán" : "Đơn giá")
+                let priceLabel: String = {
+                    if isFinishedGoodsImport { return "Giá bán" }
+                    if !isImport && !isExportMaterials && !isRegularRestock { return "Giá xuất" }
+                    return "Đơn giá"
+                }()
+                Text(priceLabel)
                     .font(.caption)
                     .foregroundStyle(.gray)
                     .frame(width: 80, alignment: .trailing)
@@ -678,7 +689,12 @@ struct FinishedGoodsExportView: View {
             ForEach(items) { item in
                 let isLegacyGramAsCai = !isRegularRestock && item.unit?.lowercased() == "cái" && item.quantity >= 1000
                 let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
-                let itemUnitPrice = isFinishedGoodsImport ? (item.suggestedPrice ?? item.unitPrice) : item.unitPrice
+                let isFinishedGoodsExport = !isImport && !isExportMaterials && !isRegularRestock
+                let itemUnitPrice: Double = {
+                    if isFinishedGoodsImport { return item.suggestedPrice ?? item.unitPrice }
+                    if isFinishedGoodsExport { return item.suggestedPrice ?? item.unitPrice }
+                    return item.unitPrice
+                }()
                 let lineTotal: Double = {
                     if isRegularRestock || isCai {
                         return Double(item.quantity) * itemUnitPrice
@@ -725,7 +741,11 @@ struct FinishedGoodsExportView: View {
                             .foregroundStyle(Color.themeTextDark)
                             .frame(width: 72, alignment: .trailing)
 
-                        let displayPrice = isFinishedGoodsImport ? (item.suggestedPrice ?? item.unitPrice) : item.unitPrice
+                        let displayPrice: Double = {
+                            if isFinishedGoodsImport { return item.suggestedPrice ?? item.unitPrice }
+                            if isFinishedGoodsExport { return item.suggestedPrice ?? item.unitPrice }
+                            return item.unitPrice
+                        }()
                         Text(formatCurrency(displayPrice) + unitLabel)
                             .font(.subheadline)
                             .fontWeight(.semibold)

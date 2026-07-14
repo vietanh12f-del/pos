@@ -542,7 +542,21 @@ struct TransactionEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Lưu") {
-                        let total = items.reduce(0) { $0 + $1.totalCost }
+                        let total: Double
+                        if original.mode == "Xuất Thành Phẩm" {
+                            total = items.reduce(0) { sum, item in
+                                let isLegacyGramAsCai = item.unit?.lowercased() == "cái" && item.quantity >= 1000
+                                let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
+                                let price = item.suggestedPrice ?? item.unitPrice
+                                if isCai {
+                                    return sum + Double(item.quantity) * price + item.additionalCost
+                                } else {
+                                    return sum + Double(item.quantity) / 1000.0 * price + item.additionalCost
+                                }
+                            }
+                        } else {
+                            total = items.reduce(0) { $0 + $1.totalCost }
+                        }
                         var updated = ProductionTransaction(id: original.id, createdAt: original.createdAt, mode: original.mode, items: items, totalCost: total)
                         updated.note = noteText.isEmpty ? nil : noteText
                         // Preserve / update export info

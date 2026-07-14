@@ -1677,7 +1677,8 @@ class OrderViewModel: ObservableObject {
                         var fgTotal = 0.0
                         for it in exportTxItems {
                             let stockDelta = it.weightPerUnitGrams != nil ? Double(it.weightPerUnitGrams! * it.quantity) : Double(it.quantity)
-                            fgTotal += stockDelta / 1000.0 * it.unitPrice
+                            let price = it.suggestedPrice ?? it.unitPrice
+                            fgTotal += stockDelta / 1000.0 * price
                         }
                         
                         var exportTx = ProductionTransaction(
@@ -2354,7 +2355,21 @@ class OrderViewModel: ObservableObject {
     func completeProductionTransaction(mode: String) {
         print("🔍 [DEBUG] completeProductionTransaction() called! Will save to production_transactions table! mode = '\(mode)'")
         guard !restockItems.isEmpty else { return }
-        let total = restockItems.reduce(0) { $0 + $1.totalCost }
+        let total: Double
+        if mode == "Xuất Thành Phẩm" {
+            total = restockItems.reduce(0) { sum, item in
+                let isLegacyGramAsCai = item.unit?.lowercased() == "cái" && item.quantity >= 1000
+                let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
+                let price = item.suggestedPrice ?? item.unitPrice
+                if isCai {
+                    return sum + Double(item.quantity) * price + item.additionalCost
+                } else {
+                    return sum + Double(item.quantity) / 1000.0 * price + item.additionalCost
+                }
+            }
+        } else {
+            total = restockItems.reduce(0) { $0 + $1.totalCost }
+        }
         var tx = ProductionTransaction(id: UUID(), createdAt: Date(), mode: mode, items: restockItems, totalCost: total)
         tx.sequenceNumber = currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
         

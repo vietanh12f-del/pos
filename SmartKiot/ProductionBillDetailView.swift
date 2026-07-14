@@ -55,10 +55,12 @@ struct ProductionBillDetailView: View {
     private var subtotal: Double {
         tx.items.reduce(0) { acc, it in
             let isCai = it.unit?.lowercased() == "cái"
+            let isFinishedGoodsExport = tx.mode == "Xuất Thành Phẩm"
+            let itemUnitPrice = isFinishedGoodsExport ? (it.suggestedPrice ?? it.unitPrice) : it.unitPrice
             if isCai {
-                return acc + Double(it.quantity) * it.unitPrice + it.additionalCost
+                return acc + Double(it.quantity) * itemUnitPrice + it.additionalCost
             } else {
-                return acc + Double(it.quantity) / 1000.0 * it.unitPrice + it.additionalCost
+                return acc + Double(it.quantity) / 1000.0 * itemUnitPrice + it.additionalCost
             }
         }
     }
@@ -204,9 +206,11 @@ struct ProductionBillDetailView: View {
                 ForEach(tx.items, id: \.id) { item in
                     let isCai = item.unit?.lowercased() == "cái"
                     let qtyText = isCai ? "\(item.quantity)" : FormatUtils.formatWeight(item.quantity, unit: item.unit)
+                    let isFinishedGoodsExport = tx.mode == "Xuất Thành Phẩm"
+                    let itemUnitPrice = isFinishedGoodsExport ? (item.suggestedPrice ?? item.unitPrice) : item.unitPrice
                     let lineTotal: Double = isCai
-                        ? Double(item.quantity) * item.unitPrice + item.additionalCost
-                        : Double(item.quantity) / 1000.0 * item.unitPrice + item.additionalCost
+                        ? Double(item.quantity) * itemUnitPrice + item.additionalCost
+                        : Double(item.quantity) / 1000.0 * itemUnitPrice + item.additionalCost
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 4) {
@@ -221,7 +225,7 @@ struct ProductionBillDetailView: View {
                                 }
                             }
                             let unitLabel = isCai ? "/cái" : "/kg"
-                            Text(formatCurrency(item.unitPrice) + unitLabel)
+                            Text(formatCurrency(itemUnitPrice) + unitLabel)
                                 .font(.caption).foregroundStyle(.gray)
                             if item.additionalCost > 0 {
                                 Text("Chi phí: \(formatCurrency(item.additionalCost))")
