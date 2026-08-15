@@ -14,6 +14,7 @@ struct BillDetailView: View {
     @State private var receiptImageURLString: String? = nil
     @State private var showEditHistory = false
     @State private var dbEdits: [OrderEdit] = []
+    @State private var resolvedCustomerAddress: String? = nil
     
     var body: some View {
         VStack {
@@ -51,7 +52,7 @@ struct BillDetailView: View {
                 onComplete: nil,
                 customerName: bill.customerName ?? "Khách lẻ",
                 customerPhone: bill.customerPhone,
-                customerAddress: bill.customerAddress,
+                customerAddress: resolvedCustomerAddress ?? bill.customerAddress,
                 customerEmail: bill.customerEmail,
                 onOpenBankSettings: nil,
                 onCaptureReceipt: { showReceiptCamera = true },
@@ -215,6 +216,24 @@ struct BillDetailView: View {
             isPaid = bill.isPaid
             receiptImageURLString = bill.paymentReceiptURL
             Task {
+                // Resolve customer address from TradingParty if not on bill
+                if let address = bill.customerAddress, !address.isEmpty {
+                    resolvedCustomerAddress = address
+                } else {
+                    let db = SupabaseDatabaseService()
+                    let buyers = (try? await db.fetchTradingParties(type: "buyer")) ?? []
+                    let phone = bill.customerPhone ?? ""
+                    let name = (bill.customerName ?? "").lowercased()
+                    let match = buyers.first { party in
+                        let phoneMatch = !phone.isEmpty && party.phone == phone
+                        let nameMatch = !name.isEmpty && party.name.lowercased() == name
+                        return phoneMatch || nameMatch
+                    }
+                    if let addr = match?.address, !addr.isEmpty {
+                        resolvedCustomerAddress = addr
+                    }
+                }
+                
                 do {
                     dbEdits = try await SupabaseDatabaseService().fetchOrderEdits(orderId: bill.id)
                     print("✅ [OrderEdit] Loaded \(dbEdits.count) edits in detail for \(bill.id)")
@@ -306,7 +325,7 @@ struct BillDetailView: View {
                 onComplete: nil,
                 customerName: bill.customerName ?? "Khách lẻ",
                 customerPhone: bill.customerPhone,
-                customerAddress: bill.customerAddress,
+                customerAddress: resolvedCustomerAddress ?? bill.customerAddress,
                 customerEmail: bill.customerEmail,
                 onOpenBankSettings: nil,
                 onCaptureReceipt: nil,

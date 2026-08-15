@@ -3209,14 +3209,6 @@ struct ContentView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         
-                        if let address = customerAddress, !address.isEmpty {
-                            Text("Địa chỉ: \(address)")
-                                .font(.subheadline)
-                                .foregroundStyle(.gray)
-                                .lineLimit(nil)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        
                         if let email = customerEmail, !email.isEmpty {
                             Text("Email: \(email)")
                                 .font(.subheadline)
@@ -3240,6 +3232,14 @@ struct ContentView: View {
                     }
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
+                    
+                    if let address = customerAddress, !address.isEmpty {
+                        Text("Địa chỉ: \(address)")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
