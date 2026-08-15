@@ -2045,6 +2045,8 @@ struct ContentView: View {
         @Binding var email: String
         @Environment(\.dismiss) var dismiss
         @State private var showCustomerHistory = false
+        @State private var isSaving = false
+        @State private var savedToast = false
         
         var body: some View {
             NavigationStack {
@@ -2090,7 +2092,16 @@ struct ContentView: View {
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Xong") { dismiss() }
+                        Button {
+                            saveAndDismiss()
+                        } label: {
+                            if isSaving {
+                                ProgressView().frame(width: 44)
+                            } else {
+                                Text("Xong")
+                            }
+                        }
+                        .disabled(isSaving)
                     }
                 }
                 .sheet(isPresented: $showCustomerHistory) {
@@ -2103,6 +2114,50 @@ struct ContentView: View {
                             showCustomerHistory = false
                         }
                     )
+                }
+            }
+        }
+        
+        private func saveAndDismiss() {
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Chỉ lưu nếu có tên thực (không phải "Khách lẻ") hoặc có số điện thoại
+            let shouldSave = (!trimmedName.isEmpty && trimmedName.lowercased() != "khách lẻ") || !trimmedPhone.isEmpty
+            guard shouldSave else {
+                dismiss()
+                return
+            }
+            isSaving = true
+            let db = SupabaseDatabaseService()
+            let capturedName = trimmedName.isEmpty ? "Khách lẻ" : trimmedName
+            let capturedPhone = trimmedPhone
+            let capturedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+            let capturedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            Task {
+                do {
+                    // Tìm bản ghi hiện có (theo tên hoặc SĐT) để tránh tạo trùng
+                    let existing = try? await db.fetchTradingPartyByNameOrPhone(capturedName, capturedPhone, "buyer")
+                    var party = existing ?? TradingParty(
+                        id: UUID(),
+                        partyType: "buyer",
+                        name: capturedName,
+                        phone: capturedPhone,
+                        address: capturedAddress,
+                        totalDebt: 0
+                    )
+                    // Cập nhật các trường mới nhất
+                    party.name = capturedName
+                    if !capturedPhone.isEmpty { party.phone = capturedPhone }
+                    if !capturedAddress.isEmpty { party.address = capturedAddress }
+                    if !capturedEmail.isEmpty { party.email = capturedEmail }
+                    party.updatedAt = Date()
+                    try await db.upsertTradingParty(party)
+                } catch {
+                    print("⚠️ Could not save customer to trading_parties: \(error)")
+                }
+                await MainActor.run {
+                    isSaving = false
+                    dismiss()
                 }
             }
         }

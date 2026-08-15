@@ -1310,19 +1310,31 @@ class OrderViewModel: ObservableObject {
 
             // Lưu khách hàng vào trading_parties nếu có tên thực
             let trimmedName = walkInName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedPhone = walkInPhone.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedName.isEmpty && trimmedName.lowercased() != "khách lẻ" {
+                let capturedPhone = trimmedPhone
+                let capturedAddress = walkInAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+                let capturedEmail = walkInEmail.trimmingCharacters(in: .whitespacesAndNewlines)
                 Task {
                     // Reuse existing party id nếu đã có, tránh tạo bản ghi trùng
-                    let existing = try? await database.fetchTradingPartyByName(trimmedName, type: "buyer")
-                    let party = TradingParty(
-                        id: existing?.id ?? UUID(),
+                    var existing = try? await database.fetchTradingPartyByNameOrPhone(trimmedName, capturedPhone, "buyer")
+                    if existing == nil {
+                        existing = try? await database.fetchTradingPartyByName(trimmedName, type: "buyer")
+                    }
+                    var party = existing ?? TradingParty(
+                        id: UUID(),
                         partyType: "buyer",
                         name: trimmedName,
-                        phone: existing?.phone ?? "",
-                        address: existing?.address ?? "",
-                        totalDebt: existing?.totalDebt ?? 0,
-                        updatedAt: Date()
+                        phone: capturedPhone,
+                        address: capturedAddress,
+                        totalDebt: 0
                     )
+                    // Cập nhật thông tin mới nhất từ đơn hàng
+                    party.name = trimmedName
+                    if !capturedPhone.isEmpty { party.phone = capturedPhone }
+                    if !capturedAddress.isEmpty { party.address = capturedAddress }
+                    if !capturedEmail.isEmpty { party.email = capturedEmail }
+                    party.updatedAt = Date()
                     try? await database.upsertTradingParty(party)
                 }
             }
