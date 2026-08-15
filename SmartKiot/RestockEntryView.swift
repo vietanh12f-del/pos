@@ -2718,7 +2718,7 @@ struct ManualRestockItemView: View {
                     get: { Int(markupPercent) },
                     set: { markupPercent = Double($0); userEditedSuggestedPrice = false }
                 )) {
-                    ForEach(1...999, id: \.self) { pct in
+                    ForEach(0...999, id: \.self) { pct in
                         Text("+\(pct)%").tag(pct)
                     }
                 }
@@ -3060,7 +3060,7 @@ struct ManualRestockItemView: View {
          
          if finalUnitCost > 0 && suggestedPriceWheelSelection > 0 {
              let calculatedMarkup = ((Double(suggestedPriceWheelSelection) / finalUnitCost) - 1) * 100
-             markupPercent = max(1, calculatedMarkup)
+             markupPercent = max(0, calculatedMarkup)
          }
          
          showSuggestedPriceWheel = false
@@ -3110,7 +3110,7 @@ struct ManualRestockItemView: View {
                     let finalUnitCost = item.finalUnitCost
                     if finalUnitCost > 0 && sp > 0 {
                         let calculatedMarkup = ((sp / finalUnitCost) - 1) * 100
-                        markupPercent = max(1, calculatedMarkup)
+                        markupPercent = max(0, calculatedMarkup)
                     }
                 } else {
                     suggestedPriceWheelSelection = max(Int(item.finalUnitCost * 1.3), Int(item.unitPrice))

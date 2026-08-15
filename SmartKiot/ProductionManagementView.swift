@@ -92,7 +92,8 @@ struct ProductionManagementView: View {
     }
     
     private func productPriceText(for product: Product) -> String {
-        let price = product.price > product.costPrice ? product.price : product.costPrice * 1.3
+        // Dùng giá bán đã lưu trực tiếp; nếu chưa có (0) thì fallback về costPrice
+        let price = product.price > 0 ? product.price : product.costPrice
         return formatCurrency(price)
     }
     
