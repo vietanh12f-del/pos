@@ -1547,6 +1547,70 @@ struct ManualRestockItemView: View {
                         .padding(.vertical, 4)
                         .tint(Color.themePrimary)
                     }
+
+                    // Banner hướng dẫn khi bật nhập từ thành phẩm
+                    if importFromFinishedGood {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundStyle(.blue)
+                                .font(.subheadline)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Cách nhập:")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.blue)
+                                Text("1. Chọn thành phẩm nguồn\n2. Nhập khối lượng mỗi đơn vị\n3. Nhập số lượng\nGiá vốn sẽ được tính tự động.")
+                                    .font(.caption)
+                                    .foregroundStyle(.blue.opacity(0.85))
+                            }
+                            Spacer()
+                        }
+                        .padding(10)
+                        .background(Color.blue.opacity(0.07))
+                        .cornerRadius(10)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                    }
+
+                    // Bước 1 & 2 khi importFromFinishedGood: nguồn + KL trước, rõ ràng hơn
+                    if importFromFinishedGood {
+                        // Bước 1: Chọn thành phẩm nguồn
+                        HStack(spacing: 6) {
+                            Text("Bước 1")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(sourceText.isEmpty ? Color.orange : Color.green)
+                                .clipShape(Capsule())
+                            sourceInputView()
+                        }
+
+                        // Bước 2: Khối lượng mỗi đơn vị
+                        let gramsNow = weightPerUnitKgSelection * 1000 + weightPerUnitGramsSelection
+                        HStack(spacing: 6) {
+                            Text("Bước 2")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(gramsNow <= 0 ? Color.orange : Color.green)
+                                .clipShape(Capsule())
+                            HStack(spacing: 4) {
+                                Text("Khối lượng/đơn vị (KL)")
+                                InfoPopoverButton(text: "Khối lượng của mỗi đơn vị hàng hoá tính từ thành phẩm nguồn.\nVD: 1 hủ khô gà = 500g → nhập 10 hủ sẽ trừ kho thành phẩm 5kg.\nGiá vốn mỗi hủ = Giá vốn/kg của thành phẩm × (KL/1000).")
+                            }
+                            Spacer()
+                            Button {
+                                showWeightPerUnitWheel = true
+                            } label: {
+                                Text(gramsNow > 0 ? FormatUtils.formatWeight(gramsNow) : "Chưa nhập")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(gramsNow > 0 ? Color.primary : Color.orange)
+                            }
+                        }
+                    }
                     
                     currentStockLevelView()
                     
@@ -1614,7 +1678,7 @@ struct ManualRestockItemView: View {
                                     .foregroundStyle(qVal > 0 ? Color.primary : Color.gray)
                             }
                         } else {
-                            if importFromFinishedGood { sourceInputView() }
+                            if importFromFinishedGood == false { sourceInputView() }
                             documentImageSection()
                             
                             if !importFromFinishedGood {
@@ -1707,7 +1771,21 @@ struct ManualRestockItemView: View {
                             }
                         }
                     } else {
-                        quantityRow()
+                        if importFromFinishedGood {
+                            HStack(spacing: 6) {
+                                Text("Bước 3")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background((Int(quantity) ?? 0) <= 0 ? Color.orange : Color.green)
+                                    .clipShape(Capsule())
+                                quantityRow()
+                            }
+                        } else {
+                            quantityRow()
+                        }
                         
                         if !importFromFinishedGood {
                             HStack {
@@ -1830,13 +1908,11 @@ struct ManualRestockItemView: View {
                         }
                     }
                     
-                    if treatFinishedGoodsAsUnits || importFromFinishedGood {
+                    if treatFinishedGoodsAsUnits {
                         HStack {
                             HStack(spacing: 4) {
                                 Text("Khối lượng/đơn vị (KL)")
-                                InfoPopoverButton(text: importFromFinishedGood
-                                    ? "Khối lượng của mỗi đơn vị hàng hoá tính từ thành phẩm nguồn.\nVD: 1 hủ khô gà = 500g → nhập 10 hủ sẽ trừ kho thành phẩm 5kg.\nGiá vốn mỗi hủ = Giá vốn/kg của thành phẩm × (KL/1000)."
-                                    : "Khối lượng quy đổi mỗi đơn vị sản phẩm (tính bằng gram). Dùng để quy đổi giữa kho gram và kho cái.")
+                                InfoPopoverButton(text: "Khối lượng quy đổi mỗi đơn vị sản phẩm (tính bằng gram). Dùng để quy đổi giữa kho gram và kho cái.")
                             }
                             Spacer()
                             Button {
@@ -1851,7 +1927,7 @@ struct ManualRestockItemView: View {
                     }
                     
                     if !isSimpleFinishedGoodsEdit && !isExport && !isFinishedGoodsTransactionEdit {
-                        if importFromFinishedGood { sourceInputView() }
+                        if importFromFinishedGood == false { sourceInputView() }
                         documentImageSection()
                     }
                     
