@@ -1455,7 +1455,23 @@ struct ManualRestockItemView: View {
     @State private var hasVAT = false
 
     @AppStorage("production_enabled_global") private var productionEnabled: Bool = true
-    
+
+    /// Khi nhập từ thành phẩm, giá vốn mỗi cái = costPrice/kg của FG nguồn × gramsPerUnit/1000
+    /// Trả về nil nếu không đủ thông tin (không phải importFromFinishedGood, chưa chọn nguồn, KL = 0)
+    private var fgSourceCostPricePerUnit: Double? {
+        guard importFromFinishedGood else { return nil }
+        let gramsPerUnit = weightPerUnitKgSelection * 1000 + weightPerUnitGramsSelection
+        guard gramsPerUnit > 0 else { return nil }
+        guard !sourceText.isEmpty else { return nil }
+        let sourceName = sourceText.lowercased()
+        guard let sourceProduct = viewModel.products.first(where: {
+            $0.name.lowercased() == sourceName && $0.isFinishedGood
+        }) else { return nil }
+        // costPrice lưu theo kg (gam kho FG tính theo gam, costPrice per kg)
+        let costPerKg = sourceProduct.costPrice
+        return costPerKg * (Double(gramsPerUnit) / 1000.0)
+    }
+
     private var isSimpleFinishedGoodsEdit: Bool {
         isFinishedGoods && itemToEdit != nil && editTitle.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "sửa thành phẩm"
     }
@@ -1522,9 +1538,14 @@ struct ManualRestockItemView: View {
                     }
                     
                     if !isFinishedGoods && !addTitle.lowercased().contains("nguyên liệu") && productionEnabled {
-                        Toggle("Nhập từ thành phẩm", isOn: $importFromFinishedGood)
-                            .padding(.vertical, 4)
-                            .tint(Color.themePrimary)
+                        Toggle(isOn: $importFromFinishedGood) {
+                            HStack(spacing: 4) {
+                                Text("Nhập từ thành phẩm")
+                                InfoPopoverButton(text: "Bật để chia thành phẩm đang có trong kho thành hàng hoá đóng gói sẵn.\nVD: Khô gà thành phẩm (kho tính bằng gram) → Hủ khô gà 500g (kho tính bằng cái).\nHệ thống sẽ tự động trừ kho thành phẩm nguồn và tính giá vốn từ giá vốn/kg của thành phẩm đó.")
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        .tint(Color.themePrimary)
                     }
                     
                     currentStockLevelView()
@@ -1596,22 +1617,26 @@ struct ManualRestockItemView: View {
                             if importFromFinishedGood { sourceInputView() }
                             documentImageSection()
                             
-                            HStack {
-                                Text("Đơn giá nhập")
-                                Spacer()
-                                Button {
-                                    if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
-                                    showUnitPriceWheel = true
-                                } label: {
-                                    Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
-                                        .fontWeight(.semibold)
+                            if !importFromFinishedGood {
+                                HStack {
+                                    Text("Đơn giá nhập")
+                                    Spacer()
+                                    Button {
+                                        if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
+                                        showUnitPriceWheel = true
+                                    } label: {
+                                        Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                            .fontWeight(.semibold)
+                                    }
                                 }
                             }
                             
                             HStack {
                                 HStack(spacing: 4) {
                                     Text("Chi phí phát sinh")
-                                    InfoPopoverButton(text: "Chi phí vận chuyển, bốc xếp hoặc các chi phí khác phát sinh khi nhập hàng.")
+                                    InfoPopoverButton(text: importFromFinishedGood
+                                        ? "Chi phí đóng gói, vận chuyển nội bộ hoặc các chi phí phát sinh thêm khi chia thành phẩm ra hàng hoá. Được chia đều vào giá vốn mỗi đơn vị."
+                                        : "Chi phí vận chuyển, bốc xếp hoặc các chi phí khác phát sinh khi nhập hàng.")
                                 }
                                 Spacer()
                                 Button {
@@ -1684,22 +1709,26 @@ struct ManualRestockItemView: View {
                     } else {
                         quantityRow()
                         
-                        HStack {
-                            Text(isExport ? "Đơn giá xuất" : "Đơn giá nhập")
-                            Spacer()
-                            Button {
-                                if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
-                                showUnitPriceWheel = true
-                            } label: {
-                                Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
-                                    .fontWeight(.semibold)
+                        if !importFromFinishedGood {
+                            HStack {
+                                Text(isExport ? "Đơn giá xuất" : "Đơn giá nhập")
+                                Spacer()
+                                Button {
+                                    if let p = parseDouble(price) { unitPriceWheelSelection = Int(p) }
+                                    showUnitPriceWheel = true
+                                } label: {
+                                    Text(formatCurrency(parseDouble(price) ?? Double(unitPriceWheelSelection)))
+                                        .fontWeight(.semibold)
+                                }
                             }
                         }
 
                         HStack {
                             HStack(spacing: 4) {
                                 Text("Chi phí phát sinh")
-                                InfoPopoverButton(text: "Chi phí vận chuyển, bốc xếp hoặc các chi phí khác phát sinh khi nhập hàng. Được cộng vào tổng chi phí và chia đều vào đơn giá.")
+                                InfoPopoverButton(text: importFromFinishedGood
+                                    ? "Chi phí đóng gói, vận chuyển nội bộ hoặc các chi phí phát sinh thêm khi chia thành phẩm ra hàng hoá. Được chia đều vào giá vốn mỗi đơn vị."
+                                    : "Chi phí vận chuyển, bốc xếp hoặc các chi phí khác phát sinh khi nhập hàng. Được cộng vào tổng chi phí và chia đều vào đơn giá.")
                             }
                             Spacer()
                             Button {
@@ -1803,7 +1832,12 @@ struct ManualRestockItemView: View {
                     
                     if treatFinishedGoodsAsUnits || importFromFinishedGood {
                         HStack {
-                            Text("Khối lượng/đơn vị (KL)")
+                            HStack(spacing: 4) {
+                                Text("Khối lượng/đơn vị (KL)")
+                                InfoPopoverButton(text: importFromFinishedGood
+                                    ? "Khối lượng của mỗi đơn vị hàng hoá tính từ thành phẩm nguồn.\nVD: 1 hủ khô gà = 500g → nhập 10 hủ sẽ trừ kho thành phẩm 5kg.\nGiá vốn mỗi hủ = Giá vốn/kg của thành phẩm × (KL/1000)."
+                                    : "Khối lượng quy đổi mỗi đơn vị sản phẩm (tính bằng gram). Dùng để quy đổi giữa kho gram và kho cái.")
+                            }
                             Spacer()
                             Button {
                                 showWeightPerUnitWheel = true
@@ -1829,12 +1863,21 @@ struct ManualRestockItemView: View {
                         let q = useKgGram ? (FormatUtils.parseKgDecimalToGrams(quantity) ?? quantityWheelSelection) : quantityWheelSelection
                         if q > 0 {
                             let extra = parseDouble(incurredCost) ?? 0
-                            let total = getCalculatedTotal(pVal: p, qVal: q, incVal: extra, isMatExport: false)
+                            // Khi nhập từ thành phẩm: dùng costPrice FG nguồn thay unitPrice để hiển thị đúng
+                            let effectiveUnitPrice = fgSourceCostPricePerUnit ?? p
+                            let total = importFromFinishedGood
+                                ? effectiveUnitPrice * Double(q) + extra
+                                : getCalculatedTotal(pVal: p, qVal: q, incVal: extra, isMatExport: false)
+                            let displayedUnitCost = importFromFinishedGood
+                                ? (q > 0 ? (effectiveUnitPrice * Double(q) + extra) / Double(q) : effectiveUnitPrice)
+                                : (q > 0 ? p + extra / Double(q) : p)
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     HStack(spacing: 4) {
                                         Text("Tổng chi phí:")
-                                        InfoPopoverButton(text: "Số lượng × Đơn giá nhập + Chi phí phát sinh.")
+                                        InfoPopoverButton(text: importFromFinishedGood
+                                            ? "Số lượng × Giá vốn/cái (từ thành phẩm nguồn) + Chi phí phát sinh."
+                                            : "Số lượng × Đơn giá nhập + Chi phí phát sinh.")
                                     }
                                     Spacer()
                                     Text(formatCurrency(total))
@@ -1842,29 +1885,54 @@ struct ManualRestockItemView: View {
                                 }
 
                                 HStack {
-                                    Text("Đơn giá nhập (bao gồm chi phí):")
-                                        .font(.caption)
-                                        .foregroundStyle(.gray)
+                                    HStack(spacing: 4) {
+                                        Text("Đơn giá nhập (bao gồm chi phí):")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                        InfoPopoverButton(text: importFromFinishedGood
+                                            ? "Giá vốn/cái = Giá vốn/kg thành phẩm × (KL/1000) + Chi phí phát sinh/Số lượng.\nĐây sẽ là costPrice lưu vào hàng hoá sau khi lưu phiếu."
+                                            : "Tổng chi phí / Số lượng. Đây là giá vốn thực tế mỗi đơn vị sau khi tính chi phí phát sinh, sẽ được lưu làm costPrice của hàng hoá.")
+                                    }
                                     Spacer()
-                                    Text(getCalculatedUnitPriceDisplay(pVal: p, qVal: q, incVal: extra, isMatExport: false))
+                                    Text(formatCurrency(displayedUnitCost))
                                         .font(.caption)
                                         .foregroundStyle(.gray)
                                 }
+
+                                if importFromFinishedGood, let fgCost = fgSourceCostPricePerUnit {
+                                    HStack {
+                                        HStack(spacing: 4) {
+                                            Text("Giá vốn từ thành phẩm:")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                            InfoPopoverButton(text: "Giá vốn/kg của '\(sourceText)' × KL mỗi đơn vị.\nGiá trị này được lấy tự động từ thành phẩm nguồn, không cần nhập tay.")
+                                        }
+                                        Spacer()
+                                        Text(formatCurrency(fgCost))
+                                            .font(.caption)
+                                            .foregroundStyle(.blue)
+                                    }
+                                }
                                 
                                 // Giá bán dự kiến
-                                let unitCost: Double = q > 0 ? p + extra / Double(q) : p
+                                // Nếu nhập từ thành phẩm: giá vốn/cái lấy từ costPrice FG nguồn, không phải unitPrice
+                                let effectiveUnitCost: Double = fgSourceCostPricePerUnit ?? (q > 0 ? p + extra / Double(q) : p)
+                                let unitCost: Double = effectiveUnitCost
                                 let displayedSuggestedPrice = userEditedSuggestedPrice
                                     ? Double(suggestedPriceWheelSelection)
                                     : unitCost * (1 + markupPercent / 100)
                                 
                                 HStack(spacing: 6) {
-                                    Text("Giá bán dự kiến:")
-                                        .foregroundStyle(.gray)
+                                    HStack(spacing: 4) {
+                                        Text("Giá bán dự kiến:")
+                                            .foregroundStyle(.gray)
+                                        InfoPopoverButton(text: "Giá bán đề xuất = Giá vốn/cái × (1 + Markup%).\nTap vào con số để chỉnh thủ công, tap vào badge % để đổi mức markup.\nGiá trị này sẽ được lưu làm price của hàng hoá.")
+                                    }
                                     
                                     Spacer()
                                     
                                     // Button % — tap mở popup bánh xe
-                                    if p != 0 {
+                                    if effectiveUnitCost != 0 {
                                         Button {
                                             showMarkupPicker = true
                                         } label: {
@@ -2911,6 +2979,14 @@ struct ManualRestockItemView: View {
         }
         guard !name.isEmpty, q > 0 else { return }
         let extra = parseDouble(incurredCost) ?? 0
+        // Khi nhập từ thành phẩm: unitPrice thực tế = costPrice/kg của FG nguồn × gramsPerUnit/1000
+        // Override p để finalUnitCost và suggestedPrice tính đúng từ giá vốn FG
+        let effectiveUnitPrice: Double
+        if importFromFinishedGood, let fgCostPerUnit = fgSourceCostPricePerUnit {
+            effectiveUnitPrice = fgCostPerUnit
+        } else {
+            effectiveUnitPrice = p
+        }
         // Tính finalUnitCost = giá nhập gồm chi phí phân bổ trên mỗi đơn vị
         // Với nguyên liệu (useKgGram + không phải FG): p là per kg, q là gram → tính per kg
         // Với thành phẩm và hàng hoá: p là per đơn vị, q là số đơn vị → tính per đơn vị
@@ -2918,10 +2994,10 @@ struct ManualRestockItemView: View {
         if useKgGram && !isFinishedGoods {
             // Nguyên liệu: p per kg, q gram
             let kg = Double(q) / 1000.0
-            finalUnitCost = kg > 0 ? p + extra / kg : p
+            finalUnitCost = kg > 0 ? effectiveUnitPrice + extra / kg : effectiveUnitPrice
         } else {
             // Hàng hoá và thành phẩm: p per cái, q số cái
-            finalUnitCost = q > 0 ? p + extra / Double(q) : p
+            finalUnitCost = q > 0 ? effectiveUnitPrice + extra / Double(q) : effectiveUnitPrice
         }
         // Giá bán = (100 + markupPercent)% giá vốn gồm chi phí; chỉ dùng giá user nhập nếu user đã tự chỉnh
         // Áp dụng cho cả hàng hoá và thành phẩm (không áp dụng cho xuất)
@@ -2943,7 +3019,7 @@ struct ManualRestockItemView: View {
         if var item = itemToEdit {
             item.name = name
             item.quantity = q
-            item.unitPrice = p
+            item.unitPrice = effectiveUnitPrice
             item.additionalCost = extra
             item.suggestedPrice = suggested
             item.category = selectedCategoryName
@@ -2962,7 +3038,7 @@ struct ManualRestockItemView: View {
             let src = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
             viewModel.addRestockItem(
                 name,
-                unitPrice: p,
+                unitPrice: effectiveUnitPrice,
                 quantity: q,
                 additionalCost: extra,
                 suggestedPrice: suggested,
