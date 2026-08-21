@@ -42,6 +42,7 @@ struct RestockEntryView: View {
     @State private var inventorySubTab: Int = 1
     @State private var lastAddedItemId: UUID? = nil
     @State private var selectedCategoryFilter: String = "Tất cả"
+    @State private var gridColumns: Int = 3
     @State private var showSourcePicker = false
     @State private var sourcePickerIndex: Int? = nil
     @State private var sourcePickerOptions: [String] = []
@@ -173,25 +174,48 @@ struct RestockEntryView: View {
                             .padding(.top, 4)
                         }
                         
-                        HStack {
-                            Image(systemName: "magnifyingglass").foregroundStyle(.gray)
-                            TextField(useMaterialsList ? "Tìm nguyên liệu có sẵn..." : "Tìm sản phẩm có sẵn...", text: $viewModel.searchText)
-                                .textInputAutocapitalization(.never)
-                                .disableAutocorrection(true)
-                            if !viewModel.searchText.isEmpty {
-                                Button { viewModel.searchText = "" } label: {
-                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                        HStack(spacing: 8) {
+                            HStack {
+                                Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                                TextField(useMaterialsList ? "Tìm nguyên liệu có sẵn..." : "Tìm sản phẩm có sẵn...", text: $viewModel.searchText)
+                                    .textInputAutocapitalization(.never)
+                                    .disableAutocorrection(true)
+                                if !viewModel.searchText.isEmpty {
+                                    Button { viewModel.searchText = "" } label: {
+                                        Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                                    }
                                 }
                             }
+                            .padding(12)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            
+                            // Grid column toggle
+                            HStack(spacing: 0) {
+                                ForEach([3, 4, 6], id: \.self) { n in
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            gridColumns = n
+                                        }
+                                    } label: {
+                                        Image(systemName: n == 3 ? "square.grid.3x2" : n == 4 ? "square.grid.4x3.fill" : "rectangle.grid.3x2")
+                                            .font(.system(size: 15))
+                                            .foregroundStyle(gridColumns == n ? Color.themePrimary : Color.gray.opacity(0.5))
+                                            .frame(width: 34, height: 34)
+                                            .background(gridColumns == n ? Color.themePrimary.opacity(0.12) : Color.clear)
+                                            .cornerRadius(8)
+                                    }
+                                }
+                            }
+                            .padding(4)
+                            .background(Color.white)
+                            .cornerRadius(12)
                         }
-                        .padding(12)
-                        .background(Color.white)
-                        .cornerRadius(12)
                         .padding(.horizontal)
                         .padding(.top, 8)
                         
                         ScrollView {
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: gridColumns), spacing: 12) {
                                 if useMaterialsList {
                                     ForEach(viewModel.materials.filter { m in
                                         let catOK = (selectedCategoryFilter == "Tất cả") || (m.category.lowercased() == selectedCategoryFilter.lowercased())
@@ -199,7 +223,7 @@ struct RestockEntryView: View {
                                         if s.isEmpty { return catOK }
                                         let q = s.lowercased()
                                         return catOK && (m.name.lowercased().contains(q) || m.category.lowercased().contains(q))
-                                    }) { m in
+                                    }.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }) { m in
                                         VStack(spacing: 8) {
                                             HStack {
                                                 Text(formatCurrency(m.lastUnitPrice))
@@ -297,7 +321,7 @@ struct RestockEntryView: View {
                                             let q = s.lowercased()
                                             return catOK && (p.name.lowercased().contains(q) || p.category.lowercased().contains(q) || (p.barcode?.contains(s) ?? false))
                                         }
-                                    }) { p in
+                                    }.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }) { p in
                                         VStack(spacing: 8) {
                                             HStack {
                                                 Text(formatCurrency(p.price))

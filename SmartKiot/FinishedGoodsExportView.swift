@@ -172,7 +172,7 @@ struct FinishedGoodsExportView: View {
             let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
             let isFinishedGoodsExport = !isImport && !isExportMaterials && !isRegularRestock
             let itemUnitPrice: Double = {
-                if isFinishedGoodsImport { return item.suggestedPrice ?? item.unitPrice }
+                if isFinishedGoodsImport { return item.finalUnitCost }
                 if isFinishedGoodsExport { return item.suggestedPrice ?? item.unitPrice }
                 return item.unitPrice
             }()
@@ -669,7 +669,7 @@ struct FinishedGoodsExportView: View {
                     .foregroundStyle(.gray)
                     .frame(width: 72, alignment: .trailing)
                 let priceLabel: String = {
-                    if isFinishedGoodsImport { return "Giá bán" }
+                    if isFinishedGoodsImport { return "Giá nhập" }
                     if !isImport && !isExportMaterials && !isRegularRestock { return "Giá xuất" }
                     return "Đơn giá"
                 }()
@@ -691,7 +691,7 @@ struct FinishedGoodsExportView: View {
                 let isCai = item.unit?.lowercased() == "cái" && !isLegacyGramAsCai
                 let isFinishedGoodsExport = !isImport && !isExportMaterials && !isRegularRestock
                 let itemUnitPrice: Double = {
-                    if isFinishedGoodsImport { return item.suggestedPrice ?? item.unitPrice }
+                    if isFinishedGoodsImport { return item.finalUnitCost }
                     if isFinishedGoodsExport { return item.suggestedPrice ?? item.unitPrice }
                     return item.unitPrice
                 }()
@@ -742,7 +742,7 @@ struct FinishedGoodsExportView: View {
                             .frame(width: 72, alignment: .trailing)
 
                         let displayPrice: Double = {
-                            if isFinishedGoodsImport { return item.suggestedPrice ?? item.unitPrice }
+                            if isFinishedGoodsImport { return item.finalUnitCost }
                             if isFinishedGoodsExport { return item.suggestedPrice ?? item.unitPrice }
                             return item.unitPrice
                         }()
