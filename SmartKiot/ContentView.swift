@@ -1202,50 +1202,72 @@ struct ContentView: View {
         }
         
         @State private var orderCategory: String = "Tất cả"
+        @State private var orderGridColumns: Int = 3
         
         var browsingContentViewOrder: some View {
             VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        let availableCatNames = Array(Set(viewModel.products.filter { !$0.isFinishedGood }.map { $0.category })).sorted()
-                        let chips = ["Tất cả"] + availableCatNames
-                        ForEach(chips, id: \.self) { cat in
-                            Button(action: {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    orderCategory = cat
-                                }
-                                let generator = UIImpactFeedbackGenerator(style: .light)
-                                generator.impactOccurred()
-                            }) {
-                                Text(cat)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        ZStack {
-                                            if orderCategory == cat {
-                                                Capsule()
-                                                    .fill(Color.themePrimary)
-                                                    .matchedGeometryEffect(id: "catPill", in: namespace)
-                                                    .shadow(color: Color.themePrimary.opacity(0.3), radius: 4, x: 0, y: 2)
-                                            } else {
-                                                Capsule()
-                                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                HStack(spacing: 0) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            let availableCatNames = Array(Set(viewModel.products.filter { !$0.isFinishedGood }.map { $0.category })).sorted()
+                            let chips = ["Tất cả"] + availableCatNames
+                            ForEach(chips, id: \.self) { cat in
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        orderCategory = cat
+                                    }
+                                    let generator = UIImpactFeedbackGenerator(style: .light)
+                                    generator.impactOccurred()
+                                }) {
+                                    Text(cat)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(
+                                            ZStack {
+                                                if orderCategory == cat {
+                                                    Capsule()
+                                                        .fill(Color.themePrimary)
+                                                        .matchedGeometryEffect(id: "catPill", in: namespace)
+                                                        .shadow(color: Color.themePrimary.opacity(0.3), radius: 4, x: 0, y: 2)
+                                                } else {
+                                                    Capsule()
+                                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                                }
                                             }
-                                        }
-                                    )
-                                    .foregroundStyle(orderCategory == cat ? Color.themeTextDark : Color.gray)
+                                        )
+                                        .foregroundStyle(orderCategory == cat ? Color.themeTextDark : Color.gray)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                    }
+
+                    // Grid column toggle
+                    HStack(spacing: 0) {
+                        ForEach([3, 4, 6], id: \.self) { n in
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    orderGridColumns = n
+                                }
+                            } label: {
+                                Image(systemName: n == 3 ? "square.grid.3x2" : n == 4 ? "square.grid.4x3.fill" : "rectangle.grid.3x2")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(orderGridColumns == n ? Color.themePrimary : Color.gray.opacity(0.5))
+                                    .frame(width: 34, height: 34)
+                                    .background(orderGridColumns == n ? Color.themePrimary.opacity(0.12) : Color.clear)
+                                    .cornerRadius(8)
                             }
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
+                    .padding(.trailing, 8)
                 }
                 .background(Color.white)
                 
                 ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: orderGridColumns), spacing: 16) {
                         let productsToShow = viewModel.products.filter { p in
                             guard !p.isFinishedGood else { return false }
                             if orderCategory == "Tất cả" { return true }
