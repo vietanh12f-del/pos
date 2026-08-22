@@ -510,15 +510,29 @@ class SupabaseDatabaseService: DatabaseService {
         guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
         let orderDTO = OrderDTO(from: bill).withStore(storeId)
         
-        // Update main order (including payment status)
+        // Update main order (total, payment status, customer info, etc.)
         try await client.database
             .from("orders")
             .update(orderDTO)
             .eq("id", value: bill.id)
             .execute()
         
-        // Note: We are not updating items here for simplicity, assuming only status changes
-        // If we need to update items, we'd need to delete and re-insert or upsert
+        // Update order_items: xóa items cũ rồi insert items mới
+        // Bắt buộc để đảm bảo số lượng/giá sau khi chỉnh sửa được lưu đúng
+        try await client.database
+            .from("order_items")
+            .delete()
+            .eq("order_id", value: bill.id)
+            .execute()
+        
+        if !bill.items.isEmpty {
+            let itemsDTOs = bill.items.map { OrderItemDTO(from: $0, orderId: bill.id, storeId: storeId) }
+            try await client.database
+                .from("order_items")
+                .insert(itemsDTOs)
+                .execute()
+            print("✅ updateOrder: saved \(itemsDTOs.count) items for order \(bill.id)")
+        }
     }
     
     func deleteOrder(_ id: UUID) async throws {

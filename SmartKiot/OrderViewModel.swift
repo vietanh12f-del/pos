@@ -221,6 +221,8 @@ class OrderViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     
     private var realtimeChannel: RealtimeChannelV2?
+    /// IDs của orders vừa được edit locally — realtime update sẽ bị skip trong 3s để tránh race condition với order_items
+    private var locallyEditedOrderIds: Set<UUID> = []
     
     init() {
         // Recalculate stats
@@ -414,10 +416,16 @@ class OrderViewModel: ObservableObject {
         }
         Task {
             do {
+                // Mark locally edited để realtime update không overwrite items
+                locallyEditedOrderIds.insert(original.id)
                 try await database.updateOrder(updatedBill)
                 addEditHistory(for: original, updated: updatedBill)
+                // Clear flag sau 3s
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                locallyEditedOrderIds.remove(original.id)
             } catch {
                 print("❌ Error updating edited payment: \(error)")
+                locallyEditedOrderIds.remove(original.id)
             }
         }
         recalculateStats()
@@ -748,6 +756,11 @@ class OrderViewModel: ObservableObject {
             do {
                 let payload = try change.decodeRecord(as: OrderPayload.self, decoder: decoder)
                 Task {
+                    // Skip nếu order vừa được edit locally — tránh race condition với order_items delete+reinsert
+                    guard !self.locallyEditedOrderIds.contains(payload.id) else {
+                        print("⏭️ Realtime Update skipped (locally edited): \(payload.id)")
+                        return
+                    }
                     if let fullBill = try? await self.database.fetchOrder(id: payload.id) {
                         await MainActor.run {
                             if let index = self.pastOrders.firstIndex(where: { $0.id == fullBill.id }) {
@@ -3179,10 +3192,14 @@ class OrderViewModel: ObservableObject {
             
             Task {
                 do {
+                    locallyEditedOrderIds.insert(originalBill.id)
                     try await database.updateOrder(updatedBill)
                     addEditHistory(for: originalBill, updated: updatedBill)
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    locallyEditedOrderIds.remove(originalBill.id)
                 } catch {
                     print("❌ Error updating edited order: \(error)")
+                    locallyEditedOrderIds.remove(originalBill.id)
                 }
             }
             
