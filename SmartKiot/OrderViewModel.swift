@@ -395,10 +395,15 @@ class OrderViewModel: ObservableObject {
         updatedBill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
         updatedBill.customerEmail = walkInEmail.isEmpty ? nil : walkInEmail
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? original.paymentReceiptURL
-        updatedBill.isPaid = original.isPaid
         updatedBill.vatRate = vatRate
         updatedBill.creatorId = original.creatorId
         updatedBill.creatorName = original.creatorName
+        updatedBill.note = note.isEmpty ? nil : note
+        updatedBill.expectedPayDate = expectedPayDate
+        // Dùng giá trị thanh toán người dùng đã chỉnh, không hardcode từ original
+        updatedBill.isPaid = debtAmount <= 0
+        updatedBill.paidAmount = paidAmount
+        updatedBill.debtAmount = debtAmount > 0 ? debtAmount : nil
         
         // Calculate VAT amount
         let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
@@ -3130,6 +3135,15 @@ class OrderViewModel: ObservableObject {
         walkInEmail = bill.customerEmail ?? ""
         paymentReceiptImageURL = bill.paymentReceiptURL
         note = bill.note ?? ""
+        expectedPayDate = bill.expectedPayDate
+        // Load trạng thái thanh toán từ bill gốc
+        if let paid = bill.paidAmount, paid < bill.total {
+            payFullAmount = false
+            partialAmount = paid
+        } else {
+            payFullAmount = bill.isPaid
+            partialAmount = bill.paidAmount ?? bill.total
+        }
     }
     
     func saveEditedOrder() {
@@ -3145,7 +3159,11 @@ class OrderViewModel: ObservableObject {
         updatedBill.customerEmail = walkInEmail.isEmpty ? nil : walkInEmail
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? originalBill.paymentReceiptURL
         updatedBill.sequenceNumber = originalBill.sequenceNumber
-        updatedBill.isPaid = originalBill.isPaid
+        updatedBill.isPaid = debtAmount <= 0
+        updatedBill.paidAmount = paidAmount
+        updatedBill.debtAmount = debtAmount > 0 ? debtAmount : nil
+        updatedBill.expectedPayDate = expectedPayDate
+        updatedBill.note = note.isEmpty ? nil : note
         updatedBill.vatRate = vatRate
         updatedBill.creatorId = originalBill.creatorId
         updatedBill.creatorName = originalBill.creatorName

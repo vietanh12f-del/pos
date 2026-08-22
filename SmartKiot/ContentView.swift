@@ -2677,7 +2677,7 @@ struct ContentView: View {
                             qrURL: viewModel.vietQRURL(),
                             qrImage: nil,
                             billPayload: viewModel.billPayload(),
-                            showButtons: viewModel.editingBill == nil,
+                            showButtons: true,
                             onComplete: { isPaid in
                                 if viewModel.editingBill != nil {
                                     Task {
