@@ -11,6 +11,7 @@ struct OrderHistoryView: View {
     @State private var soldEndDate: Date = Date()
     @State private var showInventoryReport: Bool = false
     @State private var showDeletedBills: Bool = false
+    @State private var isRefreshing: Bool = false
     
     init(viewModel: OrderViewModel, navigateToBillId: Binding<UUID?> = .constant(nil)) {
         self.viewModel = viewModel
@@ -57,6 +58,23 @@ struct OrderHistoryView: View {
                                 .font(.title)
                                 .fontWeight(.bold)
                             Spacer()
+                            // Nút refresh thủ công
+                            Button {
+                                Task {
+                                    isRefreshing = true
+                                    await viewModel.refreshOrders()
+                                    isRefreshing = false
+                                }
+                            } label: {
+                                if isRefreshing {
+                                    ProgressView()
+                                        .frame(width: 20, height: 20)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.headline)
+                                }
+                            }
+                            .padding(.trailing, 4)
                             Button {
                                 showSoldSearch = true
                             } label: {
@@ -73,21 +91,25 @@ struct OrderHistoryView: View {
                         }
                         .padding(.horizontal)
                         .padding(.top)
-                        
-                        if sections.isEmpty {
-                            VStack(spacing: 16) {
-                                Spacer()
-                                Image(systemName: "doc.text.magnifyingglass")
-                                    .font(.system(size: 60))
-                                    .foregroundStyle(Color.gray.opacity(0.3))
-                                Text(showDeletedBills ? "Chưa có đơn hàng nào bị xoá" : "Chưa có đơn hàng nào")
-                                    .font(.headline)
-                                    .foregroundStyle(Color.gray)
-                                Spacer()
-                            }
-                        } else {
-                            ScrollViewReader { proxy in
-                                List {
+
+                        ScrollViewReader { proxy in
+                            List {
+                                if sections.isEmpty {
+                                    // Empty state bên trong List để refreshable luôn hoạt động
+                                    Section {
+                                        VStack(spacing: 16) {
+                                            Image(systemName: "doc.text.magnifyingglass")
+                                                .font(.system(size: 60))
+                                                .foregroundStyle(Color.gray.opacity(0.3))
+                                            Text(showDeletedBills ? "Chưa có đơn hàng nào bị xoá" : "Chưa có đơn hàng nào")
+                                                .font(.headline)
+                                                .foregroundStyle(Color.gray)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 60)
+                                        .listRowBackground(Color.clear)
+                                    }
+                                } else {
                                     ForEach(sections, id: \.title) { section in
                                         Section(header: OrderHistorySectionHeader(title: section.title)) {
                                             ForEach(section.bills) { bill in
@@ -108,18 +130,24 @@ struct OrderHistoryView: View {
                                         }
                                     }
                                 }
-                                .listStyle(.insetGrouped)
-                                .refreshable { await viewModel.loadData(force: true) }
-                                .scrollContentBackground(.hidden)
-                                .background(Color.themeBackgroundLight)
-                                .onChange(of: highlightedBillId) { billId in
-                                    if let billId = billId {
-                                        withAnimation(.easeInOut(duration: 0.5)) {
-                                            proxy.scrollTo(billId, anchor: .center)
-                                        }
+                            }
+                            .listStyle(.insetGrouped)
+                            .refreshable {
+                                print("🔄 [OrderHistoryView] Pull-to-refresh triggered")
+                                isRefreshing = true
+                                await viewModel.refreshOrders()
+                                isRefreshing = false
+                                print("✅ [OrderHistoryView] Pull-to-refresh done, orders: \(viewModel.pastOrders.count)")
+                            }
+                            .scrollContentBackground(.hidden)
+                            .background(Color.themeBackgroundLight)
+                            .onChange(of: highlightedBillId) { billId in
+                                if let billId = billId {
+                                    withAnimation(.easeInOut(duration: 0.5)) {
+                                        proxy.scrollTo(billId, anchor: .center)
                                     }
                                 }
-                            } // end ScrollViewReader
+                            }
                         }
                     }
                 }
@@ -171,6 +199,14 @@ struct OrderHistoryView: View {
             }
             .sheet(isPresented: $showInventoryReport) {
                 InventoryReportView(viewModel: viewModel)
+            }
+            .onAppear {
+                Task { await viewModel.refreshOrders() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshOrderHistory"))) { _ in
+                Task {
+                    await viewModel.refreshOrders()
+                }
             }
             .onChange(of: navigateToBillId) { billId in
                 guard let billId else { return }

@@ -1387,6 +1387,23 @@ class OrderViewModel: ObservableObject {
         reset()
     }
     
+    /// Chỉ fetch lại orders + edited IDs — nhẹ, dùng cho pull-to-refresh ở lịch sử đơn hàng
+    func refreshOrders() async {
+        guard let sid = StoreManager.shared.currentStore?.id else { return }
+        do {
+            let orders = try await database.fetchOrders()
+            let ids = (try? await database.fetchEditedOrderIds(storeId: sid)) ?? []
+            await MainActor.run {
+                self.pastOrders = orders
+                self.editedOrderIds = Set(ids)
+                self.recalculateStats()
+            }
+            print("✅ refreshOrders: loaded \(orders.count) orders")
+        } catch {
+            print("⚠️ refreshOrders error: \(error)")
+        }
+    }
+
     func recalculateStats() {
         // Global Stats
         revenue = pastOrders.filter { $0.isPaid && !$0.isDeleted }.reduce(0) { $0 + $1.total }

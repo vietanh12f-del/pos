@@ -106,6 +106,15 @@ struct Bill: Identifiable, Codable, Equatable {
     
     static func == (lhs: Bill, rhs: Bill) -> Bool {
         return lhs.id == rhs.id
+            && lhs.total == rhs.total
+            && lhs.items == rhs.items
+            && lhs.isPaid == rhs.isPaid
+            && lhs.isDeleted == rhs.isDeleted
+            && lhs.paidAmount == rhs.paidAmount
+            && lhs.debtAmount == rhs.debtAmount
+            && lhs.customerName == rhs.customerName
+            && lhs.sequenceNumber == rhs.sequenceNumber
+            && lhs.note == rhs.note
     }
 }
 

@@ -2683,6 +2683,19 @@ struct ContentView: View {
                                     Task {
                                         await viewModel.finalizeEditedPayment()
                                         dismiss()
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                            NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
+                                        }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                            NotificationCenter.default.post(
+                                                name: NSNotification.Name("NavigateToTab"),
+                                                object: nil,
+                                                userInfo: ["tab": 1]
+                                            )
+                                        }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                            NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
+                                        }
                                     }
                                 } else {
                                     viewModel.completeOrder(isPaid: isPaid)
@@ -2740,9 +2753,22 @@ struct ContentView: View {
                         }
                         ActionButton(icon: viewModel.editingBill != nil ? "square.and.pencil" : "plus", title: viewModel.editingBill != nil ? "Lưu sửa" : "Tạo đơn mới") {
                             if viewModel.editingBill != nil {
-                                Task { 
+                                Task {
                                     await viewModel.finalizeEditedPayment()
                                     dismiss()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                        NotificationCenter.default.post(
+                                            name: NSNotification.Name("NavigateToTab"),
+                                            object: nil,
+                                            userInfo: ["tab": 1]
+                                        )
+                                    }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                        NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
+                                    }
                                 }
                             } else {
                                 // Default to unpaid when creating new order
@@ -2947,11 +2973,19 @@ struct ContentView: View {
 
             // Hàm hoàn tất bill và điều hướng về tab lịch sử (chỉ gọi 1 lần)
             var didFinish = false
+            let isEditing = viewModel.editingBill != nil
             let finishAndNavigate = {
                 guard !didFinish else { return }
                 didFinish = true
                 DispatchQueue.main.async {
-                    viewModel.completeOrder(isPaid: true)
+                    if isEditing {
+                        // Đang sửa đơn: lưu sửa, KHÔNG tạo mới
+                        Task {
+                            await viewModel.finalizeEditedPayment()
+                        }
+                    } else {
+                        viewModel.completeOrder(isPaid: true)
+                    }
                     dismiss()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                         NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
@@ -2962,6 +2996,12 @@ struct ContentView: View {
                             object: nil,
                             userInfo: ["tab": 1]
                         )
+                    }
+                    if isEditing {
+                        // Trigger refresh lịch sử đơn hàng sau khi sửa xong
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
+                        }
                     }
                 }
             }
