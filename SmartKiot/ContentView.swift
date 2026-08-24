@@ -1272,7 +1272,7 @@ struct ContentView: View {
                             guard !p.isFinishedGood else { return false }
                             if orderCategory == "Tất cả" { return true }
                             return p.category.lowercased() == orderCategory.lowercased()
-                        }
+                        }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
                         ForEach(productsToShow) { product in
                             Button(action: {
                                 let generator = UIImpactFeedbackGenerator(style: .medium)
