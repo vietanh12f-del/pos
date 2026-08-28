@@ -407,15 +407,24 @@ struct CustomerManagementView: View {
         }
     }
 
-    private func calculateTotalDebt(for party: TradingParty, allProductionTxs: [ProductionTransaction]) -> Double {
+    private func calculateTotalDebt(for party: TradingParty, allProductionTxs: [ProductionTransaction], retailOrders: [Bill] = []) -> Double {
         let name = party.name.lowercased()
         let phone = party.phone
-        return allProductionTxs.filter { tx in
+        let txDebt = allProductionTxs.filter { tx in
             guard !tx.isDeleted else { return false }
             let matchName = tx.buyerName?.lowercased() == name
             let matchPhone = phone.isEmpty ? false : tx.buyerPhone == phone
             return matchName || matchPhone
         }.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        
+        let retailDebt = retailOrders.filter { bill in
+            guard !bill.isDeleted else { return false }
+            let matchName = (bill.customerName ?? "").lowercased() == name
+            let matchPhone = phone.isEmpty ? false : bill.customerPhone == phone
+            return matchName || matchPhone
+        }.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        
+        return txDebt + retailDebt
     }
     
     private func getLastTransactionDate(for party: TradingParty) -> Date? {
@@ -450,13 +459,14 @@ struct CustomerManagementView: View {
         async let buyers = (try? db.fetchTradingParties(type: "buyer")) ?? []
         async let suppliers = (try? db.fetchTradingParties(type: "supplier")) ?? []
         async let fetchedLeads = (try? db.fetchWebsiteLeads()) ?? []
-        let (b, s, l) = await (buyers, suppliers, fetchedLeads)
+        async let allRetailOrders = (try? db.fetchOrders()) ?? []
+        let (b, s, l, retailOrders) = await (buyers, suppliers, fetchedLeads, allRetailOrders)
         
-        // Calculate total debt for each party
+        // Calculate total debt for each party (including retail orders)
         var updatedParties: [TradingParty] = []
         for party in b + s {
             var updated = party
-            let newTotalDebt = calculateTotalDebt(for: party, allProductionTxs: allProductionTxs)
+            let newTotalDebt = calculateTotalDebt(for: party, allProductionTxs: allProductionTxs, retailOrders: retailOrders)
             updated.totalDebt = newTotalDebt
             
             // Only upsert if totalDebt has changed
@@ -564,6 +574,7 @@ struct PartyDetailView: View {
     @State private var showFeatureInDevelopment = false
     @State private var showDebtEdit = false
     @State private var editedTransactions: [UUID: (debtAmount: Double, expectedPayDate: Date?)] = [:]
+    @State private var editedRetailOrderDebts: [UUID: Double] = [:] // billId -> newDebtAmount
     @State private var showEditHistoryPopover = false
     @State private var selectedEditHistoryTxId: UUID?
     @State private var editHistoryEntries: [ProductionEdit] = []
@@ -763,12 +774,14 @@ struct PartyDetailView: View {
             .sheet(isPresented: $showDebtEdit) {
                 DebtEditView(
                     transactions: allPartyTxs,
+                    retailOrders: retailOrders,
                     isSupplier: isSupplier,
                     editedTxIds: orderViewModel.editedProductionTxIds,
                     fetchEdits: { txId in
                         await orderViewModel.fetchProductionEdits(for: txId)
                     },
                     editedTransactions: $editedTransactions,
+                    editedRetailOrderDebts: $editedRetailOrderDebts,
                     onSave: {
                         await saveDebtEdits()
                     },
@@ -974,20 +987,31 @@ struct PartyDetailView: View {
     private func saveDebtEdits() async {
         let viewModel = orderViewModel
         
+        // Save production transaction debts
         for tx in allPartyTxs {
             guard let edits = editedTransactions[tx.id] else { continue }
-            
-            // Check if anything actually changed
             let debtChanged = (tx.debtAmount ?? 0) != edits.debtAmount
             let payDateChanged = tx.expectedPayDate != edits.expectedPayDate
-            
             guard debtChanged || payDateChanged else { continue }
-            
             var updatedTx = tx
             updatedTx.debtAmount = edits.debtAmount
             updatedTx.expectedPayDate = edits.expectedPayDate
-            
             await viewModel.updateProductionTransaction(original: tx, updated: updatedTx)
+        }
+        
+        // Save retail order debts
+        for bill in retailOrders {
+            guard let newDebt = editedRetailOrderDebts[bill.id] else { continue }
+            guard (bill.debtAmount ?? 0) != newDebt else { continue }
+            var updatedBill = bill
+            updatedBill.debtAmount = newDebt > 0 ? newDebt : nil
+            updatedBill.paidAmount = newDebt <= 0 ? bill.total : bill.paidAmount
+            updatedBill.isPaid = newDebt <= 0
+            do {
+                try await SupabaseDatabaseService().updateOrder(updatedBill)
+            } catch {
+                print("❌ Failed to update retail order debt: \(error)")
+            }
         }
         
         await MainActor.run {
@@ -1201,6 +1225,12 @@ struct PartyDetailView: View {
                     )
                 }
                 editedTransactions = initialEdits
+                // Init retail order debts
+                var initialRetailDebts: [UUID: Double] = [:]
+                for bill in retailOrders where (bill.debtAmount ?? 0) > 0 {
+                    initialRetailDebts[bill.id] = bill.debtAmount ?? 0
+                }
+                editedRetailOrderDebts = initialRetailDebts
                 showDebtEdit = true
             } label: {
                 Image(systemName: "pencil.circle.fill")
@@ -2585,10 +2615,12 @@ struct WebsiteLeadDetailView: View {
 
 private struct DebtEditView: View {
     let transactions: [ProductionTransaction]
+    let retailOrders: [Bill]
     let isSupplier: Bool
     let editedTxIds: Set<UUID>
     let fetchEdits: (UUID) async -> [ProductionEdit]
     @Binding var editedTransactions: [UUID: (debtAmount: Double, expectedPayDate: Date?)]
+    @Binding var editedRetailOrderDebts: [UUID: Double]
     let onSave: () async -> Void
     let onCancel: () -> Void
     @Environment(\.dismiss) private var dismiss
@@ -2653,7 +2685,9 @@ private struct DebtEditView: View {
     }
     
     private var totalEditedDebt: Double {
-        editedTransactions.values.reduce(0) { $0 + $1.debtAmount }
+        let txDebt = editedTransactions.values.reduce(0) { $0 + $1.debtAmount }
+        let retailDebt = editedRetailOrderDebts.values.reduce(0) { $0 + $1 }
+        return txDebt + retailDebt
     }
     
     private func formatDateOnly(_ date: Date) -> String {
@@ -2918,6 +2952,26 @@ private struct DebtEditView: View {
                                     }
                                 }
                             }
+                            ForEach(retailOrders) { bill in
+                                let currentDebt = editedRetailOrderDebts[bill.id] ?? (bill.debtAmount ?? 0)
+                                if currentDebt > 0 {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("Đơn bán lẻ")
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                            Text(bill.sequenceNumber ?? formatDateOnly(bill.createdAt))
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        Spacer()
+                                        Text(formatCurrency(currentDebt))
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.red)
+                                    }
+                                }
+                            }
                         }
                         .listStyle(.plain)
                         
@@ -2931,6 +2985,10 @@ private struct DebtEditView: View {
                                 } else if (tx.debtAmount ?? 0) > 0 {
                                     editedTransactions[tx.id] = (debtAmount: 0, expectedPayDate: tx.expectedPayDate)
                                 }
+                            }
+                            // Set retail orders debt về 0
+                            for bill in retailOrders where (editedRetailOrderDebts[bill.id] ?? bill.debtAmount ?? 0) > 0 {
+                                editedRetailOrderDebts[bill.id] = 0
                             }
                             showPayOffAll = false
                             Task {
