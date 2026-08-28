@@ -3977,7 +3977,7 @@ struct ContentView: View {
                         Button(action: {
                             onComplete?(isPaidConfirmed)
                         }) {
-                            Text("Đóng bill")
+                            Text("Lưu & Đóng bill")
                                 .fontWeight(.bold)
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
