@@ -508,17 +508,49 @@ class SupabaseDatabaseService: DatabaseService {
     
     func updateOrder(_ bill: Bill) async throws {
         guard let storeId = StoreManager.shared.currentStore?.id else { throw NSError(domain: "StoreMissing", code: 1) }
-        let orderDTO = OrderDTO(from: bill).withStore(storeId)
         
-        // Update main order (total, payment status, customer info, etc.)
+        // Dùng struct riêng để đảm bảo null fields được gửi lên DB (không bị skip bởi encodeIfPresent)
+        struct OrderUpdatePayload: Encodable {
+            let total_amount: Double
+            let store_id: UUID
+            let is_paid: Bool
+            let customer_name: String?
+            let customer_phone: String?
+            let customer_address: String?
+            let customer_email: String?
+            let receipt_image_url: String?
+            let vat_rate: Double?
+            let vat_amount: Double
+            let paid_amount: Double   // luôn gửi, kể cả 0
+            let debt_amount: Double   // luôn gửi, kể cả 0 — Supabase sẽ set về 0 thay vì giữ giá trị cũ
+            let expected_pay_date: Date?
+            let note: String?
+        }
+        
+        let payload = OrderUpdatePayload(
+            total_amount: bill.total,
+            store_id: storeId,
+            is_paid: bill.isPaid,
+            customer_name: bill.customerName,
+            customer_phone: bill.customerPhone,
+            customer_address: bill.customerAddress,
+            customer_email: bill.customerEmail,
+            receipt_image_url: bill.paymentReceiptURL,
+            vat_rate: bill.vatRate,
+            vat_amount: bill.vatAmount,
+            paid_amount: bill.paidAmount ?? bill.total,
+            debt_amount: bill.debtAmount ?? 0,
+            expected_pay_date: bill.expectedPayDate,
+            note: bill.note
+        )
+        
         try await client.database
             .from("orders")
-            .update(orderDTO)
+            .update(payload)
             .eq("id", value: bill.id)
             .execute()
         
         // Update order_items: xóa items cũ rồi insert items mới
-        // Bắt buộc để đảm bảo số lượng/giá sau khi chỉnh sửa được lưu đúng
         try await client.database
             .from("order_items")
             .delete()
