@@ -1963,6 +1963,37 @@ struct ContentView: View {
                         List(filteredCustomerStats()) { stat in
                             Button {
                                 viewModel.walkInName = stat.name
+                                // Lookup phone/address từ bill gần nhất hoặc TradingParty
+                                let recentBill = viewModel.pastOrders
+                                    .filter { ($0.customerName ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == stat.name }
+                                    .sorted { $0.createdAt > $1.createdAt }
+                                    .first
+                                if let phone = recentBill?.customerPhone, !phone.isEmpty {
+                                    viewModel.walkInPhone = phone
+                                }
+                                if let address = recentBill?.customerAddress, !address.isEmpty {
+                                    viewModel.walkInAddress = address
+                                }
+                                if let email = recentBill?.customerEmail, !email.isEmpty {
+                                    viewModel.walkInEmail = email
+                                }
+                                // Fallback: fetch từ TradingParty nếu bill không có
+                                Task {
+                                    let db = SupabaseDatabaseService()
+                                    if let party = try? await db.fetchTradingPartyByName(stat.name, type: "buyer") {
+                                        await MainActor.run {
+                                            if viewModel.walkInPhone.isEmpty && !party.phone.isEmpty {
+                                                viewModel.walkInPhone = party.phone
+                                            }
+                                            if viewModel.walkInAddress.isEmpty && !party.address.isEmpty {
+                                                viewModel.walkInAddress = party.address
+                                            }
+                                            if viewModel.walkInEmail.isEmpty && !party.email.isEmpty {
+                                                viewModel.walkInEmail = party.email
+                                            }
+                                        }
+                                    }
+                                }
                                 showCustomerPicker = false
                             } label: {
                                 HStack {
