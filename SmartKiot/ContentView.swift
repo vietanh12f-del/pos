@@ -1852,6 +1852,9 @@ struct ContentView: View {
             .onAppear {
                 if viewModel.editingBill == nil {
                     viewModel.walkInName = "Khách lẻ"
+                    viewModel.walkInPhone = ""
+                    viewModel.walkInAddress = ""
+                    viewModel.walkInEmail = ""
                 }
             }
             .onChange(of: viewModel.currentInput) { newValue in
