@@ -3566,7 +3566,10 @@ class OrderViewModel: ObservableObject {
         let cost = items.reduce(0) { $0 + $1.totalCost }
         let grandTotal = totalAmountWithVAT
         var bill = Bill(id: UUID(), createdAt: Date(), items: items, total: grandTotal, totalCost: cost)
-        bill.isPaid = debtAmount <= 0
+        // Ưu tiên giá trị user đã toggle trong UI (isPaidConfirmedByUser),
+        // nếu không có thì dùng tham số isPaid được truyền vào từ caller,
+        // cuối cùng fallback về tính theo debtAmount.
+        bill.isPaid = isPaidConfirmedByUser ?? isPaid
         bill.customerName = walkInName
         bill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
         bill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress

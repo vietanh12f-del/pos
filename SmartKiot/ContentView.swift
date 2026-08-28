@@ -3015,7 +3015,7 @@ struct ContentView: View {
             if isEditing {
                 await viewModel.finalizeEditedPayment()
             } else {
-                viewModel.completeOrder(isPaid: true)
+                viewModel.completeOrder(isPaid: viewModel.isPaidConfirmedByUser ?? (viewModel.debtAmount <= 0))
             }
 
             // Mở ShareSheet chia sẻ ảnh (giống BillDetailView)
