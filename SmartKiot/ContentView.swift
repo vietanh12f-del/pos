@@ -4188,21 +4188,26 @@ struct ContentView: View {
                 isPaidConfirmed = initialIsPaid
             }
             .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
-                Button("📦 Đã soạn hàng") { orderStatus = "prepared" }
-                Button("🚚 Đã giao hàng") { orderStatus = "delivered" }
-                Button("✅ Thành công") { orderStatus = "completed" }
-                Button("⭕ Chưa cập nhật") { orderStatus = nil }
+                Button("🛍️ Chuẩn bị hàng")  { orderStatus = "preparing" }
+                Button("📦 Đã soạn hàng")    { orderStatus = "prepared" }
+                Button("🚴 Đang giao hàng")  { orderStatus = "delivering" }
+                Button("✅ Đã giao hàng")    { orderStatus = "delivered" }
+                Button("🎉 Hoàn thành")      { orderStatus = "completed" }
+                Button("❌ Đã Huỷ", role: .destructive) { orderStatus = "cancelled" }
+                Button("⭕ Chưa cập nhật")   { orderStatus = nil }
                 Button("Hủy", role: .cancel) { }
             }
         }
         
         private func orderStatusDisplayInfo(_ status: String?) -> (label: String, icon: String, color: Color) {
             switch status {
-            case "prepared":  return ("Đã soạn hàng", "shippingbox.fill",     .orange)
-            case "delivered": return ("Đã giao hàng",  "bicycle",              Color(red: 0.2, green: 0.6, blue: 1.0))
-            case "completed": return ("Thành công",     "checkmark.seal.fill", .green)
-            case "cancelled": return ("Đã Huỷ",         "xmark.circle.fill",   .red)
-            default:          return ("Chưa cập nhật",  "circle.dotted",       .gray)
+            case "preparing":  return ("Chuẩn bị hàng",  "bag.fill",              .purple)
+            case "prepared":   return ("Đã soạn hàng",   "shippingbox.fill",      .orange)
+            case "delivering": return ("Đang giao hàng", "figure.walk",           Color(red: 0.0, green: 0.6, blue: 1.0))
+            case "delivered":  return ("Đã giao hàng",   "bicycle",               Color(red: 0.2, green: 0.6, blue: 1.0))
+            case "completed":  return ("Hoàn thành",      "checkmark.seal.fill",  .green)
+            case "cancelled":  return ("Đã Huỷ",          "xmark.circle.fill",    .red)
+            default:           return ("Chưa cập nhật",   "circle.dotted",        .gray)
             }
         }
         
