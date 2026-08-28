@@ -27,6 +27,7 @@ class OrderViewModel: ObservableObject {
     @Published var paymentReceiptImageURL: String? = nil
     @Published var payFullAmount: Bool = true
     @Published var editingBillIsPaid: Bool = false  // trạng thái isPaid của bill đang sửa
+    @Published var newOrderStatus: String? = nil    // trạng thái đơn hàng khi tạo/sửa
     @Published var partialAmount: Double = 0
     @Published var expectedPayDate: Date? = nil
     @Published var note: String = ""
@@ -431,6 +432,7 @@ class OrderViewModel: ObservableObject {
         updatedBill.creatorName = original.creatorName
         updatedBill.note = note.isEmpty ? nil : note
         updatedBill.expectedPayDate = expectedPayDate
+        updatedBill.orderStatus = newOrderStatus  // lưu trạng thái đơn hàng
         // Tính toán thanh toán từ state người dùng đã chỉnh
         let currentDebt = debtAmount   // computed từ payFullAmount/partialAmount/totalAmountWithVAT
         let currentPaid = paidAmount   // computed từ payFullAmount/partialAmount/totalAmountWithVAT
@@ -3197,6 +3199,7 @@ class OrderViewModel: ObservableObject {
             partialAmount = bill.paidAmount ?? bill.total
         }
         editingBillIsPaid = bill.isPaid  // lưu lại isPaid gốc để BillReceiptView load đúng
+        newOrderStatus = bill.orderStatus  // load trạng thái đơn hàng gốc
     }
     
     func saveEditedOrder() {
@@ -3221,6 +3224,7 @@ class OrderViewModel: ObservableObject {
         updatedBill.vatRate = vatRate
         updatedBill.creatorId = originalBill.creatorId
         updatedBill.creatorName = originalBill.creatorName
+        updatedBill.orderStatus = newOrderStatus  // lưu trạng thái đơn hàng
         
         // Calculate VAT amount
         let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
@@ -3329,6 +3333,7 @@ class OrderViewModel: ObservableObject {
         expectedPayDate = nil
         note = ""
         editingBillIsPaid = false
+        newOrderStatus = nil
     }
     
     // MARK: - Calendar Stats
@@ -3570,6 +3575,7 @@ class OrderViewModel: ObservableObject {
         bill.debtAmount = debtAmount
         bill.expectedPayDate = expectedPayDate
         bill.note = note.isEmpty ? nil : note
+        bill.orderStatus = newOrderStatus
         
         // Calculate VAT amount
         let vatEnabled = StoreManager.shared.currentStoreVATEnabled()

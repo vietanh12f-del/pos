@@ -2739,7 +2739,8 @@ struct ContentView: View {
                             expectedPayDate: $viewModel.expectedPayDate,
                             note: $viewModel.note,
                             grandTotal: viewModel.totalAmountWithVAT,
-                            initialIsPaid: viewModel.editingBillIsPaid
+                            initialIsPaid: viewModel.editingBillIsPaid,
+                            orderStatus: $viewModel.newOrderStatus
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -3202,6 +3203,7 @@ struct ContentView: View {
         @Binding var note: String
         let grandTotal: Double
         var initialIsPaid: Bool = false  // trạng thái isPaid của bill gốc khi sửa
+        @Binding var orderStatus: String?
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
         @State private var previewURL: URL?
@@ -3209,6 +3211,7 @@ struct ContentView: View {
         @StateObject private var originalLoader = CachedImageLoader()
         @State private var showPartialAmountWheel = false
         @State private var isPaidConfirmed: Bool = false
+        @State private var showOrderStatusPicker = false
         @State private var partialAmountMillionsSelection = 0
         @State private var partialAmountThousandsSelection = 0
         @State private var partialAmountHundredsSelection = 0
@@ -3246,7 +3249,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double, initialIsPaid: Bool = false) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil)) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3274,6 +3277,7 @@ struct ContentView: View {
             self._note = note
             self.grandTotal = grandTotal
             self.initialIsPaid = initialIsPaid
+            self._orderStatus = orderStatus
         }
         
         var body: some View {
@@ -3893,6 +3897,38 @@ struct ContentView: View {
                         
                         Divider().padding(.horizontal)
                         
+                        // Trạng thái đơn hàng
+                        HStack {
+                            Text("Trạng thái đơn hàng")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
+                            Spacer()
+                            Button {
+                                showOrderStatusPicker = true
+                            } label: {
+                                let info = orderStatusDisplayInfo(orderStatus)
+                                HStack(spacing: 6) {
+                                    Image(systemName: info.icon)
+                                        .foregroundStyle(info.color)
+                                    Text(info.label)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(info.color)
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(info.color.opacity(0.1)))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 12)
+                        
+                        Divider().padding(.horizontal)
+                        
                         // Nút đóng bill
                         Button(action: {
                             onComplete?(isPaidConfirmed)
@@ -4150,6 +4186,23 @@ struct ContentView: View {
                 
                 // Khởi tạo trạng thái thanh toán từ bill gốc (khi sửa đơn)
                 isPaidConfirmed = initialIsPaid
+            }
+            .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
+                Button("📦 Đã soạn hàng") { orderStatus = "prepared" }
+                Button("🚚 Đã giao hàng") { orderStatus = "delivered" }
+                Button("✅ Thành công") { orderStatus = "completed" }
+                Button("⭕ Chưa cập nhật") { orderStatus = nil }
+                Button("Hủy", role: .cancel) { }
+            }
+        }
+        
+        private func orderStatusDisplayInfo(_ status: String?) -> (label: String, icon: String, color: Color) {
+            switch status {
+            case "prepared":  return ("Đã soạn hàng", "shippingbox.fill",     .orange)
+            case "delivered": return ("Đã giao hàng",  "bicycle",              Color(red: 0.2, green: 0.6, blue: 1.0))
+            case "completed": return ("Thành công",     "checkmark.seal.fill", .green)
+            case "cancelled": return ("Đã Huỷ",         "xmark.circle.fill",   .red)
+            default:          return ("Chưa cập nhật",  "circle.dotted",       .gray)
             }
         }
         
