@@ -3181,6 +3181,7 @@ struct ContentView: View {
         let qrImage: UIImage?
         let billPayload: String?
         let showButtons: Bool
+        let showPaymentInfo: Bool  // hiển thị payment info khi !showButtons (dùng cho in ảnh)
         let onComplete: ((Bool) -> Void)?
         let customerName: String
         let customerPhone: String?
@@ -3243,7 +3244,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3251,6 +3252,7 @@ struct ContentView: View {
             self.qrImage = qrImage
             self.billPayload = billPayload
             self.showButtons = showButtons
+            self.showPaymentInfo = showPaymentInfo
             self.onComplete = onComplete
             self.customerName = customerName
             self.customerPhone = customerPhone
@@ -3654,7 +3656,7 @@ struct ContentView: View {
                         .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
                     }
                     .padding(.horizontal).padding(.bottom)
-                } else {
+                } else if showPaymentInfo {
                     // Show payment info when printing
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Thông tin thanh toán")

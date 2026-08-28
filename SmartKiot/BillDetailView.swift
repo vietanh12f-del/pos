@@ -53,6 +53,7 @@ struct BillDetailView: View {
                 qrImage: nil,
                 billPayload: nil,
                 showButtons: false,
+                showPaymentInfo: false,
                 onComplete: nil,
                 customerName: bill.customerName ?? "Khách lẻ",
                 customerPhone: resolvedCustomerPhone ?? bill.customerPhone,
@@ -74,8 +75,8 @@ struct BillDetailView: View {
                 .padding()
                 .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                 
-                // Payment information
-                VStack(alignment: .leading, spacing: 8) {
+                // Payment information + toggle gộp chung
+                VStack(alignment: .leading, spacing: 10) {
                     Text("Thông tin thanh toán")
                         .font(.subheadline)
                         .fontWeight(.bold)
@@ -83,50 +84,74 @@ struct BillDetailView: View {
                     
                     HStack {
                         Text("Tổng tiền")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
+                            .font(.caption).foregroundStyle(.gray)
                         Spacer()
                         Text(formatCurrency(bill.total))
-                            .font(.caption)
-                            .fontWeight(.bold)
+                            .font(.caption).fontWeight(.bold)
                     }
                     
                     if let paidAmount = bill.paidAmount {
                         HStack {
                             Text("Đã trả")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
+                                .font(.caption).foregroundStyle(.gray)
                             Spacer()
                             Text(formatCurrency(paidAmount))
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.green)
+                                .font(.caption).fontWeight(.bold).foregroundStyle(.green)
                         }
                     }
                     
-                    if let debtAmount = bill.debtAmount {
+                    if let debtAmount = bill.debtAmount, debtAmount > 0 {
                         HStack {
                             Text("Công nợ")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
+                                .font(.caption).foregroundStyle(.gray)
                             Spacer()
                             Text(formatCurrency(debtAmount))
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.red)
+                                .font(.caption).fontWeight(.bold).foregroundStyle(.red)
                         }
                     }
                     
                     if let expectedDate = bill.expectedPayDate {
                         HStack {
                             Text("Ngày dự kiến trả")
-                                .font(.caption)
-                                .foregroundStyle(.gray)
+                                .font(.caption).foregroundStyle(.gray)
                             Spacer()
                             Text(formatDateOnly(expectedDate))
-                                .font(.caption)
-                                .fontWeight(.bold)
+                                .font(.caption).fontWeight(.bold)
                         }
+                    }
+                    
+                    Divider()
+                    
+                    // Trạng thái thanh toán toggle
+                    HStack {
+                        Text("Trạng thái thanh toán")
+                            .font(.caption).foregroundStyle(.gray)
+                        Spacer()
+                        Button(action: {
+                            isPaid.toggle()
+                            var updatedBill = bill
+                            updatedBill.isPaid = isPaid
+                            Task {
+                                do {
+                                    try await viewModel.updateOrder(updatedBill)
+                                } catch {
+                                    print("❌ Error updating payment status: \(error)")
+                                    isPaid.toggle()
+                                }
+                            }
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: isPaid ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(isPaid ? .green : .red)
+                                Text(isPaid ? "Đã nhận tiền" : "Chưa nhận tiền")
+                                    .font(.caption).fontWeight(.bold)
+                                    .foregroundStyle(isPaid ? .green : .red)
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(isPaid ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding()
@@ -154,37 +179,6 @@ struct BillDetailView: View {
                     .cornerRadius(12)
                     .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
                 }
-                
-                // Payment Status Toggle
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Trạng thái thanh toán")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.themeTextDark)
-                    Button(action: {
-                        isPaid.toggle()
-                        var updatedBill = bill
-                        updatedBill.isPaid = isPaid
-                        Task {
-                            do {
-                                try await viewModel.updateOrder(updatedBill)
-                            } catch {
-                                print("❌ Error updating payment status: \(error)")
-                                isPaid.toggle()
-                            }
-                        }
-                    }) {
-                        Text(isPaid ? "Đã nhận tiền" : "Chưa nhận tiền")
-                            .fontWeight(.bold)
-                            .foregroundStyle(isPaid ? Color.green : Color.red)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(isPaid ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
-                            .cornerRadius(12)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 20)
                 
                 // Order Status
                 VStack(alignment: .leading, spacing: 8) {
