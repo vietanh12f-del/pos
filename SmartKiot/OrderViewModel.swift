@@ -26,6 +26,7 @@ class OrderViewModel: ObservableObject {
     @Published var walkInEmail: String = ""
     @Published var paymentReceiptImageURL: String? = nil
     @Published var payFullAmount: Bool = true
+    @Published var editingBillIsPaid: Bool = false  // trạng thái isPaid của bill đang sửa
     @Published var partialAmount: Double = 0
     @Published var expectedPayDate: Date? = nil
     @Published var note: String = ""
@@ -3195,6 +3196,7 @@ class OrderViewModel: ObservableObject {
             payFullAmount = bill.isPaid
             partialAmount = bill.paidAmount ?? bill.total
         }
+        editingBillIsPaid = bill.isPaid  // lưu lại isPaid gốc để BillReceiptView load đúng
     }
     
     func saveEditedOrder() {
@@ -3326,6 +3328,7 @@ class OrderViewModel: ObservableObject {
         partialAmount = 0
         expectedPayDate = nil
         note = ""
+        editingBillIsPaid = false
     }
     
     // MARK: - Calendar Stats

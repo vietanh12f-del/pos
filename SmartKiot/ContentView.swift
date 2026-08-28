@@ -2738,7 +2738,8 @@ struct ContentView: View {
                             partialAmount: $viewModel.partialAmount,
                             expectedPayDate: $viewModel.expectedPayDate,
                             note: $viewModel.note,
-                            grandTotal: viewModel.totalAmountWithVAT
+                            grandTotal: viewModel.totalAmountWithVAT,
+                            initialIsPaid: viewModel.editingBillIsPaid
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -3200,6 +3201,7 @@ struct ContentView: View {
         @Binding var expectedPayDate: Date?
         @Binding var note: String
         let grandTotal: Double
+        var initialIsPaid: Bool = false  // trạng thái isPaid của bill gốc khi sửa
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
         @State private var previewURL: URL?
@@ -3244,7 +3246,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double, initialIsPaid: Bool = false) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3271,6 +3273,7 @@ struct ContentView: View {
             self._expectedPayDate = expectedPayDate
             self._note = note
             self.grandTotal = grandTotal
+            self.initialIsPaid = initialIsPaid
         }
         
         var body: some View {
@@ -4144,6 +4147,9 @@ struct ContentView: View {
                 partialAmountMillionsRangeBase = max(0, millions - 500)
                 partialAmountThousandsRangeBase = max(0, thousands - 500)
                 partialAmountHundredsRangeBase = max(0, (hundreds / 100) * 100)
+                
+                // Khởi tạo trạng thái thanh toán từ bill gốc (khi sửa đơn)
+                isPaidConfirmed = initialIsPaid
             }
         }
         
