@@ -568,7 +568,8 @@ struct BillDetailView: View {
                 partialAmount: .constant(bill.paidAmount ?? bill.total),
                 expectedPayDate: .constant(bill.expectedPayDate),
                 note: .constant(bill.note ?? ""),
-                grandTotal: bill.total
+                grandTotal: bill.total,
+                initialIsPaid: isPaid
             )
             .frame(width: 375)
             .background(Color.white)
