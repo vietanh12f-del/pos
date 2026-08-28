@@ -375,6 +375,11 @@ class OrderViewModel: ObservableObject {
         if original.total != updated.total {
             lines.append("Tổng tiền: \(Int(original.total)) → \(Int(updated.total))")
         }
+        if (original.note ?? "") != (updated.note ?? "") {
+            let o = (original.note ?? "").isEmpty ? "—" : (original.note ?? "")
+            let n = (updated.note ?? "").isEmpty ? "—" : (updated.note ?? "")
+            lines.append("Sửa ghi chú: \(o) → \(n)")
+        }
         return lines
     }
     

@@ -3333,6 +3333,22 @@ struct ContentView: View {
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    
+                    // Ghi chú — hiển thị ngay dưới địa chỉ
+                    if showButtons {
+                        TextField("Ghi chú...", text: $note, axis: .vertical)
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1...4)
+                            .padding(.top, 2)
+                    } else if !note.isEmpty {
+                        Text("Ghi chú: \(note)")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
@@ -3574,18 +3590,6 @@ struct ContentView: View {
                 .padding()
                 
                 if showButtons {
-                    // Note section
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Ghi chú")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
-                        TextField("Nhập ghi chú...", text: $note, axis: .vertical)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(3...5)
-                    }
-                    .padding(.horizontal)
-                    .padding(.bottom, 12)
-                    
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .center, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
