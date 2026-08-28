@@ -27,6 +27,7 @@ class OrderViewModel: ObservableObject {
     @Published var paymentReceiptImageURL: String? = nil
     @Published var payFullAmount: Bool = true
     @Published var editingBillIsPaid: Bool = false  // trạng thái isPaid của bill đang sửa
+    @Published var isPaidConfirmedByUser: Bool? = nil  // override isPaid từ toggle UI
     @Published var newOrderStatus: String? = nil    // trạng thái đơn hàng khi tạo/sửa
     @Published var partialAmount: Double = 0
     @Published var expectedPayDate: Date? = nil
@@ -436,7 +437,8 @@ class OrderViewModel: ObservableObject {
         // Tính toán thanh toán từ state người dùng đã chỉnh
         let currentDebt = debtAmount   // computed từ payFullAmount/partialAmount/totalAmountWithVAT
         let currentPaid = paidAmount   // computed từ payFullAmount/partialAmount/totalAmountWithVAT
-        updatedBill.isPaid = currentDebt <= 0
+        // isPaidConfirmedByUser ưu tiên hơn: người dùng có thể toggle trực tiếp trên UI
+        updatedBill.isPaid = isPaidConfirmedByUser ?? (currentDebt <= 0)
         updatedBill.paidAmount = currentPaid
         updatedBill.debtAmount = currentDebt > 0 ? currentDebt : nil
         
@@ -3333,6 +3335,7 @@ class OrderViewModel: ObservableObject {
         expectedPayDate = nil
         note = ""
         editingBillIsPaid = false
+        isPaidConfirmedByUser = nil
         newOrderStatus = nil
     }
     

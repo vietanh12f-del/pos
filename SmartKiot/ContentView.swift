@@ -2740,7 +2740,10 @@ struct ContentView: View {
                             note: $viewModel.note,
                             grandTotal: viewModel.totalAmountWithVAT,
                             initialIsPaid: viewModel.editingBillIsPaid,
-                            orderStatus: $viewModel.newOrderStatus
+                            orderStatus: $viewModel.newOrderStatus,
+                            onIsPaidChanged: { confirmed in
+                                viewModel.isPaidConfirmedByUser = confirmed
+                            }
                         )
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
@@ -3203,6 +3206,7 @@ struct ContentView: View {
         @Binding var note: String
         let grandTotal: Double
         var initialIsPaid: Bool = false  // trạng thái isPaid của bill gốc khi sửa
+        var onIsPaidChanged: ((Bool) -> Void)? = nil  // callback khi người dùng toggle isPaid
         @Binding var orderStatus: String?
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
@@ -3249,7 +3253,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil)) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3278,6 +3282,7 @@ struct ContentView: View {
             self.grandTotal = grandTotal
             self.initialIsPaid = initialIsPaid
             self._orderStatus = orderStatus
+            self.onIsPaidChanged = onIsPaidChanged
         }
         
         var body: some View {
@@ -3876,6 +3881,7 @@ struct ContentView: View {
                             Spacer()
                             Button(action: {
                                 isPaidConfirmed.toggle()
+                                onIsPaidChanged?(isPaidConfirmed)
                             }) {
                                 HStack(spacing: 6) {
                                     Image(systemName: isPaidConfirmed ? "checkmark.circle.fill" : "circle")
