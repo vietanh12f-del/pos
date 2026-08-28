@@ -15,6 +15,7 @@ struct BillDetailView: View {
     @State private var showEditHistory = false
     @State private var dbEdits: [OrderEdit] = []
     @State private var resolvedCustomerAddress: String? = nil
+    @State private var resolvedCustomerPhone: String? = nil
     
     var body: some View {
         VStack {
@@ -51,7 +52,7 @@ struct BillDetailView: View {
                 showButtons: true,
                 onComplete: nil,
                 customerName: bill.customerName ?? "Khách lẻ",
-                customerPhone: bill.customerPhone,
+                customerPhone: resolvedCustomerPhone ?? bill.customerPhone,
                 customerAddress: resolvedCustomerAddress ?? bill.customerAddress,
                 customerEmail: bill.customerEmail,
                 onOpenBankSettings: nil,
@@ -216,22 +217,27 @@ struct BillDetailView: View {
             isPaid = bill.isPaid
             receiptImageURLString = bill.paymentReceiptURL
             Task {
-                // Resolve customer address from TradingParty if not on bill
+                // Resolve customer address và phone từ TradingParty nếu không có trên bill
+                let db = SupabaseDatabaseService()
+                let buyers = (try? await db.fetchTradingParties(type: "buyer")) ?? []
+                let billPhone = bill.customerPhone ?? ""
+                let billName = (bill.customerName ?? "").lowercased()
+                let match = buyers.first { party in
+                    let phoneMatch = !billPhone.isEmpty && party.phone == billPhone
+                    let nameMatch = !billName.isEmpty && party.name.lowercased() == billName
+                    return phoneMatch || nameMatch
+                }
+
                 if let address = bill.customerAddress, !address.isEmpty {
                     resolvedCustomerAddress = address
-                } else {
-                    let db = SupabaseDatabaseService()
-                    let buyers = (try? await db.fetchTradingParties(type: "buyer")) ?? []
-                    let phone = bill.customerPhone ?? ""
-                    let name = (bill.customerName ?? "").lowercased()
-                    let match = buyers.first { party in
-                        let phoneMatch = !phone.isEmpty && party.phone == phone
-                        let nameMatch = !name.isEmpty && party.name.lowercased() == name
-                        return phoneMatch || nameMatch
-                    }
-                    if let addr = match?.address, !addr.isEmpty {
-                        resolvedCustomerAddress = addr
-                    }
+                } else if let addr = match?.address, !addr.isEmpty {
+                    resolvedCustomerAddress = addr
+                }
+
+                if !billPhone.isEmpty {
+                    resolvedCustomerPhone = billPhone
+                } else if let phone = match?.phone, !phone.isEmpty {
+                    resolvedCustomerPhone = phone
                 }
                 
                 do {

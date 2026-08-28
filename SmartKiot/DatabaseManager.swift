@@ -1390,6 +1390,9 @@ struct OrderDTO: Codable {
     let creator_id: UUID?
     let creator_name: String?
     let customer_name: String?
+    let customer_phone: String?
+    let customer_address: String?
+    let customer_email: String?
     let receipt_image_url: String?
     let sequence_number: String?
     let vat_rate: Double?
@@ -1403,10 +1406,10 @@ struct OrderDTO: Codable {
     let deleted_by: UUID?
     
     enum CodingKeys: String, CodingKey {
-        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date, note, is_deleted, deleted_at, deleted_by
+        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, customer_phone, customer_address, customer_email, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date, note, is_deleted, deleted_at, deleted_by
     }
     
-    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?, paid_amount: Double?, debt_amount: Double?, expected_pay_date: Date?, note: String?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
+    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, customer_phone: String?, customer_address: String?, customer_email: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?, paid_amount: Double?, debt_amount: Double?, expected_pay_date: Date?, note: String?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
         self.id = id
         self.total_amount = total_amount
         self.created_at = created_at
@@ -1416,6 +1419,9 @@ struct OrderDTO: Codable {
         self.creator_id = creator_id
         self.creator_name = creator_name
         self.customer_name = customer_name
+        self.customer_phone = customer_phone
+        self.customer_address = customer_address
+        self.customer_email = customer_email
         self.receipt_image_url = receipt_image_url
         self.sequence_number = sequence_number
         self.vat_rate = vat_rate
@@ -1440,6 +1446,9 @@ struct OrderDTO: Codable {
         creator_id = try container.decodeIfPresent(UUID.self, forKey: .creator_id)
         creator_name = try container.decodeIfPresent(String.self, forKey: .creator_name)
         customer_name = try container.decodeIfPresent(String.self, forKey: .customer_name)
+        customer_phone = try container.decodeIfPresent(String.self, forKey: .customer_phone)
+        customer_address = try container.decodeIfPresent(String.self, forKey: .customer_address)
+        customer_email = try container.decodeIfPresent(String.self, forKey: .customer_email)
         receipt_image_url = try container.decodeIfPresent(String.self, forKey: .receipt_image_url)
         sequence_number = try container.decodeIfPresent(String.self, forKey: .sequence_number)
         vat_rate = try container.decodeIfPresent(Double.self, forKey: .vat_rate)
@@ -1464,6 +1473,9 @@ struct OrderDTO: Codable {
         try container.encodeIfPresent(creator_id, forKey: .creator_id)
         try container.encodeIfPresent(creator_name, forKey: .creator_name)
         try container.encodeIfPresent(customer_name, forKey: .customer_name)
+        try container.encodeIfPresent(customer_phone, forKey: .customer_phone)
+        try container.encodeIfPresent(customer_address, forKey: .customer_address)
+        try container.encodeIfPresent(customer_email, forKey: .customer_email)
         try container.encodeIfPresent(receipt_image_url, forKey: .receipt_image_url)
         try container.encodeIfPresent(sequence_number, forKey: .sequence_number)
         try container.encodeIfPresent(vat_rate, forKey: .vat_rate)
@@ -1487,6 +1499,9 @@ struct OrderDTO: Codable {
         self.creator_id = domain.creatorId
         self.creator_name = domain.creatorName
         self.customer_name = domain.customerName
+        self.customer_phone = domain.customerPhone
+        self.customer_address = domain.customerAddress
+        self.customer_email = domain.customerEmail
         self.receipt_image_url = domain.paymentReceiptURL
         self.sequence_number = domain.sequenceNumber
         self.vat_rate = domain.vatRate
@@ -1502,13 +1517,15 @@ struct OrderDTO: Codable {
     
     func toDomain() -> Bill {
         let items = order_items?.map { $0.toDomain() } ?? []
-        // Recalculate totalCost from items because it's not stored in OrderDTO
         let calculatedTotalCost = items.reduce(0) { $0 + $1.totalCost }
         var bill = Bill(id: id, createdAt: created_at, items: items, total: total_amount, totalCost: calculatedTotalCost)
         bill.isPaid = is_paid ?? true
         bill.creatorId = creator_id
         bill.creatorName = creator_name
         bill.customerName = customer_name
+        bill.customerPhone = customer_phone
+        bill.customerAddress = customer_address
+        bill.customerEmail = customer_email
         bill.paymentReceiptURL = receipt_image_url
         bill.sequenceNumber = sequence_number
         bill.vatRate = vat_rate
@@ -1524,7 +1541,7 @@ struct OrderDTO: Codable {
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
+        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, customer_phone: customer_phone, customer_address: customer_address, customer_email: customer_email, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
     }
 }
 
