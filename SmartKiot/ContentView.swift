@@ -1103,6 +1103,31 @@ struct ContentView: View {
             }
         }
         
+        @ViewBuilder
+        var searchBarView: some View {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.gray)
+                TextField("Tìm kiếm sản phẩm...", text: $viewModel.searchText)
+                    .textFieldStyle(.plain)
+                if !viewModel.searchText.isEmpty {
+                    Button(action: { viewModel.searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.gray)
+                    }
+                }
+                Button(action: { showBarcodeScanner = true }) {
+                    Image(systemName: "barcode.viewfinder")
+                        .foregroundStyle(.gray)
+                }
+            }
+            .padding(10)
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(10)
+            .padding(.horizontal)
+            .padding(.bottom, 10)
+        }
+        
         var searchContentViewOrder: some View {
             Group {
                 if viewModel.searchSuggestions.isEmpty {
@@ -1562,28 +1587,7 @@ struct ContentView: View {
                     .padding()
                         
                         if showSearch {
-                            HStack {
-                                Image(systemName: "magnifyingglass")
-                                    .foregroundStyle(.gray)
-                                TextField("Tìm kiếm sản phẩm...", text: $viewModel.searchText)
-                                    .textFieldStyle(.plain)
-                                if !viewModel.searchText.isEmpty {
-                                    Button(action: { viewModel.searchText = "" }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundStyle(.gray)
-                                    }
-                                }
-                                
-                                Button(action: { showBarcodeScanner = true }) {
-                                    Image(systemName: "barcode.viewfinder")
-                                        .foregroundStyle(.gray)
-                                }
-                            }
-                            .padding(10)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(10)
-                            .padding(.horizontal)
-                            .padding(.bottom, 10)
+                            searchBarView
                         }
                     }
                     .background(Color.white)
@@ -2687,6 +2691,9 @@ struct ContentView: View {
         @State private var showVATRatePicker = false
         @State private var vatRateInputText: String = ""
         @State private var isPrinting = false
+        /// Tracks the current isPaid state from BillReceiptView toggle so printAndClose() can read it correctly.
+        /// Initialised to false (chưa thanh toán) for new orders; updated via onIsPaidChanged callback.
+        @State private var currentIsPaidConfirmed: Bool = false
         
         var body: some View {
             ZStack {
@@ -2777,6 +2784,7 @@ struct ContentView: View {
                             orderStatus: $viewModel.newOrderStatus,
                             onIsPaidChanged: { confirmed in
                                 viewModel.isPaidConfirmedByUser = confirmed
+                                currentIsPaidConfirmed = confirmed
                             }
                         )
                         .padding()
@@ -2810,8 +2818,8 @@ struct ContentView: View {
                                     }
                                 }
                             } else {
-                                // Default to unpaid when creating new order
-                                viewModel.completeOrder(isPaid: false)
+                                // Dùng trạng thái thanh toán user đã chọn trong BillReceiptView
+                                viewModel.completeOrder(isPaid: currentIsPaidConfirmed)
                                 dismiss()
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                                     NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
@@ -2910,6 +2918,10 @@ struct ContentView: View {
                     onReset: { viewModel.vatRate = nil }
                 )
             }
+            .onAppear {
+                // Init currentIsPaidConfirmed: đơn mới = false, đang sửa = trạng thái bill gốc
+                currentIsPaidConfirmed = viewModel.editingBill != nil ? viewModel.editingBillIsPaid : false
+            }
         }
         
         func currentDateString() -> String {
@@ -2999,11 +3011,12 @@ struct ContentView: View {
                 onEditDiscount: nil,
                 sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber,
                 customVATRate: viewModel.vatRate,
-                payFullAmount: .constant(true),
-                partialAmount: .constant(viewModel.totalAmount),
-                expectedPayDate: .constant(nil),
+                payFullAmount: .constant(viewModel.payFullAmount),
+                partialAmount: .constant(viewModel.partialAmount),
+                expectedPayDate: .constant(viewModel.expectedPayDate),
                 note: .constant(viewModel.note),
-                grandTotal: viewModel.totalAmount
+                grandTotal: viewModel.totalAmountWithVAT,
+                initialIsPaid: currentIsPaidConfirmed
             )
             .frame(width: 375)
             let renderer = ImageRenderer(content: renderView)
@@ -3015,7 +3028,7 @@ struct ContentView: View {
             if isEditing {
                 await viewModel.finalizeEditedPayment()
             } else {
-                viewModel.completeOrder(isPaid: viewModel.isPaidConfirmedByUser ?? (viewModel.debtAmount <= 0))
+                viewModel.completeOrder(isPaid: currentIsPaidConfirmed)
             }
 
             // Mở ShareSheet chia sẻ ảnh (giống BillDetailView)
@@ -3729,10 +3742,17 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                             Spacer()
-                            Text(formatCurrency(localPayFullAmount ? grandTotal : partialAmount))
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.green)
+                            if !isPaidConfirmed {
+                                Text("Chưa thanh toán")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.orange)
+                            } else {
+                                Text(formatCurrency(localPayFullAmount ? grandTotal : partialAmount))
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.green)
+                            }
                         }
                         
                         if !localPayFullAmount && (grandTotal - partialAmount) > 0 {
