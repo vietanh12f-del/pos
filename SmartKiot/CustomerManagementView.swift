@@ -1171,7 +1171,9 @@ struct PartyDetailView: View {
     // MARK: - Debt card
 
     private var totalDebt: Double {
-        allPartyTxs.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        let txDebt = allPartyTxs.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        let retailDebt = retailOrders.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        return txDebt + retailDebt
     }
 
     private var debtCard: some View {
@@ -1413,6 +1415,29 @@ struct PartyDetailView: View {
                 if bill.isPaid {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption)
+                        .foregroundStyle(.green)
+                }
+            }
+            if let debt = bill.debtAmount, debt > 0 {
+                HStack {
+                    Text("Công nợ:")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text(formatCurrency(debt))
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.red)
+                }
+            } else if let paid = bill.paidAmount, paid < bill.total {
+                HStack {
+                    Text("Đã trả:")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Spacer()
+                    Text(formatCurrency(paid))
+                        .font(.caption)
+                        .fontWeight(.semibold)
                         .foregroundStyle(.green)
                 }
             }
