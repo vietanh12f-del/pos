@@ -2971,60 +2971,36 @@ struct ContentView: View {
             renderer.scale = UIScreen.main.scale
             guard let image = renderer.uiImage else { return }
 
-            // Hàm hoàn tất bill và điều hướng về tab lịch sử (chỉ gọi 1 lần)
-            var didFinish = false
+            // Lưu bill / sửa bill trước khi mở share sheet
             let isEditing = viewModel.editingBill != nil
-            let finishAndNavigate = {
-                guard !didFinish else { return }
-                didFinish = true
-                DispatchQueue.main.async {
-                    if isEditing {
-                        // Đang sửa đơn: lưu sửa, KHÔNG tạo mới
-                        Task {
-                            await viewModel.finalizeEditedPayment()
-                        }
-                    } else {
-                        viewModel.completeOrder(isPaid: true)
-                    }
-                    dismiss()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("NavigateToTab"),
-                            object: nil,
-                            userInfo: ["tab": 1]
-                        )
-                    }
-                    if isEditing {
-                        // Trigger refresh lịch sử đơn hàng sau khi sửa xong
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                            NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
-                        }
-                    }
-                }
+            if isEditing {
+                await viewModel.finalizeEditedPayment()
+            } else {
+                viewModel.completeOrder(isPaid: true)
             }
 
-            // Mở print dialog
-            let printInfo = UIPrintInfo(dictionary: nil)
-            printInfo.outputType = .photo
-            printInfo.jobName = "Bill bán lẻ"
-            let pc = UIPrintInteractionController.shared
-            pc.printInfo = printInfo
-            pc.printingItem = image
+            // Mở ShareSheet chia sẻ ảnh (giống BillDetailView)
+            renderedImage = image
+            showShareSheet = true
 
-            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let root = scene.windows.first?.rootViewController {
-                var top = root
-                while let p = top.presentedViewController { top = p }
-                // completionHandler gọi khi sheet in đóng lại (dù in hay huỷ)
-                pc.present(from: top.view.bounds, in: top.view, animated: true) { _, _, _ in
-                    finishAndNavigate()
+            // Điều hướng về tab lịch sử sau khi share sheet mở
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                dismiss()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("NavigateToTab"),
+                    object: nil,
+                    userInfo: ["tab": 1]
+                )
+            }
+            if isEditing {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
                 }
-            } else {
-                // Fallback nếu không tìm được root VC
-                finishAndNavigate()
             }
         }
     }
