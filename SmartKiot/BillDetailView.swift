@@ -52,7 +52,7 @@ struct BillDetailView: View {
                 qrURL: generateQRURL(for: bill),
                 qrImage: nil,
                 billPayload: nil,
-                showButtons: true,
+                showButtons: false,
                 onComplete: nil,
                 customerName: bill.customerName ?? "Khách lẻ",
                 customerPhone: resolvedCustomerPhone ?? bill.customerPhone,

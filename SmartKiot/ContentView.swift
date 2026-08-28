@@ -3857,24 +3857,52 @@ struct ContentView: View {
                 }
                 
                 if showButtons {
-                    HStack {
-                        Text("Xác nhận đã\nthanh toán?")
-                            .font(.subheadline)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.themeTextDark)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer()
-                        Button(action: {
-                            onComplete?(true)
-                        }) {
-                            HStack {
-                                Image(systemName: "checkmark.circle")
-                                Text("Đã nhận và đóng bill")
+                    VStack(spacing: 0) {
+                        // Trạng thái thanh toán toggle
+                        HStack {
+                            Text("Trạng thái thanh toán")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
+                            Spacer()
+                            Button(action: {
+                                isPaidConfirmed.toggle()
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: isPaidConfirmed ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(isPaidConfirmed ? .green : .gray)
+                                    Text(isPaidConfirmed ? "Đã thanh toán" : "Chưa thanh toán")
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(isPaidConfirmed ? .green : .gray)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule().fill(isPaidConfirmed ? Color.green.opacity(0.1) : Color.gray.opacity(0.1))
+                                )
                             }
-                            .fontWeight(.medium).padding(.horizontal, 16).padding(.vertical, 10).background(Color.white).foregroundStyle(.green).overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                            .buttonStyle(.plain)
                         }
+                        .padding(.horizontal)
+                        .padding(.vertical, 12)
+                        
+                        Divider().padding(.horizontal)
+                        
+                        // Nút đóng bill
+                        Button(action: {
+                            onComplete?(isPaidConfirmed)
+                        }) {
+                            Text("Đóng bill")
+                                .fontWeight(.bold)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color.themePrimary)
+                                .cornerRadius(14)
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 12)
                     }
-                    .padding().padding(.top, 8)
                 } else {
                     // Static footer for image
                     HStack {
