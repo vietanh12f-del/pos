@@ -138,25 +138,27 @@ struct CustomerManagementView: View {
                 $0.address.lowercased().contains(q)
             }
         }
+        // "Vừa update" = trong vòng 24 giờ
+        let recentThreshold = Date().addingTimeInterval(-86400)
         return list.sorted { (a, b) in
-            // Ưu tiên khách có update gần nhất (updatedAt)
-            if a.updatedAt != b.updatedAt {
-                return a.updatedAt > b.updatedAt
-            }
-            // Sau đó ưu tiên khách có công nợ
-            if a.totalDebt > 0 && b.totalDebt <= 0 { return true }
-            if a.totalDebt <= 0 && b.totalDebt > 0 { return false }
-            // Cuối cùng theo giao dịch gần nhất
-            let aLastTx = getLastTransactionDate(for: a)
-            let bLastTx = getLastTransactionDate(for: b)
-            switch (aLastTx, bLastTx) {
-            case (.some, .none): return true
-            case (.none, .some): return false
-            case (.some(let aDate), .some(let bDate)):
-                if aDate != bDate { return aDate > bDate }
-            case (.none, .none): break
-            }
-            return false
+            let aHasDebt = a.totalDebt > 0
+            let bHasDebt = b.totalDebt > 0
+            let aRecent = a.updatedAt > recentThreshold
+            let bRecent = b.updatedAt > recentThreshold
+
+            // Ưu tiên 1: có nợ + vừa update
+            let aTopPriority = aHasDebt && aRecent
+            let bTopPriority = bHasDebt && bRecent
+            if aTopPriority != bTopPriority { return aTopPriority }
+
+            // Ưu tiên 2: có nợ (dù không vừa update)
+            if aHasDebt != bHasDebt { return aHasDebt }
+
+            // Ưu tiên 3: vừa update (không nợ)
+            if aRecent != bRecent { return aRecent }
+
+            // Trong cùng nhóm: sort theo updatedAt mới nhất
+            return a.updatedAt > b.updatedAt
         }
     }
 
