@@ -3247,6 +3247,8 @@ struct ContentView: View {
         @State private var showPartialAmountWheel = false
         @State private var isPaidConfirmed: Bool = false
         @State private var showOrderStatusPicker = false
+        // Local copy của payFullAmount để tránh trigger re-render view cha khi toggle
+        @State private var localPayFullAmount: Bool = true
         @State private var partialAmountMillionsSelection = 0
         @State private var partialAmountThousandsSelection = 0
         @State private var partialAmountHundredsSelection = 0
@@ -3535,39 +3537,41 @@ struct ContentView: View {
                             // Payment Option Buttons
                             HStack(spacing: 12) {
                                 Button {
+                                    localPayFullAmount = true
                                     payFullAmount = true
                                 } label: {
                                     HStack(spacing: 6) {
-                                        Image(systemName: payFullAmount ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(payFullAmount ? Color.themePrimary : .gray)
+                                        Image(systemName: localPayFullAmount ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(localPayFullAmount ? Color.themePrimary : .gray)
                                         Text("100%")
                                             .font(.subheadline)
-                                            .fontWeight(payFullAmount ? .bold : .regular)
+                                            .fontWeight(localPayFullAmount ? .bold : .regular)
                                     }
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
-                                    .background(Capsule().fill(payFullAmount ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08)))
+                                    .background(Capsule().fill(localPayFullAmount ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08)))
                                 }
                                 .buttonStyle(.plain)
 
                                 Button {
+                                    localPayFullAmount = false
                                     payFullAmount = false
                                 } label: {
                                     HStack(spacing: 6) {
-                                        Image(systemName: !payFullAmount ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(!payFullAmount ? Color.themePrimary : .gray)
+                                        Image(systemName: !localPayFullAmount ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(!localPayFullAmount ? Color.themePrimary : .gray)
                                         Text("Trả một phần")
                                             .font(.subheadline)
-                                            .fontWeight(!payFullAmount ? .bold : .regular)
+                                            .fontWeight(!localPayFullAmount ? .bold : .regular)
                                     }
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
-                                    .background(Capsule().fill(!payFullAmount ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08)))
+                                    .background(Capsule().fill(!localPayFullAmount ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08)))
                                 }
                                 .buttonStyle(.plain)
                             }
 
-                            if !payFullAmount {
+                            if !localPayFullAmount {
                                 VStack(spacing: 12) {
                                     HStack {
                                         Text("Số tiền trả:")
@@ -3722,13 +3726,13 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                             Spacer()
-                            Text(formatCurrency(payFullAmount ? grandTotal : partialAmount))
+                            Text(formatCurrency(localPayFullAmount ? grandTotal : partialAmount))
                                 .font(.caption)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.green)
                         }
                         
-                        if !payFullAmount && (grandTotal - partialAmount) > 0 {
+                        if !localPayFullAmount && (grandTotal - partialAmount) > 0 {
                             HStack {
                                 Text("Công nợ")
                                     .font(.caption)
@@ -4223,6 +4227,8 @@ struct ContentView: View {
                 
                 // Khởi tạo trạng thái thanh toán từ bill gốc (khi sửa đơn)
                 isPaidConfirmed = initialIsPaid
+                // Sync local copy
+                localPayFullAmount = payFullAmount
             }
             .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
                 Button("🛍️ Chuẩn bị hàng")  { orderStatus = "preparing" }
