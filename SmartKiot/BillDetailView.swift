@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct BillDetailView: View {
     let bill: Bill
@@ -12,6 +13,8 @@ struct BillDetailView: View {
     @State private var receiptImage: UIImage? = nil
     @State private var isUploadingReceipt = false
     @State private var receiptImageURLString: String? = nil
+    @State private var receiptPickerItem: PhotosPickerItem? = nil
+    @State private var showReceiptPreview = false
     @State private var showEditHistory = false
     @State private var dbEdits: [OrderEdit] = []
     @State private var resolvedCustomerAddress: String? = nil
@@ -152,6 +155,100 @@ struct BillDetailView: View {
                             .cornerRadius(8)
                         }
                         .buttonStyle(.plain)
+                    }
+                }
+                .padding()
+                .background(Color.white)
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
+                
+                // Chụp hình chuyển khoản
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Chụp hình chuyển khoản")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themeTextDark)
+                    
+                    HStack(spacing: 12) {
+                        // Preview ảnh
+                        if isUploadingReceipt {
+                            ZStack {
+                                Color.gray.opacity(0.08)
+                                ProgressView()
+                            }
+                            .frame(width: 72, height: 72)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        } else if let urlStr = receiptImageURLString, let url = URL(string: urlStr) {
+                            Button {
+                                showReceiptPreview = true
+                            } label: {
+                                AsyncImage(url: url) { phase in
+                                    if case .success(let img) = phase {
+                                        img.resizable().scaledToFill()
+                                            .frame(width: 72, height: 72)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                                    } else {
+                                        ZStack {
+                                            Color.gray.opacity(0.08)
+                                            ProgressView()
+                                        }
+                                        .frame(width: 72, height: 72)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            ZStack {
+                                Color.gray.opacity(0.08)
+                                Image(systemName: "photo")
+                                    .foregroundStyle(.gray)
+                            }
+                            .frame(width: 72, height: 72)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let _ = receiptImageURLString {
+                                Text("Đã lưu ảnh xác nhận")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            } else {
+                                Text("Chưa có ảnh xác nhận")
+                                    .font(.caption)
+                                    .foregroundStyle(.gray)
+                            }
+                            HStack(spacing: 8) {
+                                Button {
+                                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                                        showReceiptCamera = true
+                                    }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "camera.fill")
+                                        Text("Chụp")
+                                    }
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color.themePrimary)
+                                
+                                PhotosPicker(selection: $receiptPickerItem, matching: .images) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "photo")
+                                        Text("Thư viện")
+                                    }
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(Color.themePrimary)
+                            }
+                        }
+                        Spacer()
                     }
                 }
                 .padding()
@@ -396,6 +493,41 @@ struct BillDetailView: View {
                     }
                 }
             }
+        }
+        .onChange(of: receiptPickerItem) { item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let img = UIImage(data: data) {
+                    receiptImage = img
+                    receiptPickerItem = nil
+                }
+            }
+        }
+        .sheet(isPresented: $showReceiptPreview) {
+            NavigationStack {
+                ZStack {
+                    Color.black.opacity(0.9).ignoresSafeArea()
+                    if let urlStr = receiptImageURLString, let url = URL(string: urlStr) {
+                        AsyncImage(url: url) { phase in
+                            if case .success(let img) = phase {
+                                img.resizable().scaledToFit()
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            } else {
+                                ProgressView().tint(.white)
+                            }
+                        }
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { showReceiptPreview = false }
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
     }
     
