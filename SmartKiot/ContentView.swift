@@ -3205,6 +3205,7 @@ struct ContentView: View {
         @StateObject private var previewLoader = CachedImageLoader()
         @StateObject private var originalLoader = CachedImageLoader()
         @State private var showPartialAmountWheel = false
+        @State private var isPaidConfirmed: Bool = false
         @State private var partialAmountMillionsSelection = 0
         @State private var partialAmountThousandsSelection = 0
         @State private var partialAmountHundredsSelection = 0

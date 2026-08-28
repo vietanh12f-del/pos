@@ -16,6 +16,9 @@ struct BillDetailView: View {
     @State private var dbEdits: [OrderEdit] = []
     @State private var resolvedCustomerAddress: String? = nil
     @State private var resolvedCustomerPhone: String? = nil
+    @State private var orderStatus: String? = nil
+    @State private var showOrderStatusPicker = false
+    @State private var showCancelConfirmation = false
     
     var body: some View {
         VStack {
@@ -153,30 +156,69 @@ struct BillDetailView: View {
                 }
                 
                 // Payment Status Toggle
-                Button(action: {
-                    isPaid.toggle()
-                    var updatedBill = bill
-                    updatedBill.isPaid = isPaid
-                    Task {
-                        do {
-                            try await viewModel.updateOrder(updatedBill)
-                        } catch {
-                            print("❌ Error updating payment status: \(error)")
-                            // Rollback on error
-                            isPaid.toggle()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Trạng thái thanh toán")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                    Button(action: {
+                        isPaid.toggle()
+                        var updatedBill = bill
+                        updatedBill.isPaid = isPaid
+                        Task {
+                            do {
+                                try await viewModel.updateOrder(updatedBill)
+                            } catch {
+                                print("❌ Error updating payment status: \(error)")
+                                isPaid.toggle()
+                            }
                         }
+                    }) {
+                        Text(isPaid ? "Đã nhận tiền" : "Chưa nhận tiền")
+                            .fontWeight(.bold)
+                            .foregroundStyle(isPaid ? Color.green : Color.red)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(isPaid ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                            .cornerRadius(12)
                     }
-                }) {
-                    Text(isPaid ? "Đã nhận tiền" : "Chưa nhận tiền")
-                        .fontWeight(.bold)
-                        .foregroundStyle(isPaid ? Color.green : Color.red)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(isPaid ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
-                        .cornerRadius(12)
                 }
                 .padding(.horizontal)
                 .padding(.top, 20)
+                
+                // Order Status
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Trạng thái đơn hàng")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themeTextDark)
+                        Spacer()
+                        Button {
+                            showOrderStatusPicker = true
+                        } label: {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color.themePrimary)
+                        }
+                    }
+                    
+                    let statusInfo = orderStatusInfo(orderStatus)
+                    HStack(spacing: 8) {
+                        Image(systemName: statusInfo.icon)
+                            .foregroundStyle(statusInfo.color)
+                        Text(statusInfo.label)
+                            .fontWeight(.medium)
+                            .foregroundStyle(statusInfo.color)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(statusInfo.color.opacity(0.08))
+                    .cornerRadius(10)
+                }
+                .padding(.horizontal)
+                .padding(.top, 12)
                 
                 Button(action: {
                     renderImage()
@@ -215,6 +257,7 @@ struct BillDetailView: View {
         .background(Color.themeBackgroundLight)
         .onAppear {
             isPaid = bill.isPaid
+            orderStatus = bill.orderStatus
             receiptImageURLString = bill.paymentReceiptURL
             Task {
                 // Resolve customer address và phone từ TradingParty nếu không có trên bill
@@ -257,6 +300,23 @@ struct BillDetailView: View {
             }
         } message: {
             Text("Bạn có chắc muốn xóa đơn hàng này? Hành động này không thể hoàn tác.")
+        }
+        .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
+            Button("📦 Đã soạn hàng") { updateOrderStatus("prepared") }
+            Button("🚚 Đã giao hàng") { updateOrderStatus("delivered") }
+            Button("✅ Thành công") { updateOrderStatus("completed") }
+            Button("❌ Đã Huỷ", role: .destructive) { showCancelConfirmation = true }
+            Button("Bỏ chọn") { updateOrderStatus(nil) }
+            Button("Hủy", role: .cancel) { }
+        }
+        .alert("Huỷ đơn hàng?", isPresented: $showCancelConfirmation) {
+            Button("Hủy", role: .cancel) { }
+            Button("Xác nhận huỷ", role: .destructive) {
+                updateOrderStatus("cancelled")
+            }
+        } message: {
+            let itemList = bill.items.map { "• \($0.name): +\($0.quantity)" }.joined(separator: "\n")
+            Text("Đơn hàng sẽ được đánh dấu Đã Huỷ và số lượng sản phẩm sẽ được hoàn lại:\n\n\(itemList)")
         }
         .sheet(isPresented: $showShareSheet) {
             if let image = renderedImage {
@@ -463,6 +523,37 @@ struct BillDetailView: View {
         }
     }
     
+    // MARK: - Order Status Helpers
+
+    private func orderStatusInfo(_ status: String?) -> (label: String, icon: String, color: Color) {
+        switch status {
+        case "prepared":   return ("Đã soạn hàng", "shippingbox.fill",        .orange)
+        case "delivered":  return ("Đã giao hàng",  "bicycle",                 Color(red: 0.2, green: 0.6, blue: 1.0))
+        case "completed":  return ("Thành công",     "checkmark.seal.fill",    .green)
+        case "cancelled":  return ("Đã Huỷ",         "xmark.circle.fill",      .red)
+        default:           return ("Chưa cập nhật",  "circle.dotted",          .gray)
+        }
+    }
+
+    private func updateOrderStatus(_ status: String?) {
+        orderStatus = status
+        var updatedBill = bill
+        updatedBill.orderStatus = status
+        // Nếu huỷ đơn, hoàn lại tồn kho giống như xoá
+        if status == "cancelled" {
+            viewModel.deleteOrder(bill) // soft delete + revert inventory
+        } else {
+            Task {
+                do {
+                    try await viewModel.updateOrder(updatedBill)
+                } catch {
+                    print("❌ Error updating order status: \(error)")
+                    orderStatus = bill.orderStatus // rollback
+                }
+            }
+        }
+    }
+
     func formatDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")

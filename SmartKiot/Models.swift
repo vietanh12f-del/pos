@@ -96,6 +96,7 @@ struct Bill: Identifiable, Codable, Equatable {
     var debtAmount: Double? = nil // Remaining debt
     var expectedPayDate: Date? = nil // Expected payment date
     var note: String? = nil // Notes for the order
+    var orderStatus: String? = nil // Trạng thái đơn: "prepared" | "delivered" | "completed" | "cancelled"
     var isDeleted: Bool = false
     var deletedAt: Date? = nil
     var deletedBy: UUID? = nil
@@ -115,6 +116,7 @@ struct Bill: Identifiable, Codable, Equatable {
             && lhs.customerName == rhs.customerName
             && lhs.sequenceNumber == rhs.sequenceNumber
             && lhs.note == rhs.note
+            && lhs.orderStatus == rhs.orderStatus
     }
 }
 

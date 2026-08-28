@@ -521,10 +521,11 @@ class SupabaseDatabaseService: DatabaseService {
             let receipt_image_url: String?
             let vat_rate: Double?
             let vat_amount: Double
-            let paid_amount: Double   // luôn gửi, kể cả 0
-            let debt_amount: Double   // luôn gửi, kể cả 0 — Supabase sẽ set về 0 thay vì giữ giá trị cũ
+            let paid_amount: Double
+            let debt_amount: Double
             let expected_pay_date: Date?
             let note: String?
+            let order_status: String?
         }
         
         let payload = OrderUpdatePayload(
@@ -541,7 +542,8 @@ class SupabaseDatabaseService: DatabaseService {
             paid_amount: bill.paidAmount ?? bill.total,
             debt_amount: bill.debtAmount ?? 0,
             expected_pay_date: bill.expectedPayDate,
-            note: bill.note
+            note: bill.note,
+            order_status: bill.orderStatus
         )
         
         try await client.database
@@ -1433,15 +1435,16 @@ struct OrderDTO: Codable {
     let debt_amount: Double?
     let expected_pay_date: Date?
     let note: String?
+    let order_status: String?
     let is_deleted: Bool?
     let deleted_at: Date?
     let deleted_by: UUID?
     
     enum CodingKeys: String, CodingKey {
-        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, customer_phone, customer_address, customer_email, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date, note, is_deleted, deleted_at, deleted_by
+        case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, customer_phone, customer_address, customer_email, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date, note, order_status, is_deleted, deleted_at, deleted_by
     }
     
-    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, customer_phone: String?, customer_address: String?, customer_email: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?, paid_amount: Double?, debt_amount: Double?, expected_pay_date: Date?, note: String?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
+    init(id: UUID, total_amount: Double, created_at: Date, order_items: [OrderItemDTO]?, store_id: UUID?, is_paid: Bool?, creator_id: UUID?, creator_name: String?, customer_name: String?, customer_phone: String?, customer_address: String?, customer_email: String?, receipt_image_url: String?, sequence_number: String?, vat_rate: Double?, vat_amount: Double?, paid_amount: Double?, debt_amount: Double?, expected_pay_date: Date?, note: String?, order_status: String?, is_deleted: Bool?, deleted_at: Date?, deleted_by: UUID?) {
         self.id = id
         self.total_amount = total_amount
         self.created_at = created_at
@@ -1462,6 +1465,7 @@ struct OrderDTO: Codable {
         self.debt_amount = debt_amount
         self.expected_pay_date = expected_pay_date
         self.note = note
+        self.order_status = order_status
         self.is_deleted = is_deleted
         self.deleted_at = deleted_at
         self.deleted_by = deleted_by
@@ -1489,6 +1493,7 @@ struct OrderDTO: Codable {
         debt_amount = try container.decodeIfPresent(Double.self, forKey: .debt_amount)
         expected_pay_date = try container.decodeIfPresent(Date.self, forKey: .expected_pay_date)
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        order_status = try container.decodeIfPresent(String.self, forKey: .order_status)
         is_deleted = try container.decodeIfPresent(Bool.self, forKey: .is_deleted)
         deleted_at = try container.decodeIfPresent(Date.self, forKey: .deleted_at)
         deleted_by = try container.decodeIfPresent(UUID.self, forKey: .deleted_by)
@@ -1516,6 +1521,7 @@ struct OrderDTO: Codable {
         try container.encodeIfPresent(debt_amount, forKey: .debt_amount)
         try container.encodeIfPresent(expected_pay_date, forKey: .expected_pay_date)
         try container.encodeIfPresent(note, forKey: .note)
+        try container.encodeIfPresent(order_status, forKey: .order_status)
         try container.encodeIfPresent(is_deleted, forKey: .is_deleted)
         try container.encodeIfPresent(deleted_at, forKey: .deleted_at)
         try container.encodeIfPresent(deleted_by, forKey: .deleted_by)
@@ -1542,6 +1548,7 @@ struct OrderDTO: Codable {
         self.debt_amount = domain.debtAmount
         self.expected_pay_date = domain.expectedPayDate
         self.note = domain.note
+        self.order_status = domain.orderStatus
         self.is_deleted = domain.isDeleted
         self.deleted_at = domain.deletedAt
         self.deleted_by = domain.deletedBy
@@ -1566,6 +1573,7 @@ struct OrderDTO: Codable {
         bill.debtAmount = debt_amount
         bill.expectedPayDate = expected_pay_date
         bill.note = note
+        bill.orderStatus = order_status
         bill.isDeleted = is_deleted ?? false
         bill.deletedAt = deleted_at
         bill.deletedBy = deleted_by
@@ -1573,7 +1581,7 @@ struct OrderDTO: Codable {
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, customer_phone: customer_phone, customer_address: customer_address, customer_email: customer_email, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
+        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, customer_phone: customer_phone, customer_address: customer_address, customer_email: customer_email, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note, order_status: order_status, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
     }
 }
 
