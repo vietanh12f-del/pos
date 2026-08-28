@@ -355,7 +355,7 @@ class OrderViewModel: ObservableObject {
         var updMap: [String: OrderItem] = [:]
         for it in original.items { origMap[it.name] = it }
         for it in updated.items { updMap[it.name] = it }
-        for name in Set(origMap.keys).union(updMap.keys) {
+        for name in Set(origMap.keys).union(updMap.keys).sorted() {
             let o = origMap[name]
             let n = updMap[name]
             if o == nil, let n {
@@ -374,6 +374,29 @@ class OrderViewModel: ObservableObject {
         }
         if original.total != updated.total {
             lines.append("Tổng tiền: \(Int(original.total)) → \(Int(updated.total))")
+        }
+        // Ghi nhận thay đổi trạng thái thanh toán
+        if original.isPaid != updated.isPaid {
+            let o = original.isPaid ? "Đã thanh toán" : "Chưa thanh toán"
+            let n = updated.isPaid ? "Đã thanh toán" : "Chưa thanh toán"
+            lines.append("Trạng thái: \(o) → \(n)")
+        }
+        let origPaid = Int(original.paidAmount ?? original.total)
+        let updPaid = Int(updated.paidAmount ?? updated.total)
+        if origPaid != updPaid {
+            lines.append("Đã trả: \(origPaid) → \(updPaid)")
+        }
+        let origDebt = Int(original.debtAmount ?? 0)
+        let updDebt = Int(updated.debtAmount ?? 0)
+        if origDebt != updDebt {
+            lines.append("Công nợ: \(origDebt) → \(updDebt)")
+        }
+        if (original.expectedPayDate) != (updated.expectedPayDate) {
+            let fmt: (Date?) -> String = { d in
+                guard let d else { return "—" }
+                let f = DateFormatter(); f.dateFormat = "dd/MM/yyyy"; return f.string(from: d)
+            }
+            lines.append("Ngày trả: \(fmt(original.expectedPayDate)) → \(fmt(updated.expectedPayDate))")
         }
         if (original.note ?? "") != (updated.note ?? "") {
             let o = (original.note ?? "").isEmpty ? "—" : (original.note ?? "")
@@ -394,7 +417,7 @@ class OrderViewModel: ObservableObject {
     @MainActor
     func finalizeEditedPayment() async {
         guard let original = editingBill else { return }
-        let newTotal = totalAmount
+        let newTotal = totalAmountWithVAT  // dùng total bao gồm VAT để nhất quán với paidAmount
         var updatedBill = Bill(id: original.id, createdAt: original.createdAt, items: items, total: newTotal)
         updatedBill.sequenceNumber = original.sequenceNumber
         updatedBill.customerName = walkInName
@@ -407,10 +430,12 @@ class OrderViewModel: ObservableObject {
         updatedBill.creatorName = original.creatorName
         updatedBill.note = note.isEmpty ? nil : note
         updatedBill.expectedPayDate = expectedPayDate
-        // Dùng giá trị thanh toán người dùng đã chỉnh, không hardcode từ original
-        updatedBill.isPaid = debtAmount <= 0
-        updatedBill.paidAmount = paidAmount
-        updatedBill.debtAmount = debtAmount > 0 ? debtAmount : nil
+        // Tính toán thanh toán từ state người dùng đã chỉnh
+        let currentDebt = debtAmount   // computed từ payFullAmount/partialAmount/totalAmountWithVAT
+        let currentPaid = paidAmount   // computed từ payFullAmount/partialAmount/totalAmountWithVAT
+        updatedBill.isPaid = currentDebt <= 0
+        updatedBill.paidAmount = currentPaid
+        updatedBill.debtAmount = currentDebt > 0 ? currentDebt : nil
         
         // Calculate VAT amount
         let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
@@ -1417,7 +1442,15 @@ class OrderViewModel: ObservableObject {
             let orders = try await database.fetchOrders()
             let ids = (try? await database.fetchEditedOrderIds(storeId: sid)) ?? []
             await MainActor.run {
-                self.pastOrders = orders
+                // Giữ nguyên các order đang được edit locally (tránh overwrite với DB cũ)
+                let merged = orders.map { fetched -> Bill in
+                    if self.locallyEditedOrderIds.contains(fetched.id),
+                       let local = self.pastOrders.first(where: { $0.id == fetched.id }) {
+                        return local
+                    }
+                    return fetched
+                }
+                self.pastOrders = merged
                 self.editedOrderIds = Set(ids)
                 self.recalculateStats()
             }
@@ -3168,8 +3201,7 @@ class OrderViewModel: ObservableObject {
         guard let originalBill = editingBill else { return }
         
         // Create updated bill (keeping original ID and Date)
-        // We use the current items to calculate total
-        let newTotal = totalAmount
+        let newTotal = totalAmountWithVAT  // dùng total bao gồm VAT để nhất quán với paidAmount
         var updatedBill = Bill(id: originalBill.id, createdAt: originalBill.createdAt, items: items, total: newTotal)
         updatedBill.customerName = walkInName
         updatedBill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
@@ -3177,9 +3209,11 @@ class OrderViewModel: ObservableObject {
         updatedBill.customerEmail = walkInEmail.isEmpty ? nil : walkInEmail
         updatedBill.paymentReceiptURL = paymentReceiptImageURL ?? originalBill.paymentReceiptURL
         updatedBill.sequenceNumber = originalBill.sequenceNumber
-        updatedBill.isPaid = debtAmount <= 0
-        updatedBill.paidAmount = paidAmount
-        updatedBill.debtAmount = debtAmount > 0 ? debtAmount : nil
+        let currentDebt = debtAmount
+        let currentPaid = paidAmount
+        updatedBill.isPaid = currentDebt <= 0
+        updatedBill.paidAmount = currentPaid
+        updatedBill.debtAmount = currentDebt > 0 ? currentDebt : nil
         updatedBill.expectedPayDate = expectedPayDate
         updatedBill.note = note.isEmpty ? nil : note
         updatedBill.vatRate = vatRate

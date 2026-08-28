@@ -201,7 +201,10 @@ struct OrderHistoryView: View {
                 InventoryReportView(viewModel: viewModel)
             }
             .onAppear {
-                Task { await viewModel.refreshOrders() }
+                // Chỉ refresh lần đầu nếu chưa có data
+                if viewModel.pastOrders.isEmpty {
+                    Task { await viewModel.refreshOrders() }
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshOrderHistory"))) { _ in
                 Task {

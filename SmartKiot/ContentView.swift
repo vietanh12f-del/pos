@@ -2693,7 +2693,7 @@ struct ContentView: View {
                                                 userInfo: ["tab": 1]
                                             )
                                         }
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
                                             NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
                                         }
                                     }
@@ -2766,7 +2766,7 @@ struct ContentView: View {
                                             userInfo: ["tab": 1]
                                         )
                                     }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
                                         NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
                                     }
                                 }
@@ -2998,7 +2998,7 @@ struct ContentView: View {
                 )
             }
             if isEditing {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
                     NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
                 }
             }
