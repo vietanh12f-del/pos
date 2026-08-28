@@ -475,6 +475,21 @@ private struct OrderHistoryRow: View {
                             .font(.caption2)
                             .foregroundStyle(.gray)
                     }
+                    if let status = bill.orderStatus {
+                        let info = orderStatusInfo(status)
+                        HStack(spacing: 3) {
+                            Image(systemName: info.icon)
+                                .font(.caption2)
+                            Text(info.label)
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundStyle(info.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(info.color.opacity(0.1))
+                        .cornerRadius(4)
+                    }
                 }
             }
             .padding(.vertical, 8)
@@ -530,6 +545,18 @@ private struct OrderHistoryRow: View {
             return "Không có sản phẩm"
         } else {
             return "\(bill.items[0].name) + \(bill.items.count - 1) sản phẩm khác"
+        }
+    }
+    
+    private func orderStatusInfo(_ status: String) -> (label: String, icon: String, color: Color) {
+        switch status {
+        case "preparing":  return ("Chuẩn bị hàng",  "bag.fill",             .purple)
+        case "prepared":   return ("Đã soạn hàng",   "shippingbox.fill",     .orange)
+        case "delivering": return ("Đang giao hàng", "figure.walk",          Color(red: 0.0, green: 0.6, blue: 1.0))
+        case "delivered":  return ("Đã giao hàng",   "bicycle",              Color(red: 0.2, green: 0.6, blue: 1.0))
+        case "completed":  return ("Hoàn thành",      "checkmark.seal.fill", .green)
+        case "cancelled":  return ("Đã Huỷ",          "xmark.circle.fill",   .red)
+        default:           return (status,             "circle.dotted",       .gray)
         }
     }
 }

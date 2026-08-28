@@ -526,6 +526,32 @@ class SupabaseDatabaseService: DatabaseService {
             let expected_pay_date: Date?
             let note: String?
             let order_status: String?
+            
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(total_amount, forKey: .total_amount)
+                try container.encode(store_id, forKey: .store_id)
+                try container.encode(is_paid, forKey: .is_paid)
+                try container.encodeIfPresent(customer_name, forKey: .customer_name)
+                try container.encodeIfPresent(customer_phone, forKey: .customer_phone)
+                try container.encodeIfPresent(customer_address, forKey: .customer_address)
+                try container.encodeIfPresent(customer_email, forKey: .customer_email)
+                try container.encodeIfPresent(receipt_image_url, forKey: .receipt_image_url)
+                try container.encodeIfPresent(vat_rate, forKey: .vat_rate)
+                try container.encode(vat_amount, forKey: .vat_amount)
+                try container.encode(paid_amount, forKey: .paid_amount)
+                try container.encode(debt_amount, forKey: .debt_amount)
+                try container.encodeIfPresent(expected_pay_date, forKey: .expected_pay_date)
+                try container.encodeIfPresent(note, forKey: .note)
+                // Force encode null để xóa order_status trên DB khi = nil
+                try container.encode(order_status, forKey: .order_status)
+            }
+            
+            enum CodingKeys: String, CodingKey {
+                case total_amount, store_id, is_paid, customer_name, customer_phone
+                case customer_address, customer_email, receipt_image_url, vat_rate
+                case vat_amount, paid_amount, debt_amount, expected_pay_date, note, order_status
+            }
         }
         
         let payload = OrderUpdatePayload(

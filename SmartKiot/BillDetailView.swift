@@ -188,12 +188,20 @@ struct BillDetailView: View {
                             .fontWeight(.semibold)
                             .foregroundStyle(Color.themeTextDark)
                         Spacer()
-                        Button {
-                            showOrderStatusPicker = true
-                        } label: {
-                            Image(systemName: "pencil.circle.fill")
+                        let isCancelledOrDeleted = bill.isDeleted || orderStatus == "cancelled"
+                        if isCancelledOrDeleted {
+                            // Đơn đã huỷ — khoá không cho chỉnh
+                            Image(systemName: "lock.fill")
                                 .font(.title3)
-                                .foregroundStyle(Color.themePrimary)
+                                .foregroundStyle(Color.red.opacity(0.5))
+                        } else {
+                            Button {
+                                showOrderStatusPicker = true
+                            } label: {
+                                Image(systemName: "pencil.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(Color.themePrimary)
+                            }
                         }
                     }
                     
@@ -537,8 +545,15 @@ struct BillDetailView: View {
         orderStatus = status
         var updatedBill = bill
         updatedBill.orderStatus = status
-        // Nếu huỷ đơn, hoàn lại tồn kho giống như xoá
         if status == "cancelled" {
+            // Soft delete + hoàn tồn kho, đồng thời lưu orderStatus = "cancelled" lên DB
+            Task {
+                do {
+                    try await viewModel.updateOrder(updatedBill)
+                } catch {
+                    print("❌ Error saving cancelled status: \(error)")
+                }
+            }
             viewModel.deleteOrder(bill) // soft delete + revert inventory
         } else {
             Task {
