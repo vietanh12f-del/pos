@@ -139,41 +139,24 @@ struct CustomerManagementView: View {
             }
         }
         return list.sorted { (a, b) in
-            // First, prioritize customers with debt
-            if a.totalDebt > 0 && b.totalDebt <= 0 {
-                return true
+            // Ưu tiên khách có update gần nhất (updatedAt)
+            if a.updatedAt != b.updatedAt {
+                return a.updatedAt > b.updatedAt
             }
-            if a.totalDebt <= 0 && b.totalDebt > 0 {
-                return false
-            }
-            
-            // Now, within debt or non-debt groups
+            // Sau đó ưu tiên khách có công nợ
+            if a.totalDebt > 0 && b.totalDebt <= 0 { return true }
+            if a.totalDebt <= 0 && b.totalDebt > 0 { return false }
+            // Cuối cùng theo giao dịch gần nhất
             let aLastTx = getLastTransactionDate(for: a)
             let bLastTx = getLastTransactionDate(for: b)
-            
-            // Prioritize customers with recent transactions
             switch (aLastTx, bLastTx) {
-            case (.some, .none):
-                return true
-            case (.none, .some):
-                return false
+            case (.some, .none): return true
+            case (.none, .some): return false
             case (.some(let aDate), .some(let bDate)):
-                if aDate != bDate {
-                    return aDate > bDate
-                }
-            case (.none, .none):
-                break
+                if aDate != bDate { return aDate > bDate }
+            case (.none, .none): break
             }
-            
-            // If both have debt and same last tx date, sort by debt amount descending
-            if a.totalDebt > 0 && b.totalDebt > 0 {
-                if a.totalDebt != b.totalDebt {
-                    return a.totalDebt > b.totalDebt
-                }
-            }
-            
-            // Fallback to updatedAt
-            return a.updatedAt > b.updatedAt
+            return false
         }
     }
 
@@ -1013,6 +996,12 @@ struct PartyDetailView: View {
                 print("❌ Failed to update retail order debt: \(error)")
             }
         }
+        
+        // Cập nhật updatedAt của party để đưa lên đầu list
+        var updatedParty = currentParty
+        updatedParty.updatedAt = Date()
+        updatedParty.totalDebt = totalDebt
+        try? await SupabaseDatabaseService().upsertTradingParty(updatedParty)
         
         await MainActor.run {
             showDebtEdit = false
