@@ -306,10 +306,35 @@ struct OrderHistoryView: View {
     
     var sections: [(title: String, bills: [Bill])] {
         let filteredBills = viewModel.pastOrders.filter { showDeletedBills ? $0.isDeleted : !$0.isDeleted }
+        
+        if showDeletedBills {
+            // Lịch sử xoá: group theo ngày xoá, sort theo deletedAt giảm dần (vừa xoá lên trên)
+            let grouped = Dictionary(grouping: filteredBills) { bill -> Date in
+                Calendar.current.startOfDay(for: bill.deletedAt ?? bill.createdAt)
+            }
+            return grouped.keys.sorted(by: >).map { date in
+                let title: String
+                if Calendar.current.isDateInToday(date) {
+                    title = "Hôm nay"
+                } else if Calendar.current.isDateInYesterday(date) {
+                    title = "Hôm qua"
+                } else {
+                    let formatter = DateFormatter()
+                    formatter.locale = Locale(identifier: "vi_VN")
+                    formatter.dateFormat = "dd/MM/yyyy"
+                    title = formatter.string(from: date)
+                }
+                let bills = (grouped[date] ?? []).sorted {
+                    ($0.deletedAt ?? $0.createdAt) > ($1.deletedAt ?? $1.createdAt)
+                }
+                return (title: title, bills: bills)
+            }
+        }
+        
+        // Lịch sử thường: group và sort theo createdAt
         let grouped = Dictionary(grouping: filteredBills) { bill -> Date in
             Calendar.current.startOfDay(for: bill.createdAt)
         }
-        
         return grouped.keys.sorted(by: >).map { date in
             let title: String
             if Calendar.current.isDateInToday(date) {
