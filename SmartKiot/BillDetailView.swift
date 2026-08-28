@@ -320,7 +320,7 @@ struct BillDetailView: View {
             }
         } message: {
             let itemList = bill.items.map { "• \($0.name): +\($0.quantity)" }.joined(separator: "\n")
-            Text("Đơn hàng sẽ được đánh dấu Đã Huỷ và số lượng sản phẩm sẽ được hoàn lại:\n\n\(itemList)")
+            Text("Đơn sẽ bị xoá và lưu vào lịch sử xoá. Số lượng sản phẩm sẽ được hoàn lại:\n\n\(itemList)")
         }
         .sheet(isPresented: $showShareSheet) {
             if let image = renderedImage {
