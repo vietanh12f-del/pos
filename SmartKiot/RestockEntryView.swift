@@ -42,7 +42,7 @@ struct RestockEntryView: View {
     @State private var inventorySubTab: Int = 1
     @State private var lastAddedItemId: UUID? = nil
     @State private var selectedCategoryFilter: String = "Tất cả"
-    @State private var gridColumns: Int = 3
+    @State private var gridColumns: Int = 6
     @State private var showSourcePicker = false
     @State private var sourcePickerIndex: Int? = nil
     @State private var sourcePickerOptions: [String] = []

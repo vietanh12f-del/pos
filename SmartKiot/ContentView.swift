@@ -1202,7 +1202,7 @@ struct ContentView: View {
         }
         
         @State private var orderCategory: String = "Tất cả"
-        @State private var orderGridColumns: Int = 3
+        @State private var orderGridColumns: Int = 6
         
         var browsingContentViewOrder: some View {
             VStack(spacing: 0) {
