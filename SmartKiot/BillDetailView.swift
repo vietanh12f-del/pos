@@ -223,6 +223,34 @@ struct BillDetailView: View {
                 .padding(.top, 12)
                 
                 Button(action: {
+                    // Lưu trạng thái thanh toán + trạng thái đơn hàng hiện tại rồi thoát
+                    var updatedBill = bill
+                    updatedBill.isPaid = isPaid
+                    updatedBill.orderStatus = orderStatus
+                    Task {
+                        do {
+                            try await viewModel.updateOrder(updatedBill)
+                        } catch {
+                            print("❌ Error saving bill: \(error)")
+                        }
+                    }
+                    dismiss()
+                }) {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Lưu và thoát")
+                    }
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.white)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.themePrimary)
+                    .cornerRadius(12)
+                }
+                .padding(.horizontal)
+                .padding(.top, 20)
+                
+                Button(action: {
                     renderImage()
                 }) {
                     HStack {
