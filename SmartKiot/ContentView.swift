@@ -2686,6 +2686,8 @@ struct ContentView: View {
         var showReceiptImage: Bool = false
         var showPaymentStatus: Bool = false
         var showOrderStatus: Bool = true
+        var showBillCount: Bool = false
+        var billCount: Int = 1
     }
 
     // Payment View (Preserved and cleaned up)
@@ -2707,6 +2709,7 @@ struct ContentView: View {
         @State private var currentIsPaidConfirmed: Bool = false
         @State private var printOptions = PrintOptions()
         @State private var showPrintOptionsSheet = false
+        @State private var renderedImages: [UIImage] = []
         
         var body: some View {
             ZStack {
@@ -2857,7 +2860,9 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showShareSheet) {
-                if let image = renderedImage {
+                if !renderedImages.isEmpty {
+                    ShareSheet(items: renderedImages)
+                } else if let image = renderedImage {
                     ShareSheet(items: [image])
                 }
             }
@@ -3057,6 +3062,7 @@ struct ContentView: View {
             }
 
             // Mở ShareSheet chia sẻ ảnh (giống BillDetailView)
+            renderedImages = []   // printAndClose chỉ dùng renderedImage
             renderedImage = image
             showShareSheet = true
 
@@ -3104,6 +3110,8 @@ struct ContentView: View {
             }
 
             let opts = printOptions
+            
+            // Render 1 ảnh duy nhất. billCount = số thứ tự bill user muốn ghi trên phiếu
             let renderView = PrintReceiptView(
                 opts: opts,
                 items: viewModel.items,
@@ -3123,13 +3131,16 @@ struct ContentView: View {
                 vatRate: viewModel.vatRate,
                 orderStatus: viewModel.newOrderStatus,
                 qrImage: loadedQR,
-                receiptImage: loadedReceiptImage
+                receiptImage: loadedReceiptImage,
+                billIndex: opts.billCount,
+                totalBills: 1,
+                creatorId: AuthManager.shared.currentUserProfile?.id.uuidString
             )
             .frame(width: 375)
-
             let renderer = ImageRenderer(content: renderView)
             renderer.scale = UIScreen.main.scale
             guard let image = renderer.uiImage else { return }
+            let images: [UIImage] = [image]
 
             // Lưu đơn (không đóng bill — chỉ in, user tự quyết định sau)
             let isEditing = viewModel.editingBill != nil
@@ -3139,7 +3150,8 @@ struct ContentView: View {
                 viewModel.completeOrder(isPaid: currentIsPaidConfirmed)
             }
 
-            renderedImage = image
+            renderedImage = images.first
+            renderedImages = images
             showShareSheet = true
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { dismiss() }
@@ -3404,6 +3416,43 @@ struct ContentView: View {
                                       subtitle: "Chuẩn bị, đang giao, hoàn thành...",
                                       isOn: $options.showOrderStatus)
                         }
+                        
+                        Section(header: Text("Số Bill").textCase(nil).font(.subheadline).foregroundStyle(.gray)) {
+                            // Toggle hiện số bill trên phiếu
+                            OptionRow(icon: "doc.badge.plus",
+                                      title: "Hiện số bill trên phiếu",
+                                      subtitle: "Hiển thị số thứ tự bill do bạn chọn",
+                                      isOn: $options.showBillCount)
+                            
+                            // Picker số bill (thứ tự bill này là số mấy)
+                            HStack(spacing: 14) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(options.showBillCount ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08))
+                                        .frame(width: 36, height: 36)
+                                    Image(systemName: "list.number")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(options.showBillCount ? Color.themePrimary : .gray)
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Số Bill")
+                                        .font(.subheadline).fontWeight(.medium)
+                                        .foregroundStyle(options.showBillCount ? Color.themeTextDark : .gray)
+                                    Text("Bill này là Bill số \(options.billCount)")
+                                        .font(.caption).foregroundStyle(.gray)
+                                }
+                                Spacer()
+                                Picker("", selection: $options.billCount) {
+                                    ForEach(1...99, id: \.self) { n in
+                                        Text("\(n)").tag(n)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .labelsHidden()
+                                .disabled(!options.showBillCount)
+                            }
+                            .padding(.vertical, 6)
+                        }
                     }
                     .listStyle(.insetGrouped)
 
@@ -3457,6 +3506,30 @@ struct ContentView: View {
         let orderStatus: String?
         let qrImage: UIImage?
         let receiptImage: UIImage?
+        var billIndex: Int = 1    // bản thứ mấy (1-based)
+        var totalBills: Int = 1   // tổng số bản
+        var creatorId: String? = nil  // dùng để hash màu theo nhân viên
+
+        // Palette màu cho nhân viên — hash creatorId → index
+        private static let badgePalette: [(bg: Color, fg: Color)] = [
+            (Color(red: 0.20, green: 0.60, blue: 1.00), .white),   // xanh dương
+            (Color(red: 1.00, green: 0.45, blue: 0.30), .white),   // cam đỏ
+            (Color(red: 0.20, green: 0.78, blue: 0.60), .white),   // xanh mint
+            (Color(red: 0.65, green: 0.35, blue: 0.95), .white),   // tím
+            (Color(red: 1.00, green: 0.75, blue: 0.10), .black),   // vàng
+            (Color(red: 0.95, green: 0.35, blue: 0.65), .white),   // hồng
+            (Color(red: 0.30, green: 0.75, blue: 0.30), .white),   // xanh lá
+            (Color(red: 0.20, green: 0.70, blue: 0.85), .white),   // xanh ngọc
+        ]
+
+        private func badgeColors() -> (bg: Color, fg: Color) {
+            guard let id = creatorId, !id.isEmpty else {
+                return (Color.themePrimary, .white)
+            }
+            let hash = id.unicodeScalars.reduce(0) { ($0 &* 31) &+ Int($1.value) }
+            let idx = abs(hash) % Self.badgePalette.count
+            return Self.badgePalette[idx]
+        }
 
         private func fmt(_ v: Double) -> String {
             let f = NumberFormatter()
@@ -3512,6 +3585,28 @@ struct ContentView: View {
                                 Spacer()
                                 Text("STT: \(stt)").font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themePrimary)
                             }
+                        }
+                        if opts.showBillCount {
+                            let colors = badgeColors()
+                            HStack(alignment: .center, spacing: 10) {
+                                Text("Bill số")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.gray)
+                                Spacer()
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .fill(colors.bg)
+                                        .frame(minWidth: 56, minHeight: 56)
+                                    Text("\(billIndex)")
+                                        .font(.system(size: 32, weight: .black, design: .rounded))
+                                        .foregroundStyle(colors.fg)
+                                        .minimumScaleFactor(0.5)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 12)
+                                }
+                                .fixedSize()
+                            }
+                            .padding(.top, 4)
                         }
                         if let a = customerAddress, !a.isEmpty {
                             Text("Địa chỉ: \(a)").font(.subheadline).foregroundStyle(.gray)
