@@ -287,42 +287,44 @@ struct BillDetailView: View {
                 
                 // Order Status
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Trạng thái đơn hàng")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.themeTextDark)
-                        Spacer()
-                        let isCancelledOrDeleted = bill.isDeleted || orderStatus == "cancelled"
-                        if isCancelledOrDeleted {
-                            // Đơn đã huỷ — khoá không cho chỉnh
-                            Image(systemName: "lock.fill")
-                                .font(.title3)
-                                .foregroundStyle(Color.red.opacity(0.5))
-                        } else {
-                            Button {
-                                showOrderStatusPicker = true
-                            } label: {
-                                Image(systemName: "pencil.circle.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(Color.themePrimary)
-                            }
-                        }
-                    }
+                    Text("Trạng thái đơn hàng")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.themeTextDark)
+                        .padding(.horizontal, 14)
                     
                     let statusInfo = orderStatusInfo(orderStatus)
-                    HStack(spacing: 8) {
-                        Image(systemName: statusInfo.icon)
-                            .foregroundStyle(statusInfo.color)
-                        Text(statusInfo.label)
-                            .fontWeight(.medium)
-                            .foregroundStyle(statusInfo.color)
+                    let isCancelledOrDeleted = bill.isDeleted || orderStatus == "cancelled"
+                    Button {
+                        if !isCancelledOrDeleted {
+                            showOrderStatusPicker = true
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: statusInfo.icon)
+                                .foregroundStyle(statusInfo.color)
+                            Text(statusInfo.label)
+                                .fontWeight(.medium)
+                                .foregroundStyle(statusInfo.color)
+                            Spacer()
+                            if !isCancelledOrDeleted {
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.caption2)
+                                    .foregroundStyle(.gray.opacity(0.6))
+                            } else {
+                                Image(systemName: "lock.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.red.opacity(0.4))
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(statusInfo.color.opacity(0.08))
+                        .cornerRadius(10)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(statusInfo.color.opacity(0.08))
-                    .cornerRadius(10)
+                    .buttonStyle(.plain)
+                    .disabled(isCancelledOrDeleted)
                 }
                 .padding(.horizontal)
                 .padding(.top, 12)
