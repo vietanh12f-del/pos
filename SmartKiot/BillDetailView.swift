@@ -98,8 +98,13 @@ struct BillDetailView: View {
                             Text("Đã trả")
                                 .font(.caption).foregroundStyle(.gray)
                             Spacer()
-                            Text(formatCurrency(paidAmount))
-                                .font(.caption).fontWeight(.bold).foregroundStyle(.green)
+                            if !isPaid {
+                                Text(formatCurrency(0))
+                                    .font(.caption).fontWeight(.bold).foregroundStyle(.orange)
+                            } else {
+                                Text(formatCurrency(paidAmount))
+                                    .font(.caption).fontWeight(.bold).foregroundStyle(.green)
+                            }
                         }
                     }
                     
