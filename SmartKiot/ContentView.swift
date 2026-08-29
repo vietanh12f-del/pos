@@ -3658,12 +3658,17 @@ struct ContentView: View {
                 // 7. Trạng thái đơn hàng
                 if opts.showOrderStatus, let status = orderStatus, !status.isEmpty {
                     let info = orderStatusDisplayInfo(status)
-                    HStack(spacing: 6) {
-                        Image(systemName: info.icon).font(.caption).foregroundStyle(info.color)
-                        Text(info.label).font(.caption).fontWeight(.bold).foregroundStyle(info.color)
+                    HStack(spacing: 8) {
+                        Text("Trạng thái đơn hàng:")
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                        HStack(spacing: 5) {
+                            Image(systemName: info.icon).font(.caption).foregroundStyle(info.color)
+                            Text(info.label).font(.caption).fontWeight(.bold).foregroundStyle(info.color)
+                        }
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Capsule().fill(info.color.opacity(0.1)))
                     }
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(Capsule().fill(info.color.opacity(0.1)))
                     .padding(.top, 4)
                 }
 
