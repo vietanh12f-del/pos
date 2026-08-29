@@ -2677,6 +2677,17 @@ struct ContentView: View {
     // Helpers (Moved to Components.swift)
     
     
+    // MARK: - Print Options
+    struct PrintOptions {
+        var showStoreInfo: Bool = true
+        var showCustomerInfo: Bool = true
+        var showProducts: Bool = true
+        var showQRCode: Bool = true
+        var showReceiptImage: Bool = false
+        var showPaymentStatus: Bool = false
+        var showOrderStatus: Bool = true
+    }
+
     // Payment View (Preserved and cleaned up)
     struct PaymentView: View {
         @ObservedObject var viewModel: OrderViewModel
@@ -2694,6 +2705,8 @@ struct ContentView: View {
         /// Tracks the current isPaid state from BillReceiptView toggle so printAndClose() can read it correctly.
         /// Initialised to false (chưa thanh toán) for new orders; updated via onIsPaidChanged callback.
         @State private var currentIsPaidConfirmed: Bool = false
+        @State private var printOptions = PrintOptions()
+        @State private var showPrintOptionsSheet = false
         
         var body: some View {
             ZStack {
@@ -2785,6 +2798,9 @@ struct ContentView: View {
                             onIsPaidChanged: { confirmed in
                                 viewModel.isPaidConfirmedByUser = confirmed
                                 currentIsPaidConfirmed = confirmed
+                            },
+                            onCustomPrint: {
+                                showPrintOptionsSheet = true
                             }
                         )
                         .padding()
@@ -2918,6 +2934,15 @@ struct ContentView: View {
                     onReset: { viewModel.vatRate = nil }
                 )
             }
+            .sheet(isPresented: $showPrintOptionsSheet) {
+                CustomPrintOptionsSheet(options: $printOptions) {
+                    showPrintOptionsSheet = false
+                    // Delay để sheet đóng hoàn toàn trước khi render + mở ShareSheet
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                        Task { await printWithOptions() }
+                    }
+                }
+            }
             .onAppear {
                 // Init currentIsPaidConfirmed: đơn mới = false, đang sửa = trạng thái bill gốc
                 currentIsPaidConfirmed = viewModel.editingBill != nil ? viewModel.editingBillIsPaid : false
@@ -3039,6 +3064,85 @@ struct ContentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 dismiss()
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("NavigateToTab"),
+                    object: nil,
+                    userInfo: ["tab": 1]
+                )
+            }
+            if isEditing {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+                    NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
+                }
+            }
+        }
+
+        @MainActor
+        private func printWithOptions() async {
+            isPrinting = true
+            defer { isPrinting = false }
+
+            // Load QR chỉ khi option được bật
+            var loadedQR: UIImage? = nil
+            if printOptions.showQRCode,
+               let url = viewModel.vietQRURL(),
+               let (data, _) = try? await URLSession.shared.data(from: url) {
+                loadedQR = UIImage(data: data)
+            }
+
+            // Load receipt image nếu có và option bật
+            var loadedReceiptImage: UIImage? = nil
+            if printOptions.showReceiptImage,
+               let urlStr = viewModel.paymentReceiptImageURL,
+               let url = URL(string: urlStr),
+               let (data, _) = try? await URLSession.shared.data(from: url) {
+                loadedReceiptImage = UIImage(data: data)
+            }
+
+            let opts = printOptions
+            let renderView = PrintReceiptView(
+                opts: opts,
+                items: viewModel.items,
+                dateString: currentDateString(),
+                sequenceNumber: viewModel.editingBill?.sequenceNumber ?? viewModel.currentSequenceNumber,
+                customerName: viewModel.walkInName,
+                customerPhone: viewModel.walkInPhone.isEmpty ? nil : viewModel.walkInPhone,
+                customerAddress: viewModel.walkInAddress.isEmpty ? nil : viewModel.walkInAddress,
+                customerEmail: viewModel.walkInEmail.isEmpty ? nil : viewModel.walkInEmail,
+                note: viewModel.note.isEmpty ? nil : viewModel.note,
+                grandTotal: viewModel.totalAmountWithVAT,
+                paidAmount: currentIsPaidConfirmed ? viewModel.paidAmount : nil,
+                debtAmount: currentIsPaidConfirmed ? viewModel.debtAmount : nil,
+                isPaid: currentIsPaidConfirmed,
+                payFullAmount: viewModel.payFullAmount,
+                expectedPayDate: viewModel.expectedPayDate,
+                vatRate: viewModel.vatRate,
+                orderStatus: viewModel.newOrderStatus,
+                qrImage: loadedQR,
+                receiptImage: loadedReceiptImage
+            )
+            .frame(width: 375)
+
+            let renderer = ImageRenderer(content: renderView)
+            renderer.scale = UIScreen.main.scale
+            guard let image = renderer.uiImage else { return }
+
+            // Lưu đơn (không đóng bill — chỉ in, user tự quyết định sau)
+            let isEditing = viewModel.editingBill != nil
+            if isEditing {
+                await viewModel.finalizeEditedPayment()
+            } else {
+                viewModel.completeOrder(isPaid: currentIsPaidConfirmed)
+            }
+
+            renderedImage = image
+            showShareSheet = true
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { dismiss() }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                 NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
             }
@@ -3225,6 +3329,370 @@ struct ContentView: View {
         }
     }
     
+    struct CustomPrintOptionsSheet: View {
+        @Binding var options: PrintOptions
+        let onPrint: () -> Void
+        @Environment(\.dismiss) private var dismiss
+
+        private struct OptionRow: View {
+            let icon: String
+            let title: String
+            let subtitle: String
+            @Binding var isOn: Bool
+
+            var body: some View {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isOn ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: icon)
+                            .font(.system(size: 16))
+                            .foregroundStyle(isOn ? Color.themePrimary : .gray)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(isOn ? Color.themeTextDark : .gray)
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.gray)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $isOn)
+                        .labelsHidden()
+                        .tint(Color.themePrimary)
+                }
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+                .onTapGesture { isOn.toggle() }
+            }
+        }
+
+        var body: some View {
+            NavigationStack {
+                VStack(spacing: 0) {
+                    List {
+                        Section(header: Text("Chọn nội dung in").textCase(nil).font(.subheadline).foregroundStyle(.gray)) {
+                            OptionRow(icon: "building.2.fill",
+                                      title: "Thông tin cửa hàng",
+                                      subtitle: "Tên, địa chỉ, SĐT cửa hàng",
+                                      isOn: $options.showStoreInfo)
+                            OptionRow(icon: "person.fill",
+                                      title: "Thông tin khách hàng",
+                                      subtitle: "Tên KH, STT, ghi chú, địa chỉ",
+                                      isOn: $options.showCustomerInfo)
+                            OptionRow(icon: "cart.fill",
+                                      title: "Thông tin sản phẩm",
+                                      subtitle: "Danh sách hàng hoá, số lượng, giá",
+                                      isOn: $options.showProducts)
+                            OptionRow(icon: "qrcode",
+                                      title: "Mã QR thanh toán",
+                                      subtitle: "VietQR chuyển khoản ngân hàng",
+                                      isOn: $options.showQRCode)
+                            OptionRow(icon: "photo.fill",
+                                      title: "Ảnh xác nhận thanh toán",
+                                      subtitle: "Ảnh chụp biên lai chuyển khoản",
+                                      isOn: $options.showReceiptImage)
+                            OptionRow(icon: "checkmark.circle.fill",
+                                      title: "Trạng thái thanh toán",
+                                      subtitle: "Đã nhận tiền / Chưa thanh toán",
+                                      isOn: $options.showPaymentStatus)
+                            OptionRow(icon: "shippingbox.fill",
+                                      title: "Trạng thái đơn hàng",
+                                      subtitle: "Chuẩn bị, đang giao, hoàn thành...",
+                                      isOn: $options.showOrderStatus)
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+
+                    // Print button
+                    Button(action: onPrint) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "printer.fill")
+                            Text("In phiếu")
+                                .fontWeight(.bold)
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.themePrimary)
+                        .cornerRadius(14)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                }
+                .navigationTitle("In phiếu tuỳ chọn")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Huỷ") { dismiss() }
+                    }
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    // MARK: - PrintReceiptView: view tĩnh thuần túy dùng cho ImageRenderer (không có @State)
+    struct PrintReceiptView: View {
+        let opts: PrintOptions
+        let items: [OrderItem]
+        let dateString: String
+        let sequenceNumber: String?
+        let customerName: String
+        let customerPhone: String?
+        let customerAddress: String?
+        let customerEmail: String?
+        let note: String?
+        let grandTotal: Double
+        let paidAmount: Double?
+        let debtAmount: Double?
+        let isPaid: Bool
+        let payFullAmount: Bool
+        let expectedPayDate: Date?
+        let vatRate: Double?
+        let orderStatus: String?
+        let qrImage: UIImage?
+        let receiptImage: UIImage?
+
+        private func fmt(_ v: Double) -> String {
+            let f = NumberFormatter()
+            f.numberStyle = .currency
+            f.locale = Locale(identifier: "vi_VN")
+            f.currencySymbol = "₫"
+            return f.string(from: NSNumber(value: v)) ?? "\(Int(v)) ₫"
+        }
+        private func fmtDate(_ d: Date) -> String {
+            let f = DateFormatter(); f.locale = Locale(identifier: "vi_VN"); f.dateFormat = "dd/MM/yyyy"
+            return f.string(from: d)
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 0) {
+
+                // 1. Thông tin cửa hàng
+                if opts.showStoreInfo {
+                    let headerLines = StoreManager.shared.currentStoreReceiptHeaderLines().filter { !$0.isEmpty }
+                    if !headerLines.isEmpty {
+                        VStack(spacing: 2) {
+                            ForEach(headerLines, id: \.self) { line in
+                                Text(line)
+                                    .font(.headline)
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(Color.themeTextDark)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 6)
+                    }
+                }
+
+                // 2. Thông tin khách hàng
+                if opts.showCustomerInfo {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(customerName)
+                            .font(.title3).fontWeight(.bold)
+                            .foregroundStyle(Color.themeTextDark)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let p = customerPhone, !p.isEmpty {
+                            Text("SĐT: \(p)").font(.subheadline).foregroundStyle(.gray)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let e = customerEmail, !e.isEmpty {
+                            Text("Email: \(e)").font(.subheadline).foregroundStyle(.gray)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        HStack {
+                            Text(dateString).font(.subheadline).foregroundStyle(.gray)
+                            if let stt = sequenceNumber {
+                                Spacer()
+                                Text("STT: \(stt)").font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themePrimary)
+                            }
+                        }
+                        if let a = customerAddress, !a.isEmpty {
+                            Text("Địa chỉ: \(a)").font(.subheadline).foregroundStyle(.gray)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if let n = note, !n.isEmpty {
+                            Text("Ghi chú: \(n)").font(.subheadline).foregroundStyle(.gray)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.bottom, 8)
+                }
+
+                if opts.showCustomerInfo || opts.showStoreInfo {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.25))
+                        .frame(height: 1)
+                        .padding(.bottom, 8)
+                }
+
+                // 3. Thông tin sản phẩm
+                if opts.showProducts {
+                    VStack(spacing: 10) {
+                        ForEach(items) { item in
+                            HStack(alignment: .top, spacing: 10) {
+                                if let data = item.imageData, let ui = UIImage(data: data) {
+                                    Image(uiImage: ui).resizable().scaledToFill()
+                                        .frame(width: 36, height: 36)
+                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                } else {
+                                    Image(systemName: item.systemImage ?? "cart.circle.fill")
+                                        .font(.system(size: 22))
+                                        .foregroundStyle(Color.themePrimary)
+                                        .frame(width: 36, height: 36)
+                                        .background(Color.themePrimary.opacity(0.1))
+                                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                                }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.name).fontWeight(.medium).foregroundStyle(Color.themeTextDark)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text("\(item.quantity) x \(fmt(item.price))").font(.subheadline).foregroundStyle(.gray)
+                                    if item.discount > 0 {
+                                        Text("-\(fmt(item.discount))").font(.caption).foregroundStyle(.red)
+                                    }
+                                }
+                                Spacer()
+                                Text(fmt(item.total)).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .padding(.bottom, 8)
+
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.25))
+                        .frame(height: 1)
+                        .padding(.bottom, 8)
+
+                    // Tổng cộng
+                    let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
+                    let rate = vatRate ?? StoreManager.shared.currentStoreVATRate()
+                    let subtotal = items.reduce(0) { $0 + $1.total }
+                    let discountVal = max(0, subtotal - items.reduce(0) { $0 + ($1.price * Double($1.quantity)) })
+                    if vatEnabled {
+                        HStack {
+                            Text("Tổng tiền hàng").foregroundStyle(.gray)
+                            Spacer()
+                            Text(fmt(subtotal)).fontWeight(.bold)
+                        }.font(.subheadline)
+                        HStack {
+                            Text("VAT (\(rate.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", rate) : String(format: "%.1f", rate))%)").foregroundStyle(.gray)
+                            Spacer()
+                            Text(fmt(subtotal * rate / 100)).fontWeight(.bold)
+                        }.font(.subheadline)
+                    }
+                    if discountVal > 0 {
+                        HStack {
+                            Text("Giảm giá").foregroundStyle(.gray)
+                            Spacer()
+                            Text("-\(fmt(discountVal))").fontWeight(.bold).foregroundStyle(.red)
+                        }.font(.subheadline)
+                    }
+                    HStack {
+                        Text("Tổng cộng").font(.title3).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
+                        Spacer()
+                        Text(fmt(grandTotal)).font(.title3).fontWeight(.bold).foregroundStyle(Color.themePrimary)
+                    }
+                    .padding(.bottom, 8)
+                }
+
+                // 4. QR Code
+                if opts.showQRCode, let qr = qrImage {
+                    VStack(spacing: 4) {
+                        Image(uiImage: qr)
+                            .resizable().interpolation(.none).scaledToFit()
+                            .frame(width: 180, height: 180)
+                        Text("Quét mã để thanh toán").font(.caption).foregroundStyle(.gray)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+
+                // 5. Ảnh xác nhận thanh toán
+                if opts.showReceiptImage, let img = receiptImage {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Xác nhận thanh toán").font(.caption).fontWeight(.bold).foregroundStyle(.gray)
+                        Image(uiImage: img)
+                            .resizable().scaledToFit()
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .padding(.vertical, 6)
+                }
+
+                // 6. Trạng thái thanh toán
+                if opts.showPaymentStatus {
+                    HStack {
+                        Text("Đã trả").font(.caption).foregroundStyle(.gray)
+                        Spacer()
+                        if !isPaid {
+                            Text("Chưa thanh toán").font(.caption).fontWeight(.bold).foregroundStyle(.orange)
+                        } else if payFullAmount {
+                            Text(fmt(grandTotal)).font(.caption).fontWeight(.bold).foregroundStyle(.green)
+                        } else {
+                            Text(fmt(paidAmount ?? grandTotal)).font(.caption).fontWeight(.bold).foregroundStyle(.green)
+                        }
+                    }
+                    if let debt = debtAmount, debt > 0, !payFullAmount {
+                        HStack {
+                            Text("Công nợ").font(.caption).foregroundStyle(.gray)
+                            Spacer()
+                            Text(fmt(debt)).font(.caption).fontWeight(.bold).foregroundStyle(.red)
+                        }
+                    }
+                    if let d = expectedPayDate {
+                        HStack {
+                            Text("Ngày dự kiến trả").font(.caption).foregroundStyle(.gray)
+                            Spacer()
+                            Text(fmtDate(d)).font(.caption).fontWeight(.bold)
+                        }
+                    }
+                }
+
+                // 7. Trạng thái đơn hàng
+                if opts.showOrderStatus, let status = orderStatus, !status.isEmpty {
+                    let info = orderStatusDisplayInfo(status)
+                    HStack(spacing: 6) {
+                        Image(systemName: info.icon).font(.caption).foregroundStyle(info.color)
+                        Text(info.label).font(.caption).fontWeight(.bold).foregroundStyle(info.color)
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(info.color.opacity(0.1)))
+                    .padding(.top, 4)
+                }
+
+                // Footer
+                HStack {
+                    Spacer()
+                    Text("Cảm ơn quý khách!")
+                        .font(.caption).italic().foregroundStyle(.gray)
+                    Spacer()
+                }
+                .padding(.top, 10)
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(20)
+        }
+
+        private func orderStatusDisplayInfo(_ status: String?) -> (label: String, icon: String, color: Color) {
+            switch status {
+            case "preparing":   return ("Chuẩn bị hàng",  "shippingbox",            .orange)
+            case "prepared":    return ("Đã soạn hàng",   "checkmark.circle",       .blue)
+            case "delivering":  return ("Đang giao hàng", "bicycle",                .purple)
+            case "delivered":   return ("Đã giao hàng",   "checkmark.circle.fill",  .green)
+            case "cancelled":   return ("Đã huỷ",         "xmark.circle.fill",      .red)
+            default:            return ("Mới tạo",        "doc.text",               .gray)
+            }
+        }
+    }
+
     struct BillReceiptView: View {
         let items: [OrderItem]
         let totalAmount: Double
@@ -3254,6 +3722,8 @@ struct ContentView: View {
         let grandTotal: Double
         var initialIsPaid: Bool = false  // trạng thái isPaid của bill gốc khi sửa
         var onIsPaidChanged: ((Bool) -> Void)? = nil  // callback khi người dùng toggle isPaid
+        var onCustomPrint: (() -> Void)? = nil       // callback cho nút "In phiếu tuỳ chọn"
+        var printOptions: PrintOptions? = nil         // nil = hiển thị tất cả (chế độ thường)
         @Binding var orderStatus: String?
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
@@ -3295,6 +3765,15 @@ struct ContentView: View {
             return Array(stride(from: start, through: end, by: 10))
         }
         
+        // Helpers: khi printOptions = nil (chế độ thường) thì show tất cả
+        private var showStoreSection: Bool    { printOptions?.showStoreInfo      ?? true }
+        private var showCustomerSection: Bool { printOptions?.showCustomerInfo   ?? true }
+        private var showProductsSection: Bool { printOptions?.showProducts       ?? true }
+        private var showQRSection: Bool       { printOptions?.showQRCode         ?? true }
+        private var showReceiptImgSection: Bool { printOptions?.showReceiptImage ?? true }
+        private var showPaymentStatusSection: Bool { printOptions?.showPaymentStatus ?? true }
+        private var showOrderStatusSection: Bool   { printOptions?.showOrderStatus   ?? true }
+
         private func formatDateOnly(_ date: Date) -> String {
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: "vi_VN")
@@ -3302,7 +3781,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3332,13 +3811,16 @@ struct ContentView: View {
             self.initialIsPaid = initialIsPaid
             self._orderStatus = orderStatus
             self.onIsPaidChanged = onIsPaidChanged
+            self.onCustomPrint = onCustomPrint
+            self.printOptions = printOptions
         }
         
         var body: some View {
             VStack(spacing: 0) {
+                if showCustomerSection {
                 VStack(alignment: .leading, spacing: 4) {
                         let headerLines = StoreManager.shared.currentStoreReceiptHeaderLines().filter { !$0.isEmpty }
-                        if !headerLines.isEmpty {
+                        if showStoreSection && !headerLines.isEmpty {
                             VStack(spacing: 2) {
                                 ForEach(headerLines, id: \.self) { line in
                                     Text(line)
@@ -3416,9 +3898,13 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
+                } // end showCustomerSection
                 
-                DottedLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4])).frame(height: 1).foregroundStyle(.gray.opacity(0.3)).padding(.horizontal)
+                if showCustomerSection || showProductsSection {
+                    DottedLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4])).frame(height: 1).foregroundStyle(.gray.opacity(0.3)).padding(.horizontal)
+                }
                 
+                if showProductsSection {
                 VStack(spacing: 16) {
                     ForEach(items) { item in
                         HStack(alignment: .top, spacing: 12) {
@@ -3469,8 +3955,11 @@ struct ContentView: View {
                     }
                 }
                 .padding()
+                } // end showProductsSection
                 
-                DottedLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4])).frame(height: 1).foregroundStyle(.gray.opacity(0.3)).padding(.horizontal)
+                if showProductsSection {
+                    DottedLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4])).frame(height: 1).foregroundStyle(.gray.opacity(0.3)).padding(.horizontal)
+                }
                 
                 VStack(spacing: 8) {
                     let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
@@ -3656,6 +4145,7 @@ struct ContentView: View {
                 .padding()
                 
                 if showButtons {
+                    if showQRSection {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .center, spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
@@ -3719,7 +4209,8 @@ struct ContentView: View {
                         .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
                     }
                     .padding(.horizontal).padding(.bottom)
-                } else if showPaymentInfo {
+                    } // end showQRSection
+                } else if showPaymentInfo && (showQRSection || showPaymentStatusSection) {
                     // Show payment info when printing
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Thông tin thanh toán")
@@ -3737,6 +4228,7 @@ struct ContentView: View {
                                 .fontWeight(.bold)
                         }
                         
+                        if showPaymentStatusSection {
                         HStack {
                             Text("Đã trả")
                                 .font(.caption)
@@ -3767,6 +4259,7 @@ struct ContentView: View {
                                     .foregroundStyle(.red)
                             }
                         }
+                        } // end showPaymentStatusSection
                         
                         if let expectedDate = expectedPayDate {
                             HStack {
@@ -3797,6 +4290,7 @@ struct ContentView: View {
                 }
                 
                 if showButtons {
+                    if showReceiptImgSection {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
@@ -3925,12 +4419,14 @@ struct ContentView: View {
                                 originalLoader.load(url: ou, targetSize: CGSize(width: 800, height: 800))
                             }
                         }
-                    }
+                    } // end receiptImageURL task
+                    } // end showReceiptImgSection
                 }
                 
                 if showButtons {
                     VStack(spacing: 0) {
                         // Trạng thái thanh toán toggle
+                        if showPaymentStatusSection {
                         HStack {
                             Text("Trạng thái thanh toán")
                                 .font(.subheadline)
@@ -3960,8 +4456,10 @@ struct ContentView: View {
                         .padding(.vertical, 12)
                         
                         Divider().padding(.horizontal)
+                        } // end showPaymentStatusSection
                         
                         // Trạng thái đơn hàng
+                        if showOrderStatusSection {
                         HStack {
                             Text("Trạng thái đơn hàng")
                                 .font(.subheadline)
@@ -3992,6 +4490,7 @@ struct ContentView: View {
                         .padding(.vertical, 12)
                         
                         Divider().padding(.horizontal)
+                        } // end showOrderStatusSection
                         
                         // Nút đóng bill
                         Button(action: {
@@ -4006,17 +4505,56 @@ struct ContentView: View {
                                 .cornerRadius(14)
                         }
                         .padding(.horizontal)
-                        .padding(.vertical, 12)
+                        .padding(.top, 12)
+                        
+                        // Nút in phiếu tuỳ chọn
+                        Button(action: {
+                            onCustomPrint?()
+                        }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "slider.horizontal.3")
+                                Text("In phiếu tuỳ chọn")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundStyle(Color.themePrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.themePrimary.opacity(0.08))
+                            .cornerRadius(14)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(Color.themePrimary.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 12)
                     }
                 } else {
                     // Static footer for image
-                    HStack {
-                        Spacer()
-                        Text("Cảm ơn quý khách!")
-                            .font(.caption)
-                            .italic()
-                            .foregroundStyle(.gray)
-                        Spacer()
+                    VStack(spacing: 8) {
+                        if showOrderStatusSection, let status = orderStatus, !status.isEmpty {
+                            let info = orderStatusDisplayInfo(status)
+                            HStack(spacing: 6) {
+                                Image(systemName: info.icon)
+                                    .font(.caption)
+                                    .foregroundStyle(info.color)
+                                Text(info.label)
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(info.color)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(info.color.opacity(0.1)))
+                        }
+                        HStack {
+                            Spacer()
+                            Text("Cảm ơn quý khách!")
+                                .font(.caption)
+                                .italic()
+                                .foregroundStyle(.gray)
+                            Spacer()
+                        }
                     }
                     .padding(.bottom)
                 }
