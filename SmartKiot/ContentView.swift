@@ -4432,6 +4432,8 @@ struct ContentView: View {
                                     Text(isPaidConfirmed ? "Đã thanh toán" : "Chưa thanh toán")
                                         .fontWeight(.medium)
                                         .foregroundStyle(isPaidConfirmed ? .green : .gray)
+                                        .lineLimit(1)
+                                        .fixedSize(horizontal: true, vertical: false)
                                 }
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
@@ -4465,6 +4467,8 @@ struct ContentView: View {
                                     Text(info.label)
                                         .fontWeight(.medium)
                                         .foregroundStyle(info.color)
+                                        .lineLimit(1)
+                                        .fixedSize(horizontal: true, vertical: false)
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.caption2)
                                         .foregroundStyle(.gray)
@@ -4502,17 +4506,18 @@ struct ContentView: View {
                         }) {
                             HStack(spacing: 8) {
                                 Image(systemName: "slider.horizontal.3")
+                                    .font(.subheadline)
                                 Text("In phiếu tuỳ chọn")
                                     .fontWeight(.semibold)
                             }
                             .foregroundStyle(Color.themePrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
-                            .background(Color.themePrimary.opacity(0.08))
+                            .background(Color.themePrimary.opacity(0.15))
                             .cornerRadius(14)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 14)
-                                    .stroke(Color.themePrimary.opacity(0.3), lineWidth: 1)
+                                    .stroke(Color.themePrimary.opacity(0.6), lineWidth: 1.5)
                             )
                         }
                         .padding(.horizontal)
