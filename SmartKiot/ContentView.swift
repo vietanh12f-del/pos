@@ -3760,6 +3760,7 @@ struct ContentView: View {
                         Text("Trạng thái đơn hàng:")
                             .font(.caption)
                             .foregroundStyle(.gray)
+                        Spacer()
                         HStack(spacing: 5) {
                             Image(systemName: info.icon).font(.caption).foregroundStyle(info.color)
                             Text(info.label).font(.caption).fontWeight(.bold).foregroundStyle(info.color)
