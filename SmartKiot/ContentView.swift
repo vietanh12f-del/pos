@@ -4272,17 +4272,6 @@ struct ContentView: View {
                                     .fontWeight(.bold)
                             }
                         }
-                        
-                        if !note.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Ghi chú")
-                                    .font(.caption)
-                                    .foregroundStyle(.gray)
-                                Text(note)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.themeTextDark)
-                            }
-                        }
                     }
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.05)))
