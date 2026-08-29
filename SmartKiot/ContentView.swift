@@ -3566,55 +3566,58 @@ struct ContentView: View {
 
                 // 2. Thông tin khách hàng
                 if opts.showCustomerInfo {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(customerName)
-                            .font(.title3).fontWeight(.bold)
-                            .foregroundStyle(Color.themeTextDark)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if let p = customerPhone, !p.isEmpty {
-                            Text("SĐT: \(p)").font(.subheadline).foregroundStyle(.gray)
+                    HStack(alignment: .top, spacing: 8) {
+                        // Cột trái: tên, SĐT, email, ngày
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(customerName)
+                                .font(.title3).fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
                                 .fixedSize(horizontal: false, vertical: true)
-                        }
-                        if let e = customerEmail, !e.isEmpty {
-                            Text("Email: \(e)").font(.subheadline).foregroundStyle(.gray)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        HStack {
+                            if let p = customerPhone, !p.isEmpty {
+                                Text("SĐT: \(p)").font(.subheadline).foregroundStyle(.gray)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if let e = customerEmail, !e.isEmpty {
+                                Text("Email: \(e)").font(.subheadline).foregroundStyle(.gray)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                             Text(dateString).font(.subheadline).foregroundStyle(.gray)
-                            if let stt = sequenceNumber {
-                                Spacer()
-                                Text("STT: \(stt)").font(.subheadline).fontWeight(.bold).foregroundStyle(Color.themePrimary)
+                            if let a = customerAddress, !a.isEmpty {
+                                Text("Địa chỉ: \(a)").font(.subheadline).foregroundStyle(.gray)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if let n = note, !n.isEmpty {
+                                Text("Ghi chú: \(n)").font(.subheadline).foregroundStyle(.gray)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
-                        if opts.showBillCount {
-                            let colors = badgeColors()
-                            HStack(alignment: .center, spacing: 10) {
-                                Text("Bill số")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.gray)
-                                Spacer()
+                        
+                        Spacer()
+                        
+                        // Cột phải: STT + badge số bill
+                        VStack(alignment: .center, spacing: 4) {
+                            if let stt = sequenceNumber {
+                                Text("STT: \(stt)")
+                                    .font(.caption).fontWeight(.bold)
+                                    .foregroundStyle(Color.themePrimary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            if opts.showBillCount {
+                                let colors = badgeColors()
                                 ZStack {
-                                    RoundedRectangle(cornerRadius: 10)
+                                    RoundedRectangle(cornerRadius: 12)
                                         .fill(colors.bg)
-                                        .frame(minWidth: 56, minHeight: 56)
+                                        .frame(width: 64, height: 64)
                                     Text("\(billIndex)")
-                                        .font(.system(size: 32, weight: .black, design: .rounded))
+                                        .font(.system(size: 36, weight: .black, design: .rounded))
                                         .foregroundStyle(colors.fg)
                                         .minimumScaleFactor(0.5)
                                         .lineLimit(1)
-                                        .padding(.horizontal, 12)
                                 }
-                                .fixedSize()
+                                Text("mã bill")
+                                    .font(.caption).fontWeight(.medium)
+                                    .foregroundStyle(.gray)
                             }
-                            .padding(.top, 4)
-                        }
-                        if let a = customerAddress, !a.isEmpty {
-                            Text("Địa chỉ: \(a)").font(.subheadline).foregroundStyle(.gray)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        if let n = note, !n.isEmpty {
-                            Text("Ghi chú: \(n)").font(.subheadline).foregroundStyle(.gray)
-                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     .padding(.bottom, 8)
