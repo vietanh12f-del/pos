@@ -16,6 +16,7 @@
 		A1B2C3D4E5F60718293A4B5D /* AutoMaterialExportSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* AutoMaterialExportSheetView.swift */; };
 		A1B2C3D4E5F60718293A4B5F /* AutoMaterialExportLogDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5E /* AutoMaterialExportLogDetailSheet.swift */; };
 		A1B2C3D4E5F60718293A4B61 /* ProductionReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B60 /* ProductionReportView.swift */; };
+		A1B2C3D4E5F60718293A4B62 /* PrintReceiptViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B63 /* PrintReceiptViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +24,7 @@
 		A1B2C3D4E5F60718293A4B5C /* AutoMaterialExportSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AutoMaterialExportSheetView.swift; path = SmartKiot/AutoMaterialExportSheetView.swift; sourceTree = SOURCE_ROOT; };
 		A1B2C3D4E5F60718293A4B5E /* AutoMaterialExportLogDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AutoMaterialExportLogDetailSheet.swift; path = SmartKiot/AutoMaterialExportLogDetailSheet.swift; sourceTree = SOURCE_ROOT; };
 		A1B2C3D4E5F60718293A4B60 /* ProductionReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProductionReportView.swift; path = SmartKiot/ProductionReportView.swift; sourceTree = SOURCE_ROOT; };
+		A1B2C3D4E5F60718293A4B63 /* PrintReceiptViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PrintReceiptViews.swift; path = SmartKiot/PrintReceiptViews.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -94,6 +96,7 @@
 				A1B2C3D4E5F60718293A4B5C /* AutoMaterialExportSheetView.swift */,
 				A1B2C3D4E5F60718293A4B5E /* AutoMaterialExportLogDetailSheet.swift */,
 				A1B2C3D4E5F60718293A4B60 /* ProductionReportView.swift */,
+				A1B2C3D4E5F60718293A4B63 /* PrintReceiptViews.swift */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -184,6 +187,7 @@
 				A1B2C3D4E5F60718293A4B5D /* AutoMaterialExportSheetView.swift in Sources */,
 				A1B2C3D4E5F60718293A4B5F /* AutoMaterialExportLogDetailSheet.swift in Sources */,
 				A1B2C3D4E5F60718293A4B61 /* ProductionReportView.swift in Sources */,
+				A1B2C3D4E5F60718293A4B62 /* PrintReceiptViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

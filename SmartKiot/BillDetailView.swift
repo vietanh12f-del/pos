@@ -22,6 +22,9 @@ struct BillDetailView: View {
     @State private var orderStatus: String? = nil
     @State private var showOrderStatusPicker = false
     @State private var showCancelConfirmation = false
+    @State private var printOptions = PrintOptions()
+    @State private var showPrintOptionsSheet = false
+    @State private var renderedCustomImages: [UIImage] = []
     
     var body: some View {
         VStack {
@@ -370,6 +373,28 @@ struct BillDetailView: View {
                 .padding(.top, 20)
                 
                 Button(action: {
+                    showPrintOptionsSheet = true
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.subheadline)
+                        Text("In bill tuỳ chọn")
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundStyle(Color.blue)
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.blue.opacity(0.4), lineWidth: 1.5)
+                    )
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+                
+                Button(action: {
                     showDeleteConfirmation = true
                 }) {
                     Text("Xóa đơn hàng")
@@ -453,8 +478,18 @@ struct BillDetailView: View {
             Text("Đơn sẽ bị xoá và lưu vào lịch sử xoá. Số lượng sản phẩm sẽ được hoàn lại:\n\n\(itemList)")
         }
         .sheet(isPresented: $showShareSheet) {
-            if let image = renderedImage {
+            if !renderedCustomImages.isEmpty {
+                ShareSheet(items: renderedCustomImages)
+            } else if let image = renderedImage {
                 ShareSheet(items: [image])
+            }
+        }
+        .sheet(isPresented: $showPrintOptionsSheet) {
+            CustomPrintOptionsSheet(options: $printOptions) {
+                showPrintOptionsSheet = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    Task { await renderImageWithOptions() }
+                }
             }
         }
         .sheet(isPresented: $showEditHistory) {
@@ -588,7 +623,62 @@ struct BillDetailView: View {
             }
         }
     }
-    
+
+    @MainActor
+    private func renderImageWithOptions() async {
+        let opts = printOptions
+
+        // Load QR nếu cần
+        var loadedQR: UIImage? = nil
+        if opts.showQRCode, let url = generateQRURL(for: bill),
+           let (data, _) = try? await URLSession.shared.data(from: url) {
+            loadedQR = UIImage(data: data)
+        }
+
+        // Load receipt image nếu cần
+        var loadedReceiptImage: UIImage? = nil
+        if opts.showReceiptImage,
+           let urlStr = bill.paymentReceiptURL,
+           let url = URL(string: urlStr),
+           let (data, _) = try? await URLSession.shared.data(from: url) {
+            loadedReceiptImage = UIImage(data: data)
+        }
+
+        let renderView = PrintReceiptView(
+            opts: opts,
+            items: bill.items,
+            dateString: formatDate(bill.createdAt),
+            sequenceNumber: bill.sequenceNumber,
+            customerName: bill.customerName ?? "Khách lẻ",
+            customerPhone: bill.customerPhone,
+            customerAddress: resolvedCustomerAddress ?? bill.customerAddress,
+            customerEmail: bill.customerEmail,
+            note: bill.note,
+            grandTotal: bill.total,
+            paidAmount: isPaid ? (bill.paidAmount ?? bill.total) : 0,
+            debtAmount: bill.debtAmount,
+            isPaid: isPaid,
+            payFullAmount: bill.paidAmount == nil || bill.paidAmount == bill.total,
+            expectedPayDate: bill.expectedPayDate,
+            vatRate: bill.vatRate,
+            orderStatus: orderStatus ?? bill.orderStatus,
+            qrImage: loadedQR,
+            receiptImage: loadedReceiptImage,
+            billIndex: opts.billCount,
+            totalBills: 1,
+            creatorId: bill.creatorId?.uuidString
+        )
+        .frame(width: 375)
+
+        let renderer = ImageRenderer(content: renderView)
+        renderer.scale = UIScreen.main.scale
+        guard let image = renderer.uiImage else { return }
+
+        renderedCustomImages = [image]
+        renderedImage = nil
+        showShareSheet = true
+    }
+
     struct EditHistoryRow: View {
         let entry: OrderViewModel.BillEditEntry
         var body: some View {
