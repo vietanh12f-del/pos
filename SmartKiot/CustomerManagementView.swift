@@ -742,10 +742,16 @@ struct PartyDetailView: View {
                     dismiss()
                 })
             }
-            .sheet(isPresented: $showBillDetail) {
+            .sheet(isPresented: $showBillDetail, onDismiss: {
+                // Reload sau khi đóng để cập nhật nếu có xoá/sửa
+                Task { await loadTransactions() }
+            }) {
                 if let bill = selectedBillForDetail {
                     NavigationStack {
-                        BillDetailView(bill: bill, viewModel: orderViewModel)
+                        BillDetailView(bill: bill, viewModel: orderViewModel, onDeleted: {
+                            // Xoá ngay lập tức khỏi list để UX tức thì, không cần chờ reload
+                            retailOrders.removeAll { $0.id == bill.id }
+                        })
                     }
                 }
             }
@@ -1561,7 +1567,7 @@ struct PartyDetailView: View {
 
         // Retail orders — filter by date
         let fetched = (try? await retailTask) ?? []
-        retailOrders = fetched.filter { $0.createdAt >= since }
+        retailOrders = fetched.filter { $0.createdAt >= since && !$0.isDeleted }
     }
 
     private func formatTime(_ date: Date) -> String {

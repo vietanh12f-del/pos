@@ -4,6 +4,7 @@ import PhotosUI
 struct BillDetailView: View {
     let bill: Bill
     @ObservedObject var viewModel: OrderViewModel
+    var onDeleted: (() -> Void)? = nil   // callback khi đơn bị xoá
     @Environment(\.dismiss) var dismiss
     @State private var showDeleteConfirmation = false
     @State private var renderedImage: UIImage?
@@ -455,6 +456,7 @@ struct BillDetailView: View {
             Button("Hủy", role: .cancel) { }
             Button("Xóa", role: .destructive) {
                 viewModel.deleteOrder(bill)
+                onDeleted?()
                 dismiss()
             }
         } message: {
