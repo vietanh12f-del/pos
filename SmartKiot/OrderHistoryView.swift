@@ -133,7 +133,13 @@ struct OrderHistoryView: View {
                                             .onDelete { indexSet in
                                                 for index in indexSet {
                                                     let bill = section.bills[index]
-                                                    viewModel.deleteOrder(bill)
+                                                    if showDeletedBills {
+                                                        // Lịch sử xoá: chỉ owner mới được xoá hẳn
+                                                        guard AuthManager.shared.currentUserProfile?.accountRole == .owner else { return }
+                                                        Task { await viewModel.hardDeleteOrder(bill) }
+                                                    } else {
+                                                        viewModel.deleteOrder(bill)
+                                                    }
                                                 }
                                             }
                                         }
@@ -740,10 +746,18 @@ private struct OrderHistoryRow: View {
             } label: {
                 Label("Sửa", systemImage: "pencil")
             }
-            Button(role: .destructive) {
-                viewModel.deleteOrder(bill)
-            } label: {
-                Label("Xóa", systemImage: "trash")
+            if !bill.isDeleted {
+                Button(role: .destructive) {
+                    viewModel.deleteOrder(bill)
+                } label: {
+                    Label("Xóa", systemImage: "trash")
+                }
+            } else if AuthManager.shared.currentUserProfile?.accountRole == .owner {
+                Button(role: .destructive) {
+                    Task { await viewModel.hardDeleteOrder(bill) }
+                } label: {
+                    Label("Xoá hẳn", systemImage: "trash.fill")
+                }
             }
         }
     }

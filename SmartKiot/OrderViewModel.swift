@@ -3294,6 +3294,18 @@ class OrderViewModel: ObservableObject {
         recalculateStats()
     }
     
+    /// Xoá hẳn đơn hàng khỏi DB (dùng cho lịch sử xoá)
+    @MainActor
+    func hardDeleteOrder(_ bill: Bill) async {
+        pastOrders.removeAll { $0.id == bill.id }
+        recalculateStats()
+        do {
+            try await database.deleteOrder(bill.id)
+        } catch {
+            print("❌ Error hard deleting order: \(error)")
+        }
+    }
+
     func deleteOrder(at offsets: IndexSet) {
         let ordersToDelete = offsets.map { pastOrders[$0] }
         Task { @MainActor in
