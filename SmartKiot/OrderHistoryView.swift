@@ -9,6 +9,9 @@ struct OrderHistoryView: View {
     @State private var soldSearchText: String = ""
     @State private var soldStartDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var soldEndDate: Date = Date()
+    @State private var showCustomerPicker: Bool = false
+    @State private var availableCustomers: [TradingParty] = []
+    @State private var isLoadingCustomers: Bool = false
     @State private var searchMode: SearchMode = .products
     @State private var customerSearchText: String = ""
     @State private var customerSearchResults: [Bill] = []
@@ -305,25 +308,47 @@ struct OrderHistoryView: View {
                                 .padding(.horizontal)
 
                             HStack(spacing: 8) {
-                                Image(systemName: "person.fill").foregroundStyle(.gray)
-                                TextField("Nhập tên khách hàng...", text: $customerSearchText)
-                                    .textInputAutocapitalization(.words)
-                                    .disableAutocorrection(true)
-                                    .submitLabel(.search)
-                                    .onSubmit { performCustomerSearch() }
-                                if !customerSearchText.isEmpty {
-                                    Button(action: {
-                                        customerSearchText = ""
-                                        customerSearchResults = []
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                                HStack(spacing: 8) {
+                                    Image(systemName: "person.fill").foregroundStyle(.gray)
+                                    TextField("Nhập tên khách hàng...", text: $customerSearchText)
+                                        .textInputAutocapitalization(.words)
+                                        .disableAutocorrection(true)
+                                        .submitLabel(.search)
+                                        .onSubmit { performCustomerSearch() }
+                                    if !customerSearchText.isEmpty {
+                                        Button(action: {
+                                            customerSearchText = ""
+                                            customerSearchResults = []
+                                        }) {
+                                            Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                                        }
                                     }
                                 }
+                                .padding(12)
+                                .background(Color.white)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.15), lineWidth: 1))
+                                .cornerRadius(12)
+
+                                // Button chọn khách có sẵn
+                                Button {
+                                    showCustomerPicker = true
+                                    if availableCustomers.isEmpty {
+                                        isLoadingCustomers = true
+                                        Task {
+                                            let buyers = (try? await SupabaseDatabaseService().fetchTradingParties(type: "buyer")) ?? []
+                                            await MainActor.run {
+                                                availableCustomers = buyers.sorted { $0.name < $1.name }
+                                                isLoadingCustomers = false
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Image(systemName: "person.crop.circle.badge.plus")
+                                        .font(.title3)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .padding(12)
-                            .background(Color.white)
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.15), lineWidth: 1))
-                            .cornerRadius(12)
                             .padding(.horizontal)
 
                             Button(action: performCustomerSearch) {
@@ -399,6 +424,57 @@ struct OrderHistoryView: View {
                         }
                     }
                     .background(Color.themeBackgroundLight)
+                    .sheet(isPresented: $showCustomerPicker) {
+                        NavigationStack {
+                            Group {
+                                if isLoadingCustomers {
+                                    ProgressView("Đang tải...")
+                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                } else if availableCustomers.isEmpty {
+                                    VStack(spacing: 12) {
+                                        Image(systemName: "person.slash")
+                                            .font(.system(size: 40))
+                                            .foregroundStyle(.gray.opacity(0.4))
+                                        Text("Chưa có khách hàng nào")
+                                            .foregroundStyle(.gray)
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                } else {
+                                    List {
+                                        ForEach(availableCustomers) { party in
+                                            Button {
+                                                customerSearchText = party.name
+                                                showCustomerPicker = false
+                                                performCustomerSearch()
+                                            } label: {
+                                                VStack(alignment: .leading, spacing: 3) {
+                                                    Text(party.name)
+                                                        .font(.subheadline).fontWeight(.medium)
+                                                        .foregroundStyle(Color.themeTextDark)
+                                                    if !party.phone.isEmpty {
+                                                        Text("SĐT: \(party.phone)")
+                                                            .font(.caption).foregroundStyle(.gray)
+                                                    }
+                                                }
+                                                .padding(.vertical, 4)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                    }
+                                    .listStyle(.plain)
+                                }
+                            }
+                            .navigationTitle("Chọn khách hàng")
+                            .navigationBarTitleDisplayMode(.inline)
+                            .toolbar {
+                                ToolbarItem(placement: .cancellationAction) {
+                                    Button("Đóng") { showCustomerPicker = false }
+                                }
+                            }
+                        }
+                        .presentationDetents([.medium, .large])
+                        .presentationDragIndicator(.visible)
+                    }
                 }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
