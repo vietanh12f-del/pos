@@ -1163,77 +1163,77 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.white)
                 } else {
-                    List {
-                        ForEach(viewModel.searchSuggestions) { product in
-                            Button(action: {
-                                let generator = UIImpactFeedbackGenerator(style: .medium)
-                                generator.impactOccurred()
-                                viewModel.addProduct(product)
-                                viewModel.searchText = ""
-                            }) {
-                                HStack(spacing: 12) {
-                                    if let data = product.imageData, let uiImage = UIImage(data: data) {
-                                        Image(uiImage: uiImage)
-                                            .resizable()
-                                            .scaledToFill()
-                                            .frame(width: 20, height: 20)
-                                            .clipShape(Circle())
-                                    } else {
-                                        Image(systemName: product.imageName)
-                                            .font(.headline)
-                                            .foregroundStyle(Color.themePrimary)
-                                            .frame(width: 20, height: 20)
-                                            .background(Color.themePrimary.opacity(0.1))
-                                            .clipShape(Circle())
-                                    }
-                                    
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack(spacing: 4) {
-                                            Text(product.name)
-                                                .font(.body)
-                                                .fontWeight(.medium)
-                                                .foregroundStyle(Color.themeTextDark)
-                                            if product.hasVAT {
-                                                Text("VAT")
-                                                    .font(.system(size: 9, weight: .bold))
-                                                    .foregroundStyle(.white)
-                                                    .padding(.horizontal, 5)
-                                                    .padding(.vertical, 2)
-                                                    .background(Color.green.opacity(0.85))
-                                                    .clipShape(Capsule())
-                                            }
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(viewModel.searchSuggestions) { product in
+                                Button(action: {
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                    viewModel.addProduct(product)
+                                    viewModel.searchText = ""
+                                }) {
+                                    HStack(spacing: 12) {
+                                        if let data = product.imageData, let uiImage = UIImage(data: data) {
+                                            Image(uiImage: uiImage)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 40, height: 40)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        } else {
+                                            Image(systemName: product.imageName)
+                                                .font(.headline)
+                                                .foregroundStyle(Color.themePrimary)
+                                                .frame(width: 40, height: 40)
+                                                .background(Color.themePrimary.opacity(0.1))
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
                                         }
-                                        
-                                        Text(product.category)
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack(spacing: 4) {
+                                                Text(product.name)
+                                                    .font(.body)
+                                                    .fontWeight(.medium)
+                                                    .foregroundStyle(Color.themeTextDark)
+                                                if product.hasVAT {
+                                                    Text("VAT")
+                                                        .font(.system(size: 9, weight: .bold))
+                                                        .foregroundStyle(.white)
+                                                        .padding(.horizontal, 5)
+                                                        .padding(.vertical, 2)
+                                                        .background(Color.green.opacity(0.85))
+                                                        .clipShape(Capsule())
+                                                }
+                                            }
+                                            Text(product.category)
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+
+                                        Spacer()
+
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            Text(formatCurrency(product.price))
+                                                .font(.subheadline)
+                                                .fontWeight(.bold)
+                                                .foregroundStyle(Color.themePrimary)
+                                            let stock = viewModel.stockLevel(for: product.name)
+                                            Text("Kho: \(stock)")
+                                                .font(.caption)
+                                                .foregroundStyle(stock > 0 ? .gray : .red)
+                                        }
                                     }
-                                    
-                                    Spacer()
-                                    
-                                    VStack(alignment: .trailing, spacing: 4) {
-                                        Text(formatCurrency(product.price))
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(Color.themePrimary)
-                                        
-                                        let stock = viewModel.stockLevel(for: product.name)
-                                        Text("Kho: \(stock)")
-                                            .font(.caption)
-                                            .foregroundStyle(stock > 0 ? .gray : .red)
-                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.vertical, 4)
+                                .buttonStyle(.plain)
+
+                                Divider().padding(.leading, 68)
                             }
                         }
                     }
-                    .listStyle(.plain)
                     .background(Color.white)
                     .padding(.bottom, 16)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                    }
                 }
             }
         }
