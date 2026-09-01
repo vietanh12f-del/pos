@@ -12,6 +12,7 @@ struct BillDetailView: View {
     @State private var isPaid: Bool = true
     @State private var localPaidAmount: Double? = nil   // cached cho UI refresh ngay
     @State private var localDebtAmount: Double? = nil   // cached cho UI refresh ngay
+    @State private var debtCleared: Bool = false        // true khi user chủ động xoá nợ (đã thanh toán đủ)
     @State private var showReceiptCamera = false
     @State private var receiptImage: UIImage? = nil
     @State private var isUploadingReceipt = false
@@ -25,6 +26,7 @@ struct BillDetailView: View {
     @State private var orderStatus: String? = nil
     @State private var showOrderStatusPicker = false
     @State private var showCancelConfirmation = false
+    @State private var showConfirmPaidFull = false      // alert xác nhận xoá công nợ
     @State private var printOptions = PrintOptions()
     @State private var showPrintOptionsSheet = false
     @State private var renderedCustomImages: [UIImage] = []
@@ -105,7 +107,8 @@ struct BillDetailView: View {
                             Text("Đã trả")
                                 .font(.caption).foregroundStyle(.gray)
                             Spacer()
-                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: localDebtAmount ?? bill.debtAmount)
+                            let effectiveDebt: Double? = debtCleared ? nil : (localDebtAmount ?? bill.debtAmount)
+                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: effectiveDebt)
                             if status == .unpaid {
                                 Text(formatCurrency(0))
                                     .font(.caption).fontWeight(.bold).foregroundStyle(.gray)
@@ -116,7 +119,8 @@ struct BillDetailView: View {
                         }
                     }
                     
-                    if let debtAmount = localDebtAmount ?? bill.debtAmount, debtAmount > 0 {
+                    let effectiveDebtForDisplay: Double? = debtCleared ? nil : (localDebtAmount ?? bill.debtAmount)
+                    if let debtAmount = effectiveDebtForDisplay, debtAmount > 0 {
                         HStack {
                             Text("Công nợ")
                                 .font(.caption).foregroundStyle(.gray)
@@ -146,7 +150,7 @@ struct BillDetailView: View {
                         Button {
                             showPaymentStatusPicker = true
                         } label: {
-                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: localDebtAmount ?? bill.debtAmount)
+                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: debtCleared ? nil : (localDebtAmount ?? bill.debtAmount))
                             HStack(spacing: 4) {
                                 Image(systemName: status.icon)
                                     .foregroundStyle(status.color)
@@ -331,7 +335,7 @@ struct BillDetailView: View {
                     updatedBill.isPaid = isPaid
                     updatedBill.orderStatus = orderStatus
                     // Dùng local state (đã cập nhật khi user chọn từ dialog) để tránh mất công nợ
-                    let currentDebt = localDebtAmount ?? bill.debtAmount
+                    let currentDebt = debtCleared ? nil : (localDebtAmount ?? bill.debtAmount)
                     let currentPaid = localPaidAmount ?? bill.paidAmount
                     if !isPaid {
                         updatedBill.paidAmount = 0
@@ -340,18 +344,14 @@ struct BillDetailView: View {
                         updatedBill.paidAmount = bill.total
                         updatedBill.debtAmount = nil
                     } else {
-                        // Trả 1 phần: giữ nguyên giá trị local
                         updatedBill.paidAmount = currentPaid
                         updatedBill.debtAmount = currentDebt
                     }
-                    Task {
-                        do {
-                            try await viewModel.updateOrder(updatedBill)
-                        } catch {
-                            print("❌ Error saving bill: \(error)")
-                        }
-                    }
+                    // Optimistic update pastOrders ngay trước dismiss để list refresh đúng
+                    viewModel.applyLocalUpdate(updatedBill)
                     dismiss()
+                    // Async DB update sau khi đã dismiss
+                    Task { try? await viewModel.updateOrder(updatedBill) }
                 }) {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
@@ -475,41 +475,52 @@ struct BillDetailView: View {
         }
         .confirmationDialog("Chọn trạng thái thanh toán", isPresented: $showPaymentStatusPicker, titleVisibility: .visible) {
             Button("✅ Đã thanh toán đủ") {
-                isPaid = true
-                localPaidAmount = bill.total
-                localDebtAmount = nil
-                var updatedBill = bill
-                updatedBill.isPaid = true
-                updatedBill.paidAmount = bill.total
-                updatedBill.debtAmount = nil
-                Task { try? await viewModel.updateOrder(updatedBill) }
+                let hasDebt = !debtCleared && (localDebtAmount ?? bill.debtAmount ?? 0) > 0
+                if hasDebt {
+                    // Có công nợ → hỏi xác nhận trước
+                    showConfirmPaidFull = true
+                } else {
+                    applyPaidFull()
+                }
             }
             Button("🔶 Đã thanh toán 1 phần") {
                 isPaid = true
-                // Giữ paidAmount/debtAmount hiện có; nếu chưa có thì đặt debtAmount > 0
-                if (bill.debtAmount ?? 0) <= 0 {
-                    localPaidAmount = 0
-                    localDebtAmount = bill.total
-                }
+                debtCleared = false
                 var updatedBill = bill
                 updatedBill.isPaid = true
                 if (bill.debtAmount ?? 0) <= 0 {
+                    localPaidAmount = 0
+                    localDebtAmount = bill.total
                     updatedBill.paidAmount = 0
                     updatedBill.debtAmount = bill.total
                 }
+                viewModel.applyLocalUpdate(updatedBill)
+                viewModel.addQuickEditHistory(original: bill, updated: updatedBill)
                 Task { try? await viewModel.updateOrder(updatedBill) }
             }
             Button("⭕ Chưa thanh toán") {
                 isPaid = false
+                debtCleared = false
                 localPaidAmount = 0
                 localDebtAmount = bill.total
                 var updatedBill = bill
                 updatedBill.isPaid = false
                 updatedBill.paidAmount = 0
                 updatedBill.debtAmount = bill.total
+                viewModel.applyLocalUpdate(updatedBill)
+                viewModel.addQuickEditHistory(original: bill, updated: updatedBill)
                 Task { try? await viewModel.updateOrder(updatedBill) }
             }
             Button("Hủy", role: .cancel) { }
+        }
+        .alert("Xác nhận thanh toán đủ?", isPresented: $showConfirmPaidFull) {
+            Button("Hủy", role: .cancel) { }
+            Button("Xác nhận", role: .destructive) {
+                applyPaidFull()
+            }
+        } message: {
+            let debt = localDebtAmount ?? bill.debtAmount ?? 0
+            Text("Xác nhận đã nhận đủ tiền và xoá công nợ \(formatCurrency(debt))?")
         }
         .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
             Button("🛍️ Chuẩn bị hàng")  { updateOrderStatus("preparing") }
@@ -781,39 +792,107 @@ struct BillDetailView: View {
     
     struct EditHistoryRow2: View {
         let edit: OrderEdit
+
         var body: some View {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(format(edit.createdAt))
-                        .font(.caption)
-                        .foregroundStyle(.gray)
+            VStack(alignment: .leading, spacing: 0) {
+                // Header: thời gian + người sửa
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(format(edit.createdAt))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.themePrimary)
+                        if let name = edit.editorName, !name.isEmpty {
+                            HStack(spacing: 3) {
+                                Image(systemName: "person.fill")
+                                    .font(.caption2)
+                                Text(name)
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                    }
                     Spacer()
-                    if let name = edit.editorName, !name.isEmpty {
-                        Text(name).font(.caption).foregroundStyle(.gray)
-                    }
-                }
-                Text("\(formatCurrency(edit.oldTotal)) → \(formatCurrency(edit.newTotal))")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                if let note = edit.note, !note.isEmpty {
-                    Text(note)
+                    // Hiển thị thay đổi tổng tiền nếu có
+                    if Int(edit.oldTotal) != Int(edit.newTotal) {
+                        HStack(spacing: 4) {
+                            Text(formatCurrency(edit.oldTotal))
+                                .strikethrough()
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "arrow.right")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(formatCurrency(edit.newTotal))
+                                .fontWeight(.semibold)
+                                .foregroundStyle(Color.themePrimary)
+                        }
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let details = edit.details, !details.isEmpty {
-                    ForEach(details, id: \.self) { d in
-                        Text("• " + d).font(.caption)
                     }
+                }
+                .padding(.bottom, 8)
+
+                // Chi tiết thay đổi
+                if let details = edit.details, !details.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(details, id: \.self) { line in
+                            detailRow(for: line)
+                        }
+                    }
+                    .padding(10)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
                 }
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
         }
+
+        @ViewBuilder
+        private func detailRow(for line: String) -> some View {
+            let (icon, color) = iconAndColor(for: line)
+            HStack(alignment: .top, spacing: 6) {
+                Text(icon)
+                    .font(.caption)
+                    .frame(width: 18)
+                Text(cleanedLine(line))
+                    .font(.caption)
+                    .foregroundStyle(color)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+
+        /// Trả về (icon, color) dựa theo emoji prefix của dòng detail
+        private func iconAndColor(for line: String) -> (String, Color) {
+            if line.hasPrefix("💳") { return ("💳", .blue) }
+            if line.hasPrefix("✅") { return ("✅", .green) }
+            if line.hasPrefix("🔴") { return ("🔴", .red) }
+            if line.hasPrefix("📦") { return ("📦", .orange) }
+            if line.hasPrefix("💰") { return ("💰", Color.themePrimary) }
+            if line.hasPrefix("📅") { return ("📅", .purple) }
+            if line.hasPrefix("👤") { return ("👤", .gray) }
+            if line.hasPrefix("📝") { return ("📝", .gray) }
+            if line.hasPrefix("🖼️") { return ("🖼️", .gray) }
+            if line.hasPrefix("➕") { return ("➕", .green) }
+            if line.hasPrefix("➖") { return ("➖", .red) }
+            if line.hasPrefix("✏️") { return ("✏️", Color.themePrimary) }
+            return ("•", .primary)
+        }
+
+        /// Bỏ emoji prefix ở đầu dòng (đã hiển thị qua icon riêng)
+        private func cleanedLine(_ line: String) -> String {
+            let prefixes = ["💳 ", "✅ ", "🔴 ", "📦 ", "💰 ", "📅 ", "👤 ", "📝 ", "🖼️ ", "➕ ", "➖ ", "✏️ "]
+            for p in prefixes {
+                if line.hasPrefix(p) { return String(line.dropFirst(p.count)) }
+            }
+            return line
+        }
+
         private func format(_ date: Date) -> String {
             let f = DateFormatter()
             f.locale = Locale(identifier: "vi_VN")
             f.dateFormat = "dd/MM/yyyy HH:mm"
             return f.string(from: date)
         }
+
         private func formatCurrency(_ amount: Double) -> String {
             let formatter = NumberFormatter()
             formatter.numberStyle = .currency
@@ -822,14 +901,19 @@ struct BillDetailView: View {
             return formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
         }
     }
-    
+
     struct EditHistorySheet2: View {
         let edits: [OrderEdit]
         var body: some View {
             NavigationStack {
-                List(edits.sorted { $0.createdAt > $1.createdAt }) { e in
-                    EditHistoryRow2(edit: e)
+                List {
+                    ForEach(edits.sorted { $0.createdAt > $1.createdAt }) { e in
+                        EditHistoryRow2(edit: e)
+                            .listRowBackground(Color(.systemBackground))
+                            .listRowSeparatorTint(Color(.systemGray5))
+                    }
                 }
+                .listStyle(.insetGrouped)
                 .navigationTitle("Lịch sử chỉnh sửa")
                 .navigationBarTitleDisplayMode(.inline)
             }
@@ -850,10 +934,26 @@ struct BillDetailView: View {
         }
     }
 
+    private func applyPaidFull() {
+        isPaid = true
+        debtCleared = true
+        localPaidAmount = bill.total
+        localDebtAmount = nil
+        var updatedBill = bill
+        updatedBill.isPaid = true
+        updatedBill.paidAmount = bill.total
+        updatedBill.debtAmount = nil
+        viewModel.applyLocalUpdate(updatedBill)
+        viewModel.addQuickEditHistory(original: bill, updated: updatedBill)
+        Task { try? await viewModel.updateOrder(updatedBill) }
+    }
+
     private func updateOrderStatus(_ status: String?) {
         orderStatus = status
         var updatedBill = bill
         updatedBill.orderStatus = status
+        viewModel.applyLocalUpdate(updatedBill)
+        viewModel.addQuickEditHistory(original: bill, updated: updatedBill)
         if status == "cancelled" {
             // Soft delete + hoàn tồn kho, đồng thời lưu orderStatus = "cancelled" lên DB
             Task {

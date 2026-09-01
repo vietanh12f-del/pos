@@ -344,15 +344,57 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    /// Gọi từ BillDetailView khi thay đổi nhanh (trạng thái thanh toán, trạng thái đơn, công nợ)
+    /// mà không đi qua flow sửa đơn toàn phần.
+    func addQuickEditHistory(original: Bill, updated: Bill) {
+        let details = buildEditDetails(original: original, updated: updated)
+        guard !details.isEmpty else { return }  // Không có gì thay đổi → bỏ qua
+
+        let entryId = UUID()
+        let now = Date()
+        let editorName = AuthManager.shared.currentUserProfile?.fullName
+        let editorId   = AuthManager.shared.currentUserProfile?.id
+
+        // Cập nhật legacy local cache (để hasHistory() trả về đúng)
+        let entry = BillEditEntry(id: entryId, date: now, oldTotal: original.total, newTotal: updated.total, editorName: editorName)
+        var arr = billEditHistory[original.id] ?? []
+        arr.append(entry)
+        billEditHistory[original.id] = arr
+        saveEditHistory()
+        editedOrderIds.insert(original.id)
+
+        // Tạo note tóm tắt từ dòng đầu tiên của details
+        let note = details.first ?? "Đã cập nhật đơn"
+        let edit = OrderEdit(id: entryId, orderId: original.id, createdAt: now,
+                             oldTotal: original.total, newTotal: updated.total,
+                             editorId: editorId, editorName: editorName,
+                             note: note, details: details)
+        Task {
+            do {
+                try await database.saveOrderEdit(edit)
+            } catch {
+                print("❌ Error saving quick edit history: \(error)")
+            }
+        }
+    }
+
     private func buildEditDetails(original: Bill, updated: Bill) -> [String] {
+        // Helper format currency inline
+        let fmtCurrency: (Double) -> String = { amount in
+            let f = NumberFormatter()
+            f.numberStyle = .currency
+            f.locale = Locale(identifier: "vi_VN")
+            f.currencySymbol = "₫"
+            return f.string(from: NSNumber(value: amount)) ?? "\(Int(amount)) ₫"
+        }
         var lines: [String] = []
         if (original.customerName ?? "") != (updated.customerName ?? "") {
             let o = (original.customerName ?? "").isEmpty ? "—" : (original.customerName ?? "")
             let n = (updated.customerName ?? "").isEmpty ? "—" : (updated.customerName ?? "")
-            lines.append("Khách: \(o) → \(n)")
+            lines.append("👤 Khách: \(o) → \(n)")
         }
         if (original.paymentReceiptURL ?? "") != (updated.paymentReceiptURL ?? "") {
-            lines.append("Ảnh thanh toán: đã cập nhật")
+            lines.append("🖼️ Ảnh thanh toán: đã cập nhật")
         }
         var origMap: [String: OrderItem] = [:]
         var updMap: [String: OrderItem] = [:]
@@ -362,49 +404,66 @@ class OrderViewModel: ObservableObject {
             let o = origMap[name]
             let n = updMap[name]
             if o == nil, let n {
-                lines.append("Thêm \(name): SL \(n.quantity), giá \(Int(n.price))")
+                lines.append("➕ Thêm \(name): SL \(n.quantity), giá \(fmtCurrency(n.price))")
             } else if let o, n == nil {
-                lines.append("Xoá \(name): SL \(o.quantity)")
+                lines.append("➖ Xoá \(name): SL \(o.quantity)")
             } else if let o, let n {
                 var parts: [String] = []
                 if o.quantity != n.quantity { parts.append("SL \(o.quantity)→\(n.quantity)") }
-                if Int(o.price) != Int(n.price) { parts.append("Giá \(Int(o.price))→\(Int(n.price))") }
+                if Int(o.price) != Int(n.price) { parts.append("Giá \(fmtCurrency(o.price))→\(fmtCurrency(n.price))") }
                 if Int(o.discount) != Int(n.discount) { parts.append("Giảm \(Int(o.discount))→\(Int(n.discount))") }
                 if !parts.isEmpty {
-                    lines.append("Sửa \(name): " + parts.joined(separator: ", "))
+                    lines.append("✏️ Sửa \(name): " + parts.joined(separator: ", "))
                 }
             }
         }
         if original.total != updated.total {
-            lines.append("Tổng tiền: \(Int(original.total)) → \(Int(updated.total))")
+            lines.append("💰 Tổng tiền: \(fmtCurrency(original.total)) → \(fmtCurrency(updated.total))")
         }
-        // Ghi nhận thay đổi trạng thái thanh toán
-        if original.isPaid != updated.isPaid {
-            let o = original.isPaid ? "Đã thanh toán" : "Chưa thanh toán"
-            let n = updated.isPaid ? "Đã thanh toán" : "Chưa thanh toán"
-            lines.append("Trạng thái: \(o) → \(n)")
+        // Trạng thái thanh toán (3 mức)
+        let origPS = PaymentStatus.from(isPaid: original.isPaid, debtAmount: original.debtAmount)
+        let updPS  = PaymentStatus.from(isPaid: updated.isPaid,  debtAmount: updated.debtAmount)
+        if origPS != updPS {
+            lines.append("💳 Thanh toán: \(origPS.label) → \(updPS.label)")
         }
-        let origPaid = Int(original.paidAmount ?? original.total)
-        let updPaid = Int(updated.paidAmount ?? updated.total)
+        // Số tiền đã trả
+        let origPaid = Int(original.paidAmount ?? (original.isPaid ? original.total : 0))
+        let updPaid  = Int(updated.paidAmount  ?? (updated.isPaid  ? updated.total  : 0))
         if origPaid != updPaid {
-            lines.append("Đã trả: \(origPaid) → \(updPaid)")
+            lines.append("✅ Đã trả: \(fmtCurrency(Double(origPaid))) → \(fmtCurrency(Double(updPaid)))")
         }
+        // Công nợ
         let origDebt = Int(original.debtAmount ?? 0)
-        let updDebt = Int(updated.debtAmount ?? 0)
+        let updDebt  = Int(updated.debtAmount  ?? 0)
         if origDebt != updDebt {
-            lines.append("Công nợ: \(origDebt) → \(updDebt)")
+            lines.append("🔴 Công nợ: \(fmtCurrency(Double(origDebt))) → \(fmtCurrency(Double(updDebt)))")
+        }
+        // Trạng thái đơn hàng
+        if (original.orderStatus ?? "") != (updated.orderStatus ?? "") {
+            let fmtStatus: (String?) -> String = { s in
+                switch s {
+                case "preparing":  return "Chuẩn bị hàng"
+                case "prepared":   return "Đã soạn hàng"
+                case "delivering": return "Đang giao hàng"
+                case "delivered":  return "Đã giao hàng"
+                case "completed":  return "Hoàn thành"
+                case "cancelled":  return "Đã huỷ"
+                default:           return "Chưa cập nhật"
+                }
+            }
+            lines.append("📦 Trạng thái đơn: \(fmtStatus(original.orderStatus)) → \(fmtStatus(updated.orderStatus))")
         }
         if (original.expectedPayDate) != (updated.expectedPayDate) {
             let fmt: (Date?) -> String = { d in
                 guard let d else { return "—" }
                 let f = DateFormatter(); f.dateFormat = "dd/MM/yyyy"; return f.string(from: d)
             }
-            lines.append("Ngày trả: \(fmt(original.expectedPayDate)) → \(fmt(updated.expectedPayDate))")
+            lines.append("📅 Ngày trả: \(fmt(original.expectedPayDate)) → \(fmt(updated.expectedPayDate))")
         }
         if (original.note ?? "") != (updated.note ?? "") {
             let o = (original.note ?? "").isEmpty ? "—" : (original.note ?? "")
             let n = (updated.note ?? "").isEmpty ? "—" : (updated.note ?? "")
-            lines.append("Sửa ghi chú: \(o) → \(n)")
+            lines.append("📝 Ghi chú: \(o) → \(n)")
         }
         return lines
     }
@@ -3321,6 +3380,14 @@ class OrderViewModel: ObservableObject {
         }
     }
     
+    /// Cập nhật pastOrders ngay lập tức (synchronous, trên MainActor) — dùng trước dismiss()
+    func applyLocalUpdate(_ bill: Bill) {
+        if let index = pastOrders.firstIndex(where: { $0.id == bill.id }) {
+            pastOrders[index] = bill
+            recalculateStats()
+        }
+    }
+
     func updateOrder(_ bill: Bill) async throws {
         // Optimistic update
         if let index = pastOrders.firstIndex(where: { $0.id == bill.id }) {
