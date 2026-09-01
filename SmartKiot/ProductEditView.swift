@@ -261,6 +261,7 @@ struct ProductEditView: View {
                         }
                     }
                     
+                    if AuthManager.shared.canViewCostPrice {
                     HStack {
                         Text("Giá sản phẩm")
                         Spacer()
@@ -284,6 +285,7 @@ struct ProductEditView: View {
                                 .fontWeight(.semibold)
                         }
                     }
+                    } // end canViewCostPrice
                     
                     if AuthManager.shared.canViewCostPrice {
                         HStack {
