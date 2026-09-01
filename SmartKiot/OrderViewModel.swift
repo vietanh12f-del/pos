@@ -438,9 +438,15 @@ class OrderViewModel: ObservableObject {
         let currentDebt = debtAmount   // computed từ payFullAmount/partialAmount/totalAmountWithVAT
         let currentPaid = paidAmount   // computed từ payFullAmount/partialAmount/totalAmountWithVAT
         // isPaidConfirmedByUser ưu tiên hơn: người dùng có thể toggle trực tiếp trên UI
-        updatedBill.isPaid = isPaidConfirmedByUser ?? (currentDebt <= 0)
-        updatedBill.paidAmount = currentPaid
-        updatedBill.debtAmount = currentDebt > 0 ? currentDebt : nil
+        let effectivePaid = isPaidConfirmedByUser ?? (currentDebt <= 0)
+        updatedBill.isPaid = effectivePaid
+        if !effectivePaid {
+            updatedBill.paidAmount = 0
+            updatedBill.debtAmount = updatedBill.total
+        } else {
+            updatedBill.paidAmount = currentPaid
+            updatedBill.debtAmount = currentDebt > 0 ? currentDebt : nil
+        }
         
         // Calculate VAT amount
         let vatEnabled = StoreManager.shared.currentStoreVATEnabled()
@@ -3579,9 +3585,9 @@ class OrderViewModel: ObservableObject {
         let grandTotal = totalAmountWithVAT
         var bill = Bill(id: UUID(), createdAt: Date(), items: items, total: grandTotal, totalCost: cost)
         // Ưu tiên giá trị user đã toggle trong UI (isPaidConfirmedByUser),
-        // nếu không có thì dùng tham số isPaid được truyền vào từ caller,
-        // cuối cùng fallback về tính theo debtAmount.
-        bill.isPaid = isPaidConfirmedByUser ?? isPaid
+        // nếu không có thì dùng tham số isPaid được truyền vào từ caller.
+        let effectiveIsPaid = isPaidConfirmedByUser ?? isPaid
+        bill.isPaid = effectiveIsPaid
         bill.customerName = walkInName
         bill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
         bill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
@@ -3589,8 +3595,14 @@ class OrderViewModel: ObservableObject {
         bill.paymentReceiptURL = paymentReceiptImageURL
         bill.sequenceNumber = currentSequenceNumber ?? FormatUtils.generateSequenceNumber()
         bill.vatRate = vatRate
-        bill.paidAmount = paidAmount
-        bill.debtAmount = debtAmount
+        // Khi chưa thanh toán: paidAmount = 0, debtAmount = tổng tiền
+        if !effectiveIsPaid {
+            bill.paidAmount = 0
+            bill.debtAmount = grandTotal
+        } else {
+            bill.paidAmount = paidAmount
+            bill.debtAmount = debtAmount > 0 ? debtAmount : nil
+        }
         bill.expectedPayDate = expectedPayDate
         bill.note = note.isEmpty ? nil : note
         bill.orderStatus = newOrderStatus

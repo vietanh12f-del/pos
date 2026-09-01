@@ -591,31 +591,40 @@ private struct OrderHistoryRow: View {
                     Text(formatCurrency(bill.total))
                         .font(.headline)
                         .fontWeight(.bold)
-                        .foregroundStyle(bill.isPaid ? Color.themePrimary : Color.red)
+                        .foregroundStyle(bill.paymentStatus == .unpaid ? Color.red : Color.themePrimary)
                     
-                    if let paidAmount = bill.paidAmount {
-                        Text("Đã trả: \(formatCurrency(paidAmount))")
-                            .font(.caption2)
-                            .foregroundStyle(.green)
-                    }
-                    if let debtAmount = bill.debtAmount, debtAmount > 0 {
-                        Text("Công nợ: \(formatCurrency(debtAmount))")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.red)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(4)
-                    } else if !bill.isPaid {
-                        Text("Chưa nhận tiền")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.red)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(4)
+                    // Badge trạng thái thanh toán 3 mức
+                    let ps = bill.paymentStatus
+                    switch ps {
+                    case .paidFull:
+                        // Không hiện badge — màu xanh của tổng tiền đã đủ
+                        EmptyView()
+                    case .paidPartial:
+                        HStack(spacing: 3) {
+                            Image(systemName: ps.icon).font(.caption2)
+                            Text(ps.label).font(.caption2).fontWeight(.bold)
+                        }
+                        .foregroundStyle(ps.color)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(ps.color.opacity(0.12))
+                        .cornerRadius(4)
+                        if let debt = bill.debtAmount, debt > 0 {
+                            Text("Còn: \(formatCurrency(debt))")
+                                .font(.caption2).fontWeight(.bold)
+                                .foregroundStyle(.red)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                    case .unpaid:
+                        HStack(spacing: 3) {
+                            Image(systemName: ps.icon).font(.caption2)
+                            Text(ps.label).font(.caption2).fontWeight(.bold)
+                        }
+                        .foregroundStyle(ps.color)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(ps.color.opacity(0.12))
+                        .cornerRadius(4)
                     }
                     if let expectedDate = bill.expectedPayDate {
                         Text("Đến hạn: \(formatDateOnly(expectedDate))")

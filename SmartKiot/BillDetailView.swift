@@ -26,6 +26,7 @@ struct BillDetailView: View {
     @State private var printOptions = PrintOptions()
     @State private var showPrintOptionsSheet = false
     @State private var renderedCustomImages: [UIImage] = []
+    @State private var showPaymentStatusPicker = false
     
     var body: some View {
         VStack {
@@ -102,12 +103,13 @@ struct BillDetailView: View {
                             Text("Đã trả")
                                 .font(.caption).foregroundStyle(.gray)
                             Spacer()
-                            if !isPaid {
+                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: bill.debtAmount)
+                            if status == .unpaid {
                                 Text(formatCurrency(0))
-                                    .font(.caption).fontWeight(.bold).foregroundStyle(.orange)
+                                    .font(.caption).fontWeight(.bold).foregroundStyle(.gray)
                             } else {
-                                Text(formatCurrency(paidAmount))
-                                    .font(.caption).fontWeight(.bold).foregroundStyle(.green)
+                                Text(formatCurrency(status == .paidFull ? bill.total : paidAmount))
+                                    .font(.caption).fontWeight(.bold).foregroundStyle(status.color)
                             }
                         }
                     }
@@ -134,33 +136,24 @@ struct BillDetailView: View {
                     
                     Divider()
                     
-                    // Trạng thái thanh toán toggle
+                    // Trạng thái thanh toán — 3 trạng thái
                     HStack {
                         Text("Trạng thái thanh toán")
                             .font(.caption).foregroundStyle(.gray)
                         Spacer()
-                        Button(action: {
-                            isPaid.toggle()
-                            var updatedBill = bill
-                            updatedBill.isPaid = isPaid
-                            Task {
-                                do {
-                                    try await viewModel.updateOrder(updatedBill)
-                                } catch {
-                                    print("❌ Error updating payment status: \(error)")
-                                    isPaid.toggle()
-                                }
-                            }
-                        }) {
+                        Button {
+                            showPaymentStatusPicker = true
+                        } label: {
+                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: bill.debtAmount)
                             HStack(spacing: 4) {
-                                Image(systemName: isPaid ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(isPaid ? .green : .red)
-                                Text(isPaid ? "Đã nhận tiền" : "Chưa nhận tiền")
+                                Image(systemName: status.icon)
+                                    .foregroundStyle(status.color)
+                                Text(status.label)
                                     .font(.caption).fontWeight(.bold)
-                                    .foregroundStyle(isPaid ? .green : .red)
+                                    .foregroundStyle(status.color)
                             }
                             .padding(.horizontal, 10).padding(.vertical, 5)
-                            .background(isPaid ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                            .background(status.color.opacity(0.1))
                             .cornerRadius(8)
                         }
                         .buttonStyle(.plain)
@@ -461,6 +454,36 @@ struct BillDetailView: View {
             }
         } message: {
             Text("Bạn có chắc muốn xóa đơn hàng này? Hành động này không thể hoàn tác.")
+        }
+        .confirmationDialog("Chọn trạng thái thanh toán", isPresented: $showPaymentStatusPicker, titleVisibility: .visible) {
+            Button("✅ Đã thanh toán đủ") {
+                isPaid = true
+                var updatedBill = bill
+                updatedBill.isPaid = true
+                updatedBill.paidAmount = bill.total
+                updatedBill.debtAmount = nil
+                Task { try? await viewModel.updateOrder(updatedBill) }
+            }
+            Button("🔶 Đã thanh toán 1 phần") {
+                isPaid = true
+                // Giữ paidAmount/debtAmount hiện có; nếu chưa có thì đặt debtAmount > 0
+                var updatedBill = bill
+                updatedBill.isPaid = true
+                if (bill.debtAmount ?? 0) <= 0 {
+                    updatedBill.paidAmount = 0
+                    updatedBill.debtAmount = bill.total
+                }
+                Task { try? await viewModel.updateOrder(updatedBill) }
+            }
+            Button("⭕ Chưa thanh toán") {
+                isPaid = false
+                var updatedBill = bill
+                updatedBill.isPaid = false
+                updatedBill.paidAmount = 0
+                updatedBill.debtAmount = bill.total
+                Task { try? await viewModel.updateOrder(updatedBill) }
+            }
+            Button("Hủy", role: .cancel) { }
         }
         .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
             Button("🛍️ Chuẩn bị hàng")  { updateOrderStatus("preparing") }

@@ -1,5 +1,7 @@
 import Foundation
 
+import SwiftUI
+
 struct OrderItem: Identifiable, Hashable, Codable {
     var id = UUID()
     var name: String
@@ -75,6 +77,47 @@ struct RestockItem: Identifiable, Hashable, Codable {
     }
 }
 
+// MARK: - Payment Status (3 states, derived from isPaid + debtAmount)
+enum PaymentStatus: String, CaseIterable {
+    case paidFull    = "paid_full"
+    case paidPartial = "paid_partial"
+    case unpaid      = "unpaid"
+
+    var label: String {
+        switch self {
+        case .paidFull:    return "Đã thanh toán đủ"
+        case .paidPartial: return "Đã thanh toán 1 phần"
+        case .unpaid:      return "Chưa thanh toán"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .paidFull:    return "checkmark.circle.fill"
+        case .paidPartial: return "clock.badge.checkmark"
+        case .unpaid:      return "circle"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .paidFull:    return .green
+        case .paidPartial: return .orange
+        case .unpaid:      return .gray
+        }
+    }
+
+    /// Tạo PaymentStatus từ isPaid + debtAmount
+    static func from(isPaid: Bool, debtAmount: Double?) -> PaymentStatus {
+        if !isPaid { return .unpaid }
+        if let debt = debtAmount, debt > 0 { return .paidPartial }
+        return .paidFull
+    }
+
+    /// Chuyển về isPaid Bool (dùng khi lưu DB)
+    var isPaid: Bool { self != .unpaid }
+}
+
 struct Bill: Identifiable, Codable, Equatable {
     let id: UUID
     let createdAt: Date
@@ -103,6 +146,11 @@ struct Bill: Identifiable, Codable, Equatable {
     
     var profit: Double {
         total - totalCost
+    }
+
+    /// Trạng thái thanh toán 3 mức, suy ra từ isPaid + debtAmount
+    var paymentStatus: PaymentStatus {
+        PaymentStatus.from(isPaid: isPaid, debtAmount: debtAmount)
     }
     
     static func == (lhs: Bill, rhs: Bill) -> Bool {

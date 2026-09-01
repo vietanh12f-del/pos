@@ -2705,9 +2705,9 @@ struct ContentView: View {
         @State private var showVATRatePicker = false
         @State private var vatRateInputText: String = ""
         @State private var isPrinting = false
-        /// Tracks the current isPaid state from BillReceiptView toggle so printAndClose() can read it correctly.
-        /// Initialised to false (chưa thanh toán) for new orders; updated via onIsPaidChanged callback.
-        @State private var currentIsPaidConfirmed: Bool = false
+        /// Tracks the current payment status from BillReceiptView picker so printAndClose() can read it correctly.
+        /// Initialised to .unpaid for new orders; updated via onIsPaidChanged callback.
+        @State private var currentPaymentStatus: PaymentStatus = .unpaid
         @State private var printOptions = PrintOptions()
         @State private var showPrintOptionsSheet = false
         @State private var renderedImages: [UIImage] = []
@@ -2801,7 +2801,12 @@ struct ContentView: View {
                             orderStatus: $viewModel.newOrderStatus,
                             onIsPaidChanged: { confirmed in
                                 viewModel.isPaidConfirmedByUser = confirmed
-                                currentIsPaidConfirmed = confirmed
+                                // Derive PaymentStatus: nếu confirmed + có partial → paidPartial, không → paidFull/unpaid
+                                if confirmed {
+                                    currentPaymentStatus = viewModel.payFullAmount ? .paidFull : (viewModel.debtAmount > 0 ? .paidPartial : .paidFull)
+                                } else {
+                                    currentPaymentStatus = .unpaid
+                                }
                             },
                             onCustomPrint: {
                                 showPrintOptionsSheet = true
@@ -2839,7 +2844,7 @@ struct ContentView: View {
                                 }
                             } else {
                                 // Dùng trạng thái thanh toán user đã chọn trong BillReceiptView
-                                viewModel.completeOrder(isPaid: currentIsPaidConfirmed)
+                                viewModel.completeOrder(isPaid: currentPaymentStatus.isPaid)
                                 dismiss()
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                                     NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
@@ -2950,8 +2955,10 @@ struct ContentView: View {
                 }
             }
             .onAppear {
-                // Init currentIsPaidConfirmed: đơn mới = false, đang sửa = trạng thái bill gốc
-                currentIsPaidConfirmed = viewModel.editingBill != nil ? viewModel.editingBillIsPaid : false
+                // Init currentPaymentStatus: đơn mới = .unpaid, đang sửa = trạng thái bill gốc
+                currentPaymentStatus = viewModel.editingBill != nil
+                    ? PaymentStatus.from(isPaid: viewModel.editingBillIsPaid, debtAmount: viewModel.editingBill?.debtAmount)
+                    : .unpaid
             }
         }
         
@@ -3047,7 +3054,7 @@ struct ContentView: View {
                 expectedPayDate: .constant(viewModel.expectedPayDate),
                 note: .constant(viewModel.note),
                 grandTotal: viewModel.totalAmountWithVAT,
-                initialIsPaid: currentIsPaidConfirmed
+                initialIsPaid: currentPaymentStatus.isPaid
             )
             .frame(width: 375)
             let renderer = ImageRenderer(content: renderView)
@@ -3059,7 +3066,7 @@ struct ContentView: View {
             if isEditing {
                 await viewModel.finalizeEditedPayment()
             } else {
-                viewModel.completeOrder(isPaid: currentIsPaidConfirmed)
+                viewModel.completeOrder(isPaid: currentPaymentStatus.isPaid)
             }
 
             // Mở ShareSheet chia sẻ ảnh (giống BillDetailView)
@@ -3124,9 +3131,9 @@ struct ContentView: View {
                 customerEmail: viewModel.walkInEmail.isEmpty ? nil : viewModel.walkInEmail,
                 note: viewModel.note.isEmpty ? nil : viewModel.note,
                 grandTotal: viewModel.totalAmountWithVAT,
-                paidAmount: currentIsPaidConfirmed ? viewModel.paidAmount : nil,
-                debtAmount: currentIsPaidConfirmed ? viewModel.debtAmount : nil,
-                isPaid: currentIsPaidConfirmed,
+                paidAmount: currentPaymentStatus != .unpaid ? viewModel.paidAmount : nil,
+                debtAmount: currentPaymentStatus == .paidPartial ? viewModel.debtAmount : nil,
+                isPaid: currentPaymentStatus.isPaid,
                 payFullAmount: viewModel.payFullAmount,
                 expectedPayDate: viewModel.expectedPayDate,
                 vatRate: viewModel.vatRate,
@@ -3148,7 +3155,7 @@ struct ContentView: View {
             if isEditing {
                 await viewModel.finalizeEditedPayment()
             } else {
-                viewModel.completeOrder(isPaid: currentIsPaidConfirmed)
+                viewModel.completeOrder(isPaid: currentPaymentStatus.isPaid)
             }
 
             renderedImage = images.first
@@ -3382,6 +3389,7 @@ struct ContentView: View {
         @State private var showPartialAmountWheel = false
         @State private var isPaidConfirmed: Bool = false
         @State private var showOrderStatusPicker = false
+        @State private var showPaymentStatusPicker = false
         // Local copy của payFullAmount để tránh trigger re-render view cha khi toggle
         @State private var localPayFullAmount: Bool = true
         @State private var partialAmountMillionsSelection = 0
@@ -3416,6 +3424,14 @@ struct ContentView: View {
         
         // Helpers: khi printOptions = nil (chế độ thường) thì show tất cả
         private var showStoreSection: Bool    { printOptions?.showStoreInfo      ?? true }
+
+        /// PaymentStatus hiện tại dựa trên isPaidConfirmed + partial amount
+        private var currentPaymentStatus: PaymentStatus {
+            if !isPaidConfirmed { return .unpaid }
+            // Nếu trả một phần (localPayFullAmount = false và có debt) → partial
+            if !localPayFullAmount && (grandTotal - partialAmount) > 0 { return .paidPartial }
+            return .paidFull
+        }
         private var showCustomerSection: Bool { printOptions?.showCustomerInfo   ?? true }
         private var showProductsSection: Bool { printOptions?.showProducts       ?? true }
         private var showQRSection: Bool       { printOptions?.showQRCode         ?? true }
@@ -3889,17 +3905,15 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundStyle(.gray)
                             Spacer()
-                            if !isPaidConfirmed {
-                                Text("Chưa thanh toán")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.orange)
-                            } else {
-                                Text(formatCurrency(localPayFullAmount ? grandTotal : partialAmount))
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.green)
-                            }
+                            let ps = currentPaymentStatus
+                            Text(ps == .unpaid
+                                    ? "Chưa thanh toán"
+                                    : ps == .paidPartial
+                                        ? formatCurrency(localPayFullAmount ? grandTotal : partialAmount)
+                                        : formatCurrency(grandTotal))
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundStyle(ps.color)
                         }
                         
                         if !localPayFullAmount && (grandTotal - partialAmount) > 0 {
@@ -4077,24 +4091,25 @@ struct ContentView: View {
                                 .fontWeight(.bold)
                                 .foregroundStyle(Color.themeTextDark)
                             Spacer()
-                            Button(action: {
-                                isPaidConfirmed.toggle()
-                                onIsPaidChanged?(isPaidConfirmed)
-                            }) {
+                            Button {
+                                showPaymentStatusPicker = true
+                            } label: {
+                                let status = currentPaymentStatus
                                 HStack(spacing: 6) {
-                                    Image(systemName: isPaidConfirmed ? "checkmark.circle.fill" : "circle")
-                                        .foregroundStyle(isPaidConfirmed ? .green : .gray)
-                                    Text(isPaidConfirmed ? "Đã thanh toán" : "Chưa thanh toán")
+                                    Image(systemName: status.icon)
+                                        .foregroundStyle(status.color)
+                                    Text(status.label)
                                         .fontWeight(.medium)
-                                        .foregroundStyle(isPaidConfirmed ? .green : .gray)
+                                        .foregroundStyle(status.color)
                                         .lineLimit(1)
                                         .fixedSize(horizontal: true, vertical: false)
+                                    Image(systemName: "chevron.up.chevron.down")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
                                 }
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .background(
-                                    Capsule().fill(isPaidConfirmed ? Color.green.opacity(0.1) : Color.gray.opacity(0.1))
-                                )
+                                .background(Capsule().fill(status.color.opacity(0.1)))
                             }
                             .buttonStyle(.plain)
                         }
@@ -4439,6 +4454,29 @@ struct ContentView: View {
                 isPaidConfirmed = initialIsPaid
                 // Sync local copy
                 localPayFullAmount = payFullAmount
+            }
+            .confirmationDialog("Chọn trạng thái thanh toán", isPresented: $showPaymentStatusPicker, titleVisibility: .visible) {
+                Button("✅ Đã thanh toán đủ") {
+                    isPaidConfirmed = true
+                    // Đảm bảo payFullAmount = true để không còn debt
+                    localPayFullAmount = true
+                    payFullAmount = true
+                    onIsPaidChanged?(true)
+                }
+                Button("🔶 Đã thanh toán 1 phần") {
+                    isPaidConfirmed = true
+                    // Giữ nguyên localPayFullAmount = false nếu đang trả partial
+                    if localPayFullAmount {
+                        localPayFullAmount = false
+                        payFullAmount = false
+                    }
+                    onIsPaidChanged?(true)
+                }
+                Button("⭕ Chưa thanh toán") {
+                    isPaidConfirmed = false
+                    onIsPaidChanged?(false)
+                }
+                Button("Hủy", role: .cancel) { }
             }
             .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
                 Button("🛍️ Chuẩn bị hàng")  { orderStatus = "preparing" }
