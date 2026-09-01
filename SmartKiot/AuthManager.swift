@@ -17,11 +17,19 @@ class AuthManager: ObservableObject {
     @Published var loginMethod: LoginMethod = .phone // Chọn phương thức đăng nhập
     private var currentSessionUserId: UUID?
 
-    /// Trả về true nếu user hiện tại là chủ cửa hàng
-    var isOwner: Bool { currentUserProfile?.accountRole == .owner }
+    /// Trả về true nếu user hiện tại là chủ cửa hàng (store-level)
+    var isOwner: Bool {
+        StoreManager.shared.currentMember?.role == .owner
+    }
 
-    /// Trả về true nếu được xem giá vốn (chủ hoặc có quyền viewCostPrice)
-    var canViewCostPrice: Bool { isOwner || StoreManager.shared.hasPermission(.viewCostPrice) }
+    /// Trả về true nếu được xem giá vốn:
+    /// - Chủ cửa hàng hiện tại (store-level role = owner) luôn được xem
+    /// - Nhân viên/manager chỉ được xem nếu có quyền viewCostPrice được cấp
+    var canViewCostPrice: Bool {
+        let storeRole = StoreManager.shared.currentMember?.role
+        if storeRole == .owner { return true }
+        return StoreManager.shared.hasPermission(.viewCostPrice)
+    }
     
     enum LoginMethod {
         case phone

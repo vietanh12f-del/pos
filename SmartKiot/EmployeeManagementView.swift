@@ -417,6 +417,7 @@ struct EmployeeDetailView: View {
     @State private var showSalarySheet = false
     @State private var showAttendanceReport = false
     @State private var latestAttendance: AttendanceRecordDB? = nil
+    @State private var employeePhone: String? = nil  // fetch từ profiles
 
     private var employeeTypeKey: String { "employee_type_\(member.id.uuidString)" }
     private var salaryKey: String { "employee_salary_\(member.id.uuidString)" }
@@ -456,6 +457,30 @@ struct EmployeeDetailView: View {
                         Text(name)
                             .font(.headline)
                             .foregroundStyle(Color.themeTextDark)
+
+                        // Email + SĐT
+                        VStack(alignment: .leading, spacing: 6) {
+                            if let email = member.email, !email.isEmpty {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "envelope.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text(email)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.themeTextDark)
+                                }
+                            }
+                            if let phone = employeePhone, !phone.isEmpty {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "phone.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text(phone)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Color.themeTextDark)
+                                }
+                            }
+                        }
 
                         // Hai ô tile cạnh nhau
                         HStack(spacing: 10) {
@@ -651,6 +676,10 @@ struct EmployeeDetailView: View {
             // Load attendance mới nhất của nhân viên
             if let userId = member.userId {
                 latestAttendance = try? await SupabaseDatabaseService().fetchTodayAttendance(userId: userId)
+                // Fetch phone từ profiles
+                if let profile = try? await SupabaseDatabaseService().fetchProfile(id: userId) {
+                    employeePhone = profile.phoneNumber
+                }
             }
         }
         .sheet(isPresented: $showSalarySheet) {
