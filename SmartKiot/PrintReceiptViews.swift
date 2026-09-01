@@ -257,8 +257,17 @@ struct PrintReceiptView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if let n = note, !n.isEmpty {
-                            Text("Ghi chú: \(n)").font(.subheadline).foregroundStyle(.gray)
+                            Text("Ghi chú: \(n)")
+                                .font(.subheadline).fontWeight(.semibold)
+                                .foregroundStyle(.white)
+                                .lineLimit(nil)
                                 .fixedSize(horizontal: false, vertical: true)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.orange.opacity(0.85))
+                                .cornerRadius(8)
+                                .padding(.top, 4)
                         }
                     }
                     Spacer()

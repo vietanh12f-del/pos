@@ -3539,10 +3539,16 @@ struct ContentView: View {
                             .padding(.top, 2)
                     } else if !note.isEmpty {
                         Text("Ghi chú: \(note)")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
+                            .font(.subheadline).fontWeight(.semibold)
+                            .foregroundStyle(.white)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.orange.opacity(0.85))
+                            .cornerRadius(8)
+                            .padding(.top, 4)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
