@@ -3715,6 +3715,9 @@ struct ContentView: View {
                                 Button {
                                     localPayFullAmount = true
                                     payFullAmount = true
+                                    // Confirm payment và notify parent mỗi khi toggle
+                                    isPaidConfirmed = true
+                                    onIsPaidChanged?(true)
                                 } label: {
                                     HStack(spacing: 6) {
                                         Image(systemName: localPayFullAmount ? "checkmark.circle.fill" : "circle")
@@ -3732,6 +3735,9 @@ struct ContentView: View {
                                 Button {
                                     localPayFullAmount = false
                                     payFullAmount = false
+                                    // Confirm payment và notify parent mỗi khi toggle
+                                    isPaidConfirmed = true
+                                    onIsPaidChanged?(true)
                                 } label: {
                                     HStack(spacing: 6) {
                                         Image(systemName: !localPayFullAmount ? "checkmark.circle.fill" : "circle")

@@ -10,6 +10,8 @@ struct BillDetailView: View {
     @State private var renderedImage: UIImage?
     @State private var showShareSheet = false
     @State private var isPaid: Bool = true
+    @State private var localPaidAmount: Double? = nil   // cached cho UI refresh ngay
+    @State private var localDebtAmount: Double? = nil   // cached cho UI refresh ngay
     @State private var showReceiptCamera = false
     @State private var receiptImage: UIImage? = nil
     @State private var isUploadingReceipt = false
@@ -98,12 +100,12 @@ struct BillDetailView: View {
                             .font(.caption).fontWeight(.bold)
                     }
                     
-                    if let paidAmount = bill.paidAmount {
+                    if let paidAmount = localPaidAmount ?? bill.paidAmount {
                         HStack {
                             Text("Đã trả")
                                 .font(.caption).foregroundStyle(.gray)
                             Spacer()
-                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: bill.debtAmount)
+                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: localDebtAmount ?? bill.debtAmount)
                             if status == .unpaid {
                                 Text(formatCurrency(0))
                                     .font(.caption).fontWeight(.bold).foregroundStyle(.gray)
@@ -114,7 +116,7 @@ struct BillDetailView: View {
                         }
                     }
                     
-                    if let debtAmount = bill.debtAmount, debtAmount > 0 {
+                    if let debtAmount = localDebtAmount ?? bill.debtAmount, debtAmount > 0 {
                         HStack {
                             Text("Công nợ")
                                 .font(.caption).foregroundStyle(.gray)
@@ -144,7 +146,7 @@ struct BillDetailView: View {
                         Button {
                             showPaymentStatusPicker = true
                         } label: {
-                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: bill.debtAmount)
+                            let status = PaymentStatus.from(isPaid: isPaid, debtAmount: localDebtAmount ?? bill.debtAmount)
                             HStack(spacing: 4) {
                                 Image(systemName: status.icon)
                                     .foregroundStyle(status.color)
@@ -328,6 +330,20 @@ struct BillDetailView: View {
                     var updatedBill = bill
                     updatedBill.isPaid = isPaid
                     updatedBill.orderStatus = orderStatus
+                    // Dùng local state (đã cập nhật khi user chọn từ dialog) để tránh mất công nợ
+                    let currentDebt = localDebtAmount ?? bill.debtAmount
+                    let currentPaid = localPaidAmount ?? bill.paidAmount
+                    if !isPaid {
+                        updatedBill.paidAmount = 0
+                        updatedBill.debtAmount = bill.total
+                    } else if (currentDebt ?? 0) <= 0 {
+                        updatedBill.paidAmount = bill.total
+                        updatedBill.debtAmount = nil
+                    } else {
+                        // Trả 1 phần: giữ nguyên giá trị local
+                        updatedBill.paidAmount = currentPaid
+                        updatedBill.debtAmount = currentDebt
+                    }
                     Task {
                         do {
                             try await viewModel.updateOrder(updatedBill)
@@ -410,6 +426,8 @@ struct BillDetailView: View {
         .background(Color.themeBackgroundLight)
         .onAppear {
             isPaid = bill.isPaid
+            localPaidAmount = bill.paidAmount
+            localDebtAmount = bill.debtAmount
             orderStatus = bill.orderStatus
             receiptImageURLString = bill.paymentReceiptURL
             Task {
@@ -458,6 +476,8 @@ struct BillDetailView: View {
         .confirmationDialog("Chọn trạng thái thanh toán", isPresented: $showPaymentStatusPicker, titleVisibility: .visible) {
             Button("✅ Đã thanh toán đủ") {
                 isPaid = true
+                localPaidAmount = bill.total
+                localDebtAmount = nil
                 var updatedBill = bill
                 updatedBill.isPaid = true
                 updatedBill.paidAmount = bill.total
@@ -467,6 +487,10 @@ struct BillDetailView: View {
             Button("🔶 Đã thanh toán 1 phần") {
                 isPaid = true
                 // Giữ paidAmount/debtAmount hiện có; nếu chưa có thì đặt debtAmount > 0
+                if (bill.debtAmount ?? 0) <= 0 {
+                    localPaidAmount = 0
+                    localDebtAmount = bill.total
+                }
                 var updatedBill = bill
                 updatedBill.isPaid = true
                 if (bill.debtAmount ?? 0) <= 0 {
@@ -477,6 +501,8 @@ struct BillDetailView: View {
             }
             Button("⭕ Chưa thanh toán") {
                 isPaid = false
+                localPaidAmount = 0
+                localDebtAmount = bill.total
                 var updatedBill = bill
                 updatedBill.isPaid = false
                 updatedBill.paidAmount = 0
@@ -682,10 +708,10 @@ struct BillDetailView: View {
             customerEmail: bill.customerEmail,
             note: bill.note,
             grandTotal: bill.total,
-            paidAmount: isPaid ? (bill.paidAmount ?? bill.total) : 0,
-            debtAmount: bill.debtAmount,
+            paidAmount: isPaid ? (localPaidAmount ?? bill.paidAmount ?? bill.total) : 0,
+            debtAmount: localDebtAmount ?? bill.debtAmount,
             isPaid: isPaid,
-            payFullAmount: bill.paidAmount == nil || bill.paidAmount == bill.total,
+            payFullAmount: (localPaidAmount ?? bill.paidAmount) == nil || (localPaidAmount ?? bill.paidAmount) == bill.total,
             expectedPayDate: bill.expectedPayDate,
             vatRate: bill.vatRate,
             orderStatus: orderStatus ?? bill.orderStatus,

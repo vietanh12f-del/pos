@@ -1543,8 +1543,8 @@ struct OrderDTO: Codable {
         try container.encodeIfPresent(sequence_number, forKey: .sequence_number)
         try container.encodeIfPresent(vat_rate, forKey: .vat_rate)
         try container.encodeIfPresent(vat_amount, forKey: .vat_amount)
-        try container.encodeIfPresent(paid_amount, forKey: .paid_amount)
-        try container.encodeIfPresent(debt_amount, forKey: .debt_amount)
+        try container.encode(paid_amount ?? 0, forKey: .paid_amount)
+        try container.encode(debt_amount ?? 0, forKey: .debt_amount)
         try container.encodeIfPresent(expected_pay_date, forKey: .expected_pay_date)
         try container.encodeIfPresent(note, forKey: .note)
         try container.encodeIfPresent(order_status, forKey: .order_status)
@@ -1570,8 +1570,10 @@ struct OrderDTO: Codable {
         self.sequence_number = domain.sequenceNumber
         self.vat_rate = domain.vatRate
         self.vat_amount = domain.vatAmount
-        self.paid_amount = domain.paidAmount
-        self.debt_amount = domain.debtAmount
+        // Đảm bảo paid_amount và debt_amount luôn có giá trị rõ ràng khi lưu lên DB
+        // Nếu nil (chưa set): đơn đã thanh toán đủ → paid = total, debt = 0
+        self.paid_amount = domain.paidAmount ?? (domain.isPaid ? domain.total : 0)
+        self.debt_amount = domain.debtAmount ?? 0
         self.expected_pay_date = domain.expectedPayDate
         self.note = domain.note
         self.order_status = domain.orderStatus
