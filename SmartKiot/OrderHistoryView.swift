@@ -12,12 +12,8 @@ struct OrderHistoryView: View {
     @State private var showCustomerPicker: Bool = false
     @State private var availableCustomers: [TradingParty] = []
     @State private var isLoadingCustomers: Bool = false
-    @State private var searchMode: SearchMode = .products
-    @State private var customerSearchText: String = ""
-    @State private var customerSearchResults: [Bill] = []
-    @State private var isSearchingCustomer: Bool = false
-
-    enum SearchMode { case products, customer }
+    @State private var showSearchBar: Bool = false
+    @State private var historySearchText: String = ""
     @State private var showInventoryReport: Bool = false
     @State private var showDeletedBills: Bool = false
     @State private var isRefreshing: Bool = false
@@ -67,7 +63,6 @@ struct OrderHistoryView: View {
                                 .font(.title)
                                 .fontWeight(.bold)
                             Spacer()
-                            // Nút refresh thủ công
                             Button {
                                 Task {
                                     isRefreshing = true
@@ -84,11 +79,24 @@ struct OrderHistoryView: View {
                                 }
                             }
                             .padding(.trailing, 4)
+                            // Tìm kiếm sản phẩm đã bán (theo ngày)
                             Button {
                                 showSoldSearch = true
                             } label: {
-                                Image(systemName: "magnifyingglass")
+                                Image(systemName: "chart.bar.xaxis")
                                     .font(.headline)
+                            }
+                            .padding(.trailing, 4)
+                            // Toggle inline search bar
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showSearchBar.toggle()
+                                    if !showSearchBar { historySearchText = "" }
+                                }
+                            } label: {
+                                Image(systemName: showSearchBar ? "xmark.circle.fill" : "magnifyingglass")
+                                    .font(.headline)
+                                    .foregroundStyle(showSearchBar ? .gray : .primary)
                             }
                             .padding(.trailing, 8)
                             Button {
@@ -100,6 +108,50 @@ struct OrderHistoryView: View {
                         }
                         .padding(.horizontal)
                         .padding(.top)
+
+                        // Inline search bar
+                        if showSearchBar {
+                            HStack(spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                                    TextField("Tìm theo tên KH, sản phẩm, STT...", text: $historySearchText)
+                                        .textInputAutocapitalization(.never)
+                                        .disableAutocorrection(true)
+                                    if !historySearchText.isEmpty {
+                                        Button(action: { historySearchText = "" }) {
+                                            Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                                        }
+                                    }
+                                }
+                                .padding(10)
+                                .background(Color.white)
+                                .cornerRadius(10)
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+
+                                // Icon chọn khách có sẵn
+                                Button {
+                                    showCustomerPicker = true
+                                    if availableCustomers.isEmpty {
+                                        isLoadingCustomers = true
+                                        Task {
+                                            let buyers = (try? await SupabaseDatabaseService().fetchTradingParties(type: "buyer")) ?? []
+                                            await MainActor.run {
+                                                availableCustomers = buyers.sorted { $0.name < $1.name }
+                                                isLoadingCustomers = false
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Image(systemName: "person.crop.circle.badge.plus")
+                                        .font(.title3)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 6)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
 
                         ScrollViewReader { proxy in
                             List {
@@ -240,246 +292,109 @@ struct OrderHistoryView: View {
             .sheet(isPresented: $showSoldSearch) {
                 NavigationStack {
                     VStack(spacing: 12) {
-                        // Mode switcher
-                        Picker("", selection: $searchMode) {
-                            Text("Sản phẩm đã bán").tag(SearchMode.products)
-                            Text("Khách hàng").tag(SearchMode.customer)
+                        Text("Sản phẩm đã bán")
+                            .font(.headline)
+                            .foregroundStyle(Color.themeTextDark)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+
+                        HStack(spacing: 8) {
+                            Image(systemName: "calendar").foregroundStyle(.gray)
+                            DatePicker("Từ", selection: $soldStartDate, displayedComponents: .date)
+                            DatePicker("Đến", selection: $soldEndDate, displayedComponents: .date)
                         }
-                        .pickerStyle(.segmented)
+                        .padding(12)
+                        .background(Color.white)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.15), lineWidth: 1))
+                        .cornerRadius(12)
                         .padding(.horizontal)
 
-                        if searchMode == .products {
-                            Text("Sản phẩm đã bán")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal)
-
-                            HStack(spacing: 8) {
-                                Image(systemName: "calendar")
-                                    .foregroundStyle(.gray)
-                                DatePicker("Từ", selection: $soldStartDate, displayedComponents: .date)
-                                DatePicker("Đến", selection: $soldEndDate, displayedComponents: .date)
-                            }
-                            .padding(12)
-                            .background(Color.white)
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.15), lineWidth: 1))
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-
-                            HStack(spacing: 8) {
-                                Image(systemName: "magnifyingglass").foregroundStyle(.gray)
-                                TextField("Tìm theo tên sản phẩm", text: $soldSearchText)
-                                    .textInputAutocapitalization(.never)
-                                    .disableAutocorrection(true)
-                                if !soldSearchText.isEmpty {
-                                    Button(action: { soldSearchText = "" }) {
-                                        Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
-                                    }
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                            TextField("Tìm theo tên sản phẩm", text: $soldSearchText)
+                                .textInputAutocapitalization(.never)
+                                .disableAutocorrection(true)
+                            if !soldSearchText.isEmpty {
+                                Button(action: { soldSearchText = "" }) {
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
                                 }
-                            }
-                            .padding(12)
-                            .background(Color.white)
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.15), lineWidth: 1))
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-
-                            let sold = viewModel.soldProductsTotals(
-                                range: .custom(start: soldStartDate, end: soldEndDate),
-                                search: soldSearchText
-                            )
-                            List {
-                                ForEach(sold, id: \.name) { item in
-                                    HStack {
-                                        Text(item.name)
-                                            .font(.subheadline)
-                                            .foregroundStyle(Color.themeTextDark)
-                                        Spacer()
-                                        Text("\(item.quantity)")
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(.gray)
-                                    }
-                                    .padding(.vertical, 6)
-                                }
-                            }
-                            .listStyle(.plain)
-
-                        } else {
-                            // Tìm theo khách hàng
-                            Text("Tìm theo khách hàng")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal)
-
-                            HStack(spacing: 8) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "person.fill").foregroundStyle(.gray)
-                                    TextField("Nhập tên khách hàng...", text: $customerSearchText)
-                                        .textInputAutocapitalization(.words)
-                                        .disableAutocorrection(true)
-                                        .submitLabel(.search)
-                                        .onSubmit { performCustomerSearch() }
-                                    if !customerSearchText.isEmpty {
-                                        Button(action: {
-                                            customerSearchText = ""
-                                            customerSearchResults = []
-                                        }) {
-                                            Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
-                                        }
-                                    }
-                                }
-                                .padding(12)
-                                .background(Color.white)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.15), lineWidth: 1))
-                                .cornerRadius(12)
-
-                                // Button chọn khách có sẵn
-                                Button {
-                                    showCustomerPicker = true
-                                    if availableCustomers.isEmpty {
-                                        isLoadingCustomers = true
-                                        Task {
-                                            let buyers = (try? await SupabaseDatabaseService().fetchTradingParties(type: "buyer")) ?? []
-                                            await MainActor.run {
-                                                availableCustomers = buyers.sorted { $0.name < $1.name }
-                                                isLoadingCustomers = false
-                                            }
-                                        }
-                                    }
-                                } label: {
-                                    Image(systemName: "person.crop.circle.badge.plus")
-                                        .font(.title3)
-                                        .foregroundStyle(Color.themePrimary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal)
-
-                            Button(action: performCustomerSearch) {
-                                HStack(spacing: 6) {
-                                    if isSearchingCustomer {
-                                        ProgressView().tint(.white).scaleEffect(0.8)
-                                    } else {
-                                        Image(systemName: "magnifyingglass")
-                                    }
-                                    Text("Tìm kiếm")
-                                        .fontWeight(.semibold)
-                                }
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                                .background(Color.themePrimary)
-                                .cornerRadius(10)
-                            }
-                            .padding(.horizontal)
-                            .disabled(customerSearchText.trimmingCharacters(in: .whitespaces).isEmpty || isSearchingCustomer)
-
-                            if customerSearchResults.isEmpty && !customerSearchText.isEmpty && !isSearchingCustomer {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "person.slash").font(.system(size: 36)).foregroundStyle(.gray.opacity(0.4))
-                                    Text("Không tìm thấy đơn hàng nào").foregroundStyle(.gray)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 40)
-                            } else {
-                                List {
-                                    ForEach(customerSearchResults) { bill in
-                                        Button {
-                                            showSoldSearch = false
-                                            selectedBill = bill
-                                        } label: {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                HStack {
-                                                    Text(bill.customerName ?? "Khách lẻ")
-                                                        .font(.subheadline).fontWeight(.bold)
-                                                        .foregroundStyle(Color.themeTextDark)
-                                                    Spacer()
-                                                    Text(formatCurrency(bill.total))
-                                                        .font(.subheadline).fontWeight(.bold)
-                                                        .foregroundStyle(Color.themePrimary)
-                                                }
-                                                HStack {
-                                                    Text(formatDateTime(bill.createdAt))
-                                                        .font(.caption).foregroundStyle(.gray)
-                                                    Spacer()
-                                                    if !bill.isPaid {
-                                                        Text("Chưa nhận tiền")
-                                                            .font(.caption).fontWeight(.medium)
-                                                            .foregroundStyle(.red)
-                                                    }
-                                                }
-                                                if let stt = bill.sequenceNumber {
-                                                    Text("STT: \(stt)").font(.caption).foregroundStyle(Color.themePrimary)
-                                                }
-                                            }
-                                            .padding(.vertical, 4)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .listStyle(.plain)
                             }
                         }
+                        .padding(12)
+                        .background(Color.white)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.15), lineWidth: 1))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+
+                        let sold = viewModel.soldProductsTotals(
+                            range: .custom(start: soldStartDate, end: soldEndDate),
+                            search: soldSearchText
+                        )
+                        List {
+                            ForEach(sold, id: \.name) { item in
+                                HStack {
+                                    Text(item.name).font(.subheadline).foregroundStyle(Color.themeTextDark)
+                                    Spacer()
+                                    Text("\(item.quantity)").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                                }
+                                .padding(.vertical, 6)
+                            }
+                        }
+                        .listStyle(.plain)
                     }
-                    .navigationTitle("Tìm kiếm")
+                    .navigationTitle("Sản phẩm đã bán")
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button("Đóng") { showSoldSearch = false }
                         }
                     }
                     .background(Color.themeBackgroundLight)
-                    .sheet(isPresented: $showCustomerPicker) {
-                        NavigationStack {
-                            Group {
-                                if isLoadingCustomers {
-                                    ProgressView("Đang tải...")
-                                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                } else if availableCustomers.isEmpty {
-                                    VStack(spacing: 12) {
-                                        Image(systemName: "person.slash")
-                                            .font(.system(size: 40))
-                                            .foregroundStyle(.gray.opacity(0.4))
-                                        Text("Chưa có khách hàng nào")
-                                            .foregroundStyle(.gray)
-                                    }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                } else {
-                                    List {
-                                        ForEach(availableCustomers) { party in
-                                            Button {
-                                                customerSearchText = party.name
-                                                showCustomerPicker = false
-                                                performCustomerSearch()
-                                            } label: {
-                                                VStack(alignment: .leading, spacing: 3) {
-                                                    Text(party.name)
-                                                        .font(.subheadline).fontWeight(.medium)
-                                                        .foregroundStyle(Color.themeTextDark)
-                                                    if !party.phone.isEmpty {
-                                                        Text("SĐT: \(party.phone)")
-                                                            .font(.caption).foregroundStyle(.gray)
-                                                    }
-                                                }
-                                                .padding(.vertical, 4)
-                                            }
-                                            .buttonStyle(.plain)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showCustomerPicker) {
+                NavigationStack {
+                    Group {
+                        if isLoadingCustomers {
+                            ProgressView("Đang tải...").frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else if availableCustomers.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "person.slash").font(.system(size: 40)).foregroundStyle(.gray.opacity(0.4))
+                                Text("Chưa có khách hàng nào").foregroundStyle(.gray)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            List {
+                                ForEach(availableCustomers) { party in
+                                    Button {
+                                        historySearchText = party.name
+                                        showCustomerPicker = false
+                                        if !showSearchBar {
+                                            withAnimation { showSearchBar = true }
                                         }
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(party.name).font(.subheadline).fontWeight(.medium)
+                                                .foregroundStyle(Color.themeTextDark)
+                                            if !party.phone.isEmpty {
+                                                Text("SĐT: \(party.phone)").font(.caption).foregroundStyle(.gray)
+                                            }
+                                        }
+                                        .padding(.vertical, 4)
                                     }
-                                    .listStyle(.plain)
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .navigationTitle("Chọn khách hàng")
-                            .navigationBarTitleDisplayMode(.inline)
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button("Đóng") { showCustomerPicker = false }
-                                }
-                            }
+                            .listStyle(.plain)
                         }
-                        .presentationDetents([.medium, .large])
-                        .presentationDragIndicator(.visible)
+                    }
+                    .navigationTitle("Chọn khách hàng")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showCustomerPicker = false }
+                        }
                     }
                 }
                 .presentationDetents([.medium, .large])
@@ -489,7 +404,22 @@ struct OrderHistoryView: View {
     }
     
     var sections: [(title: String, bills: [Bill])] {
-        let filteredBills = viewModel.pastOrders.filter { showDeletedBills ? $0.isDeleted : !$0.isDeleted }
+        let query = historySearchText.trimmingCharacters(in: .whitespaces).lowercased()
+        let baseBills = viewModel.pastOrders.filter { showDeletedBills ? $0.isDeleted : !$0.isDeleted }
+        let filteredBills: [Bill]
+        if query.isEmpty {
+            filteredBills = baseBills
+        } else {
+            filteredBills = baseBills.filter { bill in
+                // Tìm theo tên khách hàng
+                if (bill.customerName ?? "").lowercased().contains(query) { return true }
+                // Tìm theo STT
+                if (bill.sequenceNumber ?? "").lowercased().contains(query) { return true }
+                // Tìm theo tên sản phẩm trong đơn
+                if bill.items.contains(where: { $0.name.lowercased().contains(query) }) { return true }
+                return false
+            }
+        }
         
         if showDeletedBills {
             // Lịch sử xoá: group theo ngày xoá, sort theo deletedAt giảm dần (vừa xoá lên trên)
@@ -556,33 +486,6 @@ struct OrderHistoryView: View {
         formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "dd/MM/yyyy HH:mm"
         return formatter.string(from: date)
-    }
-
-    private func performCustomerSearch() {
-        let query = customerSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return }
-        isSearchingCustomer = true
-        Task {
-            let local = viewModel.pastOrders.filter { bill in
-                let name = (bill.customerName ?? "").lowercased()
-                return name.contains(query.lowercased())
-            }
-            if local.count < 5 {
-                let remote = (try? await viewModel.databaseService.fetchOrdersByCustomerName(query)) ?? []
-                let merged = (local + remote).reduce(into: [Bill]()) { acc, bill in
-                    if !acc.contains(where: { $0.id == bill.id }) { acc.append(bill) }
-                }.sorted { $0.createdAt > $1.createdAt }
-                await MainActor.run {
-                    customerSearchResults = merged
-                    isSearchingCustomer = false
-                }
-            } else {
-                await MainActor.run {
-                    customerSearchResults = local.sorted { $0.createdAt > $1.createdAt }
-                    isSearchingCustomer = false
-                }
-            }
-        }
     }
 
     

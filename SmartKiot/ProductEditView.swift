@@ -285,15 +285,17 @@ struct ProductEditView: View {
                         }
                     }
                     
-                    HStack {
-                        Text("Giá vốn")
-                        Spacer()
-                        let pPrice = Double(productPrice) ?? 0
-                        let sCost = Double(shippingCost) ?? 0
-                        let totalCost = pPrice + sCost
-                        Text(formatCurrency(totalCost))
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.gray)
+                    if AuthManager.shared.canViewCostPrice {
+                        HStack {
+                            Text("Giá vốn")
+                            Spacer()
+                            let pPrice = Double(productPrice) ?? 0
+                            let sCost = Double(shippingCost) ?? 0
+                            let totalCost = pPrice + sCost
+                            Text(formatCurrency(totalCost))
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.gray)
+                        }
                     }
                     
                     Toggle(isOn: $hasVAT) {

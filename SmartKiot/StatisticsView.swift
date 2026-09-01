@@ -143,8 +143,10 @@ struct StatisticsView: View {
                     HStack(spacing: 12) {
                         StatCard(title: "Doanh thu", value: formatCurrency(totalRevenue), icon: "arrow.down.left", trend: "", isPositive: true,
                             info: "Tổng tiền thu được từ các đơn bán lẻ đã thanh toán (isPaid = true) trong kỳ.")
-                        StatCard(title: "Giá vốn", value: formatCurrency(totalCOGS), icon: "arrow.up.right", trend: "", isPositive: false,
-                            info: "Chi phí vốn hàng bán (COGS) — tính theo giá nhập bình quân (AVCO) của từng sản phẩm tại thời điểm bán.")
+                        if AuthManager.shared.canViewCostPrice {
+                            StatCard(title: "Giá vốn", value: formatCurrency(totalCOGS), icon: "arrow.up.right", trend: "", isPositive: false,
+                                info: "Chi phí vốn hàng bán (COGS) — tính theo giá nhập bình quân (AVCO) của từng sản phẩm tại thời điểm bán.")
+                        }
                     }
                     .padding(.horizontal)
                     
@@ -650,7 +652,9 @@ struct StatisticsRow: View {
             
             HStack(spacing: 12) {
                 valueBox(title: "Doanh thu", value: stat.revenue, color: .green)
-                valueBox(title: "Giá vốn", value: stat.cogs, color: .red)
+                if AuthManager.shared.canViewCostPrice {
+                    valueBox(title: "Giá vốn", value: stat.cogs, color: .red)
+                }
                 valueBox(title: "Chi phí vận hành", value: stat.operatingCosts, color: .orange)
             }
         }

@@ -625,6 +625,8 @@ enum StorePermission: String, Codable, CaseIterable, Hashable {
     case manageProduction = "manage_production"
     case manageCustomers = "manage_customers"
     case manageProducts = "manage_products"
+    case viewCostPrice = "view_cost_price"
+    case manageRetailRestock = "manage_retail_restock"
     
     var displayName: String {
         switch self {
@@ -642,6 +644,8 @@ enum StorePermission: String, Codable, CaseIterable, Hashable {
         case .manageProduction: return "Quản lý sản xuất (Tạo/Sửa/Xóa)"
         case .manageCustomers: return "Quản lý khách hàng"
         case .manageProducts: return "Quản lý sản phẩm"
+        case .viewCostPrice: return "Xem giá vốn hàng hoá"
+        case .manageRetailRestock: return "Nhập hàng bán lẻ"
         }
     }
 }

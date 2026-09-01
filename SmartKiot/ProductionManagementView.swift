@@ -1330,8 +1330,10 @@ struct FinishedGoodsFullPrintView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Text("Giá bán").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
                     .frame(width: 90, alignment: .trailing)
-                Text("Giá vốn").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
-                    .frame(width: 90, alignment: .trailing)
+                if AuthManager.shared.canViewCostPrice {
+                    Text("Giá vốn").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
+                        .frame(width: 90, alignment: .trailing)
+                }
                 Text("Kho").font(.subheadline).fontWeight(.bold).foregroundStyle(.gray)
                     .frame(width: 60, alignment: .trailing)
             }
@@ -1350,9 +1352,11 @@ struct FinishedGoodsFullPrintView: View {
                     Text(formatCurrency(p.price))
                         .foregroundStyle(Color.themeTextDark)
                         .frame(width: 90, alignment: .trailing)
-                    Text(formatCurrency(p.costPrice))
-                        .foregroundStyle(.gray)
-                        .frame(width: 90, alignment: .trailing)
+                    if AuthManager.shared.canViewCostPrice {
+                        Text(formatCurrency(p.costPrice))
+                            .foregroundStyle(.gray)
+                            .frame(width: 90, alignment: .trailing)
+                    }
                     Text("\(p.stockQuantity)")
                         .fontWeight(.bold)
                         .foregroundStyle(Color.themePrimary)

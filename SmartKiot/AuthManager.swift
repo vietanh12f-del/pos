@@ -16,6 +16,12 @@ class AuthManager: ObservableObject {
     @Published var testOTP: String? // Mã OTP test để hiện lên màn hình
     @Published var loginMethod: LoginMethod = .phone // Chọn phương thức đăng nhập
     private var currentSessionUserId: UUID?
+
+    /// Trả về true nếu user hiện tại là chủ cửa hàng
+    var isOwner: Bool { currentUserProfile?.accountRole == .owner }
+
+    /// Trả về true nếu được xem giá vốn (chủ hoặc có quyền viewCostPrice)
+    var canViewCostPrice: Bool { isOwner || StoreManager.shared.hasPermission(.viewCostPrice) }
     
     enum LoginMethod {
         case phone
