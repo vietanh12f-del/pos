@@ -19,6 +19,8 @@ class OrderViewModel: ObservableObject {
             }
         }
     }
+    /// Khi true, reset() sẽ không tự set showPayment = false (dùng cho flow in phiếu)
+    var suppressPaymentDismissOnReset: Bool = false
     @Published var currentSequenceNumber: String? = nil
     @Published var walkInName: String = "Khách lẻ"
     @Published var walkInPhone: String = ""
@@ -3402,7 +3404,10 @@ class OrderViewModel: ObservableObject {
     func reset() {
         items.removeAll()
         currentInput = ""
-        showPayment = false
+        if !suppressPaymentDismissOnReset {
+            showPayment = false
+        }
+        suppressPaymentDismissOnReset = false
         currentSequenceNumber = nil
         editingBill = nil
         walkInName = "Khách lẻ"

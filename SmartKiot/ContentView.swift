@@ -2697,6 +2697,8 @@ struct ContentView: View {
         @Environment(\.dismiss) var dismiss
         @State private var renderedImage: UIImage?
         @State private var showShareSheet = false
+        @State private var pendingDismissAfterShare = false
+        @State private var pendingIsEditing = false
         @State private var showBankSettings = false
         @State private var showReceiptCamera = false
         @State private var receiptImage: UIImage?
@@ -2865,7 +2867,28 @@ struct ContentView: View {
                     .padding(.horizontal).padding(.bottom, 20)
                 }
             }
-            .sheet(isPresented: $showShareSheet) {
+            .sheet(isPresented: $showShareSheet, onDismiss: {
+                guard pendingDismissAfterShare else { return }
+                pendingDismissAfterShare = false
+                let wasEditing = pendingIsEditing
+                // Đóng PaymentView (reset showPayment) rồi dismiss SmartOrderEntryView
+                viewModel.showPayment = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("NavigateToTab"),
+                        object: nil,
+                        userInfo: ["tab": 1]
+                    )
+                }
+                if wasEditing {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                        NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
+                    }
+                }
+            }) {
                 if !renderedImages.isEmpty {
                     ShareSheet(items: renderedImages)
                 } else if let image = renderedImage {
@@ -3062,37 +3085,21 @@ struct ContentView: View {
             guard let image = renderer.uiImage else { return }
 
             // Lưu bill / sửa bill trước khi mở share sheet
+            // suppressPaymentDismissOnReset = true để reset() không đóng PaymentView
             let isEditing = viewModel.editingBill != nil
+            viewModel.suppressPaymentDismissOnReset = true
             if isEditing {
                 await viewModel.finalizeEditedPayment()
             } else {
                 viewModel.completeOrder(isPaid: currentPaymentStatus.isPaid)
             }
 
-            // Mở ShareSheet chia sẻ ảnh (giống BillDetailView)
+            // Mở ShareSheet — điều hướng sẽ xảy ra sau khi user đóng share sheet (onDismiss)
             renderedImages = []   // printAndClose chỉ dùng renderedImage
             renderedImage = image
+            pendingIsEditing = isEditing
+            pendingDismissAfterShare = true
             showShareSheet = true
-
-            // Điều hướng về tab lịch sử sau khi share sheet mở
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                dismiss()
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("NavigateToTab"),
-                    object: nil,
-                    userInfo: ["tab": 1]
-                )
-            }
-            if isEditing {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
-                    NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
-                }
-            }
         }
 
         @MainActor
@@ -3150,8 +3157,9 @@ struct ContentView: View {
             guard let image = renderer.uiImage else { return }
             let images: [UIImage] = [image]
 
-            // Lưu đơn (không đóng bill — chỉ in, user tự quyết định sau)
+            // Lưu đơn — suppressPaymentDismissOnReset = true để reset() không đóng PaymentView
             let isEditing = viewModel.editingBill != nil
+            viewModel.suppressPaymentDismissOnReset = true
             if isEditing {
                 await viewModel.finalizeEditedPayment()
             } else {
@@ -3160,24 +3168,9 @@ struct ContentView: View {
 
             renderedImage = images.first
             renderedImages = images
+            pendingIsEditing = isEditing
+            pendingDismissAfterShare = true
             showShareSheet = true
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { dismiss() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                NotificationCenter.default.post(name: NSNotification.Name("DismissOrderEntry"), object: nil)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("NavigateToTab"),
-                    object: nil,
-                    userInfo: ["tab": 1]
-                )
-            }
-            if isEditing {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
-                    NotificationCenter.default.post(name: NSNotification.Name("RefreshOrderHistory"), object: nil)
-                }
-            }
         }
     }
     
