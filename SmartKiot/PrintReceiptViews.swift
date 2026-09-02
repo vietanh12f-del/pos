@@ -261,7 +261,7 @@ struct PrintReceiptView: View {
                                 .font(.subheadline).fontWeight(.semibold)
                                 .foregroundStyle(.white)
                                 .lineLimit(nil)
-                                .fixedSize(horizontal: false, vertical: true)
+                                .multilineTextAlignment(.leading)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
                                 .frame(maxWidth: .infinity, alignment: .leading)
