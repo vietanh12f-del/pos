@@ -494,6 +494,7 @@ class OrderViewModel: ObservableObject {
         updatedBill.creatorId = original.creatorId
         updatedBill.creatorName = original.creatorName
         updatedBill.note = note.isEmpty ? nil : note
+        updatedBill.billNumber = selectedBillNumber
         updatedBill.expectedPayDate = expectedPayDate
         updatedBill.orderStatus = newOrderStatus  // lưu trạng thái đơn hàng
         // Tính toán thanh toán từ state người dùng đã chỉnh
@@ -3260,6 +3261,7 @@ class OrderViewModel: ObservableObject {
         paymentReceiptImageURL = bill.paymentReceiptURL
         note = bill.note ?? ""
         expectedPayDate = bill.expectedPayDate
+        selectedBillNumber = bill.billNumber
         // Load trạng thái thanh toán từ bill gốc
         if let paid = bill.paidAmount, paid < bill.total {
             payFullAmount = false
@@ -3291,6 +3293,7 @@ class OrderViewModel: ObservableObject {
         updatedBill.debtAmount = currentDebt > 0 ? currentDebt : nil
         updatedBill.expectedPayDate = expectedPayDate
         updatedBill.note = note.isEmpty ? nil : note
+        updatedBill.billNumber = selectedBillNumber
         updatedBill.vatRate = vatRate
         updatedBill.creatorId = originalBill.creatorId
         updatedBill.creatorName = originalBill.creatorName
@@ -3679,6 +3682,7 @@ class OrderViewModel: ObservableObject {
         }
         bill.expectedPayDate = expectedPayDate
         bill.note = note.isEmpty ? nil : note
+        bill.billNumber = selectedBillNumber
         bill.orderStatus = newOrderStatus
         
         // Calculate VAT amount

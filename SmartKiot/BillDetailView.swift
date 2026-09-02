@@ -82,6 +82,7 @@ struct BillDetailView: View {
                 partialAmount: .constant(bill.paidAmount ?? bill.total),
                 expectedPayDate: .constant(bill.expectedPayDate),
                 note: .constant(bill.note ?? ""),
+                selectedBillNumber: .constant(bill.billNumber),
                 grandTotal: bill.total
             )
                 .padding()
@@ -672,6 +673,7 @@ struct BillDetailView: View {
                 partialAmount: .constant(bill.paidAmount ?? bill.total),
                 expectedPayDate: .constant(bill.expectedPayDate),
                 note: .constant(bill.note ?? ""),
+                selectedBillNumber: .constant(bill.billNumber),
                 grandTotal: bill.total,
                 initialIsPaid: isPaid
             )
@@ -728,7 +730,7 @@ struct BillDetailView: View {
             orderStatus: orderStatus ?? bill.orderStatus,
             qrImage: loadedQR,
             receiptImage: loadedReceiptImage,
-            billIndex: nil,
+            billIndex: bill.billNumber,
             totalBills: 1,
             creatorId: bill.creatorId?.uuidString
         )
