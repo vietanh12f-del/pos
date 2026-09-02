@@ -3716,7 +3716,7 @@ class OrderViewModel: ObservableObject {
     }
     
     func vietQRURL() -> URL? {
-        guard let bill = makeBill(), (bill.paidAmount ?? bill.total) > 0 else { return nil }
+        guard let bill = makeBill(), bill.total > 0 else { return nil }
         guard let rawBankName = StoreManager.shared.currentStore?.bankName, !rawBankName.isEmpty else { return nil }
         guard let bankAccount = StoreManager.shared.currentStore?.bankAccountNumber, !bankAccount.isEmpty else { return nil }
         var bankName = rawBankName
@@ -3726,7 +3726,8 @@ class OrderViewModel: ObservableObject {
             bankName = String(cleanCode)
         }
         let finalBankAccount = bankAccount
-        let amount = Int(bill.paidAmount ?? bill.total)
+        // Dùng bill.total (tổng tiền đơn) cho QR — luôn hiển thị số tiền cần thanh toán
+        let amount = Int(bill.total)
         let base = "https://img.vietqr.io/image/\(bankName)-\(finalBankAccount)-compact.png"
         let infoBase: String
         let shortId = bill.id.uuidString.prefix(8)
