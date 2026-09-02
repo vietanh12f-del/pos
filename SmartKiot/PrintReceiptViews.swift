@@ -78,41 +78,6 @@ struct CustomPrintOptionsSheet: View {
                                   subtitle: "Chuẩn bị, đang giao, hoàn thành...",
                                   isOn: $options.showOrderStatus)
                     }
-
-                    Section(header: Text("Số Bill").textCase(nil).font(.subheadline).foregroundStyle(.gray)) {
-                        OptionRow(icon: "doc.badge.plus",
-                                  title: "Hiện số bill trên phiếu",
-                                  subtitle: "Hiển thị số thứ tự bill do bạn chọn",
-                                  isOn: $options.showBillCount)
-
-                        HStack(spacing: 14) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(options.showBillCount ? Color.themePrimary.opacity(0.12) : Color.gray.opacity(0.08))
-                                    .frame(width: 36, height: 36)
-                                Image(systemName: "list.number")
-                                    .font(.system(size: 16))
-                                    .foregroundStyle(options.showBillCount ? Color.themePrimary : .gray)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Số Bill")
-                                    .font(.subheadline).fontWeight(.medium)
-                                    .foregroundStyle(options.showBillCount ? Color.themeTextDark : .gray)
-                                Text("Bill này là Bill số \(options.billCount)")
-                                    .font(.caption).foregroundStyle(.gray)
-                            }
-                            Spacer()
-                            Picker("", selection: $options.billCount) {
-                                ForEach(1...99, id: \.self) { n in
-                                    Text("\(n)").tag(n)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .labelsHidden()
-                            .disabled(!options.showBillCount)
-                        }
-                        .padding(.vertical, 6)
-                    }
                 }
                 .listStyle(.insetGrouped)
 
@@ -166,7 +131,7 @@ struct PrintReceiptView: View {
     let orderStatus: String?
     let qrImage: UIImage?
     let receiptImage: UIImage?
-    var billIndex: Int = 1
+    var billIndex: Int? = nil
     var totalBills: Int = 1
     var creatorId: String? = nil
 
@@ -278,13 +243,13 @@ struct PrintReceiptView: View {
                                 .foregroundStyle(Color.themePrimary)
                                 .multilineTextAlignment(.center)
                         }
-                        if opts.showBillCount {
+                        if let idx = billIndex {
                             let colors = badgeColors()
                             ZStack {
                                 RoundedRectangle(cornerRadius: 12)
                                     .fill(colors.bg)
                                     .frame(width: 64, height: 64)
-                                Text("\(billIndex)")
+                                Text("\(idx)")
                                     .font(.system(size: 36, weight: .black, design: .rounded))
                                     .foregroundStyle(colors.fg)
                                     .minimumScaleFactor(0.5)

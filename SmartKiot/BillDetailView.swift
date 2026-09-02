@@ -728,7 +728,7 @@ struct BillDetailView: View {
             orderStatus: orderStatus ?? bill.orderStatus,
             qrImage: loadedQR,
             receiptImage: loadedReceiptImage,
-            billIndex: opts.billCount,
+            billIndex: nil,
             totalBills: 1,
             creatorId: bill.creatorId?.uuidString
         )

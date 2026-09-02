@@ -34,6 +34,7 @@ class OrderViewModel: ObservableObject {
     @Published var partialAmount: Double = 0
     @Published var expectedPayDate: Date? = nil
     @Published var note: String = ""
+    @Published var selectedBillNumber: Int? = nil // nil = không hiển thị mã bill trên phiếu
     
     var totalAmountWithVAT: Double {
         let baseTotal = items.reduce(0) { $0 + $1.total }
@@ -3424,6 +3425,7 @@ class OrderViewModel: ObservableObject {
         partialAmount = 0
         expectedPayDate = nil
         note = ""
+        selectedBillNumber = nil
         editingBillIsPaid = false
         isPaidConfirmedByUser = nil
         newOrderStatus = nil

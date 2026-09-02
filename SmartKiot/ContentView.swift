@@ -18,8 +18,6 @@ struct PrintOptions {
     var showReceiptImage: Bool = false
     var showPaymentStatus: Bool = false
     var showOrderStatus: Bool = true
-    var showBillCount: Bool = false
-    var billCount: Int = 1
 }
 
 struct ContentView: View {
@@ -2798,6 +2796,7 @@ struct ContentView: View {
                             partialAmount: $viewModel.partialAmount,
                             expectedPayDate: $viewModel.expectedPayDate,
                             note: $viewModel.note,
+                            selectedBillNumber: $viewModel.selectedBillNumber,
                             grandTotal: viewModel.totalAmountWithVAT,
                             initialIsPaid: viewModel.editingBillIsPaid,
                             orderStatus: $viewModel.newOrderStatus,
@@ -3076,6 +3075,7 @@ struct ContentView: View {
                 partialAmount: .constant(viewModel.partialAmount),
                 expectedPayDate: .constant(viewModel.expectedPayDate),
                 note: .constant(viewModel.note),
+                selectedBillNumber: .constant(viewModel.selectedBillNumber),
                 grandTotal: viewModel.totalAmountWithVAT,
                 initialIsPaid: currentPaymentStatus.isPaid
             )
@@ -3147,7 +3147,7 @@ struct ContentView: View {
                 orderStatus: viewModel.newOrderStatus,
                 qrImage: loadedQR,
                 receiptImage: loadedReceiptImage,
-                billIndex: opts.billCount,
+                billIndex: viewModel.selectedBillNumber,
                 totalBills: 1,
                 creatorId: AuthManager.shared.currentUserProfile?.id.uuidString
             )
@@ -3368,6 +3368,7 @@ struct ContentView: View {
         @Binding var partialAmount: Double
         @Binding var expectedPayDate: Date?
         @Binding var note: String
+        @Binding var selectedBillNumber: Int?
         let grandTotal: Double
         var initialIsPaid: Bool = false  // trạng thái isPaid của bill gốc khi sửa
         var onIsPaidChanged: ((Bool) -> Void)? = nil  // callback khi người dùng toggle isPaid
@@ -3439,7 +3440,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, selectedBillNumber: Binding<Int?> = .constant(nil), grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3465,6 +3466,7 @@ struct ContentView: View {
             self._partialAmount = partialAmount
             self._expectedPayDate = expectedPayDate
             self._note = note
+            self._selectedBillNumber = selectedBillNumber
             self.grandTotal = grandTotal
             self.initialIsPaid = initialIsPaid
             self._orderStatus = orderStatus
@@ -3491,74 +3493,142 @@ struct ContentView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .center)
                         }
-                        Text(customerName)
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themeTextDark)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        
-                        if let phone = customerPhone, !phone.isEmpty {
-                            Text("SĐT: \(phone)")
-                                .font(.subheadline)
-                                .foregroundStyle(.gray)
+                        // Layout 2 cột khi render ảnh: trái = info, phải = STT + mã bill
+                        if !showButtons {
+                            HStack(alignment: .top, spacing: 8) {
+                                // Cột trái: tên, SĐT, email, ngày, địa chỉ, ghi chú
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(customerName)
+                                        .font(.title3).fontWeight(.bold)
+                                        .foregroundStyle(Color.themeTextDark)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    if let phone = customerPhone, !phone.isEmpty {
+                                        Text("SĐT: \(phone)").font(.subheadline).foregroundStyle(.gray)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    if let email = customerEmail, !email.isEmpty {
+                                        Text("Email: \(email)").font(.subheadline).foregroundStyle(.gray)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Text(dateString).font(.subheadline).foregroundStyle(.gray)
+                                    if let address = customerAddress, !address.isEmpty {
+                                        Text("Địa chỉ: \(address)").font(.subheadline).foregroundStyle(.gray)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    if !note.isEmpty {
+                                        Text("Ghi chú: \(note)")
+                                            .font(.subheadline).fontWeight(.semibold)
+                                            .foregroundStyle(.white)
+                                            .lineLimit(nil)
+                                            .multilineTextAlignment(.leading)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(Color.orange.opacity(0.85))
+                                            .cornerRadius(8)
+                                            .padding(.top, 4)
+                                    }
+                                }
+
+                                Spacer(minLength: 4)
+
+                                // Cột phải: STT trên, mã bill dưới (căn giữa theo STT)
+                                if sequenceNumber != nil || selectedBillNumber != nil {
+                                    VStack(alignment: .center, spacing: 4) {
+                                        if let stt = sequenceNumber {
+                                            Text("STT: \(stt)")
+                                                .font(.caption).fontWeight(.bold)
+                                                .foregroundStyle(Color.themePrimary)
+                                                .multilineTextAlignment(.center)
+                                        }
+                                        if let num = selectedBillNumber {
+                                            ZStack {
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .fill(Color.themePrimary)
+                                                    .frame(width: 64, height: 64)
+                                                Text("\(num)")
+                                                    .font(.system(size: 36, weight: .black, design: .rounded))
+                                                    .foregroundStyle(.white)
+                                                    .minimumScaleFactor(0.5)
+                                                    .lineLimit(1)
+                                            }
+                                            Text("mã bill")
+                                                .font(.caption).fontWeight(.medium)
+                                                .foregroundStyle(.gray)
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // Layout khi nhập đơn (showButtons=true): giữ nguyên dạng cũ
+                            Text(customerName)
+                                .font(.title3).fontWeight(.bold)
+                                .foregroundStyle(Color.themeTextDark)
                                 .lineLimit(nil)
                                 .fixedSize(horizontal: false, vertical: true)
+                            if let phone = customerPhone, !phone.isEmpty {
+                                Text("SĐT: \(phone)").font(.subheadline).foregroundStyle(.gray)
+                                    .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                            }
+                            if let email = customerEmail, !email.isEmpty {
+                                Text("Email: \(email)").font(.subheadline).foregroundStyle(.gray)
+                                    .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                            }
+                            HStack {
+                                Text(dateString).font(.subheadline).foregroundStyle(Color.gray)
+                                if let stt = sequenceNumber {
+                                    Spacer()
+                                    Text("STT: \(stt)").font(.subheadline).fontWeight(.bold)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                            }
+                            .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                            if let address = customerAddress, !address.isEmpty {
+                                Text("Địa chỉ: \(address)").font(.subheadline).foregroundStyle(.gray)
+                                    .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
+                            }
+                            // Ghi chú
+                            TextField("Ghi chú...", text: $note, axis: .vertical)
+                                .font(.subheadline).foregroundStyle(.gray)
+                                .textFieldStyle(.roundedBorder)
+                                .lineLimit(1...4).padding(.top, 2)
+                            // Số bill picker
+                            HStack(spacing: 10) {
+                                Image(systemName: "number.square.fill")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(selectedBillNumber != nil ? Color.themePrimary : .gray)
+                                Text("Số bill")
+                                    .font(.subheadline)
+                                    .foregroundStyle(selectedBillNumber != nil ? Color.themeTextDark : .gray)
+                                Spacer()
+                                if let num = selectedBillNumber {
+                                    VStack(spacing: 2) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(Color.themePrimary)
+                                                .frame(width: 48, height: 48)
+                                            Text("\(num)")
+                                                .font(.system(size: 28, weight: .black, design: .rounded))
+                                                .foregroundStyle(.white)
+                                                .minimumScaleFactor(0.5)
+                                                .lineLimit(1)
+                                        }
+                                        Text("mã bill")
+                                            .font(.caption2).fontWeight(.medium)
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                Picker("", selection: Binding(
+                                    get: { selectedBillNumber ?? 0 },
+                                    set: { selectedBillNumber = $0 == 0 ? nil : $0 }
+                                )) {
+                                    Text("Không chọn").tag(0)
+                                    ForEach(1...99, id: \.self) { n in Text("\(n)").tag(n) }
+                                }
+                                .pickerStyle(.menu).labelsHidden().tint(Color.themePrimary)
+                            }
+                            .padding(.top, 6)
                         }
-                        
-                        if let email = customerEmail, !email.isEmpty {
-                            Text("Email: \(email)")
-                                .font(.subheadline)
-                                .foregroundStyle(.gray)
-                                .lineLimit(nil)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    
-                    HStack {
-                        Text(dateString)
-                            .font(.subheadline)
-                            .foregroundStyle(Color.gray)
-                        
-                        if let stt = sequenceNumber {
-                            Spacer()
-                            Text("STT: \(stt)")
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.themePrimary)
-                        }
-                    }
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    
-                    if let address = customerAddress, !address.isEmpty {
-                        Text("Địa chỉ: \(address)")
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    
-                    // Ghi chú — hiển thị ngay dưới địa chỉ
-                    if showButtons {
-                        TextField("Ghi chú...", text: $note, axis: .vertical)
-                            .font(.subheadline)
-                            .foregroundStyle(.gray)
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(1...4)
-                            .padding(.top, 2)
-                    } else if !note.isEmpty {
-                        Text("Ghi chú: \(note)")
-                            .font(.subheadline).fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .lineLimit(nil)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.orange.opacity(0.85))
-                            .cornerRadius(8)
-                            .padding(.top, 4)
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
