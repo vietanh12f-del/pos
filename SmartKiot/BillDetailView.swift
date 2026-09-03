@@ -5,6 +5,7 @@ struct BillDetailView: View {
     let bill: Bill
     @ObservedObject var viewModel: OrderViewModel
     var onDeleted: (() -> Void)? = nil   // callback khi đơn bị xoá
+    var showEditButton: Bool = true      // Điều khiển hiển thị nút Sửa
     @Environment(\.dismiss) var dismiss
     @State private var showDeleteConfirmation = false
     @State private var renderedImage: UIImage?
@@ -43,14 +44,16 @@ struct BillDetailView: View {
                 
                 Spacer()
                 
-                Button(action: {
-                    viewModel.startEditing(bill)
-                    dismiss()
-                }) {
-                    Text("Sửa")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.blue)
+                if showEditButton {
+                    Button(action: {
+                        viewModel.startEditing(bill)
+                        dismiss()
+                    }) {
+                        Text("Sửa")
+                            .font(.headline)
+                            .fontWeight(.bold)
+                            .foregroundStyle(Color.blue)
+                    }
                 }
             }
             .padding()

@@ -751,7 +751,7 @@ struct PartyDetailView: View {
                         BillDetailView(bill: bill, viewModel: orderViewModel, onDeleted: {
                             // Xoá ngay lập tức khỏi list để UX tức thì, không cần chờ reload
                             retailOrders.removeAll { $0.id == bill.id }
-                        })
+                        }, showEditButton: false)
                     }
                 }
             }
