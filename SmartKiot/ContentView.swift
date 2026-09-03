@@ -2089,8 +2089,8 @@ struct ContentView: View {
             if customerSearch.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 filtered = all
             } else {
-                let q = customerSearch.lowercased()
-                filtered = all.filter { $0.name.lowercased().contains(q) }
+                let q = customerSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+                filtered = all.filter { $0.name.smartContains(q) }
             }
             if customerSortMode == 1 {
                 return filtered.sorted { lhs, rhs in
@@ -2247,8 +2247,8 @@ struct ContentView: View {
                 return customers
             } else {
                 return customers.filter { customer in
-                    customer.name.lowercased().contains(searchText.lowercased()) ||
-                    customer.phone.lowercased().contains(searchText.lowercased())
+                    customer.name.smartContains(searchText) ||
+                    customer.phone.smartContains(searchText)
                 }
             }
         }

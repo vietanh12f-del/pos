@@ -412,11 +412,11 @@ struct OrderHistoryView: View {
         } else {
             filteredBills = baseBills.filter { bill in
                 // Tìm theo tên khách hàng
-                if (bill.customerName ?? "").lowercased().contains(query) { return true }
+                if (bill.customerName ?? "").smartContains(query) { return true }
                 // Tìm theo STT
-                if (bill.sequenceNumber ?? "").lowercased().contains(query) { return true }
+                if (bill.sequenceNumber ?? "").smartContains(query) { return true }
                 // Tìm theo tên sản phẩm trong đơn
-                if bill.items.contains(where: { $0.name.lowercased().contains(query) }) { return true }
+                if bill.items.contains(where: { $0.name.smartContains(query) }) { return true }
                 return false
             }
         }

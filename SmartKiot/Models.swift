@@ -880,3 +880,62 @@ enum BillNumberStatus {
         }
     }
 }
+// MARK: - Smart Search Extensions
+extension String {
+    /// Removes Vietnamese diacritics and converts to lowercase for fuzzy search
+    var normalizedForSearch: String {
+        return self.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+    }
+    
+    /// Smart search that supports:
+    /// 1. Substring matching anywhere in the string
+    /// 2. Diacritics insensitive (ignores Vietnamese accents)  
+    /// 3. Fuzzy matching (allows some missing characters)
+    /// 4. Word boundary matching (higher priority)
+    func smartContains(_ query: String) -> Bool {
+        guard !query.isEmpty else { return true }
+        
+        let normalizedSelf = self.normalizedForSearch
+        let normalizedQuery = query.normalizedForSearch
+        
+        // 1. Exact substring matching (highest priority)
+        if normalizedSelf.contains(normalizedQuery) {
+            return true
+        }
+        
+        // 2. Word boundary matching (starts with query at word boundaries)
+        let words = normalizedSelf.components(separatedBy: .whitespacesAndNewlines)
+        for word in words {
+            if word.hasPrefix(normalizedQuery) {
+                return true
+            }
+        }
+        
+        // 3. Fuzzy matching (lowest priority, for typos and partial matches)
+        return fuzzyMatch(normalizedSelf, query: normalizedQuery)
+    }
+    
+    /// Fuzzy matching algorithm - allows missing characters but maintains order
+    private func fuzzyMatch(_ text: String, query: String) -> Bool {
+        // Skip fuzzy matching for very short queries to avoid false positives
+        guard query.count >= 2 else { return false }
+        
+        let textChars = Array(text)
+        let queryChars = Array(query)
+        
+        var textIndex = 0
+        var queryIndex = 0
+        
+        while textIndex < textChars.count && queryIndex < queryChars.count {
+            if textChars[textIndex] == queryChars[queryIndex] {
+                queryIndex += 1
+            }
+            textIndex += 1
+        }
+        
+        // Require higher match ratio for longer queries
+        let requiredRatio = query.count <= 3 ? 0.8 : 0.75
+        let matchedRatio = Double(queryIndex) / Double(queryChars.count)
+        return matchedRatio >= requiredRatio
+    }
+}
