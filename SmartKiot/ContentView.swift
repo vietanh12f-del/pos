@@ -2705,6 +2705,7 @@ struct ContentView: View {
         @State private var showVATRatePicker = false
         @State private var vatRateInputText: String = ""
         @State private var isPrinting = false
+        @State private var showBillInfoPopup = false
         /// Tracks the current payment status from BillReceiptView picker so printAndClose() can read it correctly.
         /// Initialised to .unpaid for new orders; updated via onIsPaidChanged callback.
         @State private var currentPaymentStatus: PaymentStatus = .unpaid
@@ -2999,6 +3000,24 @@ struct ContentView: View {
                 print("🔍 [DEBUG] PaymentView onAppear - reloading bill usage")
                 viewModel.checkAndReloadBillUsageIfNeeded()
                 viewModel.loadDailyBillUsage() // Force reload to ensure fresh data
+            }
+            .alert("Hướng dẫn sử dụng số Bill", isPresented: $showBillInfoPopup) {
+                Button("Đã hiểu", role: .cancel) {}
+            } message: {
+                Text("""
+                📋 Số Bill là gì?
+                Số Bill là số thứ tự của hóa đơn in ra giấy. Mỗi số chỉ được sử dụng 1 lần trong ngày để tránh trùng lặp.
+                
+                🔄 Cách hoạt động:
+                • Mỗi ngày bắt đầu từ số 1
+                • Số đã chọn sẽ bị khóa (màu xám) và không thể chọn lại
+                • Qua ngày mới, tất cả số sẽ được reset về trạng thái có thể chọn
+                
+                ⚡ Lợi ích:
+                • Dễ dàng tra cứu hóa đơn theo số
+                • Tránh nhầm lẫn khi in nhiều hóa đơn
+                • Quản lý số lượng đơn hàng trong ngày
+                """)
             }
         }
         
@@ -3419,6 +3438,7 @@ struct ContentView: View {
         @State private var showPartialAmountHundredsRangePicker = false
         @State private var showDatePicker = false
         @State private var partialAmountSelection = 0
+        @State private var showBillInfoPopup = false
         
         private var partialAmountMillionsRange: ClosedRange<Int> {
             let start = partialAmountMillionsRangeBase
@@ -3622,9 +3642,19 @@ struct ContentView: View {
                                     .foregroundStyle(selectedBillNumber != nil ? Color.themePrimary : .gray)
                                 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Số bill")
-                                        .font(.subheadline)
-                                        .foregroundStyle(selectedBillNumber != nil ? Color.themeTextDark : .gray)
+                                    HStack(spacing: 4) {
+                                        Text("Số bill")
+                                            .font(.subheadline)
+                                            .foregroundStyle(selectedBillNumber != nil ? Color.themeTextDark : .gray)
+                                        
+                                        Button(action: {
+                                            showBillInfoPopup = true
+                                        }) {
+                                            Image(systemName: "info.circle")
+                                                .font(.caption)
+                                                .foregroundStyle(.blue.opacity(0.7))
+                                        }
+                                    }
                                     
                                     // Hiển thị ngày hiện tại
                                     Text("Ngày: \(DateFormatter.shortDate.string(from: Date()))")
@@ -3698,17 +3728,36 @@ struct ContentView: View {
                                         }) {
                                             HStack {
                                                 let textColor: Color = status.isSelectable ? .primary : .gray
-                                                Text("\(number)")
-                                                    .foregroundStyle(textColor)
+                                                
+                                                // Improved visual for used bills
+                                                if status == .used {
+                                                    HStack(spacing: 8) {
+                                                        Text("\(number)")
+                                                            .strikethrough(true, color: .red)
+                                                            .foregroundStyle(.gray.opacity(0.6))
+                                                        
+                                                        Image(systemName: "xmark.circle.fill")
+                                                            .font(.caption)
+                                                            .foregroundStyle(.red.opacity(0.7))
+                                                    }
+                                                } else {
+                                                    Text("\(number)")
+                                                        .foregroundStyle(textColor)
+                                                        .fontWeight(status == .selected ? .bold : .regular)
+                                                }
+                                                
                                                 Spacer()
+                                                
                                                 if !status.displayText.isEmpty {
-                                                    Text(status.displayText)
+                                                    Text(status == .used ? "Đã sử dụng" : status.displayText)
                                                         .font(.caption)
-                                                        .foregroundStyle(status.color)
+                                                        .foregroundStyle(status == .used ? .red.opacity(0.8) : status.color)
+                                                        .fontWeight(.medium)
                                                 }
                                             }
                                         }
                                         .disabled(!status.isSelectable)
+                                        .opacity(status == .used ? 0.5 : 1.0)
                                     }
                                 } label: {
                                     Image(systemName: "chevron.down.circle.fill")
