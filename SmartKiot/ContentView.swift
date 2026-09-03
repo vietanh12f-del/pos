@@ -3001,24 +3001,6 @@ struct ContentView: View {
                 viewModel.checkAndReloadBillUsageIfNeeded()
                 viewModel.loadDailyBillUsage() // Force reload to ensure fresh data
             }
-            .alert("Hướng dẫn sử dụng số Bill", isPresented: $showBillInfoPopup) {
-                Button("Đã hiểu", role: .cancel) {}
-            } message: {
-                Text("""
-                📋 Số Bill là gì?
-                Số Bill là số thứ tự của hóa đơn in ra giấy. Mỗi số chỉ được sử dụng 1 lần trong ngày để tránh trùng lặp.
-                
-                🔄 Cách hoạt động:
-                • Mỗi ngày bắt đầu từ số 1
-                • Số đã chọn sẽ bị khóa (màu xám) và không thể chọn lại
-                • Qua ngày mới, tất cả số sẽ được reset về trạng thái có thể chọn
-                
-                ⚡ Lợi ích:
-                • Dễ dàng tra cứu hóa đơn theo số
-                • Tránh nhầm lẫn khi in nhiều hóa đơn
-                • Quản lý số lượng đơn hàng trong ngày
-                """)
-            }
         }
         
         func currentDateString() -> String {
@@ -3064,6 +3046,7 @@ struct ContentView: View {
                     expectedPayDate: .constant(nil),
                     note: .constant(viewModel.note),
                     grandTotal: viewModel.totalAmount,
+                    orderStatus: .constant(nil),
                     usedBillNumbers: [] // Not needed for image rendering
                 )
                     .frame(width: 375) // Standard width for image
@@ -3116,6 +3099,7 @@ struct ContentView: View {
                 selectedBillNumber: .constant(viewModel.selectedBillNumber),
                 grandTotal: viewModel.totalAmountWithVAT,
                 initialIsPaid: currentPaymentStatus.isPaid,
+                orderStatus: .constant(nil),
                 usedBillNumbers: [] // Not needed for image rendering
             )
             .frame(width: 375)
@@ -4694,6 +4678,24 @@ struct ContentView: View {
                 Button("❌ Đã Huỷ", role: .destructive) { orderStatus = "cancelled" }
                 Button("⭕ Chưa cập nhật")   { orderStatus = nil }
                 Button("Hủy", role: .cancel) { }
+            }
+            .alert("Hướng dẫn sử dụng số Bill", isPresented: $showBillInfoPopup) {
+                Button("Đã hiểu", role: .cancel) {}
+            } message: {
+                Text("""
+                📋 Số Bill là gì?
+                Số Bill là số thứ tự của hóa đơn in ra giấy. Mỗi số chỉ được sử dụng 1 lần trong ngày để tránh trùng lặp.
+                
+                🔄 Cách hoạt động:
+                • Mỗi ngày bắt đầu từ số 1
+                • Số đã chọn sẽ bị khóa (màu xám) và không thể chọn lại
+                • Qua ngày mới, tất cả số sẽ được reset về trạng thái có thể chọn
+                
+                ⚡ Lợi ích:
+                • Dễ dàng tra cứu hóa đơn theo số
+                • Tránh nhầm lẫn khi in nhiều hóa đơn
+                • Quản lý số lượng đơn hàng trong ngày
+                """)
             }
         }
         
