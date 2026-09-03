@@ -130,12 +130,12 @@ struct CustomerManagementView: View {
         if let type = selectedType.dbType {
             list = list.filter { $0.partyType == type }
         }
-        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !q.isEmpty {
             list = list.filter {
-                $0.name.lowercased().contains(q) ||
-                $0.phone.lowercased().contains(q) ||
-                $0.address.lowercased().contains(q)
+                $0.name.smartContains(q) ||
+                $0.phone.smartContains(q) ||
+                $0.address.smartContains(q)
             }
         }
         // "Vừa update" = trong vòng 24 giờ
@@ -169,13 +169,13 @@ struct CustomerManagementView: View {
             list = list.filter { $0.status == sv }
         }
         // Lọc theo search
-        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !q.isEmpty {
             list = list.filter {
-                $0.fullName.lowercased().contains(q) ||
-                $0.phone.lowercased().contains(q) ||
-                ($0.serviceType?.lowercased().contains(q) ?? false) ||
-                ($0.email?.lowercased().contains(q) ?? false)
+                $0.fullName.smartContains(q) ||
+                $0.phone.smartContains(q) ||
+                ($0.serviceType?.smartContains(q) ?? false) ||
+                ($0.email?.smartContains(q) ?? false)
             }
         }
         return list.sorted { $0.createdAt > $1.createdAt }
