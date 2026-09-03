@@ -106,6 +106,13 @@ protocol DatabaseService {
 
     // Sequence counters
     func nextSequenceNumber(type: String) async -> Int
+    
+    // Daily Bill Usage Management
+    func getUsedBillNumbers(storeId: UUID, date: Date) async throws -> [Int]
+    func getNextAvailableBillNumber(storeId: UUID, date: Date) async throws -> Int?
+    func reserveBillNumber(storeId: UUID, billNumber: Int, date: Date) async throws -> Bool
+    func markBillNumberAsUsed(storeId: UUID, billNumber: Int, orderId: UUID, date: Date) async throws -> Bool
+    func getDailyBillUsage(storeId: UUID, date: Date) async throws -> [DailyBillUsage]
 }
 
 // MARK: - Sequence Counter Types
@@ -1179,6 +1186,166 @@ class SupabaseDatabaseService: DatabaseService {
             .eq("token", value: token)
             .execute()
     }
+    
+    // MARK: - Daily Bill Usage Management
+    
+    struct DailyBillUsageDTO: Codable {
+        let id: UUID
+        let store_id: UUID
+        let bill_number: Int
+        let usage_date: String // ISO date string
+        let is_used: Bool
+        let used_at: String?
+        let order_id: UUID?
+        let created_at: String
+        let updated_at: String
+        
+        func toDomain() -> DailyBillUsage {
+            let df = ISO8601DateFormatter()
+            return DailyBillUsage(
+                id: id,
+                storeId: store_id,
+                billNumber: bill_number,
+                usageDate: df.date(from: usage_date) ?? Date(),
+                isUsed: is_used,
+                usedAt: used_at != nil ? df.date(from: used_at!) : nil,
+                orderId: order_id,
+                createdAt: df.date(from: created_at) ?? Date(),
+                updatedAt: df.date(from: updated_at) ?? Date()
+            )
+        }
+    }
+    
+    func getUsedBillNumbers(storeId: UUID, date: Date) async throws -> [Int] {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let dateString = df.string(from: date)
+        
+        print("🔍 [DB DEBUG] Getting used bill numbers for store: \(storeId), date: \(dateString)")
+        
+        struct UsedBillRow: Codable {
+            let bill_number: Int
+        }
+        
+        let rows: [UsedBillRow] = try await client.database
+            .from("daily_bill_usage")
+            .select("bill_number")
+            .eq("store_id", value: storeId)
+            .eq("usage_date", value: dateString)
+            .eq("is_used", value: true)
+            .order("bill_number", ascending: true)
+            .execute()
+            .value
+        
+        let result = rows.map { $0.bill_number }
+        print("🔍 [DB DEBUG] Found used bill numbers: \(result)")
+        return result
+    }
+    
+    func getNextAvailableBillNumber(storeId: UUID, date: Date) async throws -> Int? {
+        struct NextBillResult: Codable {
+            let get_next_bill_number: Int?
+        }
+        
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let dateString = df.string(from: date)
+        
+        let result: [NextBillResult] = try await client.database
+            .rpc("get_next_bill_number", params: [
+                "store_uuid": storeId.uuidString,
+                "target_date": dateString
+            ])
+            .execute()
+            .value
+        
+        return result.first?.get_next_bill_number
+    }
+    
+    func reserveBillNumber(storeId: UUID, billNumber: Int, date: Date) async throws -> Bool {
+        struct ReserveBillResult: Codable {
+            let reserve_bill_number: Bool
+        }
+        
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let dateString = df.string(from: date)
+        
+        let result: [ReserveBillResult] = try await client.database
+            .rpc("reserve_bill_number", params: [
+                "store_uuid": storeId.uuidString,
+                "bill_num": String(billNumber),
+                "target_date": dateString
+            ])
+            .execute()
+            .value
+        
+        return result.first?.reserve_bill_number ?? false
+    }
+    
+    func markBillNumberAsUsed(storeId: UUID, billNumber: Int, orderId: UUID, date: Date) async throws -> Bool {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let dateString = df.string(from: date)
+        
+        print("🔍 [DB DEBUG] Marking bill number \(billNumber) as used for store: \(storeId), date: \(dateString)")
+        
+        struct UpsertPayload: Codable {
+            let store_id: UUID
+            let bill_number: Int
+            let usage_date: String
+            let is_used: Bool
+            let used_at: String
+            let order_id: UUID
+            let created_at: String
+            let updated_at: String
+        }
+        
+        let now = Date()
+        let isoFormatter = ISO8601DateFormatter()
+        
+        let payload = UpsertPayload(
+            store_id: storeId,
+            bill_number: billNumber,
+            usage_date: dateString,
+            is_used: true,
+            used_at: isoFormatter.string(from: now),
+            order_id: orderId,
+            created_at: isoFormatter.string(from: now),
+            updated_at: isoFormatter.string(from: now)
+        )
+        
+        do {
+            // Use UPSERT instead of UPDATE to handle both insert and update cases
+            try await client.database
+                .from("daily_bill_usage")
+                .upsert(payload, onConflict: "store_id,bill_number,usage_date")
+                .execute()
+            
+            print("🔍 [DB DEBUG] Successfully upserted bill number \(billNumber) as used")
+            return true
+        } catch {
+            print("❌ Error upserting bill number as used: \(error)")
+            return false
+        }
+    }
+    
+    func getDailyBillUsage(storeId: UUID, date: Date) async throws -> [DailyBillUsage] {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        let dateString = df.string(from: date)
+        
+        let rows: [DailyBillUsageDTO] = try await client.database
+            .from("daily_bill_usage")
+            .select("*")
+            .eq("store_id", value: storeId)
+            .eq("usage_date", value: dateString)
+            .order("bill_number", ascending: true)
+            .execute()
+            .value
+        
+        return rows.map { $0.toDomain() }
+    }
 }
 #else
 // Mock implementation when Supabase is not available
@@ -1266,6 +1433,32 @@ class SupabaseDatabaseService: DatabaseService {
     func fetchAllLeaveRequests() async throws -> [LeaveRequest] { return [] }
     func updateLeaveRequestStatus(id: UUID, status: String, reviewNote: String?) async throws { print("⚠️ updateLeaveRequestStatus: Mocked success") }
     func nextSequenceNumber(type: String) async -> Int { return 0 }
+    
+    // MARK: - Daily Bill Usage Management (Mock)
+    func getUsedBillNumbers(storeId: UUID, date: Date) async throws -> [Int] {
+        print("⚠️ getUsedBillNumbers: Mocked empty response")
+        return []
+    }
+    
+    func getNextAvailableBillNumber(storeId: UUID, date: Date) async throws -> Int? {
+        print("⚠️ getNextAvailableBillNumber: Mocked response (1)")
+        return 1
+    }
+    
+    func reserveBillNumber(storeId: UUID, billNumber: Int, date: Date) async throws -> Bool {
+        print("⚠️ reserveBillNumber: Mocked success")
+        return true
+    }
+    
+    func markBillNumberAsUsed(storeId: UUID, billNumber: Int, orderId: UUID, date: Date) async throws -> Bool {
+        print("⚠️ markBillNumberAsUsed: Mocked success")
+        return true
+    }
+    
+    func getDailyBillUsage(storeId: UUID, date: Date) async throws -> [DailyBillUsage] {
+        print("⚠️ getDailyBillUsage: Mocked empty response")
+        return []
+    }
 }
 #endif
 

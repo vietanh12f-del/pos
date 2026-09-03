@@ -36,6 +36,11 @@ class OrderViewModel: ObservableObject {
     @Published var note: String = ""
     @Published var selectedBillNumber: Int? = nil // nil = không hiển thị mã bill trên phiếu
     
+    // Bill Usage Tracking
+    @Published var usedBillNumbers: [Int] = []
+    @Published var dailyBillUsage: [DailyBillUsage] = []
+    @Published var isLoadingBillNumbers: Bool = false
+    
     var totalAmountWithVAT: Double {
         let baseTotal = items.reduce(0) { $0 + $1.total }
         if let vatRate = vatRate, StoreManager.shared.currentStoreVATEnabled() {
@@ -234,6 +239,9 @@ class OrderViewModel: ObservableObject {
         // Recalculate stats
         recalculateStats()
         loadEditHistory()
+        
+        // Load daily bill usage when app starts
+        loadDailyBillUsage()
         
         // Listen to transcript changes
         speechRecognizer.$transcript
@@ -1404,15 +1412,31 @@ class OrderViewModel: ObservableObject {
     }
     
     func completeOrder(isPaid: Bool) {
+        print("🔍 [DEBUG] completeOrder called with selectedBillNumber: \(selectedBillNumber)")
+        
         // Create bill
         if let bill = makeBill(isPaid: isPaid) {
+            print("🔍 [DEBUG] Created bill with billNumber: \(bill.billNumber)")
             pastOrders.insert(bill, at: 0) // Newest first
             lastCreatedBill = bill
+            
+            // Capture bill number before any potential reset
+            let billNumberToMark = bill.billNumber
             
             // Save Order to DB + gán STT đầy đủ sau khi lưu
             Task {
                 do {
+                    print("🔍 [DEBUG] Saving order with billNumberToMark: \(billNumberToMark)")
                     try await database.saveOrder(bill)
+                    
+                    // Mark bill number as used if bill has billNumber
+                    if let billNumber = billNumberToMark {
+                        print("🔍 [DEBUG] Marking bill number \(billNumber) as used")
+                        await markBillNumberAsUsed(billNumber, orderId: bill.id)
+                    } else {
+                        print("🔍 [DEBUG] Bill has no billNumber, skipping mark as used")
+                    }
+                    
                     // Lấy N và cập nhật sequenceNumber với format đầy đủ
                     let n = await database.nextSequenceNumber(type: SequenceType.retailSale)
                     let fullStt = FormatUtils.buildSequenceNumber(type: SequenceType.retailSale, n: n)
@@ -3432,6 +3456,125 @@ class OrderViewModel: ObservableObject {
         editingBillIsPaid = false
         isPaidConfirmedByUser = nil
         newOrderStatus = nil
+        
+        // Reload daily bill usage after reset
+        loadDailyBillUsage()
+    }
+    
+    // MARK: - Daily Bill Usage Management
+    
+    func loadDailyBillUsage(date: Date = Date()) {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return }
+        
+        Task {
+            do {
+                await MainActor.run { isLoadingBillNumbers = true }
+                
+                // Load used bill numbers for today
+                let used = try await database.getUsedBillNumbers(storeId: storeId, date: date)
+                let usage = try await database.getDailyBillUsage(storeId: storeId, date: date)
+                
+                await MainActor.run {
+                    usedBillNumbers = used
+                    dailyBillUsage = usage
+                    isLoadingBillNumbers = false
+                    print("🔍 [DEBUG] Loaded usedBillNumbers: \(used)")
+                    print("🔍 [DEBUG] Daily bill usage count: \(usage.count)")
+                }
+            } catch {
+                print("❌ Error loading daily bill usage: \(error)")
+                await MainActor.run {
+                    isLoadingBillNumbers = false
+                }
+            }
+        }
+    }
+    
+    func getBillNumberStatus(_ number: Int) -> BillNumberStatus {
+        let isSelected = selectedBillNumber == number
+        let isUsed = usedBillNumbers.contains(number)
+        let status: BillNumberStatus = isSelected ? .selected : (isUsed ? .used : .available)
+        
+        if number <= 5 { // Debug first 5 numbers
+            print("🔍 [DEBUG] Bill \(number): selected=\(isSelected), used=\(isUsed), usedArray=\(usedBillNumbers), status=\(status)")
+        }
+        
+        return status
+    }
+    
+    func getAvailableBillNumbers(upTo: Int = 100) -> [Int] {
+        return (1...upTo).filter { !usedBillNumbers.contains($0) }
+    }
+    
+    func getNextAvailableBillNumber() {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return }
+        
+        Task {
+            do {
+                let nextNumber = try await database.getNextAvailableBillNumber(storeId: storeId, date: Date())
+                await MainActor.run {
+                    selectedBillNumber = nextNumber
+                }
+            } catch {
+                print("❌ Error getting next bill number: \(error)")
+            }
+        }
+    }
+    
+    func reserveBillNumber(_ number: Int) async -> Bool {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return false }
+        
+        do {
+            let success = try await database.reserveBillNumber(storeId: storeId, billNumber: number, date: Date())
+            if success {
+                await MainActor.run {
+                    if !usedBillNumbers.contains(number) {
+                        usedBillNumbers.append(number)
+                        usedBillNumbers.sort()
+                    }
+                }
+            }
+            return success
+        } catch {
+            print("❌ Error reserving bill number: \(error)")
+            return false
+        }
+    }
+    
+    private func markBillNumberAsUsed(_ number: Int, orderId: UUID) async {
+        guard let storeId = StoreManager.shared.currentStore?.id else { return }
+        
+        do {
+            let success = try await database.markBillNumberAsUsed(
+                storeId: storeId,
+                billNumber: number,
+                orderId: orderId,
+                date: Date()
+            )
+            
+            if success {
+                await MainActor.run {
+                    if !usedBillNumbers.contains(number) {
+                        usedBillNumbers.append(number)
+                        usedBillNumbers.sort()
+                        print("🔍 [DEBUG] Added bill number \(number) to usedBillNumbers: \(usedBillNumbers)")
+                    }
+                }
+            } else {
+                print("❌ [DEBUG] Failed to mark bill number \(number) as used")
+            }
+        } catch {
+            print("❌ Error marking bill number as used: \(error)")
+        }
+    }
+    
+    func checkAndReloadBillUsageIfNeeded() {
+        // Check if we need to reload for new day
+        let calendar = Calendar.current
+        if let lastUsage = dailyBillUsage.first,
+           !calendar.isDate(lastUsage.usageDate, inSameDayAs: Date()) {
+            loadDailyBillUsage()
+        }
     }
     
     // MARK: - Calendar Stats

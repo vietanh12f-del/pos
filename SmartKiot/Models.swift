@@ -809,3 +809,74 @@ struct GroupMessage: Identifiable, Codable, Hashable {
         case orderId = "order_id"
     }
 }
+
+// MARK: - Daily Bill Usage Models
+
+struct DailyBillUsage: Identifiable, Codable, Hashable {
+    let id: UUID
+    let storeId: UUID
+    let billNumber: Int
+    let usageDate: Date
+    var isUsed: Bool
+    var usedAt: Date?
+    var orderId: UUID?
+    let createdAt: Date
+    var updatedAt: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case storeId = "store_id"
+        case billNumber = "bill_number"
+        case usageDate = "usage_date"
+        case isUsed = "is_used"
+        case usedAt = "used_at"
+        case orderId = "order_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+    
+    init(id: UUID = UUID(), storeId: UUID, billNumber: Int, usageDate: Date = Date(), isUsed: Bool = false, usedAt: Date? = nil, orderId: UUID? = nil, createdAt: Date = Date(), updatedAt: Date = Date()) {
+        self.id = id
+        self.storeId = storeId
+        self.billNumber = billNumber
+        self.usageDate = usageDate
+        self.isUsed = isUsed
+        self.usedAt = usedAt
+        self.orderId = orderId
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+/// Bill number selection status for UI
+enum BillNumberStatus {
+    case available
+    case used
+    case selected
+    
+    var isSelectable: Bool {
+        self == .available
+    }
+    
+    var displayText: String {
+        switch self {
+        case .available:
+            return ""
+        case .used:
+            return "(đã dùng)"
+        case .selected:
+            return "(đã chọn)"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .available:
+            return .primary
+        case .used:
+            return .gray
+        case .selected:
+            return .blue
+        }
+    }
+}

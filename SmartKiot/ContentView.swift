@@ -2708,6 +2708,15 @@ struct ContentView: View {
         /// Tracks the current payment status from BillReceiptView picker so printAndClose() can read it correctly.
         /// Initialised to .unpaid for new orders; updated via onIsPaidChanged callback.
         @State private var currentPaymentStatus: PaymentStatus = .unpaid
+        
+        // Helper methods for bill number status
+        private func getBillNumberStatus(_ number: Int) -> BillNumberStatus {
+            return viewModel.getBillNumberStatus(number)
+        }
+        
+        private func getOrderViewModel() -> OrderViewModel? {
+            return viewModel
+        }
         @State private var printOptions = PrintOptions()
         @State private var showPrintOptionsSheet = false
         @State private var renderedImages: [UIImage] = []
@@ -2811,8 +2820,12 @@ struct ContentView: View {
                             },
                             onCustomPrint: {
                                 showPrintOptionsSheet = true
-                            }
+                            },
+                            usedBillNumbers: viewModel.usedBillNumbers
                         )
+                        .onAppear {
+                            print("🔍 [DEBUG] BillReceiptView received usedBillNumbers: \(viewModel.usedBillNumbers)")
+                        }
                         .padding()
                         .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
                     }
@@ -2981,6 +2994,11 @@ struct ContentView: View {
                 currentPaymentStatus = viewModel.editingBill != nil
                     ? PaymentStatus.from(isPaid: viewModel.editingBillIsPaid, debtAmount: viewModel.editingBill?.debtAmount)
                     : .unpaid
+                
+                // Load daily bill usage and check for date reset
+                print("🔍 [DEBUG] PaymentView onAppear - reloading bill usage")
+                viewModel.checkAndReloadBillUsageIfNeeded()
+                viewModel.loadDailyBillUsage() // Force reload to ensure fresh data
             }
         }
         
@@ -3026,7 +3044,8 @@ struct ContentView: View {
                     partialAmount: .constant(viewModel.totalAmount),
                     expectedPayDate: .constant(nil),
                     note: .constant(viewModel.note),
-                    grandTotal: viewModel.totalAmount
+                    grandTotal: viewModel.totalAmount,
+                    usedBillNumbers: [] // Not needed for image rendering
                 )
                     .frame(width: 375) // Standard width for image
                 
@@ -3077,7 +3096,8 @@ struct ContentView: View {
                 note: .constant(viewModel.note),
                 selectedBillNumber: .constant(viewModel.selectedBillNumber),
                 grandTotal: viewModel.totalAmountWithVAT,
-                initialIsPaid: currentPaymentStatus.isPaid
+                initialIsPaid: currentPaymentStatus.isPaid,
+                usedBillNumbers: [] // Not needed for image rendering
             )
             .frame(width: 375)
             let renderer = ImageRenderer(content: renderView)
@@ -3374,6 +3394,8 @@ struct ContentView: View {
         var onIsPaidChanged: ((Bool) -> Void)? = nil  // callback khi người dùng toggle isPaid
         var onCustomPrint: (() -> Void)? = nil       // callback cho nút "In phiếu tuỳ chọn"
         var printOptions: PrintOptions? = nil         // nil = hiển thị tất cả (chế độ thường)
+        // Bill usage data
+        var usedBillNumbers: [Int]
         @Binding var orderStatus: String?
         @State private var receiptPickerItem: PhotosPickerItem?
         @State private var showReceiptPreview = false
@@ -3440,7 +3462,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, selectedBillNumber: Binding<Int?> = .constant(nil), grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, selectedBillNumber: Binding<Int?> = .constant(nil), grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil, usedBillNumbers: [Int] = []) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3473,6 +3495,7 @@ struct ContentView: View {
             self.onIsPaidChanged = onIsPaidChanged
             self.onCustomPrint = onCustomPrint
             self.printOptions = printOptions
+            self.usedBillNumbers = usedBillNumbers
         }
         
         var body: some View {
@@ -3597,10 +3620,20 @@ struct ContentView: View {
                                 Image(systemName: "number.square.fill")
                                     .font(.system(size: 15))
                                     .foregroundStyle(selectedBillNumber != nil ? Color.themePrimary : .gray)
-                                Text("Số bill")
-                                    .font(.subheadline)
-                                    .foregroundStyle(selectedBillNumber != nil ? Color.themeTextDark : .gray)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Số bill")
+                                        .font(.subheadline)
+                                        .foregroundStyle(selectedBillNumber != nil ? Color.themeTextDark : .gray)
+                                    
+                                    // Hiển thị ngày hiện tại
+                                    Text("Ngày: \(DateFormatter.shortDate.string(from: Date()))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
+                                }
+                                
                                 Spacer()
+                                
                                 if let num = selectedBillNumber {
                                     VStack(spacing: 2) {
                                         ZStack {
@@ -3613,19 +3646,75 @@ struct ContentView: View {
                                                 .minimumScaleFactor(0.5)
                                                 .lineLimit(1)
                                         }
-                                        Text("mã bill")
+                                        let isUsed = usedBillNumbers.contains(num)
+                                        let isSelected = selectedBillNumber == num  
+                                        let status: BillNumberStatus = isSelected ? .selected : (isUsed ? .used : .available)
+                                        Text(status.displayText.isEmpty ? "mã bill" : status.displayText)
                                             .font(.caption2).fontWeight(.medium)
-                                            .foregroundStyle(.gray)
+                                            .foregroundStyle(status.displayText.isEmpty ? .gray : status.color)
                                     }
                                 }
-                                Picker("", selection: Binding(
-                                    get: { selectedBillNumber ?? 0 },
-                                    set: { selectedBillNumber = $0 == 0 ? nil : $0 }
-                                )) {
-                                    Text("Không chọn").tag(0)
-                                    ForEach(1...99, id: \.self) { n in Text("\(n)").tag(n) }
+                                
+                                Menu {
+                                    Button("Không chọn") {
+                                        selectedBillNumber = nil
+                                    }
+                                    
+                                    Button("Tự động chọn số tiếp theo") {
+                                        Task {
+                                            // Call through a dedicated callback instead of trying to access viewModel
+                                            // For now, just select the next available from usedBillNumbers
+                                            await MainActor.run {
+                                                for number in 1...99 {
+                                                    if !usedBillNumbers.contains(number) && selectedBillNumber != number {
+                                                        selectedBillNumber = number
+                                                        break
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    ForEach([Int](1...99), id: \.self) { number in
+                                        let isUsed = usedBillNumbers.contains(number)
+                                        let isSelected = (selectedBillNumber == number)
+                                        let status: BillNumberStatus = isSelected ? .selected : (isUsed ? .used : .available)
+                                        
+                                        // Debug first few numbers
+                                        let _ = {
+                                            if number <= 3 {
+                                                print("🔍 [UI DEBUG] Bill \(number): usedArray=\(usedBillNumbers), isUsed=\(isUsed), status=\(status)")
+                                            }
+                                        }()
+                                        
+                                        Button(action: {
+                                            if status.isSelectable {
+                                                selectedBillNumber = number
+                                            } else {
+                                                print("🔍 [DEBUG] Bill number \(number) is not selectable: \(status)")
+                                            }
+                                        }) {
+                                            HStack {
+                                                let textColor: Color = status.isSelectable ? .primary : .gray
+                                                Text("\(number)")
+                                                    .foregroundStyle(textColor)
+                                                Spacer()
+                                                if !status.displayText.isEmpty {
+                                                    Text(status.displayText)
+                                                        .font(.caption)
+                                                        .foregroundStyle(status.color)
+                                                }
+                                            }
+                                        }
+                                        .disabled(!status.isSelectable)
+                                    }
+                                } label: {
+                                    Image(systemName: "chevron.down.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(Color.themePrimary)
                                 }
-                                .pickerStyle(.menu).labelsHidden().tint(Color.themePrimary)
                             }
                             .padding(.top, 6)
                         }
@@ -4660,6 +4749,15 @@ struct ContentView: View {
             }
         }
     }
+
+// MARK: - DateFormatter Extensions
+extension DateFormatter {
+    static let shortDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter
+    }()
+}
 
 // MARK: - Guide View with Accordion
 struct GuideView: View {
