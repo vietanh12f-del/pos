@@ -1,0 +1,769 @@
+import Foundation
+import SwiftUI
+import UIKit
+
+// Import các manager classes
+// Lưu ý: Các classes này phải được định nghĩa trong cùng module hoặc được import
+
+// MARK: - Financial Data Models
+
+struct DailyFinancialStats: Identifiable, Codable {
+    var id: Date { date }
+    let date: Date
+    var revenue: Double = 0
+    var cogs: Double = 0
+    var operatingCosts: Double = 0
+    var incurredFees: Double = 0
+    
+    var grossProfit: Double {
+        revenue - cogs
+    }
+    
+    var netProfit: Double {
+        grossProfit - operatingCosts // - incurredFees (Removed as requested)
+    }
+    
+    var profitMargin: Double {
+        guard revenue > 0 else { return 0 }
+        return (netProfit / revenue) * 100
+    }
+}
+
+enum ReportDateRange: Hashable {
+    case today
+    case thisWeek
+    case thisMonth
+    case custom(start: Date, end: Date)
+    
+    var title: String {
+        switch self {
+        case .today: return "Hôm nay"
+        case .thisWeek: return "Tuần này"
+        case .thisMonth: return "Tháng này"
+        case .custom: return "Tùy chỉnh"
+        }
+    }
+}
+
+// MARK: - Financial Report Service
+
+class FinancialReportService {
+    static let shared = FinancialReportService()
+    
+    private init() {}
+    
+    // Aggregate data into daily stats
+    func generateReport(orders: [Bill], expenses: [OperatingExpense], restocks: [RestockBill], range: ReportDateRange) -> [DailyFinancialStats] {
+        var statsByDate: [Date: DailyFinancialStats] = [:]
+        
+        let calendar = Calendar.current
+        let (startDate, endDate) = getDateRange(range)
+        
+        // Helper to normalize date to start of day
+        func startOfDay(_ date: Date) -> Date {
+            return calendar.startOfDay(for: date)
+        }
+        
+        // 1. Process Orders (Revenue & COGS) - only count paid, non-deleted orders
+        for order in orders {
+            if order.isPaid && !order.isDeleted && order.createdAt >= startDate && order.createdAt <= endDate {
+                let dateKey = startOfDay(order.createdAt)
+                var stats = statsByDate[dateKey] ?? DailyFinancialStats(date: dateKey)
+                
+                stats.revenue += order.total
+                stats.cogs += order.totalCost
+                
+                statsByDate[dateKey] = stats
+            }
+        }
+        
+        // 2. Process Operating Expenses (OPEX)
+        for expense in expenses {
+            if expense.createdAt >= startDate && expense.createdAt <= endDate {
+                let dateKey = startOfDay(expense.createdAt)
+                var stats = statsByDate[dateKey] ?? DailyFinancialStats(date: dateKey)
+                
+                stats.operatingCosts += expense.amount
+                
+                statsByDate[dateKey] = stats
+            }
+        }
+        
+        // 3. Process Restocks (Incurred Fees)
+        for restock in restocks {
+            if restock.createdAt >= startDate && restock.createdAt <= endDate {
+                let dateKey = startOfDay(restock.createdAt)
+                var stats = statsByDate[dateKey] ?? DailyFinancialStats(date: dateKey)
+                
+                // Only "Additional Cost" (Incurred Fees) affects daily profit immediately
+                // The "Unit Price" (Import Price) goes to Inventory Value -> COGS when sold
+                let totalAdditionalCost = restock.items.reduce(0) { $0 + $1.additionalCost }
+                stats.incurredFees += totalAdditionalCost
+                
+                statsByDate[dateKey] = stats
+            }
+        }
+        
+        // Convert to sorted array
+        return statsByDate.values.sorted { $0.date > $1.date }
+    }
+    
+    // Generate Image Report
+    func exportToImage(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats? = nil, orders: [Bill] = [], products: [Product] = []) -> URL? {
+        
+        let fileName = "BaoCaoTaiChinh_\(Int(Date().timeIntervalSince1970)).png"
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        
+        let pageSize = CGSize(width: 800, height: 1000)
+        let renderer = UIGraphicsImageRenderer(size: pageSize)
+        
+        let image = renderer.image { context in
+            // White background
+            context.cgContext.setFillColor(UIColor.white.cgColor)
+            context.cgContext.fill(CGRect(origin: .zero, size: pageSize))
+            
+            // Title
+            let titleText = "BÁO CÁO TÀI CHÍNH"
+            let titleAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 24),
+                .foregroundColor: UIColor.black
+            ]
+            titleText.draw(in: CGRect(x: 50, y: 50, width: 700, height: 50), withAttributes: titleAttributes)
+            
+            // Basic stats
+            let textAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 16),
+                .foregroundColor: UIColor.black
+            ]
+            
+            let totalRevenue = stats.reduce(0) { $0 + $1.revenue }
+            let totalNet = stats.reduce(0) { $0 + $1.netProfit }
+            
+            let revenueText = "Tổng doanh thu: \(fmt(totalRevenue))"
+            let profitText = "Tổng lợi nhuận: \(fmt(totalNet))"
+            
+            revenueText.draw(at: CGPoint(x: 50, y: 120), withAttributes: textAttributes)
+            profitText.draw(at: CGPoint(x: 50, y: 150), withAttributes: textAttributes)
+            
+            // Footer
+            let footer = "Được tạo bởi SmartKiot POS System"
+            footer.draw(at: CGPoint(x: 50, y: 900), withAttributes: textAttributes)
+        }
+        
+        do {
+            if let imageData = image.pngData() {
+                try imageData.write(to: path)
+                print("✅ Image saved: \(path.path)")
+                return path
+            }
+        } catch {
+            print("❌ Export error: \(error)")
+        }
+        
+        return nil
+    }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd-MM-yyyy"
+        
+        let fileName = "BaoCaoTaiChinh_\(df.string(from: Date())).png"
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        
+        // Check if production feature is enabled
+        let productionEnabled = StoreManager.shared.currentStoreProductionEnabled()
+        
+        // Create image context
+        let pageSize = CGSize(width: 800, height: 1200) // A4-like ratio
+        let renderer = UIGraphicsImageRenderer(size: pageSize)
+        
+        let image = renderer.image { context in
+            let cgContext = context.cgContext
+            
+            // Background
+            cgContext.setFillColor(UIColor.white.cgColor)
+            cgContext.fill(CGRect(origin: .zero, size: pageSize))
+            
+            var currentY: CGFloat = 40
+            let leftMargin: CGFloat = 40
+            let rightMargin: CGFloat = 40
+            let contentWidth = pageSize.width - leftMargin - rightMargin
+            
+            // Helper function to draw text
+            func drawText(_ text: String, at point: CGPoint, fontSize: CGFloat, isBold: Bool = false, alignment: NSTextAlignment = .left, width: CGFloat? = nil) -> CGFloat {
+                let font = isBold ? UIFont.boldSystemFont(ofSize: fontSize) : UIFont.systemFont(ofSize: fontSize)
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: UIColor.black
+                ]
+                
+                let textWidth = width ?? contentWidth
+                let rect = CGRect(x: point.x, y: point.y, width: textWidth, height: fontSize + 10)
+                
+                let paragraphStyle = NSMutableParagraphStyle()
+                paragraphStyle.alignment = alignment
+                let attributedString = NSAttributedString(string: text, attributes: [
+                    .font: font,
+                    .foregroundColor: UIColor.black,
+                    .paragraphStyle: paragraphStyle
+                ])
+                
+                attributedString.draw(in: rect)
+                return fontSize + 10
+            }
+            
+            // Helper function to draw table row
+            func drawTableRow(cells: [String], y: CGFloat, isHeader: Bool = false, hasBackground: Bool = false) -> CGFloat {
+                let rowHeight: CGFloat = 35
+                let cellWidth = contentWidth / CGFloat(cells.count)
+                
+                // Background for header or alternate rows
+                if hasBackground || isHeader {
+                    cgContext.setFillColor(UIColor.systemGray5.cgColor)
+                    cgContext.fill(CGRect(x: leftMargin, y: y, width: contentWidth, height: rowHeight))
+                }
+                
+                // Border
+                cgContext.setStrokeColor(UIColor.systemGray3.cgColor)
+                cgContext.setLineWidth(1.0)
+                cgContext.stroke(CGRect(x: leftMargin, y: y, width: contentWidth, height: rowHeight))
+                
+                // Vertical lines
+                for i in 1..<cells.count {
+                    let x = leftMargin + CGFloat(i) * cellWidth
+                    cgContext.move(to: CGPoint(x: x, y: y))
+                    cgContext.addLine(to: CGPoint(x: x, y: y + rowHeight))
+                    cgContext.strokePath()
+                }
+                
+                // Cell text
+                for (index, cellText) in cells.enumerated() {
+                    let cellX = leftMargin + CGFloat(index) * cellWidth + 8
+                    let cellY = y + 8
+                    let alignment: NSTextAlignment = (index > 0 && !isHeader) ? .right : .left
+                    drawText(cellText, at: CGPoint(x: cellX, y: cellY), fontSize: isHeader ? 14 : 12, isBold: isHeader, alignment: alignment, width: cellWidth - 16)
+                }
+                
+                return rowHeight
+            }
+            
+            // HEADER
+            let store = StoreManager.shared.currentStore
+            let user = AuthManager.shared.currentUserProfile
+            let headerFormatter = DateFormatter()
+            headerFormatter.locale = Locale(identifier: "vi_VN")
+            headerFormatter.dateFormat = "dd/MM/yyyy HH:mm"
+            
+            currentY += drawText("BÁO CÁO TÀI CHÍNH", at: CGPoint(x: leftMargin, y: currentY), fontSize: 24, isBold: true, alignment: .center)
+            currentY += 10
+            
+            currentY += drawText("Cửa hàng: \(store?.name ?? "SmartKiot")", at: CGPoint(x: leftMargin, y: currentY), fontSize: 14)
+            if let address = store?.address, !address.isEmpty {
+                currentY += drawText("Địa chỉ: \(address)", at: CGPoint(x: leftMargin, y: currentY), fontSize: 12)
+            }
+            currentY += drawText("Thời gian xuất: \(headerFormatter.string(from: Date()))", at: CGPoint(x: leftMargin, y: currentY), fontSize: 12)
+            currentY += drawText("Người xuất: \(user?.fullName ?? "Nhân viên")", at: CGPoint(x: leftMargin, y: currentY), fontSize: 12)
+            currentY += drawText("Khoảng thời gian: \(getDateRangeString(stats))", at: CGPoint(x: leftMargin, y: currentY), fontSize: 12)
+            
+            if productionEnabled {
+                currentY += drawText("Chế độ: Bán lẻ + Sản xuất", at: CGPoint(x: leftMargin, y: currentY), fontSize: 12)
+            } else {
+                currentY += drawText("Chế độ: Chỉ bán lẻ", at: CGPoint(x: leftMargin, y: currentY), fontSize: 12)
+            }
+            
+            currentY += 30
+            
+            // TỔNG QUAN
+            currentY += drawText("TỔNG QUAN", at: CGPoint(x: leftMargin, y: currentY), fontSize: 18, isBold: true)
+            currentY += 10
+            
+            let retailOrders = getRetailOrdersInRange(orders, stats: stats)
+            let uniqueCustomers = getUniqueCustomerCount(orders: retailOrders)
+            let avgOrderValue = retailOrders.isEmpty ? 0 : retailOrders.reduce(0) { $0 + $1.total } / Double(retailOrders.count)
+            
+            var overviewData = [
+                ["Chỉ tiêu", "Giá trị"],
+                ["Số đơn bán lẻ thành công", "\(retailOrders.count) đơn"],
+                ["Số khách hàng unique", "\(uniqueCustomers) khách"],
+                ["Đơn hàng trung bình", fmt(avgOrderValue)]
+            ]
+            
+            if productionEnabled {
+                overviewData.insert(["Số đơn bán sỉ", "\(wholesale?.transactions.count ?? 0) đơn"], at: 3)
+            }
+            
+            for (index, row) in overviewData.enumerated() {
+                let isHeader = (index == 0)
+                let hasBackground = (index % 2 == 0 && !isHeader)
+                currentY += drawTableRow(cells: row, y: currentY, isHeader: isHeader, hasBackground: hasBackground)
+            }
+            
+            currentY += 30
+            
+            // BÁN LẺ DETAIL
+            currentY += drawText("CHI TIẾT BÁN LẺ (POS)", at: CGPoint(x: leftMargin, y: currentY), fontSize: 18, isBold: true)
+            currentY += 10
+            
+            let sortedStats = stats.sorted { $0.date < $1.date }
+            var retailData = [["Ngày", "Doanh thu", "Giá vốn", "Chi phí VH", "Lợi nhuận", "Tỷ suất %"]]
+            
+            for s in sortedStats {
+                retailData.append([
+                    df.string(from: s.date),
+                    fmt(s.revenue),
+                    fmt(s.cogs),
+                    fmt(s.operatingCosts),
+                    fmt(s.netProfit),
+                    String(format: "%.1f%%", s.profitMargin)
+                ])
+            }
+            
+            let totalRevenue = stats.reduce(0) { $0 + $1.revenue }
+            let totalCOGS = stats.reduce(0) { $0 + $1.cogs }
+            let totalOpEx = stats.reduce(0) { $0 + $1.operatingCosts }
+            let totalNet = stats.reduce(0) { $0 + $1.netProfit }
+            let totalMargin = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0
+            
+            retailData.append([
+                "TỔNG BÁN LẺ",
+                fmt(totalRevenue),
+                fmt(totalCOGS),
+                fmt(totalOpEx),
+                fmt(totalNet),
+                String(format: "%.1f%%", totalMargin)
+            ])
+            
+            for (index, row) in retailData.enumerated() {
+                let isHeader = (index == 0)
+                let isTotal = (index == retailData.count - 1)
+                let hasBackground = ((index % 2 == 0 && !isHeader) || isTotal)
+                currentY += drawTableRow(cells: row, y: currentY, isHeader: isHeader, hasBackground: hasBackground)
+            }
+        }
+        
+        // Save image
+        do {
+            let imageData = image.pngData()
+            try imageData?.write(to: path)
+            print("✅ [Export] Image saved: \(path.path)")
+            return path
+        } catch {
+            print("❌ [Export] Failed to save image: \(error)")
+            return nil
+        }
+    }
+    
+    // Generate CSV File (kept for backward compatibility)
+    func exportToCSV(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats? = nil, orders: [Bill] = [], products: [Product] = []) -> URL? {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd-MM-yyyy"  // Dùng dấu gạch ngang, tránh "/" trong tên file
+
+        let fileName = "BaoCaoTaiChinh_\(df.string(from: Date())).csv"
+        let path = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        // Check if production feature is enabled
+        let productionEnabled = StoreManager.shared.currentStoreProductionEnabled()
+
+        var csv = ""
+
+        // ── HEADER THÔNG TIN ────────────────────────────────────────
+        let store = StoreManager.shared.currentStore
+        let user = AuthManager.shared.currentUserProfile
+        let now = Date()
+        let headerFormatter = DateFormatter()
+        headerFormatter.locale = Locale(identifier: "vi_VN")
+        headerFormatter.dateFormat = "dd/MM/yyyy HH:mm"
+        
+        // Header with simple format
+        csv += "=== BÁO CÁO TÀI CHÍNH ===\n"
+        csv += "Cửa hàng: \(store?.name ?? "SmartKiot")\n"
+        if let address = store?.address, !address.isEmpty {
+            csv += "Địa chỉ: \(address)\n"
+        }
+        csv += "Thời gian xuất: \(headerFormatter.string(from: now))\n"
+        csv += "Người xuất: \(user?.fullName ?? "Nhân viên")\n"
+        csv += "Khoảng thời gian: \(getDateRangeString(stats))\n"
+        if productionEnabled {
+            csv += "Chế độ: Bán lẻ + Sản xuất\n"
+        } else {
+            csv += "Chế độ: Chỉ bán lẻ\n"
+        }
+        csv += "=====================================\n"
+        csv += "\n"
+
+        // ── TỔNG QUAN ──────────────────────────────────────────────
+        csv += "=== TỔNG QUAN ===\n"
+        let retailOrders = getRetailOrdersInRange(orders, stats: stats)
+        let uniqueCustomers = getUniqueCustomerCount(orders: retailOrders)
+        let avgOrderValue = retailOrders.isEmpty ? 0 : retailOrders.reduce(0) { $0 + $1.total } / Double(retailOrders.count)
+        let totalVATCollected = getTotalVATCollected(orders: retailOrders)
+        
+        csv += "Tổng số đơn bán lẻ,\(retailOrders.count)\n"
+        if productionEnabled {
+            csv += "Tổng số đơn bán sỉ,\(wholesale?.transactions.count ?? 0)\n"
+        }
+        csv += "Số khách hàng unique,\(uniqueCustomers)\n"
+        csv += "Đơn hàng trung bình,\(fmt(avgOrderValue))\n"
+        csv += "Tổng VAT đã thu,\(fmt(totalVATCollected))\n"
+        csv += "=====================================\n"
+        csv += "\n"
+
+        // ── SẢN PHẨM BÁN CHẠY ──────────────────────────────────────
+        let topProducts = getTopSellingProducts(orders: retailOrders, limit: 10)
+        if !topProducts.isEmpty {
+            csv += "=== SẢN PHẨM BÁN CHẠY (TOP 10) ===\n"
+            csv += "STT,Sản phẩm,Số lượng,Doanh thu,% Tổng\n"
+            let totalRevenue = topProducts.reduce(0) { $0 + $1.revenue }
+            for (index, product) in topProducts.enumerated() {
+                let percentage = totalRevenue > 0 ? (product.revenue / totalRevenue) * 100 : 0
+                csv += "\(index + 1),\(product.name),\(product.quantity),\(fmt(product.revenue)),\(String(format: "%.1f", percentage))%\n"
+            }
+            csv += "=====================================\n"
+            csv += "\n"
+        }
+
+        // ── PHẦN 1: BÁN LẺ (POS) ──────────────────────────────────────
+        csv += "=== BÁN LẺ (POS) ===\n"
+        csv += "Ngày,Doanh thu,Giá vốn,Chi phí VH,Lợi nhuận,Tỷ suất %\n"
+
+        let sortedStats = stats.sorted { $0.date < $1.date }
+        for s in sortedStats {
+            csv += "\(df.string(from: s.date)),\(fmt(s.revenue)),\(fmt(s.cogs)),\(fmt(s.operatingCosts)),\(fmt(s.netProfit)),\(String(format: "%.1f", s.profitMargin))\n"
+        }
+
+        let totalRevenue = stats.reduce(0) { $0 + $1.revenue }
+        let totalCOGS    = stats.reduce(0) { $0 + $1.cogs }
+        let totalOpEx    = stats.reduce(0) { $0 + $1.operatingCosts }
+        let totalNet     = stats.reduce(0) { $0 + $1.netProfit }
+        let totalMargin  = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0
+        csv += "TỔNG BÁN LẺ,\(fmt(totalRevenue)),\(fmt(totalCOGS)),\(fmt(totalOpEx)),\(fmt(totalNet)),\(String(format: "%.1f", totalMargin))\n"
+        csv += "=====================================\n"
+        csv += "\n"
+
+        // ── PHẦN 2: BÁN SỈ / SẢN XUẤT ────────────────────────────────
+        // Chỉ hiển thị nếu tính năng sản xuất được bật
+        if productionEnabled, let ws = wholesale {
+            csv += "=== BÁN SỈ / SẢN XUẤT ===\n"
+            csv += "Ngày,Khách hàng,SĐT,Doanh thu,Đã thu,Còn nợ,Sản phẩm\n"
+
+            let txSorted = ws.transactions.sorted { $0.createdAt < $1.createdAt }
+            for tx in txSorted {
+                let items = tx.items.prefix(3).map { $0.name }.joined(separator: " / ")
+                csv += "\(df.string(from: tx.createdAt)),\(tx.buyerName ?? ""),\(tx.buyerPhone ?? ""),\(fmt(tx.grandTotal ?? 0)),\(fmt(tx.paidAmount ?? 0)),\(fmt(tx.debtAmount ?? 0)),\(items)\n"
+            }
+
+            let wsNetProfit = ws.paid - ws.materialCost
+            let wsDashboardProfit = ws.revenue - ws.materialExportCost
+            let inventoryValue = ws.materialCost - ws.materialExportCost
+            csv += "\n"
+            csv += "Tổng doanh thu sỉ,\(fmt(ws.revenue))\n"
+            csv += "Tổng đã thu,\(fmt(ws.paid))\n"
+            csv += "Tổng còn nợ,\(fmt(ws.debt))\n"
+            csv += "Chi phí nguyên liệu,\(fmt(ws.materialCost))\n"
+            csv += "Giá trị NL đã xuất,\(fmt(ws.materialExportCost))\n"
+            csv += "Lợi nhuận ròng bán sỉ,\(fmt(wsNetProfit))\n"
+            csv += "Lợi nhuận (giống Tổng quan),\(fmt(wsDashboardProfit))\n"
+            csv += "Tổng giá trị tồn kho NL,\(fmt(inventoryValue))\n"
+            csv += "=====================================\n"
+            csv += "\n"
+
+            // ── PHÂN TÍCH KHÁCH HÀNG SỈ ─────────────────────────────
+            let customerAnalysis = analyzeWholesaleCustomers(transactions: ws.transactions)
+            if !customerAnalysis.isEmpty {
+                csv += "=== PHÂN TÍCH KHÁCH HÀNG SỈ ===\n"
+                csv += "STT,Khách hàng,SĐT,Tổng mua,Đã trả,Còn nợ,Số đơn,Lần cuối\n"
+                for (index, customer) in customerAnalysis.enumerated() {
+                    let df = DateFormatter()
+                    df.locale = Locale(identifier: "vi_VN")
+                    df.dateFormat = "dd/MM/yyyy"
+                    let lastOrderDate = df.string(from: customer.lastOrderDate)
+                    csv += "\(index + 1),\(customer.name),\(customer.phone),\(fmt(customer.totalRevenue)),\(fmt(customer.totalPaid)),\(fmt(customer.totalDebt)),\(customer.orderCount),\(lastOrderDate)\n"
+                }
+                csv += "=====================================\n"
+                csv += "\n"
+            }
+
+            // ── TỒN KHO VÀ TỔNG HỢP ──────────────────────────────────────
+            let combined = totalNet + wsNetProfit
+            csv += "=== THỐNG KÊ TỒN KHO ===\n"
+            let inventoryStats = getInventoryStats(products: products)
+            if !inventoryStats.isEmpty {
+                csv += "STT,Sản phẩm,Tồn kho,Giá vốn,Tổng giá trị,Loại\n"
+                for (index, item) in inventoryStats.enumerated() {
+                    csv += "\(index + 1),\(item.name),\(item.stockQuantity),\(fmt(item.costPrice)),\(fmt(item.totalValue)),\(item.category)\n"
+                }
+                let totalInventoryValue = inventoryStats.reduce(0) { $0 + $1.totalValue }
+                csv += "TỔNG GIÁ TRỊ TỒN KHO,,,,,\(fmt(totalInventoryValue))\n"
+            } else {
+                csv += "Không có sản phẩm tồn kho\n"
+            }
+            csv += "=====================================\n"
+            csv += "\n"
+            
+            csv += "=== TỔNG HỢP ===\n"
+            csv += "Lợi nhuận bán lẻ,\(fmt(totalNet))\n"
+            csv += "Lợi nhuận bán sỉ,\(fmt(wsNetProfit))\n"
+            csv += "TỔNG LỢI NHUẬN RÒNG,\(fmt(combined))\n"
+            csv += "=====================================\n"
+            csv += "\n"
+            
+            // ── PHÂN TÍCH VAT ──────────────────────────────────────────
+            csv += "=== PHÂN TÍCH VAT ===\n"
+            let retailOrders = getRetailOrdersInRange(orders, stats: stats)
+            let totalVAT = getTotalVATCollected(orders: retailOrders)
+            let totalRevenueExVAT = retailOrders.reduce(0) { $0 + ($1.total - $1.vatAmount) }
+            let estimatedVATPayable = totalVAT * 0.9 // Giả sử VAT đầu ra - VAT đầu vào (ước tính 90%)
+            
+            csv += "Doanh thu chưa VAT,\(fmt(totalRevenueExVAT))\n"
+            csv += "Tổng VAT đã thu,\(fmt(totalVAT))\n"
+            csv += "VAT cần nộp (ước tính),\(fmt(estimatedVATPayable))\n"
+            csv += "=====================================\n"
+        } else {
+            // Không có bán sỉ - chỉ có bán lẻ (production tắt hoặc không có dữ liệu)
+            csv += "=== THỐNG KÊ TỒN KHO ===\n"
+            let inventoryStats = getInventoryStats(products: products)
+            if !inventoryStats.isEmpty {
+                csv += "STT,Sản phẩm,Tồn kho,Giá vốn,Tổng giá trị,Loại\n"
+                for (index, item) in inventoryStats.enumerated() {
+                    csv += "\(index + 1),\(item.name),\(item.stockQuantity),\(fmt(item.costPrice)),\(fmt(item.totalValue)),\(item.category)\n"
+                }
+                let totalInventoryValue = inventoryStats.reduce(0) { $0 + $1.totalValue }
+                csv += "TỔNG GIÁ TRỊ TỒN KHO,,,,,\(fmt(totalInventoryValue))\n"
+            } else {
+                csv += "Không có sản phẩm tồn kho\n"
+            }
+            csv += "=====================================\n"
+            csv += "\n"
+            
+            csv += "=== TỔNG HỢP ===\n"
+            csv += "Lợi nhuận bán lẻ,\(fmt(totalNet))\n"
+            csv += "TỔNG LỢI NHUẬN RÒNG,\(fmt(totalNet))\n"
+            csv += "=====================================\n"
+            csv += "\n"
+            
+            // ── PHÂN TÍCH VAT ──────────────────────────────────────────
+            csv += "=== PHÂN TÍCH VAT ===\n"
+            let retailOrders = getRetailOrdersInRange(orders, stats: stats)
+            let totalVAT = getTotalVATCollected(orders: retailOrders)
+            let totalRevenueExVAT = retailOrders.reduce(0) { $0 + ($1.total - $1.vatAmount) }
+            let estimatedVATPayable = totalVAT * 0.9 // Giả sử VAT đầu ra - VAT đầu vào (ước tính 90%)
+            
+            csv += "Doanh thu chưa VAT,\(fmt(totalRevenueExVAT))\n"
+            csv += "Tổng VAT đã thu,\(fmt(totalVAT))\n"
+            csv += "VAT cần nộp (ước tính),\(fmt(estimatedVATPayable))\n"
+            csv += "=====================================\n"
+        }
+
+        do {
+            // Thêm BOM UTF-8 để Excel đọc đúng tiếng Việt
+            var data = Data([0xEF, 0xBB, 0xBF])
+            
+            // Thêm footer đơn giản
+            csv += "\n"
+            csv += "=== KẾT THÚC BÁO CÁO TÀI CHÍNH ===\n"
+            csv += "Được tạo bởi SmartKiot POS System\n"
+            csv += "Cảm ơn bạn đã sử dụng!\n"
+            csv += "=====================================\n"
+            
+            data.append(csv.data(using: .utf8) ?? Data())
+            try data.write(to: path)
+            print("✅ [Export] CSV ghi thành công: \(path.path), size: \(data.count) bytes")
+            return path
+        } catch {
+            print("❌ [Export] Lỗi ghi CSV: \(error)")
+            return nil
+        }
+    }
+
+    private func fmt(_ value: Double) -> String {
+        let n = NSNumber(value: value)
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.groupingSeparator = "."
+        f.decimalSeparator = ","
+        f.maximumFractionDigits = 0
+        return f.string(from: n) ?? "\(Int(value))"
+    }
+
+    // MARK: - Helper Functions for Enhanced Export
+
+    private func getDateRangeString(_ stats: [DailyFinancialStats]) -> String {
+        guard !stats.isEmpty else { return "N/A" }
+        let sortedStats = stats.sorted { $0.date < $1.date }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd/MM/yyyy"
+        
+        if let first = sortedStats.first, let last = sortedStats.last {
+            if Calendar.current.isDate(first.date, inSameDayAs: last.date) {
+                return df.string(from: first.date)
+            } else {
+                return "\(df.string(from: first.date)) - \(df.string(from: last.date))"
+            }
+        }
+        return "N/A"
+    }
+
+    private func getRetailOrdersInRange(_ orders: [Bill], stats: [DailyFinancialStats]) -> [Bill] {
+        guard !stats.isEmpty else { return [] }
+        let sortedStats = stats.sorted { $0.date < $1.date }
+        guard let startDate = sortedStats.first?.date,
+              let endDate = sortedStats.last?.date else { return [] }
+        
+        let calendar = Calendar.current
+        let endOfEndDate = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
+        
+        return orders.filter { bill in
+            bill.isPaid && !bill.isDeleted &&
+            bill.createdAt >= startDate && bill.createdAt <= endOfEndDate
+        }
+    }
+
+    private func getUniqueCustomerCount(orders: [Bill]) -> Int {
+        let customerNames = Set(orders.compactMap { bill in
+            let name = (bill.customerName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? nil : name.lowercased()
+        })
+        return customerNames.count
+    }
+
+    private func getTotalVATCollected(orders: [Bill]) -> Double {
+        return orders.reduce(0) { $0 + $1.vatAmount }
+    }
+
+    struct TopSellingProduct {
+        let name: String
+        let quantity: Int
+        let revenue: Double
+    }
+
+    private func getTopSellingProducts(orders: [Bill], limit: Int = 10) -> [TopSellingProduct] {
+        var productStats: [String: (quantity: Int, revenue: Double)] = [:]
+        
+        for order in orders {
+            for item in order.items {
+                let key = item.name
+                let existing = productStats[key] ?? (quantity: 0, revenue: 0)
+                productStats[key] = (
+                    quantity: existing.quantity + item.quantity,
+                    revenue: existing.revenue + item.total
+                )
+            }
+        }
+        
+        return productStats.map { (name, stats) in
+            TopSellingProduct(name: name, quantity: stats.quantity, revenue: stats.revenue)
+        }
+        .sorted { $0.revenue > $1.revenue }
+        .prefix(limit)
+        .map { $0 }
+    }
+
+    struct WholesaleCustomerAnalysis {
+        let name: String
+        let phone: String
+        let totalRevenue: Double
+        let totalPaid: Double
+        let totalDebt: Double
+        let orderCount: Int
+        let lastOrderDate: Date
+    }
+
+    private func analyzeWholesaleCustomers(transactions: [ProductionTransaction]) -> [WholesaleCustomerAnalysis] {
+        var customerStats: [String: (revenue: Double, paid: Double, debt: Double, count: Int, lastDate: Date)] = [:]
+        
+        for tx in transactions {
+            let customerKey = (tx.buyerName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !customerKey.isEmpty else { continue }
+            
+            let key = customerKey.lowercased()
+            let existing = customerStats[key] ?? (revenue: 0, paid: 0, debt: 0, count: 0, lastDate: tx.createdAt)
+            
+            customerStats[key] = (
+                revenue: existing.revenue + (tx.grandTotal ?? 0),
+                paid: existing.paid + (tx.paidAmount ?? 0),
+                debt: existing.debt + (tx.debtAmount ?? 0),
+                count: existing.count + 1,
+                lastDate: max(existing.lastDate, tx.createdAt)
+            )
+        }
+        
+        return customerStats.compactMap { (key, stats) in
+            // Tìm transaction gần nhất để lấy tên và phone chính xác
+            guard let recentTx = transactions
+                .filter({ ($0.buyerName ?? "").lowercased() == key })
+                .sorted(by: { $0.createdAt > $1.createdAt })
+                .first else { return nil }
+            
+            return WholesaleCustomerAnalysis(
+                name: recentTx.buyerName ?? "",
+                phone: recentTx.buyerPhone ?? "",
+                totalRevenue: stats.revenue,
+                totalPaid: stats.paid,
+                totalDebt: stats.debt,
+                orderCount: stats.count,
+                lastOrderDate: stats.lastDate
+            )
+        }
+        .sorted { $0.totalRevenue > $1.totalRevenue }
+    }
+
+    struct InventoryItem {
+        let name: String
+        let stockQuantity: Int
+        let costPrice: Double
+        let totalValue: Double
+        let category: String
+    }
+
+    private func getInventoryStats(products: [Product]) -> [InventoryItem] {
+        return products
+            .filter { $0.stockQuantity > 0 }
+            .map { product in
+                InventoryItem(
+                    name: product.name,
+                    stockQuantity: product.stockQuantity,
+                    costPrice: product.costPrice,
+                    totalValue: Double(product.stockQuantity) * product.costPrice,
+                    category: product.category
+                )
+            }
+            .sorted { $0.totalValue > $1.totalValue }
+    }
+
+    // Legacy functions for backward compatibility
+    func exportToCSV(stats: [DailyFinancialStats]) -> URL? {
+        return exportToCSV(stats: stats, wholesale: nil, orders: [], products: [])
+    }
+    
+    func exportToCSV(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats? = nil) -> URL? {
+        return exportToCSV(stats: stats, wholesale: wholesale, orders: [], products: [])
+    }
+    
+    private func getDateRange(_ range: ReportDateRange) -> (Date, Date) {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        switch range {
+        case .today:
+            let start = calendar.startOfDay(for: now)
+            let end = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: now) ?? now
+            return (start, end)
+            
+        case .thisWeek:
+            let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+            let start = calendar.date(from: components) ?? now
+            let end = calendar.date(byAdding: .day, value: 7, to: start)?.addingTimeInterval(-1) ?? now
+            return (start, end)
+            
+        case .thisMonth:
+            let components = calendar.dateComponents([.year, .month], from: now)
+            let start = calendar.date(from: components) ?? now
+            let end = calendar.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? now
+            return (start, end)
+            
+        case .custom(let start, let end):
+            return (start, end)
+        }
+    }
+}

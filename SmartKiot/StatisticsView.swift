@@ -51,20 +51,23 @@ struct StatisticsView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.themeTextDark)
                     Spacer()
-                    Button {
-                        let range = currentRange()
-                        let url = viewModel.exportFinancialReport(range: range, allProductionTx: allProductionTx)
-                        if let url = url {
-                            exportURL = url
-                            exportItem = StatisticsExportItem(url: url)
+                    // Chỉ owner mới được xuất báo cáo
+                    if StoreManager.shared.currentMember?.role == .owner {
+                        Button {
+                            let range = currentRange()
+                            let url = viewModel.exportFinancialReport(range: range, allProductionTx: allProductionTx)
+                            if let url = url {
+                                exportURL = url
+                                exportItem = StatisticsExportItem(url: url)
+                            }
+                        } label: {
+                            Text("Xuất báo cáo (Ảnh)")
+                                .font(.body)
+                                .fontWeight(.semibold)
                         }
-                    } label: {
-                        Text("Xuất báo cáo")
-                            .font(.body)
-                            .fontWeight(.semibold)
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.themePrimary)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.themePrimary)
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)
