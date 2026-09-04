@@ -385,26 +385,28 @@ class FinancialReportService {
         
         let rowHeight: CGFloat = 20
         let columnWidths: [CGFloat] = [
-            contentWidth * 0.08, // STT
-            contentWidth * 0.15, // Mã đơn
-            contentWidth * 0.15, // Nhân viên
-            contentWidth * 0.25, // Sản phẩm
-            contentWidth * 0.12, // Giá bán
-            contentWidth * 0.15, // Thời gian
-            contentWidth * 0.10  // Ghi chú
+            contentWidth * 0.06, // STT
+            contentWidth * 0.12, // Mã đơn
+            contentWidth * 0.12, // Nhân viên
+            contentWidth * 0.22, // Sản phẩm
+            contentWidth * 0.08, // Số lượng
+            contentWidth * 0.10, // Giá bán
+            contentWidth * 0.12, // Thành tiền
+            contentWidth * 0.10, // Thời gian
+            contentWidth * 0.08  // Ghi chú
         ]
         
         let headerAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.boldSystemFont(ofSize: 11),
+            .font: UIFont.boldSystemFont(ofSize: 10),
             .foregroundColor: UIColor.white
         ]
         
         let cellAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 10),
+            .font: UIFont.systemFont(ofSize: 9),
             .foregroundColor: UIColor.black
         ]
         
-        let headers = ["STT", "Mã đơn", "NV bán", "Sản phẩm", "Giá bán", "Thời gian", "Ghi chú"]
+        let headers = ["STT", "Mã đơn", "NV bán", "Sản phẩm", "SL", "Giá bán", "Thành tiền", "Thời gian", "Ghi chú"]
         
         // Draw header
         context.setFillColor(UIColor.systemBlue.cgColor)
@@ -418,11 +420,14 @@ class FinancialReportService {
         
         startY += rowHeight
         
-        // Draw data rows (limit to 20 most recent orders)
-        let sortedOrders = orders.sorted { $0.createdAt > $1.createdAt }.prefix(20)
+        // Draw data rows (limit to 15 most recent orders for better readability)
+        let sortedOrders = orders.sorted { $0.createdAt > $1.createdAt }.prefix(15)
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "vi_VN")
         dateFormatter.dateFormat = "dd/MM HH:mm"
+        
+        var totalQuantity = 0
+        var totalAmount = 0.0
         
         for (index, order) in sortedOrders.enumerated() {
             // Alternate row colors
@@ -441,15 +446,23 @@ class FinancialReportService {
             let employee = order.creatorName?.isEmpty == false ? order.creatorName! : "---"
             let productNames = order.items.prefix(2).map { $0.name }.joined(separator: ", ")
             let products = order.items.count > 2 ? productNames + "..." : productNames
+            let orderQuantity = order.items.reduce(0) { $0 + $1.quantity }
+            let unitPrice = order.items.count == 1 ? fmt(order.items[0].price) : "Nhiều"
             let totalPrice = fmt(order.total)
             let timeString = dateFormatter.string(from: order.createdAt)
             let note = "" // Leave empty as requested
+            
+            // Add to totals
+            totalQuantity += orderQuantity
+            totalAmount += order.total
             
             let rowData = [
                 "\(index + 1)",
                 orderCode,
                 employee,
                 products,
+                "\(orderQuantity)",
+                unitPrice,
                 totalPrice,
                 timeString,
                 note
@@ -464,16 +477,48 @@ class FinancialReportService {
             startY += rowHeight
         }
         
-        // Add summary info
-        if orders.count > 20 {
-            let moreOrdersText = "... và \(orders.count - 20) đơn hàng khác"
+        // Add summary info if there are more orders
+        if orders.count > 15 {
+            let moreOrdersText = "... và \(orders.count - 15) đơn hàng khác"
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.italicSystemFont(ofSize: 11),
+                .font: UIFont.italicSystemFont(ofSize: 10),
                 .foregroundColor: UIColor.gray
             ]
             moreOrdersText.draw(at: CGPoint(x: margin, y: startY + 5), withAttributes: attributes)
-            startY += 25
+            startY += 20
         }
+        
+        // Draw total row
+        context.setFillColor(UIColor.systemGray5.cgColor)
+        context.fill(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+        context.setStrokeColor(UIColor.darkGray.cgColor)
+        context.setLineWidth(0.5)
+        context.stroke(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+        
+        let boldAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 9),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let totalRowData = [
+            "",
+            "",
+            "",
+            "TỔNG CỘNG",
+            "\(totalQuantity)",
+            "",
+            fmt(totalAmount),
+            "",
+            ""
+        ]
+        
+        currentX = margin
+        for (colIndex, data) in totalRowData.enumerated() {
+            data.draw(in: CGRect(x: currentX + 2, y: startY + 2, width: columnWidths[colIndex] - 4, height: rowHeight - 4), withAttributes: boldAttributes)
+            currentX += columnWidths[colIndex]
+        }
+        
+        startY += rowHeight
     }
     
     private func drawTopProducts(_ products: [TopSellingProduct], context: CGContext, startY: inout CGFloat, margin: CGFloat, contentWidth: CGFloat) {
