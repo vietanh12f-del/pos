@@ -2723,101 +2723,161 @@ private struct DebtEditView: View {
                 .background(totalEditedDebt > 0 ? Color.orange.opacity(0.06) : Color.clear)
                 
                 List {
-                    ForEach(sortedTransactions) { tx in
-                        Section {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Text(tx.mode)
-                                        .font(.subheadline).fontWeight(.semibold)
-                                    if let stt = tx.sequenceNumber {
-                                        Text("• \(stt)")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                    }
-                                    Spacer()
-                                    Text(formatDateOnly(tx.createdAt))
-                                        .font(.caption).foregroundStyle(.gray)
-                                }
-                                
-                                if !tx.items.isEmpty {
-                                    Text(tx.items.map { $0.name }.joined(separator: ", "))
-                                        .font(.caption).foregroundStyle(.gray)
-                                }
-                                
-                                Divider()
-                                
-                                HStack {
-                                    Text(isSupplier ? "Thiếu nợ" : "Công nợ")
-                                        .font(.subheadline).foregroundStyle(.gray)
-                                    if editedTxIds.contains(tx.id) {
-                                        Button {
-                                            Task {
-                                                let edits = await fetchEdits(tx.id)
-                                                await MainActor.run {
-                                                    selectedEditHistoryTxId = tx.id
-                                                    editHistoryEntries = edits
-                                                    showEditHistory = true
-                                                }
-                                            }
-                                        } label: {
-                                            Image(systemName: "clock.arrow.circlepath")
+                    // Production transactions section
+                    if !sortedTransactions.isEmpty {
+                        Section(header: Text("Giao dịch sản xuất").font(.headline)) {
+                            ForEach(sortedTransactions) { tx in
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Text(tx.mode)
+                                            .font(.subheadline).fontWeight(.semibold)
+                                        if let stt = tx.sequenceNumber {
+                                            Text("• \(stt)")
                                                 .font(.caption)
-                                                .foregroundStyle(.orange)
+                                                .foregroundStyle(.gray)
                                         }
-                                        .buttonStyle(.plain)
+                                        Spacer()
+                                        Text(formatDateOnly(tx.createdAt))
+                                            .font(.caption).foregroundStyle(.gray)
                                     }
-                                    Spacer()
-                                    Button {
-                                        selectedDebtTxId = tx.id
-                                        let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
-                                        debtAmountSelection = Int(currentDebt)
-                                        showDebtAmountWheel = true
-                                    } label: {
-                                        let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
-                                        Text(formatCurrency(currentDebt))
-                                            .font(.subheadline).fontWeight(.semibold)
+                                    
+                                    if !tx.items.isEmpty {
+                                        Text(tx.items.map { $0.name }.joined(separator: ", "))
+                                            .font(.caption).foregroundStyle(.gray)
                                     }
-                                    Text("đ").font(.subheadline).foregroundStyle(.gray)
-                                }
-                                
-                                HStack {
-                                    Text("Dự kiến trả")
-                                        .font(.subheadline).foregroundStyle(.gray)
-                                    Spacer()
-                                    let currentDate = editedTransactions[tx.id]?.expectedPayDate ?? tx.expectedPayDate
-                                    Button {
-                                        if var edits = editedTransactions[tx.id] {
-                                            edits.expectedPayDate = edits.expectedPayDate == nil ? Date() : nil
-                                            editedTransactions[tx.id] = edits
-                                        } else {
-                                            editedTransactions[tx.id] = (debtAmount: tx.debtAmount ?? 0, expectedPayDate: Date())
-                                        }
-                                    } label: {
-                                        Text(currentDate == nil ? "Chưa xác định" : formatDateOnly(currentDate!))
-                                            .font(.subheadline).fontWeight(.semibold)
-                                            .foregroundStyle(currentDate == nil ? .gray : Color.themePrimary)
-                                    }
-                                    if currentDate != nil {
-                                        DatePicker(
-                                            "",
-                                            selection: Binding(
-                                                get: { currentDate! },
-                                                set: { newDate in
-                                                    if var edits = editedTransactions[tx.id] {
-                                                        edits.expectedPayDate = newDate
-                                                        editedTransactions[tx.id] = edits
-                                                    } else {
-                                                        editedTransactions[tx.id] = (debtAmount: tx.debtAmount ?? 0, expectedPayDate: newDate)
+                                    
+                                    Divider()
+                                    
+                                    HStack {
+                                        Text(isSupplier ? "Thiếu nợ" : "Công nợ")
+                                            .font(.subheadline).foregroundStyle(.gray)
+                                        if editedTxIds.contains(tx.id) {
+                                            Button {
+                                                Task {
+                                                    let edits = await fetchEdits(tx.id)
+                                                    await MainActor.run {
+                                                        selectedEditHistoryTxId = tx.id
+                                                        editHistoryEntries = edits
+                                                        showEditHistory = true
                                                     }
                                                 }
-                                            ),
-                                            displayedComponents: [.date]
-                                        )
-                                        .labelsHidden()
+                                            } label: {
+                                                Image(systemName: "clock.arrow.circlepath")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.orange)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                        Spacer()
+                                        Button {
+                                            selectedDebtTxId = tx.id
+                                            let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
+                                            debtAmountSelection = Int(currentDebt)
+                                            showDebtAmountWheel = true
+                                        } label: {
+                                            let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
+                                            Text(formatCurrency(currentDebt))
+                                                .font(.subheadline).fontWeight(.semibold)
+                                        }
+                                        Text("đ").font(.subheadline).foregroundStyle(.gray)
+                                    }
+                                    
+                                    HStack {
+                                        Text("Dự kiến trả")
+                                            .font(.subheadline).foregroundStyle(.gray)
+                                        Spacer()
+                                        let currentDate = editedTransactions[tx.id]?.expectedPayDate ?? tx.expectedPayDate
+                                        Button {
+                                            if var edits = editedTransactions[tx.id] {
+                                                edits.expectedPayDate = edits.expectedPayDate == nil ? Date() : nil
+                                                editedTransactions[tx.id] = edits
+                                            } else {
+                                                editedTransactions[tx.id] = (debtAmount: tx.debtAmount ?? 0, expectedPayDate: Date())
+                                            }
+                                        } label: {
+                                            Text(currentDate == nil ? "Chưa xác định" : formatDateOnly(currentDate!))
+                                                .font(.subheadline).fontWeight(.semibold)
+                                                .foregroundStyle(currentDate == nil ? .gray : Color.themePrimary)
+                                        }
+                                        if currentDate != nil {
+                                            DatePicker(
+                                                "",
+                                                selection: Binding(
+                                                    get: { currentDate! },
+                                                    set: { newDate in
+                                                        if var edits = editedTransactions[tx.id] {
+                                                            edits.expectedPayDate = newDate
+                                                            editedTransactions[tx.id] = edits
+                                                        } else {
+                                                            editedTransactions[tx.id] = (debtAmount: tx.debtAmount ?? 0, expectedPayDate: newDate)
+                                                        }
+                                                    }
+                                                ),
+                                                displayedComponents: [.date]
+                                            )
+                                            .labelsHidden()
+                                        }
                                     }
                                 }
+                                .padding(.vertical, 8)
                             }
-                            .padding(.vertical, 8)
+                        }
+                    }
+                    
+                    // Retail orders section - only show orders with debt > 0
+                    let retailOrdersWithDebt = retailOrders.filter { (editedRetailOrderDebts[$0.id] ?? $0.debtAmount ?? 0) > 0 }
+                    if !retailOrdersWithDebt.isEmpty {
+                        Section(header: Text("Đơn bán lẻ").font(.headline)) {
+                            ForEach(retailOrdersWithDebt) { bill in
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Text("Đơn bán lẻ")
+                                            .font(.subheadline).fontWeight(.semibold)
+                                        if let stt = bill.sequenceNumber {
+                                            Text("• \(stt)")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                        }
+                                        Spacer()
+                                        Text(formatDateOnly(bill.createdAt))
+                                            .font(.caption).foregroundStyle(.gray)
+                                    }
+                                    
+                                    if !bill.items.isEmpty {
+                                        Text(bill.items.map { $0.name }.joined(separator: ", "))
+                                            .font(.caption).foregroundStyle(.gray)
+                                    }
+                                    
+                                    Divider()
+                                    
+                                    HStack {
+                                        Text("Công nợ")
+                                            .font(.subheadline).foregroundStyle(.gray)
+                                        Spacer()
+                                        Button {
+                                            selectedDebtTxId = bill.id
+                                            let currentDebt = editedRetailOrderDebts[bill.id] ?? (bill.debtAmount ?? 0)
+                                            debtAmountSelection = Int(currentDebt)
+                                            showDebtAmountWheel = true
+                                        } label: {
+                                            let currentDebt = editedRetailOrderDebts[bill.id] ?? (bill.debtAmount ?? 0)
+                                            Text(formatCurrency(currentDebt))
+                                                .font(.subheadline).fontWeight(.semibold)
+                                        }
+                                        Text("đ").font(.subheadline).foregroundStyle(.gray)
+                                    }
+                                    
+                                    HStack {
+                                        Text("Tổng đơn hàng")
+                                            .font(.subheadline).foregroundStyle(.gray)
+                                        Spacer()
+                                        Text(formatCurrency(bill.total))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                .padding(.vertical, 8)
+                            }
                         }
                     }
                 }
@@ -3093,11 +3153,18 @@ private struct DebtEditView: View {
                             Spacer()
                             Button("Lưu") {
                                 if let txId = selectedDebtTxId {
-                                    if var edits = editedTransactions[txId] {
-                                        edits.debtAmount = Double(debtAmountSelection)
-                                        editedTransactions[txId] = edits
-                                    } else if let tx = transactions.first(where: { $0.id == txId }) {
-                                        editedTransactions[txId] = (debtAmount: Double(debtAmountSelection), expectedPayDate: tx.expectedPayDate)
+                                    // Check if it's a production transaction first
+                                    if let tx = transactions.first(where: { $0.id == txId }) {
+                                        if var edits = editedTransactions[txId] {
+                                            edits.debtAmount = Double(debtAmountSelection)
+                                            editedTransactions[txId] = edits
+                                        } else {
+                                            editedTransactions[txId] = (debtAmount: Double(debtAmountSelection), expectedPayDate: tx.expectedPayDate)
+                                        }
+                                    }
+                                    // Otherwise, check if it's a retail order
+                                    else if retailOrders.contains(where: { $0.id == txId }) {
+                                        editedRetailOrderDebts[txId] = Double(debtAmountSelection)
                                     }
                                 }
                                 showDebtAmountWheel = false
