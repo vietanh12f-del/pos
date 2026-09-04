@@ -118,8 +118,8 @@ class FinancialReportService {
         let productionEnabled = StoreManager.shared.currentStoreProductionEnabled()
         
         // Calculate page height based on content
-        let baseHeight: CGFloat = 1400 // Increased for order list
-        let additionalHeight: CGFloat = productionEnabled ? 400 : 0 // Reduced since wholesale section is smaller
+        let baseHeight: CGFloat = 1800 // Increased for inventory list
+        let additionalHeight: CGFloat = productionEnabled ? 400 : 0
         let pageSize = CGSize(width: 850, height: baseHeight + additionalHeight)
         let renderer = UIGraphicsImageRenderer(size: pageSize)
         
@@ -205,6 +205,12 @@ class FinancialReportService {
             // MARK: - Inventory Summary
             drawSectionTitle("TÓM TẮT TỒN KHO", at: &currentY, pageWidth: pageSize.width, margin: margin)
             drawInventorySummary(products: products, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
+            
+            currentY += 30
+            
+            // MARK: - Detailed Inventory List
+            drawSectionTitle("CHI TIẾT TỒN KHO", at: &currentY, pageWidth: pageSize.width, margin: margin)
+            drawDetailedInventory(products: products, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
             
             currentY += 40
             
@@ -437,7 +443,7 @@ class FinancialReportService {
             let products = order.items.count > 2 ? productNames + "..." : productNames
             let totalPrice = fmt(order.total)
             let timeString = dateFormatter.string(from: order.createdAt)
-            let note = order.note?.isEmpty == false ? (order.note!.count > 8 ? String(order.note!.prefix(8)) + "..." : order.note!) : ""
+            let note = "" // Leave empty as requested
             
             let rowData = [
                 "\(index + 1)",
@@ -573,6 +579,135 @@ class FinancialReportService {
             info.draw(at: CGPoint(x: margin, y: startY), withAttributes: cellAttributes)
             startY += 22
         }
+    }
+    
+    private func drawDetailedInventory(products: [Product], context: CGContext, startY: inout CGFloat, margin: CGFloat, contentWidth: CGFloat) {
+        let inventoryStats = getInventoryStats(products: products)
+        
+        guard !inventoryStats.isEmpty else {
+            let noDataText = "Không có sản phẩm tồn kho"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.italicSystemFont(ofSize: 13),
+                .foregroundColor: UIColor.gray
+            ]
+            noDataText.draw(at: CGPoint(x: margin, y: startY), withAttributes: attributes)
+            startY += 25
+            return
+        }
+        
+        let rowHeight: CGFloat = 20
+        let columnWidths: [CGFloat] = [
+            contentWidth * 0.08, // STT
+            contentWidth * 0.35, // Tên sản phẩm
+            contentWidth * 0.12, // Tồn kho
+            contentWidth * 0.15, // Giá vốn
+            contentWidth * 0.15, // Tổng giá trị
+            contentWidth * 0.15  // Danh mục
+        ]
+        
+        let headerAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 11),
+            .foregroundColor: UIColor.white
+        ]
+        
+        let cellAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 10),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let headers = ["STT", "Sản phẩm", "Tồn kho", "Giá vốn", "Tổng giá trị", "Danh mục"]
+        
+        // Draw header
+        context.setFillColor(UIColor.systemGreen.cgColor)
+        context.fill(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+        
+        var currentX = margin
+        for (index, header) in headers.enumerated() {
+            header.draw(in: CGRect(x: currentX + 2, y: startY + 4, width: columnWidths[index] - 4, height: rowHeight - 8), withAttributes: headerAttributes)
+            currentX += columnWidths[index]
+        }
+        
+        startY += rowHeight
+        
+        // Draw data rows (limit to 15 items for readability)
+        let sortedInventory = inventoryStats.prefix(15)
+        
+        for (index, item) in sortedInventory.enumerated() {
+            // Alternate row colors
+            if index % 2 == 1 {
+                context.setFillColor(UIColor.systemGray6.cgColor)
+                context.fill(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+            }
+            
+            // Draw border
+            context.setStrokeColor(UIColor.lightGray.cgColor)
+            context.setLineWidth(0.3)
+            context.stroke(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+            
+            // Prepare data
+            let productName = item.name.count > 20 ? String(item.name.prefix(17)) + "..." : item.name
+            let category = item.category.count > 10 ? String(item.category.prefix(7)) + "..." : item.category
+            
+            let rowData = [
+                "\(index + 1)",
+                productName,
+                "\(item.stockQuantity)",
+                fmt(item.costPrice),
+                fmt(item.totalValue),
+                category
+            ]
+            
+            currentX = margin
+            for (colIndex, data) in rowData.enumerated() {
+                data.draw(in: CGRect(x: currentX + 2, y: startY + 2, width: columnWidths[colIndex] - 4, height: rowHeight - 4), withAttributes: cellAttributes)
+                currentX += columnWidths[colIndex]
+            }
+            
+            startY += rowHeight
+        }
+        
+        // Add summary info if there are more items
+        if inventoryStats.count > 15 {
+            let moreItemsText = "... và \(inventoryStats.count - 15) sản phẩm khác"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.italicSystemFont(ofSize: 11),
+                .foregroundColor: UIColor.gray
+            ]
+            moreItemsText.draw(at: CGPoint(x: margin, y: startY + 5), withAttributes: attributes)
+            startY += 25
+        }
+        
+        // Total row
+        context.setFillColor(UIColor.systemGray5.cgColor)
+        context.fill(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+        context.setStrokeColor(UIColor.darkGray.cgColor)
+        context.setLineWidth(0.5)
+        context.stroke(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+        
+        let totalValue = inventoryStats.reduce(0) { $0 + $1.totalValue }
+        let totalQty = inventoryStats.reduce(0) { $0 + $1.stockQuantity }
+        
+        let totalRowData = [
+            "",
+            "TỔNG CỘNG",
+            "\(totalQty)",
+            "",
+            fmt(totalValue),
+            ""
+        ]
+        
+        let boldAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 10),
+            .foregroundColor: UIColor.black
+        ]
+        
+        currentX = margin
+        for (colIndex, data) in totalRowData.enumerated() {
+            data.draw(in: CGRect(x: currentX + 2, y: startY + 2, width: columnWidths[colIndex] - 4, height: rowHeight - 4), withAttributes: boldAttributes)
+            currentX += columnWidths[colIndex]
+        }
+        
+        startY += rowHeight
     }
     
     func exportToCSV(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats? = nil, orders: [Bill] = [], products: [Product] = []) -> URL? {
