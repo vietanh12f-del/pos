@@ -10,7 +10,9 @@ import UIKit
 struct DailyFinancialStats: Identifiable, Codable {
     var id: Date { date }
     let date: Date
-    var revenue: Double = 0
+    var revenue: Double = 0 // Tổng doanh thu (bao gồm cả công nợ)
+    var actualReceived: Double = 0 // Thực thu (đã nhận được)
+    var debt: Double = 0 // Công nợ
     var cogs: Double = 0
     var operatingCosts: Double = 0
     var incurredFees: Double = 0
@@ -23,9 +25,18 @@ struct DailyFinancialStats: Identifiable, Codable {
         grossProfit - operatingCosts // - incurredFees (Removed as requested)
     }
     
+    var actualNetProfit: Double {
+        actualReceived - cogs - operatingCosts // Lợi nhuận dựa trên thực thu
+    }
+    
     var profitMargin: Double {
         guard revenue > 0 else { return 0 }
         return (netProfit / revenue) * 100
+    }
+    
+    var actualProfitMargin: Double {
+        guard actualReceived > 0 else { return 0 }
+        return (actualNetProfit / actualReceived) * 100
     }
 }
 
@@ -64,7 +75,7 @@ class FinancialReportService {
             return calendar.startOfDay(for: date)
         }
         
-        // 1. Process Orders (Revenue & COGS) - only count paid, non-deleted orders
+        // 1. Process Orders (Revenue, Actual Received, Debt & COGS) - only count paid, non-deleted orders
         for order in orders {
             if order.isPaid && !order.isDeleted && order.createdAt >= startDate && order.createdAt <= endDate {
                 let dateKey = startOfDay(order.createdAt)
@@ -72,6 +83,10 @@ class FinancialReportService {
                 
                 stats.revenue += order.total
                 stats.cogs += order.totalCost
+                
+                // Tính thực thu và công nợ
+                stats.actualReceived += (order.paidAmount ?? order.total)
+                stats.debt += (order.debtAmount ?? 0)
                 
                 statsByDate[dateKey] = stats
             }

@@ -140,6 +140,15 @@ struct StatisticsView: View {
                     let totalFees = stats.reduce(0) { $0 + $1.incurredFees }
                     let totalNet = stats.reduce(0) { $0 + $1.netProfit }
                     
+                    // Tính toán thông tin thu nợ
+                    let retailOrders = getRetailOrdersInCurrentRange()
+                    let totalActualReceived = retailOrders.reduce(0.0) { total, order in
+                        total + (order.paidAmount ?? order.total)
+                    }
+                    let totalDebt = retailOrders.reduce(0.0) { total, order in
+                        total + (order.debtAmount ?? 0)
+                    }
+                    
                     Color.clear.frame(height: 0).id("page-top")
 
                     // ── BÁN LẺ ──────────────────────────────────────────
@@ -147,7 +156,19 @@ struct StatisticsView: View {
 
                     HStack(spacing: 12) {
                         StatCard(title: "Doanh thu", value: formatCurrency(totalRevenue), icon: "arrow.down.left", trend: "", isPositive: true,
-                            info: "Tổng tiền thu được từ các đơn bán lẻ đã thanh toán (isPaid = true) trong kỳ.")
+                            info: "Tổng giá trị các đơn hàng bán lẻ trong kỳ (bao gồm cả phần chưa thu).")
+                        
+                        StatCard(title: "Thực thu", value: formatCurrency(totalActualReceived), icon: "checkmark.circle", trend: "", isPositive: true,
+                            info: "Tổng số tiền thực tế đã thu được từ khách hàng.")
+                    }
+                    .padding(.horizontal)
+                    
+                    HStack(spacing: 12) {
+                        if totalDebt > 0 {
+                            StatCard(title: "Công nợ", value: formatCurrency(totalDebt), icon: "clock", trend: "", isPositive: false,
+                                info: "Tổng số tiền khách hàng còn nợ chưa thanh toán.")
+                        }
+                        
                         if AuthManager.shared.canViewCostPrice {
                             StatCard(title: "Giá vốn", value: formatCurrency(totalCOGS), icon: "arrow.up.right", trend: "", isPositive: false,
                                 info: "Chi phí vốn hàng bán (COGS) — tính theo giá nhập bình quân (AVCO) của từng sản phẩm tại thời điểm bán.")
@@ -166,6 +187,9 @@ struct StatisticsView: View {
                     }
                     .padding(.horizontal)
                     
+                    // Tính lợi nhuận ròng dựa trên thực thu
+                    let actualNetProfit = totalActualReceived - totalCOGS - totalOpEx
+                    
                     VStack(spacing: 12) {
                         HStack {
                             HStack(spacing: 6) {
@@ -183,14 +207,14 @@ struct StatisticsView: View {
                                 .alert("Lợi nhuận ròng (Bán lẻ)", isPresented: $showRetailProfitInfo) {
                                     Button("Đã hiểu", role: .cancel) {}
                                 } message: {
-                                    Text("Lợi nhuận ròng = Doanh thu − Giá vốn − Chi phí vận hành\n\nDoanh thu: tổng đơn đã thanh toán.\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.\nChi phí vận hành (OPEX): các khoản chi phí nhập thủ công (thuê mặt bằng, lương, điện nước...).")
+                                    Text("Lợi nhuận ròng = Thực thu − Giá vốn − Chi phí vận hành\n\nThực thu: số tiền thực tế đã nhận từ khách hàng.\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.\nChi phí vận hành (OPEX): các khoản chi phí nhập thủ công (thuê mặt bằng, lương, điện nước...).\n\nLưu ý: Công nợ chưa thu không được tính vào lợi nhuận ròng.")
                                 }
                             }
                             Spacer()
-                            Text(formatCurrency(totalNet))
+                            Text(formatCurrency(actualNetProfit))
                                 .font(.title3)
                                 .fontWeight(.bold)
-                                .foregroundStyle(totalNet >= 0 ? .green : .red)
+                                .foregroundStyle(actualNetProfit >= 0 ? .green : .red)
                         }
                         .padding(.horizontal)
 
@@ -450,7 +474,7 @@ struct StatisticsView: View {
                     }
 
                     // ── TỔNG HỢP ────────────────────────────────────────
-                    let totalCombined = totalNet + (ws.paid - ws.materialCost)
+                    let totalCombined = actualNetProfit + (ws.paid - ws.materialCost)
                     sectionHeader("📊 Tổng hợp")
 
                     VStack(spacing: 10) {
@@ -459,10 +483,10 @@ struct StatisticsView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.gray)
                             Spacer()
-                            Text(formatCurrency(totalNet))
+                            Text(formatCurrency(actualNetProfit))
                                 .font(.subheadline)
                                 .fontWeight(.semibold)
-                                .foregroundStyle(totalNet >= 0 ? .green : .red)
+                                .foregroundStyle(actualNetProfit >= 0 ? .green : .red)
                         }
                         HStack {
                             Text("Lợi nhuận bán sỉ")
@@ -492,7 +516,7 @@ struct StatisticsView: View {
                                 .alert("Tổng lợi nhuận ròng", isPresented: $showTotalProfitInfo) {
                                     Button("Đã hiểu", role: .cancel) {}
                                 } message: {
-                                    Text("Tổng lợi nhuận ròng = Lợi nhuận bán lẻ + Lợi nhuận bán sỉ\n\nBán lẻ: Doanh thu − Giá vốn − Chi phí vận hành\nBán sỉ: Đã thu − Chi phí nguyên liệu\n\nLưu ý: Phần còn nợ của bán sỉ chưa được tính vào đây.")
+                                    Text("Tổng lợi nhuận ròng = Lợi nhuận bán lẻ + Lợi nhuận bán sỉ\n\nBán lẻ: Thực thu − Giá vốn − Chi phí vận hành\nBán sỉ: Đã thu − Chi phí nguyên liệu\n\nLưu ý: Công nợ chưa thu không được tính vào lợi nhuận ròng.")
                                 }
                             }
                             Spacer()
@@ -509,6 +533,43 @@ struct StatisticsView: View {
                     .padding(.horizontal)
 
                     } // end if productionEnabled
+
+                    // Thông tin công nợ (nếu có)
+                    if totalDebt > 0 {
+                        VStack(spacing: 12) {
+                            sectionHeader("💰 Thông tin công nợ")
+                            
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Text("Tổng công nợ chưa thu")
+                                        .font(.headline)
+                                        .foregroundStyle(Color.themeTextDark)
+                                    Spacer()
+                                    Text(formatCurrency(totalDebt))
+                                        .font(.title3)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.red)
+                                }
+                                
+                                HStack {
+                                    Text("Tỷ lệ công nợ")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                    let debtRatio = totalRevenue > 0 ? (totalDebt / totalRevenue) * 100 : 0
+                                    Text("\(String(format: "%.1f", debtRatio))%")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(debtRatio > 20 ? .red : (debtRatio > 10 ? .orange : .green))
+                                }
+                            }
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 1)
+                            .padding(.horizontal)
+                        }
+                    }
 
                     // Button cho danh sách tồn kho (luôn hiển thị)
                     Button {
@@ -717,18 +778,33 @@ struct StatisticsRow: View {
                     .font(.caption)
                     .foregroundStyle(.gray)
                 Spacer()
-                Text(formatCurrency(stat.netProfit))
+                Text(formatCurrency(stat.actualNetProfit))
                     .font(.caption)
                     .fontWeight(.bold)
-                    .foregroundStyle(stat.netProfit >= 0 ? .green : .red)
+                    .foregroundStyle(stat.actualNetProfit >= 0 ? .green : .red)
             }
             
-            HStack(spacing: 12) {
-                valueBox(title: "Doanh thu", value: stat.revenue, color: .green)
-                if AuthManager.shared.canViewCostPrice {
-                    valueBox(title: "Giá vốn", value: stat.cogs, color: .red)
+            VStack(spacing: 6) {
+                // Hàng đầu: Doanh thu và Thực thu
+                HStack(spacing: 12) {
+                    valueBox(title: "Doanh thu", value: stat.revenue, color: .blue)
+                    valueBox(title: "Thực thu", value: stat.actualReceived, color: .green)
+                    if stat.debt > 0 {
+                        valueBox(title: "Công nợ", value: stat.debt, color: .red)
+                    }
                 }
-                valueBox(title: "Chi phí vận hành", value: stat.operatingCosts, color: .orange)
+                
+                // Hàng thứ hai: Chi phí
+                HStack(spacing: 12) {
+                    if AuthManager.shared.canViewCostPrice {
+                        valueBox(title: "Giá vốn", value: stat.cogs, color: .red)
+                    }
+                    valueBox(title: "Chi phí vận hành", value: stat.operatingCosts, color: .orange)
+                    if !AuthManager.shared.canViewCostPrice || stat.debt == 0 {
+                        // Thêm spacer để cân bằng layout
+                        Spacer()
+                    }
+                }
             }
         }
         .padding()
