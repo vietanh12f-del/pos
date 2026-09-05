@@ -9,10 +9,10 @@ struct StatisticsView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Binding var selectedTab: Int
     @ObservedObject private var storeManager = StoreManager.shared
-    @State private var selectedType: StatType = .month
-    @State private var selectedMonth = Date()
-    @State private var selectedQuarter: Int
-    @State private var selectedYear: Int
+    @State private var quickRange: QuickRange = .today
+    @State private var customStart: Date = Calendar.current.startOfDay(for: Date())
+    @State private var customEnd: Date = Date()
+    @State private var showCustomPicker = false
     @State private var stats: [DailyFinancialStats] = []
     @State private var productSearch: String = ""
     @State private var keyboardHeight: CGFloat = 0
@@ -33,17 +33,60 @@ struct StatisticsView: View {
     @State private var showDebtDetail = false
     @State private var showTopProductsDetail = false
     
-    enum StatType {
-        case today, week, month, quarter
+    enum QuickRange: String, CaseIterable {
+        case today     = "Hôm nay"
+        case thisWeek  = "Tuần này"
+        case thisMonth = "Tháng này"
+        case custom    = "Tuỳ chọn"
+
+        var reportRange: ReportDateRange? {
+            switch self {
+            case .today:     return .today
+            case .thisWeek:  return .thisWeek
+            case .thisMonth: return .thisMonth
+            case .custom:    return nil
+            }
+        }
+    }
+
+    private var activeRange: ReportDateRange {
+        switch quickRange {
+        case .today:     return .today
+        case .thisWeek:  return .thisWeek
+        case .thisMonth: return .thisMonth
+        case .custom:    return .custom(start: customStart, end: customEnd)
+        }
+    }
+
+    private var rangeLabel: String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd/MM"
+        switch quickRange {
+        case .today:
+            let f2 = DateFormatter()
+            f2.locale = Locale(identifier: "vi_VN")
+            f2.dateFormat = "dd/MM/yyyy"
+            return f2.string(from: Date())
+        case .thisWeek:
+            let cal = Calendar.current
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+            let start = cal.date(from: comps) ?? Date()
+            let end = cal.date(byAdding: .day, value: 6, to: start) ?? Date()
+            return "\(df.string(from: start)) – \(df.string(from: end))"
+        case .thisMonth:
+            let f2 = DateFormatter()
+            f2.locale = Locale(identifier: "vi_VN")
+            f2.dateFormat = "MM/yyyy"
+            return "Tháng \(f2.string(from: Date()))"
+        case .custom:
+            return "\(df.string(from: customStart)) – \(df.string(from: customEnd))"
+        }
     }
     
     init(viewModel: OrderViewModel, selectedTab: Binding<Int>) {
         self.viewModel = viewModel
         self._selectedTab = selectedTab
-        let calendar = Calendar.current
-        let date = Date()
-        _selectedQuarter = State(initialValue: (calendar.component(.month, from: date) - 1) / 3 + 1)
-        _selectedYear = State(initialValue: calendar.component(.year, from: date))
     }
     
     var body: some View {
@@ -82,59 +125,59 @@ struct StatisticsView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                     
-                    Picker("Khoảng thời gian", selection: $selectedType) {
-                        Text("Hôm nay").tag(StatType.today)
-                        Text("Tuần này").tag(StatType.week)
-                        Text("Theo tháng").tag(StatType.month)
-                        Text("Theo quý").tag(StatType.quarter)
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal)
-                    .onChange(of: selectedType) { _ in regenerate() }
-                    
-                    if selectedType == .month {
-                        HStack {
-                            Button(action: { moveMonth(-1) }) {
-                                Image(systemName: "chevron.left")
-                                    .padding()
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                            }
-                            
-                            Text(monthYearString(selectedMonth))
-                                .font(.headline)
-                                .frame(width: 150)
-                            
-                            Button(action: { moveMonth(1) }) {
-                                Image(systemName: "chevron.right")
-                                    .padding()
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    } else if selectedType == .quarter {
-                        HStack {
-                            Button(action: { moveQuarter(-1) }) {
-                                Image(systemName: "chevron.left")
-                                    .padding()
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                            }
-                            
-                            Text("Quý \(selectedQuarter)/\(String(format: "%d", selectedYear))")
-                                .font(.headline)
-                                .frame(width: 150)
-                            
-                            Button(action: { moveQuarter(1) }) {
-                                Image(systemName: "chevron.right")
-                                    .padding()
-                                    .background(Color.white)
-                                    .clipShape(Circle())
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
+                    HStack(spacing: 8) {
+                                    ForEach(QuickRange.allCases, id: \.self) { r in
+                                        Button {
+                                            quickRange = r
+                                            if r == .custom { showCustomPicker = true }
+                                        } label: {
+                                            Text(r.rawValue)
+                                                .font(.caption)
+                                                .fontWeight(quickRange == r ? .bold : .regular)
+                                                .foregroundStyle(quickRange == r ? .white : Color.themeTextDark)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 7)
+                                                .background(
+                                                    Capsule()
+                                                        .fill(quickRange == r ? Color.themePrimary : Color.white)
+                                                )
+                                                .overlay(
+                                                    Capsule()
+                                                        .stroke(quickRange == r ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                        .font(.caption)
+                                        .foregroundStyle(.gray)
+                                    Text(rangeLabel)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.gray)
+                                    Spacer()
+                                    if quickRange == .custom {
+                                        Button {
+                                            showCustomPicker = true
+                                        } label: {
+                                            Text("Đổi ngày")
+                                                .font(.caption)
+                                                .foregroundStyle(Color.themePrimary)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .onChange(of: quickRange) { _ in regenerate() }
+                                .onChange(of: customStart) { _ in
+                                    if quickRange == .custom { regenerate() }
+                                }
+                                .onChange(of: customEnd) { _ in
+                                    if quickRange == .custom { regenerate() }
+                                }
                     
                     let totalRevenue = stats.reduce(0) { $0 + $1.revenue }
                     let totalCOGS = stats.reduce(0) { $0 + $1.cogs }
@@ -703,6 +746,30 @@ struct StatisticsView: View {
             .sheet(item: $exportItem) { item in
                 ShareSheet(items: [item.url])
             }
+            .sheet(isPresented: $showCustomPicker) {
+                NavigationStack {
+                    Form {
+                        Section(header: Text("Chọn khoảng thời gian")) {
+                            DatePicker("Từ ngày", selection: $customStart, displayedComponents: .date)
+                            DatePicker("Đến ngày", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                        }
+                    }
+                    .navigationTitle("Tuỳ chọn ngày")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Xong") { showCustomPicker = false }
+                                .fontWeight(.bold)
+                        }
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Huỷ") {
+                                quickRange = .today
+                                showCustomPicker = false
+                            }
+                        }
+                    }
+                }
+            }
         }
         .onAppear {
             regenerate()
@@ -719,59 +786,15 @@ struct StatisticsView: View {
     }
     
     private func currentRange() -> ReportDateRange {
-        switch selectedType {
-        case .today:
-            return .today
-        case .week:
-            return .thisWeek
-        case .month:
-            let calendar = Calendar.current
-            let components = calendar.dateComponents([.year, .month], from: selectedMonth)
-            let start = calendar.date(from: components) ?? selectedMonth
-            let end = calendar.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? selectedMonth
-            return .custom(start: start, end: end)
-        case .quarter:
-            let calendar = Calendar.current
-            var components = DateComponents()
-            components.year = selectedYear
-            components.month = (selectedQuarter - 1) * 3 + 1
-            components.day = 1
-            let start = calendar.date(from: components) ?? Date()
-            let end = calendar.date(byAdding: .month, value: 3, to: start)?.addingTimeInterval(-1) ?? Date()
-            return .custom(start: start, end: end)
-        }
+        activeRange
     }
     
     private func regenerate() {
-        let range: ReportDateRange
-        
-        switch selectedType {
-        case .today:
-            range = .today
-        case .week:
-            range = .thisWeek
-        case .month:
-            let calendar = Calendar.current
-            let components = calendar.dateComponents([.year, .month], from: selectedMonth)
-            let start = calendar.date(from: components) ?? selectedMonth
-            let end = calendar.date(byAdding: .month, value: 1, to: start)?.addingTimeInterval(-1) ?? selectedMonth
-            range = .custom(start: start, end: end)
-        case .quarter:
-            let calendar = Calendar.current
-            var components = DateComponents()
-            components.year = selectedYear
-            components.month = (selectedQuarter - 1) * 3 + 1
-            components.day = 1
-            let start = calendar.date(from: components) ?? Date()
-            let end = calendar.date(byAdding: .month, value: 3, to: start)?.addingTimeInterval(-1) ?? Date()
-            range = .custom(start: start, end: end)
-        }
-        
         stats = FinancialReportService.shared.generateReport(
             orders: viewModel.pastOrders,
             expenses: viewModel.operatingExpenses,
             restocks: viewModel.restockHistory,
-            range: range
+            range: activeRange
         )
     }
     
@@ -794,37 +817,6 @@ struct StatisticsView: View {
         .padding(.top, 4)
     }
 
-    private func moveMonth(_ value: Int) {
-        if let newDate = Calendar.current.date(byAdding: .month, value: value, to: selectedMonth) {
-            selectedMonth = newDate
-            regenerate()
-        }
-    }
-    
-    private func moveQuarter(_ value: Int) {
-        var newQuarter = selectedQuarter + value
-        var newYear = selectedYear
-        
-        while newQuarter > 4 {
-            newQuarter -= 4
-            newYear += 1
-        }
-        while newQuarter < 1 {
-            newQuarter += 4
-            newYear -= 1
-        }
-        
-        selectedQuarter = newQuarter
-        selectedYear = newYear
-        regenerate()
-    }
-    
-    private func monthYearString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM/yyyy"
-        return "Tháng " + formatter.string(from: date)
-    }
-    
     private func getRetailOrdersInCurrentRange() -> [Bill] {
         let range = currentRange()
         let (startDate, endDate) = FinancialReportService.shared.getDateRange(range)
