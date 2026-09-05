@@ -30,6 +30,7 @@ struct StatisticsView: View {
     @State private var showInventoryValueInfo = false
     @State private var showAllOrdersDetail = false
     @State private var showInventoryDetail = false
+    @State private var showDebtDetail = false
     
     enum StatType {
         case today, week, month, quarter
@@ -534,40 +535,71 @@ struct StatisticsView: View {
 
                     } // end if productionEnabled
 
-                    // Thông tin công nợ (nếu có)
+                    // Button công nợ (nếu có)
                     if totalDebt > 0 {
-                        VStack(spacing: 12) {
-                            sectionHeader("💰 Thông tin công nợ")
-                            
+                        let debtCustomers = Set(retailOrders.filter { ($0.debtAmount ?? 0) > 0 }.compactMap { $0.customerName }).count
+                        let overdueOrders = retailOrders.filter { order in
+                            guard let expectedDate = order.expectedPayDate, (order.debtAmount ?? 0) > 0 else { return false }
+                            return expectedDate < Date()
+                        }.count
+                        
+                        Button {
+                            showDebtDetail = true
+                        } label: {
                             VStack(spacing: 8) {
                                 HStack {
-                                    Text("Tổng công nợ chưa thu")
-                                        .font(.headline)
-                                        .foregroundStyle(Color.themeTextDark)
-                                    Spacer()
-                                    Text(formatCurrency(totalDebt))
-                                        .font(.title3)
-                                        .fontWeight(.bold)
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.title2)
                                         .foregroundStyle(.red)
-                                }
-                                
-                                HStack {
-                                    Text("Tỷ lệ công nợ")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.gray)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Danh sách công nợ")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        
+                                        HStack(spacing: 12) {
+                                            Text("\(debtCustomers) khách hàng")
+                                                .font(.caption)
+                                                .foregroundStyle(.gray)
+                                            
+                                            if overdueOrders > 0 {
+                                                Text("• \(overdueOrders) quá hạn")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.red)
+                                            }
+                                        }
+                                    }
+                                    
                                     Spacer()
-                                    let debtRatio = totalRevenue > 0 ? (totalDebt / totalRevenue) * 100 : 0
-                                    Text("\(String(format: "%.1f", debtRatio))%")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(debtRatio > 20 ? .red : (debtRatio > 10 ? .orange : .green))
+                                    
+                                    VStack(alignment: .trailing, spacing: 2) {
+                                        Text(formatCurrency(totalDebt))
+                                            .font(.title3)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(.red)
+                                        
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundStyle(.gray)
+                                    }
                                 }
                             }
                             .padding()
-                            .background(Color.white)
+                            .background(Color.red.opacity(0.03))
                             .cornerRadius(12)
-                            .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 1)
-                            .padding(.horizontal)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.red.opacity(0.2), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal)
+                        .sheet(isPresented: $showDebtDetail) {
+                            DebtListView(
+                                orders: getRetailOrdersInCurrentRange(),
+                                dateRange: getDateRangeString()
+                            )
                         }
                     }
 
