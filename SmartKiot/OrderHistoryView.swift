@@ -1,5 +1,141 @@
 import SwiftUI
 
+// MARK: - Search Scope (loại tìm kiếm)
+enum OrderSearchScope: String, CaseIterable, Identifiable {
+    case all          = "Tất cả"
+    case stt          = "Mã STT"
+    case customer     = "Khách hàng"
+    case product      = "Tên sản phẩm"
+    case amount       = "Giá trị đơn"
+    
+    var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .all:      return "line.3.horizontal.decrease.circle"
+        case .stt:      return "number"
+        case .customer: return "person.fill"
+        case .product:  return "cart.fill"
+        case .amount:   return "banknote.fill"
+        }
+    }
+}
+
+// MARK: - Bộ lọc nâng cao
+struct OrderFilterCriteria: Equatable {
+    var paymentStatus: PaymentStatusFilter = .all
+    var orderStatus: OrderStatusFilter = .all
+    var dateRangeEnabled: Bool = false
+    var dateFrom: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    var dateTo: Date = Date()
+    var staffName: String? = nil
+    
+    var hasAnyActiveFilter: Bool {
+        if paymentStatus != .all { return true }
+        if orderStatus != .all { return true }
+        if dateRangeEnabled { return true }
+        if staffName != nil { return true }
+        return false
+    }
+}
+
+enum PaymentStatusFilter: String, CaseIterable, Identifiable {
+    case all          = "Tất cả"
+    case unpaid       = "Chưa thanh toán"
+    case partial      = "Thanh toán 1 phần"
+    case paidFull     = "Đã thanh toán"
+    
+    var id: String { rawValue }
+    
+    func matches(_ bill: Bill) -> Bool {
+        switch self {
+        case .all:       return true
+        case .unpaid:    return bill.paymentStatus == .unpaid
+        case .partial:   return bill.paymentStatus == .paidPartial
+        case .paidFull:  return bill.paymentStatus == .paidFull
+        }
+    }
+}
+
+enum OrderStatusFilter: String, CaseIterable, Identifiable {
+    case all            = "Tất cả"
+    case preparing      = "Chuẩn bị hàng"
+    case prepared       = "Đã soạn hàng"
+    case delivering     = "Đang giao"
+    case delivered      = "Đã giao"
+    case completed      = "Hoàn thành"
+    case cancelled      = "Đã Huỷ"
+    
+    var id: String { rawValue }
+    
+    func matches(_ bill: Bill) -> Bool {
+        switch self {
+        case .all:        return true
+        case .preparing:  return bill.orderStatus == "preparing"
+        case .prepared:   return bill.orderStatus == "prepared"
+        case .delivering: return bill.orderStatus == "delivering"
+        case .delivered:  return bill.orderStatus == "delivered"
+        case .completed:  return bill.orderStatus == "completed"
+        case .cancelled:  return bill.orderStatus == "cancelled"
+        }
+    }
+}
+
+// MARK: - Suggestion Item (dùng cho gợi ý khi gõ)
+enum OrderSuggestionItem: Identifiable, Hashable {
+    case customer(name: String, phone: String)
+    case product(name: String)
+    case stt(code: String)
+    
+    var id: String {
+        switch self {
+        case .customer(let n, _): return "C-\(n)"
+        case .product(let n):     return "P-\(n)"
+        case .stt(let c):         return "S-\(c)"
+        }
+    }
+    
+    var title: String {
+        switch self {
+        case .customer(let n, _): return n
+        case .product(let n):     return n
+        case .stt(let c):         return c
+        }
+    }
+    
+    var subtitle: String {
+        switch self {
+        case .customer(_, let p): return "Khách hàng" + (p.isEmpty ? "" : " • \(p)")
+        case .product:            return "Sản phẩm"
+        case .stt:                return "Số thứ tự đơn"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .customer: return "person.crop.circle.fill"
+        case .product:  return "cart.circle.fill"
+        case .stt:      return "number.circle.fill"
+        }
+    }
+    
+    var iconColor: Color {
+        switch self {
+        case .customer: return .blue
+        case .product:  return .green
+        case .stt:      return .orange
+        }
+    }
+    
+    var suggestedText: String {
+        switch self {
+        case .customer(let n, _): return n
+        case .product(let n):     return n
+        case .stt(let c):         return c
+        }
+    }
+}
+
 struct OrderHistoryView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Binding var navigateToBillId: UUID?
@@ -17,6 +153,19 @@ struct OrderHistoryView: View {
     @State private var showInventoryReport: Bool = false
     @State private var showDeletedBills: Bool = false
     @State private var isRefreshing: Bool = false
+    
+    // MARK: - Search Scope + Filter
+    @State private var searchScope: OrderSearchScope = .all
+    @State private var showFilterSheet: Bool = false
+    @State private var filters: OrderFilterCriteria = OrderFilterCriteria()
+    
+    // MARK: - Suggestions
+    @State private var showSuggestions: Bool = false
+    @State private var suggestionDebounceTask: Task<Void, Never>? = nil
+    @State private var cachedCustomerNames: [(name: String, phone: String)] = []
+    @State private var cachedProductNames: [String] = []
+    @State private var cachedSTTs: [String] = []
+    @State private var cachedStaffNames: [String] = []
     
     init(viewModel: OrderViewModel, navigateToBillId: Binding<UUID?> = .constant(nil)) {
         self.viewModel = viewModel
@@ -109,44 +258,202 @@ struct OrderHistoryView: View {
                         .padding(.horizontal)
                         .padding(.top)
 
-                        // Inline search bar
+                        // Inline search bar + Scope + Filter + Suggestions
                         if showSearchBar {
-                            HStack(spacing: 8) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "magnifyingglass").foregroundStyle(.gray)
-                                    TextField("Tìm theo tên KH, sản phẩm, STT...", text: $historySearchText)
-                                        .textInputAutocapitalization(.never)
-                                        .disableAutocorrection(true)
-                                    if !historySearchText.isEmpty {
-                                        Button(action: { historySearchText = "" }) {
-                                            Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
+                            VStack(spacing: 6) {
+                                // Search Scope Picker (chip style)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 6) {
+                                        ForEach(OrderSearchScope.allCases) { scope in
+                                            Button {
+                                                searchScope = scope
+                                            } label: {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: scope.icon)
+                                                        .font(.caption2)
+                                                    Text(scope.rawValue)
+                                                        .font(.caption)
+                                                        .fontWeight(searchScope == scope ? .bold : .medium)
+                                                }
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(
+                                                    Capsule().fill(searchScope == scope
+                                                        ? Color.themePrimary.opacity(0.18)
+                                                        : Color.gray.opacity(0.08))
+                                                )
+                                                .foregroundStyle(searchScope == scope
+                                                    ? Color.themePrimary
+                                                    : Color.gray)
+                                                .overlay(
+                                                    Capsule().stroke(searchScope == scope
+                                                        ? Color.themePrimary.opacity(0.4)
+                                                        : Color.clear, lineWidth: 1)
+                                                )
+                                            }
+                                            .buttonStyle(.plain)
                                         }
                                     }
+                                    .padding(.horizontal, 2)
                                 }
-                                .padding(10)
-                                .background(Color.white)
-                                .cornerRadius(10)
-                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
-
-                                // Icon chọn khách có sẵn
-                                Button {
-                                    showCustomerPicker = true
-                                    if availableCustomers.isEmpty {
-                                        isLoadingCustomers = true
-                                        Task {
-                                            let buyers = (try? await SupabaseDatabaseService().fetchTradingParties(type: "buyer")) ?? []
-                                            await MainActor.run {
-                                                availableCustomers = buyers.sorted { $0.name < $1.name }
-                                                isLoadingCustomers = false
+                                .padding(.horizontal, 4)
+                                
+                                // Search Field + Icons
+                                HStack(spacing: 8) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                                        TextField(scopePlaceholder, text: $historySearchText, onEditingChanged: { editing in
+                                            withAnimation(.easeInOut(duration: 0.15)) {
+                                                showSuggestions = editing && !historySearchText.isEmpty
+                                            }
+                                        })
+                                            .textInputAutocapitalization(.never)
+                                            .disableAutocorrection(true)
+                                            .onChange(of: historySearchText) { _ in
+                                                // Debounce: hiện gợi ý sau 150ms nếu đang nhập
+                                                suggestionDebounceTask?.cancel()
+                                                if !historySearchText.isEmpty {
+                                                    let task = Task { @MainActor in
+                                                        try? await Task.sleep(nanoseconds: 150_000_000)
+                                                        if !Task.isCancelled {
+                                                            rebuildSuggestionCacheIfNeeded()
+                                                            withAnimation(.easeInOut(duration: 0.15)) {
+                                                                showSuggestions = true
+                                                            }
+                                                        }
+                                                    }
+                                                    suggestionDebounceTask = task
+                                                } else {
+                                                    withAnimation(.easeInOut(duration: 0.1)) {
+                                                        showSuggestions = false
+                                                    }
+                                                }
+                                            }
+                                        if !historySearchText.isEmpty {
+                                            Button(action: {
+                                                historySearchText = ""
+                                                withAnimation { showSuggestions = false }
+                                            }) {
+                                                Image(systemName: "xmark.circle.fill").foregroundStyle(.gray)
                                             }
                                         }
                                     }
-                                } label: {
-                                    Image(systemName: "person.crop.circle.badge.plus")
-                                        .font(.title3)
-                                        .foregroundStyle(Color.themePrimary)
+                                    .padding(10)
+                                    .background(Color.white)
+                                    .cornerRadius(10)
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                                    
+                                    // Icon chọn khách có sẵn
+                                    Button {
+                                        showCustomerPicker = true
+                                        if availableCustomers.isEmpty {
+                                            isLoadingCustomers = true
+                                            Task {
+                                                let buyers = (try? await SupabaseDatabaseService().fetchTradingParties(type: "buyer")) ?? []
+                                                await MainActor.run {
+                                                    availableCustomers = buyers.sorted { $0.name < $1.name }
+                                                    isLoadingCustomers = false
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        Image(systemName: "person.crop.circle.badge.plus")
+                                            .font(.title3)
+                                            .foregroundStyle(Color.themePrimary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    // Icon bộ lọc (mới thêm)
+                                    Button {
+                                        rebuildSuggestionCacheIfNeeded()
+                                        showFilterSheet = true
+                                    } label: {
+                                        ZStack(alignment: .topTrailing) {
+                                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                                                .font(.title3)
+                                                .foregroundStyle(filters.hasAnyActiveFilter ? Color.orange : Color.themePrimary)
+                                            if filters.hasAnyActiveFilter {
+                                                Circle()
+                                                    .fill(Color.orange)
+                                                    .frame(width: 8, height: 8)
+                                                    .offset(x: 1, y: -1)
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
+                                .padding(.horizontal, 2)
+                                
+                                // Suggestion Dropdown (xuất hiện khi gõ)
+                                if showSuggestions {
+                                    let items = currentSuggestions
+                                    if !items.isEmpty {
+                                        ScrollView(.vertical, showsIndicators: false) {
+                                            VStack(spacing: 0) {
+                                                ForEach(items.prefix(10)) { item in
+                                                    Button {
+                                                        historySearchText = item.suggestedText
+                                                        // Tự động set scope phù hợp để filter chính xác hơn
+                                                        switch item {
+                                                        case .customer: searchScope = .customer
+                                                        case .product:  searchScope = .product
+                                                        case .stt:      searchScope = .stt
+                                                        }
+                                                        withAnimation { showSuggestions = false }
+                                                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                                    } label: {
+                                                        HStack(spacing: 10) {
+                                                            Image(systemName: item.icon)
+                                                                .font(.title3)
+                                                                .foregroundStyle(item.iconColor)
+                                                                .frame(width: 28, height: 28)
+                                                                .background(item.iconColor.opacity(0.12))
+                                                                .clipShape(Circle())
+                                                            
+                                                            VStack(alignment: .leading, spacing: 2) {
+                                                                Text(item.title)
+                                                                    .font(.subheadline)
+                                                                    .fontWeight(.semibold)
+                                                                    .foregroundStyle(Color.themeTextDark)
+                                                                    .lineLimit(1)
+                                                                Text(item.subtitle)
+                                                                    .font(.caption2)
+                                                                    .foregroundStyle(.gray)
+                                                            }
+                                                            
+                                                            Spacer()
+                                                            
+                                                            Image(systemName: "arrow.up.left")
+                                                                .font(.caption2)
+                                                                .foregroundStyle(.gray.opacity(0.6))
+                                                        }
+                                                        .padding(.horizontal, 12)
+                                                        .padding(.vertical, 9)
+                                                        .background(Color.white)
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                    
+                                                    Divider()
+                                                        .padding(.leading, 50)
+                                                }
+                                            }
+                                            .background(Color.white)
+                                            .cornerRadius(12)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                                            )
+                                            .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 3)
+                                        }
+                                        .frame(maxHeight: 320)
+                                        .transition(.move(edge: .top).combined(with: .opacity))
+                                    }
+                                }
+                                
+                                // Filter summary badges (nếu có filter đang bật)
+                                if filters.hasAnyActiveFilter {
+                                    activeFilterBadges
+                                }
                             }
                             .padding(.horizontal)
                             .padding(.bottom, 6)
@@ -400,24 +707,90 @@ struct OrderHistoryView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
+            // MARK: - Bộ lọc nâng cao Sheet
+            .sheet(isPresented: $showFilterSheet) {
+                OrderHistoryFilterSheet(
+                    filters: $filters,
+                    availableStaffNames: cachedStaffNames,
+                    onReset: {
+                        filters = OrderFilterCriteria()
+                    }
+                )
+            }
         }
     }
     
     var sections: [(title: String, bills: [Bill])] {
         let query = historySearchText.trimmingCharacters(in: .whitespaces).lowercased()
         let baseBills = viewModel.pastOrders.filter { showDeletedBills ? $0.isDeleted : !$0.isDeleted }
+        
+        // Bước 1: lọc theo bộ lọc nâng cao (trạng thái thanh toán, trạng thái đơn, ngày, nhân viên)
+        var afterAdvancedFilters: [Bill] = baseBills
+        // Bộ lọc trạng thái thanh toán
+        afterAdvancedFilters = afterAdvancedFilters.filter { filters.paymentStatus.matches($0) }
+        // Bộ lọc trạng thái đơn
+        afterAdvancedFilters = afterAdvancedFilters.filter { filters.orderStatus.matches($0) }
+        // Bộ lọc khoảng ngày
+        if filters.dateRangeEnabled {
+            let calendar = Calendar.current
+            let startDay = calendar.startOfDay(for: filters.dateFrom)
+            let endDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: filters.dateTo)) ?? filters.dateTo
+            afterAdvancedFilters = afterAdvancedFilters.filter { bill in
+                bill.createdAt >= startDay && bill.createdAt < endDay
+            }
+        }
+        // Bộ lọc theo nhân viên tạo đơn
+        if let staff = filters.staffName, !staff.isEmpty {
+            afterAdvancedFilters = afterAdvancedFilters.filter { bill in
+                (bill.creatorName ?? "").smartContains(staff.lowercased())
+            }
+        }
+        
+        // Bước 2: lọc theo từ khoá tìm kiếm, phân biệt theo search scope
         let filteredBills: [Bill]
         if query.isEmpty {
-            filteredBills = baseBills
+            filteredBills = afterAdvancedFilters
         } else {
-            filteredBills = baseBills.filter { bill in
-                // Tìm theo tên khách hàng
-                if (bill.customerName ?? "").smartContains(query) { return true }
-                // Tìm theo STT
-                if (bill.sequenceNumber ?? "").smartContains(query) { return true }
-                // Tìm theo tên sản phẩm trong đơn
-                if bill.items.contains(where: { $0.name.smartContains(query) }) { return true }
-                return false
+            filteredBills = afterAdvancedFilters.filter { bill in
+                switch searchScope {
+                case .all:
+                    // Tất cả: khách, STT, sản phẩm, nhân viên, giá trị (nếu match số)
+                    if (bill.customerName ?? "").smartContains(query) { return true }
+                    if (bill.sequenceNumber ?? "").smartContains(query) { return true }
+                    if bill.items.contains(where: { $0.name.smartContains(query) }) { return true }
+                    if (bill.creatorName ?? "").smartContains(query) { return true }
+                    // Nếu query là số: thử match theo giá trị đơn (bằng hoặc gần đúng)
+                    if let num = Double(query) {
+                        if bill.total == num { return true }
+                        if abs(bill.total - num) <= 500 { return true }
+                        let formatted = (bill.total as NSNumber).stringValue
+                        if formatted.smartContains(query) { return true }
+                    }
+                    return false
+                    
+                case .stt:
+                    return (bill.sequenceNumber ?? "").smartContains(query)
+                    
+                case .customer:
+                    return (bill.customerName ?? "").smartContains(query)
+                    
+                case .product:
+                    return bill.items.contains(where: { $0.name.smartContains(query) })
+                    
+                case .amount:
+                    if let num = Double(query) {
+                        if bill.total == num { return true }
+                        if abs(bill.total - num) <= 500 { return true }
+                        let formatted = (bill.total as NSNumber).stringValue
+                        if formatted.smartContains(query) { return true }
+                    }
+                    // Cũng cho phép gõ số không dấu phẩy so sánh bằng định dạng Việt Nam
+                    let noSep = query.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: "")
+                    if let num2 = Double(noSep) {
+                        if bill.total == num2 { return true }
+                    }
+                    return false
+                }
             }
         }
         
@@ -504,6 +877,635 @@ struct OrderHistoryView: View {
         } else {
             return "\(bill.items[0].name) + \(bill.items.count - 1) sản phẩm khác"
         }
+    }
+    
+    // MARK: - Helpers: Scope Placeholder / Suggestions / Filter Badges
+    
+    private var scopePlaceholder: String {
+        switch searchScope {
+        case .all:      return "Tìm theo KH, STT, SP, giá, nhân viên..."
+        case .stt:      return "Tìm theo mã STT..."
+        case .customer: return "Tìm theo tên khách hàng..."
+        case .product:  return "Tìm theo tên sản phẩm..."
+        case .amount:   return "Tìm theo giá trị đơn (vd: 50000)..."
+        }
+    }
+    
+    private var dateRangeBadgeText: String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "vi_VN")
+        df.dateFormat = "dd/MM"
+        return "\(df.string(from: filters.dateFrom)) → \(df.string(from: filters.dateTo))"
+    }
+    
+    /// Cache danh sách từ khoá gợi ý (dựa trên dữ liệu đơn hiện tại)
+    private func rebuildSuggestionCacheIfNeeded() {
+        let bills = viewModel.pastOrders.filter { !$0.isDeleted }
+        
+        // Khách hàng: dùng availableCustomers nếu đã load, ngoài ra bổ sung từ customerName trong đơn
+        var customerSet: [(name: String, phone: String)] = []
+        var addedCustomer: Set<String> = []
+        // Ưu tiên danh sách TradingParty chính thức (có phone)
+        for p in availableCustomers {
+            if !addedCustomer.contains(p.name.lowercased()) {
+                customerSet.append((name: p.name, phone: p.phone))
+                addedCustomer.insert(p.name.lowercased())
+            }
+        }
+        // Thêm những customerName trong bill chưa có trong TradingParty
+        for bill in bills {
+            if let name = bill.customerName, !name.isEmpty, !addedCustomer.contains(name.lowercased()) {
+                customerSet.append((name: name, phone: ""))
+                addedCustomer.insert(name.lowercased())
+            }
+        }
+        cachedCustomerNames = customerSet.sorted { a, b in a.name < b.name }
+        
+        // Sản phẩm: lấy tên sản phẩm unique từ các đơn
+        var productSet: Set<String> = []
+        for bill in bills {
+            for it in bill.items { productSet.insert(it.name) }
+        }
+        cachedProductNames = productSet.sorted()
+        
+        // STT: lấy sequenceNumber unique
+        var sttSet: Set<String> = []
+        for bill in bills { if let s = bill.sequenceNumber { sttSet.insert(s) } }
+        cachedSTTs = sttSet.sorted(by: >) // Mới nhất lên đầu
+        
+        // Nhân viên: lấy creatorName unique
+        var staffSet: Set<String> = []
+        for bill in bills { if let s = bill.creatorName, !s.isEmpty { staffSet.insert(s) } }
+        cachedStaffNames = staffSet.sorted()
+    }
+    
+    /// Gợi ý hiện tại (filter theo từ khoá + scope)
+    private var currentSuggestions: [OrderSuggestionItem] {
+        let query = historySearchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return [] }
+        
+        var results: [OrderSuggestionItem] = []
+        
+        // Ưu tiên scope hiện tại, nhưng nếu scope là all thì show tất cả
+        switch searchScope {
+        case .all, .customer:
+            let matchedCustomers = cachedCustomerNames
+                .filter { $0.name.lowercased().smartContains(query) }
+                .prefix(5)
+            results.append(contentsOf: matchedCustomers.map { .customer(name: $0.name, phone: $0.phone) })
+        default: break
+        }
+        
+        switch searchScope {
+        case .all, .product:
+            let matchedProducts = cachedProductNames
+                .filter { $0.lowercased().smartContains(query) }
+                .prefix(5)
+            results.append(contentsOf: matchedProducts.map { .product(name: $0) })
+        default: break
+        }
+        
+        switch searchScope {
+        case .all, .stt:
+            let matchedSTT = cachedSTTs
+                .filter { $0.lowercased().smartContains(query) }
+                .prefix(3)
+            results.append(contentsOf: matchedSTT.map { .stt(code: $0) })
+        default: break
+        }
+        
+        return results
+    }
+    
+    /// Badge tóm tắt các filter đang bật (clickable để xoá)
+    private var activeFilterBadges: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                if filters.paymentStatus != .all {
+                    FilterBadgeChip(
+                        label: "TT: \(filters.paymentStatus.rawValue)",
+                        color: .blue,
+                        onRemove: { filters.paymentStatus = .all }
+                    )
+                }
+                if filters.orderStatus != .all {
+                    FilterBadgeChip(
+                        label: "Đơn: \(filters.orderStatus.rawValue)",
+                        color: .purple,
+                        onRemove: { filters.orderStatus = .all }
+                    )
+                }
+                if filters.dateRangeEnabled {
+                    FilterBadgeChip(
+                        label: "Ngày: \(dateRangeBadgeText)",
+                        color: .orange,
+                        onRemove: { filters.dateRangeEnabled = false }
+                    )
+                }
+                if let staff = filters.staffName, !staff.isEmpty {
+                    FilterBadgeChip(
+                        label: "NV: \(staff)",
+                        color: .green,
+                        onRemove: { filters.staffName = nil }
+                    )
+                }
+                // Nút reset tất cả
+                Button {
+                    filters = OrderFilterCriteria()
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "xmark").font(.caption2)
+                        Text("Xoá hết").font(.caption).fontWeight(.bold)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.red.opacity(0.12))
+                    .foregroundStyle(Color.red)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+}
+
+// MARK: - Filter Badge Chip (xoá filter nhanh)
+private struct FilterBadgeChip: View {
+    let label: String
+    let color: Color
+    let onRemove: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption2)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.12))
+        .foregroundStyle(color)
+        .clipShape(Capsule())
+    }
+}
+
+// MARK: - Bộ lọc nâng cao Sheet
+private struct OrderHistoryFilterSheet: View {
+    @Binding var filters: OrderFilterCriteria
+    let availableStaffNames: [String]
+    let onReset: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var tempPayment: PaymentStatusFilter
+    @State private var tempOrderStatus: OrderStatusFilter
+    @State private var tempDateEnabled: Bool
+    @State private var tempDateFrom: Date
+    @State private var tempDateTo: Date
+    @State private var tempStaffName: String?
+    @State private var showStaffPicker: Bool = false
+    @State private var staffSearch: String = ""
+    
+    init(filters: Binding<OrderFilterCriteria>, availableStaffNames: [String], onReset: @escaping () -> Void) {
+        self._filters = filters
+        self.availableStaffNames = availableStaffNames
+        self.onReset = onReset
+        self._tempPayment = State(initialValue: filters.wrappedValue.paymentStatus)
+        self._tempOrderStatus = State(initialValue: filters.wrappedValue.orderStatus)
+        self._tempDateEnabled = State(initialValue: filters.wrappedValue.dateRangeEnabled)
+        self._tempDateFrom = State(initialValue: filters.wrappedValue.dateFrom)
+        self._tempDateTo = State(initialValue: filters.wrappedValue.dateTo)
+        self._tempStaffName = State(initialValue: filters.wrappedValue.staffName)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 22) {
+                    
+                    // Nhóm 1: Loại tìm kiếm (Search Scope)
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel(icon: "magnifyingglass", title: "Loại tìm kiếm (Search Scope)", color: .blue)
+                        VStack(spacing: 2) {
+                            ForEach(OrderSearchScope.allCases) { scope in
+                                FilterOptionRow(
+                                    title: scope.rawValue,
+                                    icon: scope.icon,
+                                    selected: false // Scope dùng cho thanh search, ở đây chỉ làm tham khảo
+                                )
+                                .disabled(true)
+                                .opacity(0.7)
+                                if scope.id != OrderSearchScope.allCases.last?.id {
+                                    Divider().padding(.leading, 40)
+                                }
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
+                        
+                        Text("💡 Định nghĩa từng loại xem tại thanh chip ngay trên thanh tìm kiếm.")
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
+                    }
+                    
+                    // Nhóm 2: Trạng thái thanh toán
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel(icon: "creditcard.fill", title: "Trạng thái thanh toán", color: .green)
+                        VStack(spacing: 2) {
+                            ForEach(PaymentStatusFilter.allCases) { p in
+                                Button {
+                                    tempPayment = p
+                                } label: {
+                                    FilterOptionRow(
+                                        title: p.rawValue,
+                                        icon: paymentIcon(p),
+                                        selected: tempPayment == p
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                if p.id != PaymentStatusFilter.allCases.last?.id {
+                                    Divider().padding(.leading, 40)
+                                }
+                            }
+                        }
+                        .padding(12)
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+                        )
+                        .cornerRadius(12)
+                    }
+                    
+                    // Nhóm 3: Trạng thái đơn
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel(icon: "bag.fill", title: "Trạng thái đơn hàng", color: .purple)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                            ForEach(OrderStatusFilter.allCases) { s in
+                                Button {
+                                    tempOrderStatus = s
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: orderStatusFilterIcon(s))
+                                            .font(.caption)
+                                            .foregroundStyle(tempOrderStatus == s ? .white : .purple)
+                                        Text(s.rawValue)
+                                            .font(.caption)
+                                            .fontWeight(tempOrderStatus == s ? .bold : .medium)
+                                            .foregroundStyle(tempOrderStatus == s ? .white : Color.themeTextDark)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.7)
+                                        Spacer(minLength: 0)
+                                        if tempOrderStatus == s {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 9)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(tempOrderStatus == s ? Color.purple : Color.white)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(tempOrderStatus == s ? Color.purple.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    
+                    // Nhóm 4: Khoảng ngày
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel(icon: "calendar", title: "Lọc theo khoảng ngày", color: .orange)
+                        Toggle(isOn: $tempDateEnabled) {
+                            Text("Bật lọc theo ngày")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                        }
+                        .tint(.orange)
+                        .padding(12)
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+                        )
+                        
+                        if tempDateEnabled {
+                            VStack(spacing: 10) {
+                                DatePicker(selection: $tempDateFrom, in: ...tempDateTo, displayedComponents: .date) {
+                                    Text("Từ ngày").font(.subheadline).foregroundStyle(.gray)
+                                }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+                                )
+                                
+                                DatePicker(selection: $tempDateTo, in: tempDateFrom..., displayedComponents: .date) {
+                                    Text("Đến ngày").font(.subheadline).foregroundStyle(.gray)
+                                }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Nhóm 5: Nhân viên (người tạo đơn)
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel(icon: "person.2.fill", title: "Theo nhân viên tạo đơn", color: .teal)
+                        VStack(spacing: 8) {
+                            if let staff = tempStaffName, !staff.isEmpty {
+                                HStack {
+                                    Label(staff, systemImage: "person.crop.circle.fill")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(Color.teal)
+                                    Spacer()
+                                    Button {
+                                        tempStaffName = nil
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                                .padding(12)
+                                .background(Color.teal.opacity(0.08))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.teal.opacity(0.3), lineWidth: 1)
+                                )
+                                .cornerRadius(12)
+                            }
+                            
+                            Button {
+                                showStaffPicker = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "person.badge.plus")
+                                        .foregroundStyle(Color.teal)
+                                    Text(tempStaffName == nil ? "Chọn nhân viên..." : "Đổi nhân viên khác")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.gray)
+                                }
+                                .padding(12)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.12), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    
+                    // Footer: khoảng trống
+                    Color.clear.frame(height: 10)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 16)
+            }
+            .background(Color.themeBackgroundLight)
+            .navigationTitle("Bộ lọc đơn hàng")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(role: .cancel) {
+                        dismiss()
+                    } label: {
+                        Text("Huỷ").foregroundStyle(.gray)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        onReset()
+                    } label: {
+                        Text("Đặt lại")
+                            .fontWeight(.medium)
+                            .foregroundStyle(.red)
+                    }
+                }
+                ToolbarItem(placement: .bottomBar) {
+                    Button {
+                        // Áp dụng filter
+                        filters.paymentStatus = tempPayment
+                        filters.orderStatus = tempOrderStatus
+                        filters.dateRangeEnabled = tempDateEnabled
+                        filters.dateFrom = tempDateFrom
+                        filters.dateTo = tempDateTo
+                        filters.staffName = tempStaffName
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Áp dụng bộ lọc")
+                                .font(.subheadline)
+                                .fontWeight(.bold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.themePrimary)
+                        .foregroundStyle(.white)
+                        .cornerRadius(14)
+                        .shadow(color: Color.themePrimary.opacity(0.3), radius: 6, x: 0, y: 3)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 8)
+                }
+            }
+            .sheet(isPresented: $showStaffPicker) {
+                NavigationStack {
+                    VStack(spacing: 0) {
+                        // Search NV
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(.gray)
+                            TextField("Tìm nhân viên...", text: $staffSearch)
+                                .textInputAutocapitalization(.never)
+                                .disableAutocorrection(true)
+                            if !staffSearch.isEmpty {
+                                Button { staffSearch = "" } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.white)
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                        )
+                        .padding(.horizontal)
+                        .padding(.top, 10)
+                        
+                        List {
+                            Section {
+                                Button {
+                                    tempStaffName = nil
+                                    showStaffPicker = false
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "person.crop.circle.badge.xmark")
+                                            .foregroundStyle(.red)
+                                        Text("Tất cả nhân viên")
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.themeTextDark)
+                                        Spacer()
+                                        if tempStaffName == nil {
+                                            Image(systemName: "checkmark").foregroundStyle(.blue)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            
+                            Section(header: Text("Nhân viên").font(.caption).foregroundStyle(.gray)) {
+                                let filteredStaff = availableStaffNames.filter { name in
+                                    staffSearch.isEmpty || name.lowercased().contains(staffSearch.lowercased())
+                                }
+                                if filteredStaff.isEmpty {
+                                    Label("Chưa có nhân viên nào trong dữ liệu đơn", systemImage: "person.slash")
+                                        .foregroundStyle(.gray)
+                                        .font(.caption)
+                                }
+                                ForEach(filteredStaff, id: \.self) { name in
+                                    Button {
+                                        tempStaffName = name
+                                        showStaffPicker = false
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "person.crop.circle.fill")
+                                                .foregroundStyle(.teal)
+                                            Text(name)
+                                                .font(.subheadline)
+                                                .foregroundStyle(Color.themeTextDark)
+                                            Spacer()
+                                            if tempStaffName == name {
+                                                Image(systemName: "checkmark").foregroundStyle(.blue)
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        .listStyle(.insetGrouped)
+                    }
+                    .background(Color.themeBackgroundLight)
+                    .navigationTitle("Chọn nhân viên")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Đóng") { showStaffPicker = false }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+    
+    private func paymentIcon(_ p: PaymentStatusFilter) -> String {
+        switch p {
+        case .all:       return "creditcard.and.123"
+        case .paidFull:  return "checkmark.seal.fill"
+        case .partial:   return "exclamationmark.bubble.fill"
+        case .unpaid:    return "xmark.seal.fill"
+        }
+    }
+    
+    private func orderStatusFilterIcon(_ s: OrderStatusFilter) -> String {
+        switch s {
+        case .all:        return "square.grid.2x2"
+        case .preparing:  return "bag.fill"
+        case .prepared:   return "shippingbox.fill"
+        case .delivering: return "figure.walk"
+        case .delivered:  return "bicycle"
+        case .completed:  return "checkmark.seal.fill"
+        case .cancelled:  return "xmark.circle.fill"
+        }
+    }
+}
+
+private struct SectionLabel: View {
+    let icon: String
+    let title: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(color)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .foregroundStyle(Color.themeTextDark)
+        }
+    }
+}
+
+private struct FilterOptionRow: View {
+    let title: String
+    let icon: String
+    var selected: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(selected ? Color.green.opacity(0.12) : Color.gray.opacity(0.08))
+                    .frame(width: 28, height: 28)
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(selected ? .green : .gray)
+            }
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(Color.themeTextDark)
+            Spacer()
+            if selected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.title3)
+            } else {
+                Image(systemName: "circle")
+                    .foregroundStyle(Color.gray.opacity(0.3))
+                    .font(.title3)
+            }
+        }
+        .padding(.vertical, 6)
     }
 }
 
