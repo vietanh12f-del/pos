@@ -140,7 +140,7 @@ struct ProductionReportView: View {
 
     /// Tổng công nợ từ xuất thành phẩm
     private var finishedExportTotalDebt: Double {
-        filteredFinishedExportTx.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        filteredFinishedExportTx.reduce(0) { $0 + $1.effectiveDebt }
     }
 
     /// Tổng số thành phẩm hiện tại (tất cả loại)

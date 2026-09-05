@@ -153,6 +153,19 @@ struct Bill: Identifiable, Codable, Equatable {
     var paymentStatus: PaymentStatus {
         PaymentStatus.from(isPaid: isPaid, debtAmount: debtAmount)
     }
+
+    /// Công nợ hiệu lực: ưu tiên debtAmount nếu có; nếu isPaid=false và không có debtAmount,
+    /// tính bằng max(0, total - paidAmount).
+    var effectiveDebt: Double {
+        if let debt = debtAmount, debt > 0 {
+            return debt
+        }
+        if !isPaid {
+            let paid = paidAmount ?? 0
+            return max(0, total - paid)
+        }
+        return 0
+    }
     
     static func == (lhs: Bill, rhs: Bill) -> Bool {
         return lhs.id == rhs.id
@@ -224,6 +237,20 @@ struct ProductionTransaction: Identifiable, Codable, Equatable {
     var deletedAt: Date? = nil
     var deletedByName: String? = nil
     var deleteNote: String? = nil
+
+    /// Công nợ hiệu lực: ưu tiên debtAmount nếu có; nếu isPaid=false và không có debtAmount,
+    /// tính bằng max(0, grandTotal - paidAmount).
+    var effectiveDebt: Double {
+        if let debt = debtAmount, debt > 0 {
+            return debt
+        }
+        if !isPaid {
+            let paid = paidAmount ?? 0
+            return max(0, (grandTotal ?? 0) - paid)
+        }
+        return 0
+    }
+
     static func == (lhs: ProductionTransaction, rhs: ProductionTransaction) -> Bool {
         return lhs.id == rhs.id
     }

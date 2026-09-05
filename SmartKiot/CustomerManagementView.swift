@@ -400,14 +400,14 @@ struct CustomerManagementView: View {
             let matchName = tx.buyerName?.lowercased() == name
             let matchPhone = phone.isEmpty ? false : tx.buyerPhone == phone
             return matchName || matchPhone
-        }.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        }.reduce(0) { $0 + $1.effectiveDebt }
         
         let retailDebt = retailOrders.filter { bill in
             guard !bill.isDeleted else { return false }
             let matchName = (bill.customerName ?? "").lowercased() == name
             let matchPhone = phone.isEmpty ? false : bill.customerPhone == phone
             return matchName || matchPhone
-        }.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        }.reduce(0) { $0 + $1.effectiveDebt }
         
         return txDebt + retailDebt
     }
@@ -613,7 +613,7 @@ struct PartyDetailView: View {
     }
     
     private func getDebtStatus(for tx: ProductionTransaction) -> DebtStatus {
-        let hasDebt = (tx.debtAmount ?? 0) > 0
+        let hasDebt = tx.effectiveDebt > 0
         guard let dueDate = tx.expectedPayDate else {
             return hasDebt ? .noDueDate : .paid
         }
@@ -645,15 +645,15 @@ struct PartyDetailView: View {
             map[day, default: []].append(tx)
         }
         return map.map { (date: $0.key, txs: $0.value.sorted { (a, b) in
-            if (a.debtAmount ?? 0) > 0 && (b.debtAmount ?? 0) <= 0 {
+            if a.effectiveDebt > 0 && b.effectiveDebt <= 0 {
                 return true
             }
-            if (a.debtAmount ?? 0) <= 0 && (b.debtAmount ?? 0) > 0 {
+            if a.effectiveDebt <= 0 && b.effectiveDebt > 0 {
                 return false
             }
-            if (a.debtAmount ?? 0) > 0 && (b.debtAmount ?? 0) > 0 {
-                if (a.debtAmount ?? 0) != (b.debtAmount ?? 0) {
-                    return (a.debtAmount ?? 0) > (b.debtAmount ?? 0)
+            if a.effectiveDebt > 0 && b.effectiveDebt > 0 {
+                if a.effectiveDebt != b.effectiveDebt {
+                    return a.effectiveDebt > b.effectiveDebt
                 }
             }
             return a.createdAt > b.createdAt
@@ -830,7 +830,7 @@ struct PartyDetailView: View {
                                     Text("Công nợ:")
                                         .font(.caption)
                                         .foregroundStyle(.gray)
-                                    Text(formatCurrency(tx.debtAmount ?? 0))
+                                    Text(formatCurrency(tx.effectiveDebt))
                                         .font(.caption)
                                         .fontWeight(.semibold)
                                 }
@@ -981,7 +981,7 @@ struct PartyDetailView: View {
         // Save production transaction debts
         for tx in allPartyTxs {
             guard let edits = editedTransactions[tx.id] else { continue }
-            let debtChanged = (tx.debtAmount ?? 0) != edits.debtAmount
+            let debtChanged = tx.effectiveDebt != edits.debtAmount
             let payDateChanged = tx.expectedPayDate != edits.expectedPayDate
             guard debtChanged || payDateChanged else { continue }
             var updatedTx = tx
@@ -993,7 +993,7 @@ struct PartyDetailView: View {
         // Save retail order debts
         for bill in retailOrders {
             guard let newDebt = editedRetailOrderDebts[bill.id] else { continue }
-            guard (bill.debtAmount ?? 0) != newDebt else { continue }
+            guard bill.effectiveDebt != newDebt else { continue }
             var updatedBill = bill
             updatedBill.debtAmount = newDebt > 0 ? newDebt : nil
             updatedBill.paidAmount = newDebt <= 0 ? bill.total : bill.paidAmount
@@ -1192,8 +1192,8 @@ struct PartyDetailView: View {
     // MARK: - Debt card
 
     private var totalDebt: Double {
-        let txDebt = allPartyTxs.reduce(0) { $0 + ($1.debtAmount ?? 0) }
-        let retailDebt = retailOrders.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        let txDebt = allPartyTxs.reduce(0) { $0 + $1.effectiveDebt }
+        let retailDebt = retailOrders.reduce(0) { $0 + $1.effectiveDebt }
         return txDebt + retailDebt
     }
 
@@ -1217,15 +1217,15 @@ struct PartyDetailView: View {
                 var initialEdits: [UUID: (debtAmount: Double, expectedPayDate: Date?)] = [:]
                 for tx in allPartyTxs {
                     initialEdits[tx.id] = (
-                        debtAmount: tx.debtAmount ?? 0,
+                        debtAmount: tx.effectiveDebt,
                         expectedPayDate: tx.expectedPayDate
                     )
                 }
                 editedTransactions = initialEdits
                 // Init retail order debts
                 var initialRetailDebts: [UUID: Double] = [:]
-                for bill in retailOrders where (bill.debtAmount ?? 0) > 0 {
-                    initialRetailDebts[bill.id] = bill.debtAmount ?? 0
+                for bill in retailOrders where bill.effectiveDebt > 0 {
+                    initialRetailDebts[bill.id] = bill.effectiveDebt
                 }
                 editedRetailOrderDebts = initialRetailDebts
                 showDebtEdit = true
@@ -1326,7 +1326,8 @@ struct PartyDetailView: View {
             }
 
             // Debt info
-            if let debt = tx.debtAmount, debt > 0 {
+            if tx.effectiveDebt > 0 {
+                let debt = tx.effectiveDebt
                 HStack(spacing: 6) {
                     Image(systemName: debtStatus == .overdue ? "xmark.circle.fill" : debtStatus == .warning ? "exclamationmark.circle.fill" : "clock.fill")
                         .font(.caption)
@@ -1366,7 +1367,7 @@ struct PartyDetailView: View {
                 .padding(8)
                 .background(debtStatus.color.opacity(0.08))
                 .cornerRadius(8)
-            } else if tx.debtAmount == 0 || tx.isPaid {
+            } else if tx.effectiveDebt <= 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
                     Text("Đã thanh toán").font(.caption).foregroundStyle(.green)
@@ -1445,7 +1446,8 @@ struct PartyDetailView: View {
                         .foregroundStyle(.green)
                 }
             }
-            if let debt = bill.debtAmount, debt > 0 {
+            if bill.effectiveDebt > 0 {
+                let debt = bill.effectiveDebt
                 HStack {
                     Text("Công nợ:")
                         .font(.caption)
@@ -1494,7 +1496,7 @@ struct PartyDetailView: View {
     }
 
     private func debtHighlight(_ tx: ProductionTransaction) -> TransactionDebtHighlightStatus {
-        guard let debt = tx.debtAmount, debt > 0, let payDate = tx.expectedPayDate else {
+        guard tx.effectiveDebt > 0, let payDate = tx.expectedPayDate else {
             return .normal
         }
         let now = Date()
@@ -1561,7 +1563,7 @@ struct PartyDetailView: View {
             self.transactions = allPartyTxsFiltered.filter { $0.createdAt >= since }
             
             // Update currentParty.totalDebt to reflect all-time total (optional, but keeps consistency)
-            let allTimeTotalDebt = allPartyTxsFiltered.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+            let allTimeTotalDebt = allPartyTxsFiltered.reduce(0) { $0 + $1.effectiveDebt }
             self.currentParty.totalDebt = allTimeTotalDebt
         }
 
@@ -2659,15 +2661,15 @@ private struct DebtEditView: View {
     
     private var sortedTransactions: [ProductionTransaction] {
         transactions.sorted { (a, b) in
-            if (a.debtAmount ?? 0) > 0 && (b.debtAmount ?? 0) <= 0 {
+            if a.effectiveDebt > 0 && b.effectiveDebt <= 0 {
                 return true
             }
-            if (a.debtAmount ?? 0) <= 0 && (b.debtAmount ?? 0) > 0 {
+            if a.effectiveDebt <= 0 && b.effectiveDebt > 0 {
                 return false
             }
-            if (a.debtAmount ?? 0) > 0 && (b.debtAmount ?? 0) > 0 {
-                if (a.debtAmount ?? 0) != (b.debtAmount ?? 0) {
-                    return (a.debtAmount ?? 0) > (b.debtAmount ?? 0)
+            if a.effectiveDebt > 0 && b.effectiveDebt > 0 {
+                if a.effectiveDebt != b.effectiveDebt {
+                    return a.effectiveDebt > b.effectiveDebt
                 }
             }
             return a.createdAt > b.createdAt
@@ -2771,11 +2773,11 @@ private struct DebtEditView: View {
                                         Spacer()
                                         Button {
                                             selectedDebtTxId = tx.id
-                                            let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
+                                            let currentDebt = editedTransactions[tx.id]?.debtAmount ?? tx.effectiveDebt
                                             debtAmountSelection = Int(currentDebt)
                                             showDebtAmountWheel = true
                                         } label: {
-                                            let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
+                                            let currentDebt = editedTransactions[tx.id]?.debtAmount ?? tx.effectiveDebt
                                             Text(formatCurrency(currentDebt))
                                                 .font(.subheadline).fontWeight(.semibold)
                                         }
@@ -2792,7 +2794,7 @@ private struct DebtEditView: View {
                                                 edits.expectedPayDate = edits.expectedPayDate == nil ? Date() : nil
                                                 editedTransactions[tx.id] = edits
                                             } else {
-                                                editedTransactions[tx.id] = (debtAmount: tx.debtAmount ?? 0, expectedPayDate: Date())
+                                                editedTransactions[tx.id] = (debtAmount: tx.effectiveDebt, expectedPayDate: Date())
                                             }
                                         } label: {
                                             Text(currentDate == nil ? "Chưa xác định" : formatDateOnly(currentDate!))
@@ -2809,7 +2811,7 @@ private struct DebtEditView: View {
                                                             edits.expectedPayDate = newDate
                                                             editedTransactions[tx.id] = edits
                                                         } else {
-                                                            editedTransactions[tx.id] = (debtAmount: tx.debtAmount ?? 0, expectedPayDate: newDate)
+                                                            editedTransactions[tx.id] = (debtAmount: tx.effectiveDebt, expectedPayDate: newDate)
                                                         }
                                                     }
                                                 ),
@@ -2825,7 +2827,7 @@ private struct DebtEditView: View {
                     }
                     
                     // Retail orders section - only show orders with debt > 0
-                    let retailOrdersWithDebt = retailOrders.filter { (editedRetailOrderDebts[$0.id] ?? $0.debtAmount ?? 0) > 0 }
+                    let retailOrdersWithDebt = retailOrders.filter { (editedRetailOrderDebts[$0.id] ?? $0.effectiveDebt) > 0 }
                     if !retailOrdersWithDebt.isEmpty {
                         Section(header: Text("Đơn bán lẻ").font(.headline)) {
                             ForEach(retailOrdersWithDebt) { bill in
@@ -2856,11 +2858,11 @@ private struct DebtEditView: View {
                                         Spacer()
                                         Button {
                                             selectedDebtTxId = bill.id
-                                            let currentDebt = editedRetailOrderDebts[bill.id] ?? (bill.debtAmount ?? 0)
+                                            let currentDebt = editedRetailOrderDebts[bill.id] ?? bill.effectiveDebt
                                             debtAmountSelection = Int(currentDebt)
                                             showDebtAmountWheel = true
                                         } label: {
-                                            let currentDebt = editedRetailOrderDebts[bill.id] ?? (bill.debtAmount ?? 0)
+                                            let currentDebt = editedRetailOrderDebts[bill.id] ?? bill.effectiveDebt
                                             Text(formatCurrency(currentDebt))
                                                 .font(.subheadline).fontWeight(.semibold)
                                         }
@@ -2990,7 +2992,7 @@ private struct DebtEditView: View {
                         
                         List {
                             ForEach(sortedTransactions) { tx in
-                                let currentDebt = editedTransactions[tx.id]?.debtAmount ?? (tx.debtAmount ?? 0)
+                                let currentDebt = editedTransactions[tx.id]?.debtAmount ?? tx.effectiveDebt
                                 if currentDebt > 0 {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -3010,7 +3012,7 @@ private struct DebtEditView: View {
                                 }
                             }
                             ForEach(retailOrders) { bill in
-                                let currentDebt = editedRetailOrderDebts[bill.id] ?? (bill.debtAmount ?? 0)
+                                let currentDebt = editedRetailOrderDebts[bill.id] ?? bill.effectiveDebt
                                 if currentDebt > 0 {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -3039,12 +3041,12 @@ private struct DebtEditView: View {
                                 if var existing = editedTransactions[tx.id] {
                                     existing.debtAmount = 0
                                     editedTransactions[tx.id] = existing
-                                } else if (tx.debtAmount ?? 0) > 0 {
+                                } else if tx.effectiveDebt > 0 {
                                     editedTransactions[tx.id] = (debtAmount: 0, expectedPayDate: tx.expectedPayDate)
                                 }
                             }
                             // Set retail orders debt về 0
-                            for bill in retailOrders where (editedRetailOrderDebts[bill.id] ?? bill.debtAmount ?? 0) > 0 {
+                            for bill in retailOrders where (editedRetailOrderDebts[bill.id] ?? bill.effectiveDebt) > 0 {
                                 editedRetailOrderDebts[bill.id] = 0
                             }
                             showPayOffAll = false

@@ -67,7 +67,7 @@ struct ProductionBillDetailView: View {
     private var vatAmount: Double  { tx.vatAmount ?? (vatEnabled ? subtotal * (vatRate / 100.0) : 0) }
     private var grandTotal: Double { tx.grandTotal ?? (subtotal + vatAmount) }
     private var paidAmount: Double { tx.paidAmount ?? grandTotal }
-    private var debtAmount: Double { tx.debtAmount ?? 0 }
+    private var debtAmount: Double  { tx.effectiveDebt }
 
     private var qrURL: URL? {
         guard isExport, grandTotal > 0,

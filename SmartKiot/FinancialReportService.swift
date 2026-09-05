@@ -91,12 +91,7 @@ class FinancialReportService {
                     stats.actualReceived += (order.paidAmount ?? 0)
                 }
                 
-                if let debt = order.debtAmount, debt > 0 {
-                    stats.debt += debt
-                } else if !order.isPaid {
-                    let paid = order.paidAmount ?? 0
-                    stats.debt += max(0, order.total - paid)
-                }
+                stats.debt += order.effectiveDebt
                 
                 statsByDate[dateKey] = stats
             }
@@ -143,7 +138,7 @@ class FinancialReportService {
         let productionEnabled = StoreManager.shared.currentStoreProductionEnabled()
         
         // Calculate dynamic page height based on content
-        let debtOrders = orders.filter { ($0.debtAmount ?? 0) > 0 }
+        let debtOrders = orders.filter { $0.effectiveDebt > 0 }
         let customerCount = Set(debtOrders.compactMap { $0.customerName }).count
         
         // Base content height estimation
@@ -228,7 +223,7 @@ class FinancialReportService {
             currentY += 30
             
             // MARK: - Debt Details (if any) - Moved up to be right after order list
-            let debtOrders = orders.filter { ($0.debtAmount ?? 0) > 0 }
+            let debtOrders = orders.filter { $0.effectiveDebt > 0 }
             if !debtOrders.isEmpty {
                 drawSectionTitle("CHI TIẾT CÔNG NỢ THEO KHÁCH HÀNG", at: &currentY, pageWidth: pageSize.width, margin: margin)
                 drawDebtDetailsTable(orders: debtOrders, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
@@ -508,14 +503,14 @@ class FinancialReportService {
             let orderQuantity = order.items.reduce(0) { $0 + $1.quantity }
             let unitPrice = order.items.count == 1 ? fmt(order.items[0].price) : "Nhiều"
             let totalPrice = fmt(order.total)
-            let debtAmount = fmt(order.debtAmount ?? 0)
+            let debtAmount = fmt(order.effectiveDebt)
             let timeString = dateFormatter.string(from: order.createdAt)
             let note = "" // Leave empty as requested
             
             // Add to totals
             totalQuantity += orderQuantity
             totalAmount += order.total
-            totalDebt += (order.debtAmount ?? 0)
+            totalDebt += order.effectiveDebt
             
             let rowData = [
                 "\(index + 1)",
@@ -914,7 +909,7 @@ class FinancialReportService {
             let txSorted = ws.transactions.sorted { $0.createdAt < $1.createdAt }
             for tx in txSorted {
                 let items = tx.items.prefix(3).map { $0.name }.joined(separator: " / ")
-                csv += "\(df.string(from: tx.createdAt)),\(tx.buyerName ?? ""),\(tx.buyerPhone ?? ""),\(fmt(tx.grandTotal ?? 0)),\(fmt(tx.paidAmount ?? 0)),\(fmt(tx.debtAmount ?? 0)),\(items)\n"
+                csv += "\(df.string(from: tx.createdAt)),\(tx.buyerName ?? ""),\(tx.buyerPhone ?? ""),\(fmt(tx.grandTotal ?? 0)),\(fmt(tx.paidAmount ?? 0)),\(fmt(tx.effectiveDebt)),\(items)\n"
             }
 
             let wsNetProfit = ws.paid - ws.materialCost
@@ -1147,7 +1142,7 @@ class FinancialReportService {
             customerStats[key] = (
                 revenue: existing.revenue + (tx.grandTotal ?? 0),
                 paid: existing.paid + (tx.paidAmount ?? 0),
-                debt: existing.debt + (tx.debtAmount ?? 0),
+                debt: existing.debt + tx.effectiveDebt,
                 count: existing.count + 1,
                 lastDate: max(existing.lastDate, tx.createdAt)
             )
@@ -1260,7 +1255,7 @@ class FinancialReportService {
             customer.orders.append(order)
             customer.totalAmount += order.total
             customer.totalPaid += (order.paidAmount ?? 0)
-            customer.totalDebt += (order.debtAmount ?? 0)
+            customer.totalDebt += order.effectiveDebt
             if customer.phone.isEmpty && !phone.isEmpty {
                 customer.phone = phone
             }

@@ -17,7 +17,7 @@ struct DebtListView: View {
     
     private var debtOrders: [Bill] {
         orders.filter { order in
-            (order.debtAmount ?? 0) > 0
+            order.effectiveDebt > 0
         }
     }
     
@@ -37,7 +37,7 @@ struct DebtListView: View {
         // Sắp xếp
         switch sortOption {
         case .debtAmount:
-            return filtered.sorted { ($0.debtAmount ?? 0) > ($1.debtAmount ?? 0) }
+            return filtered.sorted { $0.effectiveDebt > $1.effectiveDebt }
         case .orderDate:
             return filtered.sorted { $0.createdAt > $1.createdAt }
         case .customerName:
@@ -52,7 +52,7 @@ struct DebtListView: View {
     }
     
     private var debtStats: (totalDebt: Double, customerCount: Int, overdueCount: Int) {
-        let totalDebt = debtOrders.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        let totalDebt = debtOrders.reduce(0) { $0 + $1.effectiveDebt }
         let customerCount = Set(debtOrders.compactMap { $0.customerName }).count
         let overdueCount = debtOrders.filter { order in
             guard let expectedDate = order.expectedPayDate else { return false }
@@ -278,7 +278,7 @@ struct DebtRow: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(formatCurrency(order.debtAmount ?? 0))
+                    Text(formatCurrency(order.effectiveDebt))
                         .font(.subheadline)
                         .fontWeight(.bold)
                         .foregroundStyle(.red)

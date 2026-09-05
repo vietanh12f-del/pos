@@ -479,7 +479,7 @@ struct BillDetailView: View {
         }
         .confirmationDialog("Chọn trạng thái thanh toán", isPresented: $showPaymentStatusPicker, titleVisibility: .visible) {
             Button("✅ Đã thanh toán đủ") {
-                let hasDebt = !debtCleared && (localDebtAmount ?? bill.debtAmount ?? 0) > 0
+                let hasDebt = !debtCleared && (localDebtAmount ?? bill.effectiveDebt) > 0
                 if hasDebt {
                     // Có công nợ → hỏi xác nhận trước
                     showConfirmPaidFull = true
@@ -523,7 +523,7 @@ struct BillDetailView: View {
                 applyPaidFull()
             }
         } message: {
-            let debt = localDebtAmount ?? bill.debtAmount ?? 0
+            let debt = localDebtAmount ?? bill.effectiveDebt
             Text("Xác nhận đã nhận đủ tiền và xoá công nợ \(formatCurrency(debt))?")
         }
         .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {

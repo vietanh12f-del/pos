@@ -235,17 +235,17 @@ class AppNotificationService: ObservableObject {
 
             let soon = Date().addingTimeInterval(3 * 86400)
             let overdue = exportTx.filter { tx in
-                guard let debt = tx.debtAmount, debt > 0, let payDate = tx.expectedPayDate
+                guard tx.effectiveDebt > 0, let payDate = tx.expectedPayDate
                 else { return false }
                 return payDate < Date()
             }
             let dueSoon = exportTx.filter { tx in
-                guard let debt = tx.debtAmount, debt > 0, let payDate = tx.expectedPayDate
+                guard tx.effectiveDebt > 0, let payDate = tx.expectedPayDate
                 else { return false }
                 return payDate >= Date() && payDate <= soon
             }
             if !overdue.isEmpty {
-                let total = overdue.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+                let total = overdue.reduce(0) { $0 + $1.effectiveDebt }
                 fresh.append(AppNotificationItem(
                     type: .debt,
                     title: "Công nợ quá hạn",
@@ -254,7 +254,7 @@ class AppNotificationService: ObservableObject {
                     action: .openProductionManagement
                 ))
             } else if !dueSoon.isEmpty {
-                let total = dueSoon.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+                let total = dueSoon.reduce(0) { $0 + $1.effectiveDebt }
                 fresh.append(AppNotificationItem(
                     type: .debt,
                     title: "Công nợ sắp hết hạn",

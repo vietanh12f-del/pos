@@ -1462,7 +1462,7 @@ class OrderViewModel: ObservableObject {
                 let capturedPhone = trimmedPhone
                 let capturedAddress = walkInAddress.trimmingCharacters(in: .whitespacesAndNewlines)
                 let capturedEmail = walkInEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-                let orderDebtAmount = bill.debtAmount ?? (bill.isPaid ? 0 : bill.total)
+                let orderDebtAmount = bill.effectiveDebt
                 Task {
                     var existing = try? await database.fetchTradingPartyByNameOrPhone(trimmedName, capturedPhone, "buyer")
                     if existing == nil {
@@ -3352,8 +3352,8 @@ class OrderViewModel: ObservableObject {
             let trimmedName = walkInName.trimmingCharacters(in: .whitespacesAndNewlines)
             let trimmedPhone = walkInPhone.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedName.isEmpty && trimmedName.lowercased() != "khách lẻ" {
-                let oldDebt = originalBill.debtAmount ?? (originalBill.isPaid ? 0 : originalBill.total)
-                let newDebt = (updatedBill.debtAmount ?? 0) > 0 ? (updatedBill.debtAmount ?? 0) : (updatedBill.isPaid ? 0 : updatedBill.total)
+                let oldDebt = originalBill.effectiveDebt
+                let newDebt = updatedBill.effectiveDebt
                 let debtDiff = newDebt - oldDebt
                 if abs(debtDiff) > 0.001 {
                     Task {
@@ -3748,16 +3748,7 @@ class OrderViewModel: ObservableObject {
         let (start, end) = dateInterval(for: range)
         return pastOrders
             .filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
-            .reduce(0.0) { total, order in
-                if let debt = order.debtAmount, debt > 0 {
-                    return total + debt
-                }
-                if !order.isPaid {
-                    let paid = order.paidAmount ?? 0
-                    return total + max(0, order.total - paid)
-                }
-                return total + 0
-            }
+            .reduce(0.0) { $0 + $1.effectiveDebt }
     }
 
     func orders(for range: ReportDateRange) -> [Bill] {
@@ -3810,14 +3801,7 @@ class OrderViewModel: ObservableObject {
             }
         }
         let debt = exports.reduce(0.0) { total, tx in
-            if let d = tx.debtAmount, d > 0 {
-                return total + d
-            }
-            if !tx.isPaid {
-                let p = tx.paidAmount ?? 0
-                return total + max(0, (tx.grandTotal ?? 0) - p)
-            }
-            return total + 0
+            total + tx.effectiveDebt
         }
 
         // Chi phí nguyên liệu: tổng chi phí các phiếu Nhập Nguyên Liệu trong kỳ

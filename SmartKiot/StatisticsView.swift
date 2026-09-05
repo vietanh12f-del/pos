@@ -152,14 +152,7 @@ struct StatisticsView: View {
                         }
                     }
                     let totalDebt = retailOrders.reduce(0.0) { total, order in
-                        if let debt = order.debtAmount, debt > 0 {
-                            return total + debt
-                        }
-                        if !order.isPaid {
-                            let paid = order.paidAmount ?? 0
-                            return total + max(0, order.total - paid)
-                        }
-                        return total + 0
+                        total + order.effectiveDebt
                     }
                     
                     Color.clear.frame(height: 0).id("page-top")
@@ -549,9 +542,9 @@ struct StatisticsView: View {
 
                     // Button công nợ (nếu có)
                     if totalDebt > 0 {
-                        let debtCustomers = Set(retailOrders.filter { ($0.debtAmount ?? 0) > 0 }.compactMap { $0.customerName }).count
+                        let debtCustomers = Set(retailOrders.filter { $0.effectiveDebt > 0 }.compactMap { $0.customerName }).count
                         let overdueOrders = retailOrders.filter { order in
-                            guard let expectedDate = order.expectedPayDate, (order.debtAmount ?? 0) > 0 else { return false }
+                            guard let expectedDate = order.expectedPayDate, order.effectiveDebt > 0 else { return false }
                             return expectedDate < Date()
                         }.count
                         
