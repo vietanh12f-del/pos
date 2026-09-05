@@ -145,10 +145,21 @@ struct StatisticsView: View {
                     // Tính toán thông tin thu nợ
                     let retailOrders = getRetailOrdersInCurrentRange()
                     let totalActualReceived = retailOrders.reduce(0.0) { total, order in
-                        total + (order.paidAmount ?? order.total)
+                        if order.isPaid {
+                            return total + (order.paidAmount ?? order.total)
+                        } else {
+                            return total + (order.paidAmount ?? 0)
+                        }
                     }
                     let totalDebt = retailOrders.reduce(0.0) { total, order in
-                        total + (order.debtAmount ?? 0)
+                        if let debt = order.debtAmount, debt > 0 {
+                            return total + debt
+                        }
+                        if !order.isPaid {
+                            let paid = order.paidAmount ?? 0
+                            return total + max(0, order.total - paid)
+                        }
+                        return total + 0
                     }
                     
                     Color.clear.frame(height: 0).id("page-top")
@@ -826,7 +837,7 @@ struct StatisticsView: View {
         let (startDate, endDate) = FinancialReportService.shared.getDateRange(range)
         
         return viewModel.pastOrders.filter { order in
-            order.isPaid && !order.isDeleted && 
+            !order.isDeleted &&
             order.createdAt >= startDate && order.createdAt <= endDate
         }
     }
@@ -847,7 +858,7 @@ struct StatisticsView: View {
         
         // Tính toán thống kê cho từng sản phẩm
         for order in orders {
-            if order.isPaid && !order.isDeleted {
+            if !order.isDeleted {
                 for item in order.items {
                     let key = item.name
                     let current = productStats[key] ?? (quantity: 0, revenue: 0, prices: [])

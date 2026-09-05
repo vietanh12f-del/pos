@@ -1215,14 +1215,22 @@ struct FinishedGoodsExportView: View {
                 $0.name.lowercased() == buyerName.lowercased() && $0.phone == buyerPhone
             })?.id
             
+            var existingPartyFromDB: TradingParty? = nil
             if partyId == nil {
                 do {
-                    let dbExisting = try await viewModel.databaseService.fetchTradingPartyByNameOrPhone(trimmedName, trimmedPhone, partyType)
-                    partyId = dbExisting?.id
+                    existingPartyFromDB = try await viewModel.databaseService.fetchTradingPartyByNameOrPhone(trimmedName, trimmedPhone, partyType)
+                    partyId = existingPartyFromDB?.id
                 } catch {
                     print("⚠️ Could not check for existing party: \(error)")
                 }
+            } else {
+                // Tìm trong DB theo id đã có từ buyerHistory để lấy totalDebt cũ
+                existingPartyFromDB = try? await viewModel.databaseService.fetchTradingPartyByNameOrPhone(trimmedName, trimmedPhone, partyType)
             }
+            
+            let currentTotalDebt = existingPartyFromDB?.totalDebt ?? buyerHistory.first(where: {
+                $0.name.lowercased() == buyerName.lowercased() && $0.phone == buyerPhone
+            })?.totalDebt ?? 0
             
             let party = TradingParty(
                 id: partyId ?? UUID(),
@@ -1231,7 +1239,7 @@ struct FinishedGoodsExportView: View {
                 phone: trimmedPhone,
                 address: buyerAddress.trimmingCharacters(in: .whitespacesAndNewlines),
                 taxCode: buyerTaxCode.trimmingCharacters(in: .whitespacesAndNewlines),
-                totalDebt: debtAmount,
+                totalDebt: max(0, currentTotalDebt + debtAmount),
                 updatedAt: Date()
             )
             Task {

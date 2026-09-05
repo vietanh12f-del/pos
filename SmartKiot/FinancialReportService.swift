@@ -75,18 +75,28 @@ class FinancialReportService {
             return calendar.startOfDay(for: date)
         }
         
-        // 1. Process Orders (Revenue, Actual Received, Debt & COGS) - only count paid, non-deleted orders
+        // 1. Process Orders (Revenue, Actual Received, Debt & COGS) - include ALL non-deleted orders
         for order in orders {
-            if order.isPaid && !order.isDeleted && order.createdAt >= startDate && order.createdAt <= endDate {
+            if !order.isDeleted && order.createdAt >= startDate && order.createdAt <= endDate {
                 let dateKey = startOfDay(order.createdAt)
                 var stats = statsByDate[dateKey] ?? DailyFinancialStats(date: dateKey)
                 
                 stats.revenue += order.total
                 stats.cogs += order.totalCost
                 
-                // Tính thực thu và công nợ
-                stats.actualReceived += (order.paidAmount ?? order.total)
-                stats.debt += (order.debtAmount ?? 0)
+                // Tính thực thu và công nợ (bao gồm cả đơn chưa thanh toán)
+                if order.isPaid {
+                    stats.actualReceived += (order.paidAmount ?? order.total)
+                } else {
+                    stats.actualReceived += (order.paidAmount ?? 0)
+                }
+                
+                if let debt = order.debtAmount, debt > 0 {
+                    stats.debt += debt
+                } else if !order.isPaid {
+                    let paid = order.paidAmount ?? 0
+                    stats.debt += max(0, order.total - paid)
+                }
                 
                 statsByDate[dateKey] = stats
             }
@@ -1069,7 +1079,7 @@ class FinancialReportService {
         let endOfEndDate = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: endDate) ?? endDate
         
         return orders.filter { bill in
-            bill.isPaid && !bill.isDeleted &&
+            !bill.isDeleted &&
             bill.createdAt >= startDate && bill.createdAt <= endOfEndDate
         }
     }

@@ -140,9 +140,9 @@ class OrderViewModel: ObservableObject {
         // Simple global calculation (Cash flow based or Accrual?)
         // Let's keep it simple: Revenue - COGS - Expenses (Global)
         // But COGS is tracked in bills.
-        let paidOrders = pastOrders.filter { $0.isPaid }
-        let globalRevenue = paidOrders.reduce(0) { $0 + $1.total }
-        let globalCOGS = paidOrders.reduce(0) { $0 + $1.totalCost }
+        let allOrders = pastOrders.filter { !$0.isDeleted }
+        let globalRevenue = allOrders.reduce(0) { $0 + $1.total }
+        let globalCOGS = allOrders.reduce(0) { $0 + $1.totalCost }
         let globalOpEx = operatingExpenses.reduce(0) { $0 + $1.amount }
         let globalIncurredFees = restockHistory.filter { !$0.isDeleted }.reduce(0) { billSum, bill in
             billSum + bill.items.reduce(0) { $0 + $1.additionalCost }
@@ -1462,8 +1462,8 @@ class OrderViewModel: ObservableObject {
                 let capturedPhone = trimmedPhone
                 let capturedAddress = walkInAddress.trimmingCharacters(in: .whitespacesAndNewlines)
                 let capturedEmail = walkInEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+                let orderDebtAmount = bill.debtAmount ?? (bill.isPaid ? 0 : bill.total)
                 Task {
-                    // Reuse existing party id nếu đã có, tránh tạo bản ghi trùng
                     var existing = try? await database.fetchTradingPartyByNameOrPhone(trimmedName, capturedPhone, "buyer")
                     if existing == nil {
                         existing = try? await database.fetchTradingPartyByName(trimmedName, type: "buyer")
@@ -1476,11 +1476,11 @@ class OrderViewModel: ObservableObject {
                         address: capturedAddress,
                         totalDebt: 0
                     )
-                    // Cập nhật thông tin mới nhất từ đơn hàng
                     party.name = trimmedName
                     if !capturedPhone.isEmpty { party.phone = capturedPhone }
                     if !capturedAddress.isEmpty { party.address = capturedAddress }
                     if !capturedEmail.isEmpty { party.email = capturedEmail }
+                    party.totalDebt = max(0, (existing?.totalDebt ?? 0) + orderDebtAmount)
                     party.updatedAt = Date()
                     try? await database.upsertTradingParty(party)
                 }
@@ -1561,7 +1561,7 @@ class OrderViewModel: ObservableObject {
 
     func recalculateStats() {
         // Global Stats
-        revenue = pastOrders.filter { $0.isPaid && !$0.isDeleted }.reduce(0) { $0 + $1.total }
+        revenue = pastOrders.filter { !$0.isDeleted }.reduce(0) { $0 + $1.total }
         orderCount = pastOrders.filter { !$0.isDeleted }.count
         
         // Total Restock Cost (Import Price + Fees)
@@ -3348,6 +3348,30 @@ class OrderViewModel: ObservableObject {
                 }
             }
             
+            // Cập nhật lại totalDebt cho TradingParty (khác biệt giữa nợ mới và nợ cũ)
+            let trimmedName = walkInName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedPhone = walkInPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedName.isEmpty && trimmedName.lowercased() != "khách lẻ" {
+                let oldDebt = originalBill.debtAmount ?? (originalBill.isPaid ? 0 : originalBill.total)
+                let newDebt = (updatedBill.debtAmount ?? 0) > 0 ? (updatedBill.debtAmount ?? 0) : (updatedBill.isPaid ? 0 : updatedBill.total)
+                let debtDiff = newDebt - oldDebt
+                if abs(debtDiff) > 0.001 {
+                    Task {
+                        var existing = try? await database.fetchTradingPartyByNameOrPhone(trimmedName, trimmedPhone, "buyer")
+                        if existing == nil {
+                            existing = try? await database.fetchTradingPartyByName(trimmedName, type: "buyer")
+                        }
+                        var party = existing ?? TradingParty(
+                            id: UUID(), partyType: "buyer", name: trimmedName,
+                            phone: trimmedPhone, address: walkInAddress, totalDebt: 0
+                        )
+                        party.totalDebt = max(0, party.totalDebt + debtDiff)
+                        party.updatedAt = Date()
+                        try? await database.upsertTradingParty(party)
+                    }
+                }
+            }
+            
             recalculateStats()
         }
         
@@ -3584,7 +3608,7 @@ class OrderViewModel: ObservableObject {
     func revenue(for date: Date) -> Double {
         let calendar = Calendar.current
         return pastOrders
-            .filter { $0.isPaid && !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .filter { !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
             .reduce(0) { $0 + $1.total }
     }
     
@@ -3598,7 +3622,7 @@ class OrderViewModel: ObservableObject {
     func cogs(for date: Date) -> Double {
         let calendar = Calendar.current
         return pastOrders
-            .filter { $0.isPaid && !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
+            .filter { !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
             .reduce(0) { $0 + $1.totalCost }
     }
     
@@ -3627,7 +3651,7 @@ class OrderViewModel: ObservableObject {
     
     func grossProfit(for date: Date) -> Double {
         let calendar = Calendar.current
-        let dailyOrders = pastOrders.filter { $0.isPaid && !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
+        let dailyOrders = pastOrders.filter { !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
         return dailyOrders.reduce(0) { $0 + $1.profit }
     }
     
@@ -3689,36 +3713,51 @@ class OrderViewModel: ObservableObject {
     func revenue(for range: ReportDateRange) -> Double {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
+            .filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
             .reduce(0) { $0 + $1.total }
     }
 
     func cogs(for range: ReportDateRange) -> Double {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
+            .filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
             .reduce(0) { $0 + $1.totalCost }
     }
 
     func grossProfit(for range: ReportDateRange) -> Double {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
+            .filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
             .reduce(0) { $0 + $1.profit }
     }
     
     func actualReceived(for range: ReportDateRange) -> Double {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
-            .reduce(0) { $0 + ($1.paidAmount ?? $1.total) }
+            .filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
+            .reduce(0.0) { total, order in
+                if order.isPaid {
+                    return total + (order.paidAmount ?? order.total)
+                } else {
+                    return total + (order.paidAmount ?? 0)
+                }
+            }
     }
     
     func debt(for range: ReportDateRange) -> Double {
         let (start, end) = dateInterval(for: range)
         return pastOrders
-            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
-            .reduce(0) { $0 + ($1.debtAmount ?? 0) }
+            .filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
+            .reduce(0.0) { total, order in
+                if let debt = order.debtAmount, debt > 0 {
+                    return total + debt
+                }
+                if !order.isPaid {
+                    let paid = order.paidAmount ?? 0
+                    return total + max(0, order.total - paid)
+                }
+                return total + 0
+            }
     }
 
     func orders(for range: ReportDateRange) -> [Bill] {
@@ -3757,17 +3796,34 @@ class OrderViewModel: ObservableObject {
 
         // Doanh thu sỉ: Xuất Thành Phẩm có grandTotal > 0 (bán trực tiếp, không qua POS)
         let exports = inRange.filter {
+            !$0.isDeleted &&
             $0.mode.lowercased().contains("xuất") &&
             $0.mode.lowercased().contains("thành phẩm") &&
             ($0.grandTotal ?? 0) > 0
         }
-        let revenue      = exports.reduce(0) { $0 + ($1.grandTotal ?? 0) }
-        let paid         = exports.reduce(0) { $0 + ($1.paidAmount ?? 0) }
-        let debt         = exports.reduce(0) { $0 + ($1.debtAmount ?? 0) }
+        let revenue = exports.reduce(0) { $0 + ($1.grandTotal ?? 0) }
+        let paid = exports.reduce(0.0) { total, tx in
+            if tx.isPaid {
+                return total + (tx.paidAmount ?? (tx.grandTotal ?? 0))
+            } else {
+                return total + (tx.paidAmount ?? 0)
+            }
+        }
+        let debt = exports.reduce(0.0) { total, tx in
+            if let d = tx.debtAmount, d > 0 {
+                return total + d
+            }
+            if !tx.isPaid {
+                let p = tx.paidAmount ?? 0
+                return total + max(0, (tx.grandTotal ?? 0) - p)
+            }
+            return total + 0
+        }
 
         // Chi phí nguyên liệu: tổng chi phí các phiếu Nhập Nguyên Liệu trong kỳ
         // Tính theo quantity × unitPrice của từng item (grams/1000 × giá/kg cho nguyên liệu)
         let materialImports = inRange.filter {
+            !$0.isDeleted &&
             $0.mode.lowercased().contains("nhập") &&
             $0.mode.lowercased().contains("nguyên liệu")
         }
@@ -3788,6 +3844,7 @@ class OrderViewModel: ObservableObject {
         
         // Tổng giá trị xuất nguyên liệu: tổng giá trị các phiếu Xuất Nguyên Liệu trong kỳ
         let materialExports = inRange.filter {
+            !$0.isDeleted &&
             $0.mode.lowercased().contains("xuất") &&
             $0.mode.lowercased().contains("nguyên liệu")
         }
@@ -3970,9 +4027,9 @@ class OrderViewModel: ObservableObject {
                 startDate = start
                 endDate = end
             }
-            orders = pastOrders.filter { $0.isPaid && $0.createdAt >= startDate && $0.createdAt <= endDate }
+            orders = pastOrders.filter { !$0.isDeleted && $0.createdAt >= startDate && $0.createdAt <= endDate }
         } else {
-            orders = pastOrders.filter { $0.isPaid }
+            orders = pastOrders.filter { !$0.isDeleted }
         }
         
         for bill in orders {
