@@ -129,7 +129,7 @@ class FinancialReportService {
     }
     
     // Generate Comprehensive Image Report - Enhanced Version
-    func exportToImage(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats? = nil, orders: [Bill] = [], products: [Product] = []) -> URL? {
+    func exportToImage(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats? = nil, orders: [Bill] = [], allOrdersForDebt: [Bill] = [], allProductionTxs: [ProductionTransaction] = [], products: [Product] = []) -> URL? {
         
         let fileName = "BaoCaoTaiChinh_\(Int(Date().timeIntervalSince1970)).png"
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
@@ -138,14 +138,24 @@ class FinancialReportService {
         let productionEnabled = StoreManager.shared.currentStoreProductionEnabled()
         
         // Calculate dynamic page height based on content
-        let debtOrders = orders.filter { $0.effectiveDebt > 0 }
-        let customerCount = Set(debtOrders.compactMap { $0.customerName }).count
+        let allDebtBillsSource = allOrdersForDebt.isEmpty ? orders : allOrdersForDebt
+        let allDebtBills = allDebtBillsSource.filter { !$0.isDeleted && $0.effectiveDebt > 0 }
+        let allDebtTx = allProductionTxs.filter { !$0.isDeleted && $0.effectiveDebt > 0 && $0.mode.contains("Xuất") }
+        var totalDebtCustomers = Set<String>()
+        func customerKey(_ name: String?, _ phone: String?) -> String {
+            let n = (name?.isEmpty == false) ? name! : "Khách vãng lai"
+            let p = phone ?? ""
+            return "\(n)|*|\(p)"
+        }
+        for b in allDebtBills { totalDebtCustomers.insert(customerKey(b.customerName, b.customerPhone)) }
+        for t in allDebtTx { totalDebtCustomers.insert(customerKey(t.buyerName, t.buyerPhone)) }
+        let customerCount = totalDebtCustomers.count
         
         // Base content height estimation
         let baseHeight: CGFloat = 1200
         let orderTableHeight: CGFloat = CGFloat(min(orders.count, 15)) * 20 + 100
         let inventoryHeight: CGFloat = CGFloat(min(products.count, 20)) * 20 + 150
-        let debtTableHeight: CGFloat = CGFloat(customerCount) * 20 + 100
+        let debtTableHeight: CGFloat = CGFloat(customerCount) * 20 + 100 + 20 // +20 cho dòng ghi chú
         let productionHeight: CGFloat = productionEnabled ? 400 : 0
         
         let totalEstimatedHeight = baseHeight + orderTableHeight + inventoryHeight + debtTableHeight + productionHeight
@@ -210,7 +220,7 @@ class FinancialReportService {
             // MARK: - Summary Section (Kết quả đối soát và số tiền tất toán)
             drawSectionTitle("KẾT QUẢ ĐỐI SOÁT VÀ SỐ TIỀN TẤT TOÁN", at: &currentY, pageWidth: pageSize.width, margin: margin)
             
-            let summaryData = calculateSummaryData(stats: stats, wholesale: wholesale, orders: orders, products: products, productionEnabled: productionEnabled)
+            let summaryData = calculateSummaryData(stats: stats, wholesale: wholesale, orders: orders, allOrdersForDebt: allOrdersForDebt, allProductionTxs: allProductionTxs, products: products, productionEnabled: productionEnabled)
             drawSummaryTable(summaryData, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth, productionEnabled: productionEnabled)
             
             currentY += 30
@@ -223,10 +233,20 @@ class FinancialReportService {
             currentY += 30
             
             // MARK: - Debt Details (if any) - Moved up to be right after order list
-            let debtOrders = orders.filter { $0.effectiveDebt > 0 }
-            if !debtOrders.isEmpty {
+            let allDebtBillsSource = allOrdersForDebt.isEmpty ? orders : allOrdersForDebt
+            let debtBills = allDebtBillsSource.filter { !$0.isDeleted && $0.effectiveDebt > 0 }
+            let debtTx = allProductionTxs.filter { !$0.isDeleted && $0.effectiveDebt > 0 && $0.mode.contains("Xuất") }
+            if !debtBills.isEmpty || !debtTx.isEmpty {
                 drawSectionTitle("CHI TIẾT CÔNG NỢ THEO KHÁCH HÀNG", at: &currentY, pageWidth: pageSize.width, margin: margin)
-                drawDebtDetailsTable(orders: debtOrders, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
+                // Ghi chú: danh sách công nợ là từ trước đến nay (toàn bộ đơn hàng còn nợ, không lọc theo khoảng thời gian)
+                let noteAttributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.italicSystemFont(ofSize: 11),
+                    .foregroundColor: UIColor.darkGray
+                ]
+                let noteText = "* Danh sách công nợ tính từ trước đến nay (không lọc theo khoảng thời gian báo cáo, bao gồm cả bán lẻ + bán sỉ)"
+                noteText.draw(at: CGPoint(x: margin, y: currentY), withAttributes: noteAttributes)
+                currentY += 20
+                drawDebtDetailsTable(bills: debtBills, productionTxs: debtTx, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
                 currentY += 30
             }
             
@@ -298,6 +318,7 @@ class FinancialReportService {
         let retailProfit: Double
         let retailActualReceived: Double
         let retailDebt: Double
+        let retailDebtAllTime: Double
         let wholesaleRevenue: Double
         let wholesaleCosts: Double
         let wholesaleProfit: Double
@@ -309,12 +330,18 @@ class FinancialReportService {
         let customerCount: Int
     }
     
-    private func calculateSummaryData(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats?, orders: [Bill], products: [Product], productionEnabled: Bool) -> SummaryData {
+    private func calculateSummaryData(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats?, orders: [Bill], allOrdersForDebt: [Bill], allProductionTxs: [ProductionTransaction], products: [Product], productionEnabled: Bool) -> SummaryData {
         let retailRevenue = stats.reduce(0) { $0 + $1.revenue }
         let retailCosts = stats.reduce(0) { $0 + $1.cogs + $1.operatingCosts }
         let retailProfit = stats.reduce(0) { $0 + $1.actualNetProfit }
         let retailActualReceived = stats.reduce(0) { $0 + $1.actualReceived }
         let retailDebt = stats.reduce(0) { $0 + $1.debt }
+        
+        // All-time total debt (công nợ tính từ trước đến nay, bao gồm cả bán lẻ + bán sỉ)
+        let debtSourceBills = allOrdersForDebt.isEmpty ? orders : allOrdersForDebt
+        let retailDebtAllTimeBill = debtSourceBills.filter { !$0.isDeleted }.reduce(0) { $0 + $1.effectiveDebt }
+        let retailDebtAllTimeTx = allProductionTxs.filter { !$0.isDeleted && $0.mode.contains("Xuất") }.reduce(0) { $0 + $1.effectiveDebt }
+        let retailDebtAllTime = retailDebtAllTimeBill + retailDebtAllTimeTx
         
         var wholesaleRevenue: Double = 0
         var wholesaleCosts: Double = 0
@@ -342,6 +369,7 @@ class FinancialReportService {
             retailProfit: retailProfit,
             retailActualReceived: retailActualReceived,
             retailDebt: retailDebt,
+            retailDebtAllTime: retailDebtAllTime,
             wholesaleRevenue: wholesaleRevenue,
             wholesaleCosts: wholesaleCosts,
             wholesaleProfit: wholesaleProfit,
@@ -372,7 +400,7 @@ class FinancialReportService {
         var summaryRows: [(String, String, Bool)] = [
             ("I. DOANH THU BÁN LẺ", fmt(data.retailRevenue), false),
             ("   - Thực thu", fmt(data.retailActualReceived), false),
-            ("   - Công nợ", fmt(data.retailDebt), false),
+            ("   - Công nợ (*)", fmt(data.retailDebtAllTime), false),
             ("   - Chi phí bán lẻ", fmt(data.retailCosts), false),
             ("   - Lợi nhuận bán lẻ", fmt(data.retailProfit), false),
         ]
@@ -421,6 +449,15 @@ class FinancialReportService {
             
             startY += rowHeight
         }
+        
+        // Ghi chú cho dòng Công nợ (*)
+        let noteAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.italicSystemFont(ofSize: 11),
+            .foregroundColor: UIColor.darkGray
+        ]
+        let noteText = "(*) Công nợ tính từ trước đến nay (không lọc theo khoảng thời gian báo cáo, bao gồm cả bán lẻ + bán sỉ)"
+        noteText.draw(at: CGPoint(x: margin + 10, y: startY), withAttributes: noteAttributes)
+        startY += 18
     }
     
     private func drawOrderList(orders: [Bill], context: CGContext, startY: inout CGFloat, margin: CGFloat, contentWidth: CGFloat) {
@@ -1228,8 +1265,8 @@ class FinancialReportService {
     }
 }
     
-    private func drawDebtDetailsTable(orders: [Bill], context: CGContext, startY: inout CGFloat, margin: CGFloat, contentWidth: CGFloat) {
-        guard !orders.isEmpty else {
+    private func drawDebtDetailsTable(bills: [Bill], productionTxs: [ProductionTransaction], context: CGContext, startY: inout CGFloat, margin: CGFloat, contentWidth: CGFloat) {
+        guard !bills.isEmpty || !productionTxs.isEmpty else {
             let noDataText = "Không có công nợ"
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.italicSystemFont(ofSize: 13),
@@ -1240,26 +1277,53 @@ class FinancialReportService {
             return
         }
         
-        // Group orders by customer
-        var customerDebts: [String: (orders: [Bill], totalAmount: Double, totalPaid: Double, totalDebt: Double, phone: String)] = [:]
+        typealias CustomerAggregate = (orderCount: Int, totalAmount: Double, totalPaid: Double, totalDebt: Double, phone: String, displayName: String)
+        var customerDebts: [String: CustomerAggregate] = [:]
         
-        for order in orders {
-            let customerName = (order.customerName?.isEmpty == false) ? order.customerName! : "Khách vãng lai"
-            let phone = order.customerPhone ?? ""
-            
-            if customerDebts[customerName] == nil {
-                customerDebts[customerName] = (orders: [], totalAmount: 0, totalPaid: 0, totalDebt: 0, phone: phone)
+        func custKey(_ name: String?, _ phone: String?) -> String {
+            let n = (name?.isEmpty == false) ? name! : "Khách vãng lai"
+            let p = phone ?? ""
+            return "\(n)|*|\(p)"
+        }
+        func displayName(_ name: String?) -> String {
+            (name?.isEmpty == false) ? name! : "Khách vãng lai"
+        }
+        func ensure(key: String, dispName: String, phone: String) {
+            if customerDebts[key] == nil {
+                customerDebts[key] = (0, 0, 0, 0, phone, dispName)
             }
-            
-            var customer = customerDebts[customerName]!
-            customer.orders.append(order)
-            customer.totalAmount += order.total
-            customer.totalPaid += (order.paidAmount ?? 0)
-            customer.totalDebt += order.effectiveDebt
-            if customer.phone.isEmpty && !phone.isEmpty {
-                customer.phone = phone
+            // Ưu tiên phone không rỗng
+            if customerDebts[key]!.phone.isEmpty && !phone.isEmpty {
+                customerDebts[key]!.phone = phone
             }
-            customerDebts[customerName] = customer
+        }
+        
+        // Cộng đơn bán lẻ (Bill)
+        for bill in bills {
+            let name = displayName(bill.customerName)
+            let phone = bill.customerPhone ?? ""
+            let key = custKey(bill.customerName, bill.customerPhone)
+            ensure(key: key, dispName: name, phone: phone)
+            var aggr = customerDebts[key]!
+            aggr.orderCount += 1
+            aggr.totalAmount += bill.total
+            aggr.totalPaid += (bill.paidAmount ?? 0)
+            aggr.totalDebt += bill.effectiveDebt
+            customerDebts[key] = aggr
+        }
+        
+        // Cộng đơn bán sỉ / Xuất thành phẩm (ProductionTransaction)
+        for tx in productionTxs {
+            let name = displayName(tx.buyerName)
+            let phone = tx.buyerPhone ?? ""
+            let key = custKey(tx.buyerName, tx.buyerPhone)
+            ensure(key: key, dispName: name, phone: phone)
+            var aggr = customerDebts[key]!
+            aggr.orderCount += 1
+            aggr.totalAmount += (tx.grandTotal ?? 0)
+            aggr.totalPaid += (tx.paidAmount ?? 0)
+            aggr.totalDebt += tx.effectiveDebt
+            customerDebts[key] = aggr
         }
         
         // Sort customers by total debt (descending)
@@ -1306,7 +1370,7 @@ class FinancialReportService {
         var grandTotalDebt = 0.0
         
         // Draw customer debt rows
-        for (index, (customerName, customerData)) in sortedCustomers.enumerated() {
+        for (index, (_, customerData)) in sortedCustomers.enumerated() {
             // Alternate row colors
             if index % 2 == 1 {
                 context.setFillColor(UIColor.systemGray6.cgColor)
@@ -1319,9 +1383,10 @@ class FinancialReportService {
             context.stroke(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
             
             // Prepare customer data
-            let displayName = customerName.count > 20 ? String(customerName.prefix(17)) + "..." : customerName
+            let name = customerData.displayName
+            let displayName = name.count > 20 ? String(name.prefix(17)) + "..." : name
             let displayPhone = customerData.phone.count > 12 ? String(customerData.phone.prefix(9)) + "..." : customerData.phone
-            let orderCount = "\(customerData.orders.count)"
+            let orderCount = "\(customerData.orderCount)"
             let totalAmount = formatCurrency(customerData.totalAmount)
             let totalPaid = formatCurrency(customerData.totalPaid)
             let totalDebt = formatCurrency(customerData.totalDebt)

@@ -1594,7 +1594,7 @@ class OrderViewModel: ObservableObject {
             range: range
         )
         let ws = wholesaleStats(for: range, allTransactions: allProductionTx)
-        return service.exportToImage(stats: stats, wholesale: ws, orders: pastOrders, products: products)
+        return service.exportToImage(stats: stats, wholesale: ws, orders: pastOrders, allOrdersForDebt: pastOrders, allProductionTxs: allProductionTx, products: products)
     }
     
     // MARK: - Operating Expenses
