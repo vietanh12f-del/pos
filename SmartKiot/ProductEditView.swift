@@ -215,8 +215,9 @@ struct ProductEditView: View {
                 Button("Lưu") {
                     save()
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.themePrimary)
                 .disabled(name.isEmpty || price.isEmpty)
-                .foregroundStyle(name.isEmpty || price.isEmpty ? Color.gray : Color.themePrimary)
             }
             .padding()
             .background(Color.white)
