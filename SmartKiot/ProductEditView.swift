@@ -98,6 +98,7 @@ struct ProductEditView: View {
     @State private var markupPercent: Double = 30
     @State private var showMarkupPicker = false
     @State private var additionalInfo: String = ""
+    @State private var isHidden: Bool = false
     
     // MARK: - Summary Section State for Finished Goods
     @State private var summaryStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
@@ -178,6 +179,7 @@ struct ProductEditView: View {
             _selectedImageURL = State(initialValue: product.imageURL)
             _isFinishedGood = State(initialValue: product.isFinishedGood)
             _hasVAT = State(initialValue: product.hasVAT)
+            _isHidden = State(initialValue: product.isHidden)
             _additionalInfo = State(initialValue: product.additionalInfo ?? "")
             // markupPercent: tính ngược từ giá bán / giá vốn nếu có
             if product.costPrice > 0 {
@@ -307,6 +309,17 @@ struct ProductEditView: View {
                         }
                     }
                     .tint(Color.themePrimary)
+                    
+                    Toggle(isOn: $isHidden) {
+                        HStack(spacing: 4) {
+                            Text("Ẩn sản phẩm")
+                            InfoPopoverButton(text: "Ẩn sản phẩm khỏi danh sách lên đơn hàng. Vẫn hiển thị trong kho hàng.")
+                            Image(systemName: "eye.slash")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                    .tint(Color.red)
                     
                     if case .add = mode {
                         CurrencyTextField(title: "Chi phí phát sinh", text: $additionalCost)
@@ -1774,12 +1787,13 @@ struct ProductEditView: View {
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
+            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
         case .edit(let product):
             var updatedProduct = product
             updatedProduct.isFinishedGood = isFinishedGood
             updatedProduct.hasVAT = hasVAT
-            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
+            updatedProduct.isHidden = isHidden
+            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
         }
         dismiss()
     }

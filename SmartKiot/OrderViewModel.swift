@@ -185,7 +185,7 @@ class OrderViewModel: ObservableObject {
     ]
     
     var filteredProducts: [Product] {
-        let base = products
+        let base = products.filter { !$0.isHidden }
         if selectedCategory == .all { return base }
         return base.filter { $0.category == selectedCategory.rawValue }
     }
@@ -197,9 +197,10 @@ class OrderViewModel: ObservableObject {
         if searchText.isEmpty { return [] }
         let lowerText = searchText.lowercased()
         return products.filter { 
-            $0.name.lowercased().contains(lowerText) || 
+            !$0.isHidden && // Filter out hidden products from order creation
+            ($0.name.lowercased().contains(lowerText) || 
             $0.category.lowercased().contains(lowerText) ||
-            ($0.barcode?.contains(lowerText) ?? false)
+            ($0.barcode?.contains(lowerText) ?? false))
         }
     }
     
@@ -3112,7 +3113,7 @@ class OrderViewModel: ObservableObject {
     }
     // MARK: - Product Catalog Management
     
-    func createProduct(name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, isFinishedGood: Bool = false, additionalInfo: String? = nil) {
+    func createProduct(name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, isFinishedGood: Bool = false, isHidden: Bool = false, additionalInfo: String? = nil) {
         let tempId = UUID()
         var newProduct = Product(
             id: tempId,
@@ -3128,6 +3129,7 @@ class OrderViewModel: ObservableObject {
             stockQuantity: quantity,
             barcode: barcode,
             isFinishedGood: isFinishedGood,
+            isHidden: isHidden,
             additionalInfo: additionalInfo
         )
         products.append(newProduct)
@@ -3165,7 +3167,7 @@ class OrderViewModel: ObservableObject {
         }
     }
     
-    func updateProduct(_ product: Product, name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil, additionalInfo: String? = nil) {
+    func updateProduct(_ product: Product, name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil, isHidden: Bool = false, additionalInfo: String? = nil) {
         print("🔄 [OrderViewModel] updateProduct called for: \(product.name), isFinishedGood: \(product.isFinishedGood)")
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             let originalProduct = products[index]
@@ -3197,6 +3199,7 @@ class OrderViewModel: ObservableObject {
                 barcode: barcode,
                 isFinishedGood: product.isFinishedGood,
                 hasVAT: product.hasVAT, // Preserve hasVAT từ product đã được set trước khi gọi hàm này
+                isHidden: isHidden,
                 additionalInfo: additionalInfo
             )
             print("📦 [OrderViewModel] Updated product: \(updatedProduct.name), isFinishedGood: \(updatedProduct.isFinishedGood)")

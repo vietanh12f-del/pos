@@ -1006,7 +1006,7 @@ struct ContentView: View {
         @State private var wheelSelection: Int = 1
         @State private var wheelMax: Int = 100
         @State private var nameWheelItem: OrderItem?
-        @State private var nameWheelSelectionIndex: Int = 0
+        @State private var nameWheelSelectionId: UUID? = nil
         @State private var showCustomerPicker = false
         @State private var customerSortMode: Int = 0
         @State private var customerSearch: String = ""
@@ -1038,11 +1038,8 @@ struct ContentView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.themeTextDark)
                         .onTapGesture {
-                            if let idx = viewModel.products.firstIndex(where: { $0.name == item.name }) {
-                                nameWheelSelectionIndex = idx
-                            } else {
-                                nameWheelSelectionIndex = 0
-                            }
+                            let match = viewModel.products.first(where: { $0.name == item.name })
+                            nameWheelSelectionId = match?.id ?? viewModel.products.first(where: { !$0.isHidden && !$0.isFinishedGood })?.id
                             nameWheelItem = item
                         }
                     
@@ -1253,7 +1250,7 @@ struct ContentView: View {
                 HStack(spacing: 0) {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
-                            let availableCatNames = Array(Set(viewModel.products.filter { !$0.isFinishedGood }.map { $0.category })).sorted()
+                            let availableCatNames = Array(Set(viewModel.products.filter { !$0.isFinishedGood && !$0.isHidden }.map { $0.category })).sorted()
                             let chips = ["Tất cả"] + availableCatNames
                             ForEach(chips, id: \.self) { cat in
                                 Button(action: {
@@ -1314,6 +1311,7 @@ struct ContentView: View {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: orderGridColumns), spacing: 16) {
                         let productsToShow = viewModel.products.filter { p in
                             guard !p.isFinishedGood else { return false }
+                            guard !p.isHidden else { return false }
                             if orderCategory == "Tất cả" { return true }
                             return p.category.lowercased() == orderCategory.lowercased()
                         }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
@@ -1813,9 +1811,10 @@ struct ContentView: View {
                 NavigationStack {
                     Form {
                         Section {
-                            Picker("Tên hàng", selection: $nameWheelSelectionIndex) {
-                                ForEach(Array(viewModel.products.enumerated()), id: \.offset) { (i, p) in
-                                    Text(p.name).tag(i)
+                            let orderPickableProducts = viewModel.products.filter { !$0.isHidden && !$0.isFinishedGood }
+                            Picker("Tên hàng", selection: $nameWheelSelectionId) {
+                                ForEach(orderPickableProducts) { p in
+                                    Text(p.name).tag(Optional(p.id))
                                 }
                             }
                             .pickerStyle(.wheel)
@@ -1828,9 +1827,8 @@ struct ContentView: View {
                         }
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Lưu") {
-                                let products = viewModel.products
-                                if products.indices.contains(nameWheelSelectionIndex) {
-                                    let selected = products[nameWheelSelectionIndex]
+                                if let selId = nameWheelSelectionId,
+                                   let selected = viewModel.products.first(where: { $0.id == selId }) {
                                     viewModel.updateItemFull(item, name: selected.name, price: selected.price, quantity: item.quantity, discount: item.discount, imageData: selected.imageData)
                                     nameWheelItem = nil
                                 }
@@ -1898,8 +1896,8 @@ struct ContentView: View {
                 BarcodeScannerView(onScan: { code in
                     showBarcodeScanner = false
                     
-                    // Find product by barcode
-                    if let product = viewModel.products.first(where: { $0.barcode == code }) {
+                    // Find product by barcode (exclude hidden products from order creation)
+                    if let product = viewModel.products.first(where: { $0.barcode == code && !$0.isHidden }) {
                         // Play sound or haptic
                         let generator = UINotificationFeedbackGenerator()
                         generator.notificationOccurred(.success)

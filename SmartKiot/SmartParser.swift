@@ -353,13 +353,16 @@ class SmartParser {
     static func findBestMatch(name: String, in products: [Product]) -> Product? {
         let normalizedInput = name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
         
+        // Filter out hidden products for order creation
+        let availableProducts = products.filter { !$0.isHidden }
+        
         // 1. Exact match (insensitive)
-        if let exact = products.first(where: { $0.name.folding(options: .diacriticInsensitive, locale: .current).lowercased() == normalizedInput }) {
+        if let exact = availableProducts.first(where: { $0.name.folding(options: .diacriticInsensitive, locale: .current).lowercased() == normalizedInput }) {
             return exact
         }
         
         // 2. Contains match
-        let containsMatches = products.filter { product in
+        let containsMatches = availableProducts.filter { product in
             let pName = product.name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
             return pName.contains(normalizedInput) || normalizedInput.contains(pName)
         }
@@ -377,7 +380,7 @@ class SmartParser {
         var bestMatch: Product?
         var minDistance = Int.max
         
-        for product in products {
+        for product in availableProducts {
             let pName = product.name.folding(options: .diacriticInsensitive, locale: .current).lowercased()
             let dist = normalizedInput.levenshtein(pName)
             
