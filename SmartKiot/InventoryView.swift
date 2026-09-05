@@ -463,17 +463,13 @@ struct InventoryView: View {
                                                     .clipShape(Capsule())
                                             }
                                             if product.isHidden {
-                                                HStack(spacing: 2) {
-                                                    Image(systemName: "eye.slash")
-                                                        .font(.system(size: 8, weight: .bold))
-                                                    Text("ẨN")
-                                                        .font(.system(size: 9, weight: .bold))
-                                                }
-                                                .foregroundStyle(.white)
-                                                .padding(.horizontal, 5)
-                                                .padding(.vertical, 2)
-                                                .background(Color.red.opacity(0.85))
-                                                .clipShape(Capsule())
+                                                Text("ẨN")
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundStyle(.white)
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.red.opacity(0.85))
+                                                    .clipShape(Capsule())
                                             }
                                         }
                                         
