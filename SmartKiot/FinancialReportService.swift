@@ -1142,7 +1142,7 @@ class FinancialReportService {
         return exportToCSV(stats: stats, wholesale: wholesale, orders: [], products: [])
     }
     
-    private func getDateRange(_ range: ReportDateRange) -> (Date, Date) {
+    func getDateRange(_ range: ReportDateRange) -> (Date, Date) {
         let calendar = Calendar.current
         let now = Date()
         

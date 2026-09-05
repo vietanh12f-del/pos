@@ -28,6 +28,8 @@ struct StatisticsView: View {
     @State private var showTotalProfitInfo = false
     @State private var showWholesaleDashboardProfitInfo = false
     @State private var showInventoryValueInfo = false
+    @State private var showAllOrdersDetail = false
+    @State private var showInventoryDetail = false
     
     enum StatType {
         case today, week, month, quarter
@@ -193,44 +195,69 @@ struct StatisticsView: View {
                         .padding(.horizontal)
 
                         if !stats.isEmpty {
-                            Button {
-                                showRetailDetail = true
-                            } label: {
-                                HStack {
-                                    Image(systemName: "list.bullet.rectangle")
-                                    Text("Chi tiết theo ngày (\(stats.count) ngày)")
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
+                            VStack(spacing: 12) {
+                                Button {
+                                    showRetailDetail = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "list.bullet.rectangle")
+                                        Text("Chi tiết theo ngày (\(stats.count) ngày)")
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                    }
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.themePrimary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color.themePrimary.opacity(0.07))
+                                    .cornerRadius(10)
                                 }
-                                .font(.subheadline)
-                                .foregroundStyle(Color.themePrimary)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.themePrimary.opacity(0.07))
-                                .cornerRadius(10)
+                                .sheet(isPresented: $showRetailDetail) {
+                                    NavigationStack {
+                                        List {
+                                            ForEach(stats) { s in
+                                                StatisticsRow(stat: s)
+                                                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                                    .listRowBackground(Color.themeBackgroundLight)
+                                                    .listRowSeparator(.hidden)
+                                            }
+                                        }
+                                        .listStyle(.plain)
+                                        .background(Color.themeBackgroundLight)
+                                        .navigationTitle("Chi tiết bán lẻ")
+                                        .navigationBarTitleDisplayMode(.inline)
+                                        .toolbar {
+                                            ToolbarItem(placement: .confirmationAction) {
+                                                Button("Đóng") { showRetailDetail = false }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                Button {
+                                    showAllOrdersDetail = true
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "doc.text")
+                                        Text("Chi tiết tất cả đơn hàng")
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                    }
+                                    .font(.subheadline)
+                                    .foregroundStyle(Color.themePrimary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(Color.themePrimary.opacity(0.07))
+                                    .cornerRadius(10)
+                                }
+                                .sheet(isPresented: $showAllOrdersDetail) {
+                                    AllOrdersDetailView(
+                                        orders: getRetailOrdersInCurrentRange(),
+                                        dateRange: getDateRangeString()
+                                    )
+                                }
                             }
                             .padding(.horizontal)
-                            .sheet(isPresented: $showRetailDetail) {
-                                NavigationStack {
-                                    List {
-                                        ForEach(stats) { s in
-                                            StatisticsRow(stat: s)
-                                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                                                .listRowBackground(Color.themeBackgroundLight)
-                                                .listRowSeparator(.hidden)
-                                        }
-                                    }
-                                    .listStyle(.plain)
-                                    .background(Color.themeBackgroundLight)
-                                    .navigationTitle("Chi tiết bán lẻ")
-                                    .navigationBarTitleDisplayMode(.inline)
-                                    .toolbar {
-                                        ToolbarItem(placement: .confirmationAction) {
-                                            Button("Đóng") { showRetailDetail = false }
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
 
@@ -483,6 +510,28 @@ struct StatisticsView: View {
 
                     } // end if productionEnabled
 
+                    // Button cho danh sách tồn kho (luôn hiển thị)
+                    Button {
+                        showInventoryDetail = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "archivebox")
+                            Text("Danh sách tồn kho")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(Color.themePrimary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(Color.themePrimary.opacity(0.07))
+                        .cornerRadius(10)
+                    }
+                    .padding(.horizontal)
+                    .sheet(isPresented: $showInventoryDetail) {
+                        InventoryListView(products: viewModel.products)
+                    }
+
                     // (Đã di chuyển phần \"Sản phẩm đã bán\" sang Lịch sử đơn hàng)
                     }
                     .padding(.bottom, keyboardHeight + 20)
@@ -634,6 +683,27 @@ struct StatisticsView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "MM/yyyy"
         return "Tháng " + formatter.string(from: date)
+    }
+    
+    private func getRetailOrdersInCurrentRange() -> [Bill] {
+        let range = currentRange()
+        let (startDate, endDate) = FinancialReportService.shared.getDateRange(range)
+        
+        return viewModel.pastOrders.filter { order in
+            order.isPaid && !order.isDeleted && 
+            order.createdAt >= startDate && order.createdAt <= endDate
+        }
+    }
+    
+    private func getDateRangeString() -> String {
+        let range = currentRange()
+        let (startDate, endDate) = FinancialReportService.shared.getDateRange(range)
+        
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.dateFormat = "dd/MM/yyyy"
+        
+        return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
     }
 }
 
