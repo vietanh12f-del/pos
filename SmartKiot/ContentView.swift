@@ -613,10 +613,17 @@ struct ContentView: View {
                                         HStack(spacing: 12) {
                                             StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: activeRange)), icon: "arrow.down.left", trend: "", isPositive: true,
                                                 info: "Tổng tiền thu từ các đơn bán lẻ đã thanh toán trong khoảng thời gian đang xem.")
+                                            StatCard(title: "Thực thu", value: formatCurrency(viewModel.actualReceived(for: activeRange)), icon: "banknote", trend: "", isPositive: true,
+                                                info: "Số tiền thực tế đã nhận được từ khách hàng trong khoảng thời gian đang xem.")
+                                        }
+                                        
+                                        HStack(spacing: 12) {
                                             if AuthManager.shared.canViewCostPrice {
                                                 StatCard(title: "Giá vốn", value: formatCurrency(viewModel.cogs(for: activeRange)), icon: "arrow.up.right", trend: "", isPositive: true,
                                                     info: "Chi phí vốn hàng bán (COGS) — tính theo giá nhập bình quân (AVCO) của từng sản phẩm tại thời điểm bán.")
                                             }
+                                            StatCard(title: "Công nợ", value: formatCurrency(viewModel.debt(for: activeRange)), icon: "exclamationmark.triangle", trend: "", isPositive: false,
+                                                info: "Tổng số tiền khách hàng còn nợ từ các đơn hàng trong khoảng thời gian đang xem.")
                                         }
 
                                         let profit = viewModel.grossProfit(for: activeRange)

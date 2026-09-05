@@ -3703,6 +3703,20 @@ class OrderViewModel: ObservableObject {
             .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
             .reduce(0) { $0 + $1.profit }
     }
+    
+    func actualReceived(for range: ReportDateRange) -> Double {
+        let (start, end) = dateInterval(for: range)
+        return pastOrders
+            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
+            .reduce(0) { $0 + ($1.paidAmount ?? $1.total) }
+    }
+    
+    func debt(for range: ReportDateRange) -> Double {
+        let (start, end) = dateInterval(for: range)
+        return pastOrders
+            .filter { $0.isPaid && !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
+            .reduce(0) { $0 + ($1.debtAmount ?? 0) }
+    }
 
     func orders(for range: ReportDateRange) -> [Bill] {
         let (start, end) = dateInterval(for: range)

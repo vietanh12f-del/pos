@@ -217,6 +217,14 @@ class FinancialReportService {
             
             currentY += 30
             
+            // MARK: - Debt Details (if any) - Moved up to be right after order list
+            let debtOrders = orders.filter { ($0.debtAmount ?? 0) > 0 }
+            if !debtOrders.isEmpty {
+                drawSectionTitle("CHI TIẾT CÔNG NỢ THEO KHÁCH HÀNG", at: &currentY, pageWidth: pageSize.width, margin: margin)
+                drawDebtDetailsTable(orders: debtOrders, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
+                currentY += 30
+            }
+            
             // MARK: - Top Selling Products
             let topProducts = getTopSellingProducts(orders: retailOrders, limit: 5)
             if !topProducts.isEmpty {
@@ -237,14 +245,7 @@ class FinancialReportService {
             drawInventorySummary(products: products, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
             
             currentY += 30
-            
-            // MARK: - Debt Details (if any)
-            let debtOrders = orders.filter { ($0.debtAmount ?? 0) > 0 }
-            if !debtOrders.isEmpty {
-                drawSectionTitle("CHI TIẾT CÔNG NỢ", at: &currentY, pageWidth: pageSize.width, margin: margin)
-                drawDebtDetailsTable(orders: debtOrders, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
-                currentY += 30
-            }
+
             
             // MARK: - Detailed Inventory List
             drawSectionTitle("CHI TIẾT TỒN KHO", at: &currentY, pageWidth: pageSize.width, margin: margin)
