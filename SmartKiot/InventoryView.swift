@@ -505,6 +505,33 @@ struct InventoryView: View {
                                     }
                                 }
                                 .listRowBackground(Color.white)
+                                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                    Button {
+                                        Task {
+                                            let newValue = !product.isHidden
+                                            viewModel.updateProduct(
+                                                product,
+                                                name: product.name,
+                                                price: product.price,
+                                                productPrice: product.productPrice,
+                                                shippingCost: product.shippingCost,
+                                                costPrice: product.costPrice,
+                                                category: Category(rawValue: product.category) ?? .others,
+                                                imageName: product.imageName,
+                                                color: product.color,
+                                                quantity: product.stockQuantity,
+                                                imageData: product.imageData,
+                                                barcode: product.barcode,
+                                                imageURL: product.imageURL,
+                                                isHidden: newValue,
+                                                additionalInfo: product.additionalInfo
+                                            )
+                                        }
+                                    } label: {
+                                        Label(product.isHidden ? "Bỏ ẩn" : "Ẩn", systemImage: product.isHidden ? "eye" : "eye.slash")
+                                    }
+                                    .tint(product.isHidden ? .green : .orange)
+                                }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     if StoreManager.shared.currentMember?.role == .owner {
                                         Button(role: .destructive) {
