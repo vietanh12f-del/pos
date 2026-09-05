@@ -1785,15 +1785,17 @@ struct ProductEditView: View {
         
         let finalCostPrice = productPriceValue + shippingCostValue
         
+        let finalBarcode: String? = barcode.isEmpty ? BarcodeGenerator.shared.generateRandomBarcode() : barcode
+        
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, isFinishedGood: isFinishedGood, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
+            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: finalBarcode, isFinishedGood: isFinishedGood, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
         case .edit(let product):
             var updatedProduct = product
             updatedProduct.isFinishedGood = isFinishedGood
             updatedProduct.hasVAT = hasVAT
             updatedProduct.isHidden = isHidden
-            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: barcode.isEmpty ? nil : barcode, imageURL: selectedImageURL, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
+            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: finalBarcode, imageURL: selectedImageURL, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
         }
         dismiss()
     }

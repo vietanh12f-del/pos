@@ -1603,7 +1603,11 @@ struct ProductDTO: Codable {
         try container.encode(stock_weight_kg, forKey: .stock_weight_kg)
         try container.encode(cost_price, forKey: .cost_price)
         try container.encode(store_id, forKey: .store_id)
-        try container.encode(barcode, forKey: .barcode)
+        if let barcode = barcode {
+            try container.encode(barcode, forKey: .barcode)
+        } else {
+            try container.encodeNil(forKey: .barcode)
+        }
         try container.encode(image_url, forKey: .image_url)
         try container.encode(is_finished_good ?? false, forKey: .is_finished_good)
         try container.encodeIfPresent(has_vat, forKey: .has_vat)
