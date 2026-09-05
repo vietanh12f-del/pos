@@ -80,7 +80,10 @@ struct StatisticsView: View {
             f2.dateFormat = "MM/yyyy"
             return "Tháng \(f2.string(from: Date()))"
         case .custom:
-            return "\(df.string(from: customStart)) – \(df.string(from: customEnd))"
+            let f3 = DateFormatter()
+            f3.locale = Locale(identifier: "vi_VN")
+            f3.dateFormat = "dd/MM/yyyy"
+            return "\(f3.string(from: customStart)) – \(f3.string(from: customEnd))"
         }
     }
     
