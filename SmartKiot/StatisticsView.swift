@@ -31,6 +31,7 @@ struct StatisticsView: View {
     @State private var showAllOrdersDetail = false
     @State private var showInventoryDetail = false
     @State private var showDebtDetail = false
+    @State private var showTopProductsDetail = false
     
     enum StatType {
         case today, week, month, quarter
@@ -624,6 +625,48 @@ struct StatisticsView: View {
                     .sheet(isPresented: $showInventoryDetail) {
                         InventoryListView(products: viewModel.products)
                     }
+                    
+                    // Top sản phẩm bán chạy
+                    let topProducts = getTopSellingProducts(orders: retailOrders, limit: 5)
+                    if !topProducts.isEmpty {
+                        VStack(spacing: 12) {
+                            sectionHeader("🔥 Top sản phẩm bán chạy")
+                            
+                            VStack(spacing: 8) {
+                                ForEach(Array(topProducts.enumerated()), id: \.element.id) { index, product in
+                                    TopSellingProductMiniRow(
+                                        product: product, 
+                                        rank: index + 1
+                                    )
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            Button {
+                                showTopProductsDetail = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "chart.bar.fill")
+                                    Text("Xem tất cả sản phẩm bán chạy")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(Color.themePrimary)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color.themePrimary.opacity(0.07))
+                                .cornerRadius(10)
+                            }
+                            .padding(.horizontal)
+                            .sheet(isPresented: $showTopProductsDetail) {
+                                TopSellingProductsView(
+                                    orders: retailOrders,
+                                    dateRange: getDateRangeString()
+                                )
+                            }
+                        }
+                    }
 
                     // (Đã di chuyển phần \"Sản phẩm đã bán\" sang Lịch sử đơn hàng)
                     }
@@ -798,6 +841,41 @@ struct StatisticsView: View {
         
         return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
     }
+    
+    private func getTopSellingProducts(orders: [Bill], limit: Int) -> [TopSellingProduct] {
+        var productStats: [String: (quantity: Int, revenue: Double, prices: [Double])] = [:]
+        
+        // Tính toán thống kê cho từng sản phẩm
+        for order in orders {
+            if order.isPaid && !order.isDeleted {
+                for item in order.items {
+                    let key = item.name
+                    let current = productStats[key] ?? (quantity: 0, revenue: 0, prices: [])
+                    
+                    productStats[key] = (
+                        quantity: current.quantity + item.quantity,
+                        revenue: current.revenue + (Double(item.quantity) * item.price),
+                        prices: current.prices + [item.price]
+                    )
+                }
+            }
+        }
+        
+        // Chuyển đổi thành TopSellingProduct và sắp xếp
+        let products = productStats.compactMap { (productName, stats) in
+            let avgPrice = stats.prices.isEmpty ? 0 : stats.prices.reduce(0, +) / Double(stats.prices.count)
+            
+            return TopSellingProduct(
+                name: productName,
+                quantitySold: stats.quantity,
+                revenue: stats.revenue,
+                category: "",
+                averagePrice: avgPrice
+            )
+        }
+        
+        return Array(products.sorted { $0.quantitySold > $1.quantitySold }.prefix(limit))
+    }
 }
 
 struct StatisticsRow: View {
@@ -910,5 +988,71 @@ struct WholesaleRow: View {
         f.locale = Locale(identifier: "vi_VN")
         f.dateFormat = "dd/MM/yyyy"
         return f.string(from: date)
+    }
+}
+
+struct TopSellingProductMiniRow: View {
+    let product: TopSellingProduct
+    let rank: Int
+    
+    private var rankColor: Color {
+        switch rank {
+        case 1: return .yellow
+        case 2: return .gray
+        case 3: return .orange
+        default: return .blue
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Ranking
+            Text("#\(rank)")
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(rankColor)
+                .clipShape(Circle())
+            
+            // Thông tin sản phẩm
+            VStack(alignment: .leading, spacing: 2) {
+                Text(product.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.themeTextDark)
+                    .lineLimit(1)
+                
+                if !product.category.isEmpty {
+                    Text(product.category)
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+            }
+            
+            Spacer()
+            
+            // Số lượng và doanh thu
+            VStack(alignment: .trailing, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text("\(product.quantitySold)")
+                        .font(.subheadline)
+                        .fontWeight(.bold)
+                        .foregroundStyle(Color.themePrimary)
+                    Text("SP")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+                
+                Text(formatCurrency(product.revenue))
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.white)
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(0.02), radius: 2, x: 0, y: 1)
     }
 }

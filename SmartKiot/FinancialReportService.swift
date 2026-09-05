@@ -132,10 +132,25 @@ class FinancialReportService {
         // Check if production feature is enabled
         let productionEnabled = StoreManager.shared.currentStoreProductionEnabled()
         
-        // Calculate page height based on content
-        let baseHeight: CGFloat = 1800 // Increased for inventory list
-        let additionalHeight: CGFloat = productionEnabled ? 400 : 0
-        let pageSize = CGSize(width: 850, height: baseHeight + additionalHeight)
+        // Calculate dynamic page height based on content
+        let debtOrders = orders.filter { ($0.debtAmount ?? 0) > 0 }
+        let customerCount = Set(debtOrders.compactMap { $0.customerName }).count
+        
+        // Base content height estimation
+        let baseHeight: CGFloat = 1200
+        let orderTableHeight: CGFloat = CGFloat(min(orders.count, 15)) * 20 + 100
+        let inventoryHeight: CGFloat = CGFloat(min(products.count, 20)) * 20 + 150
+        let debtTableHeight: CGFloat = CGFloat(customerCount) * 20 + 100
+        let productionHeight: CGFloat = productionEnabled ? 400 : 0
+        
+        let totalEstimatedHeight = baseHeight + orderTableHeight + inventoryHeight + debtTableHeight + productionHeight
+        
+        // Use multiple pages if content is too long
+        let _: CGFloat = 2000 // Will be used for multi-page in future
+        let pageWidth: CGFloat = 850
+        
+        // Use dynamic page height without multi-page for now
+        let pageSize = CGSize(width: pageWidth, height: min(totalEstimatedHeight + 500, 3000))
         let renderer = UIGraphicsImageRenderer(size: pageSize)
         
         let image = renderer.image { context in
@@ -223,6 +238,14 @@ class FinancialReportService {
             
             currentY += 30
             
+            // MARK: - Debt Details (if any)
+            let debtOrders = orders.filter { ($0.debtAmount ?? 0) > 0 }
+            if !debtOrders.isEmpty {
+                drawSectionTitle("CHI TIẾT CÔNG NỢ", at: &currentY, pageWidth: pageSize.width, margin: margin)
+                drawDebtDetailsTable(orders: debtOrders, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
+                currentY += 30
+            }
+            
             // MARK: - Detailed Inventory List
             drawSectionTitle("CHI TIẾT TỒN KHO", at: &currentY, pageWidth: pageSize.width, margin: margin)
             drawDetailedInventory(products: products, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
@@ -267,6 +290,8 @@ class FinancialReportService {
         let retailRevenue: Double
         let retailCosts: Double  
         let retailProfit: Double
+        let retailActualReceived: Double
+        let retailDebt: Double
         let wholesaleRevenue: Double
         let wholesaleCosts: Double
         let wholesaleProfit: Double
@@ -281,7 +306,9 @@ class FinancialReportService {
     private func calculateSummaryData(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats?, orders: [Bill], products: [Product], productionEnabled: Bool) -> SummaryData {
         let retailRevenue = stats.reduce(0) { $0 + $1.revenue }
         let retailCosts = stats.reduce(0) { $0 + $1.cogs + $1.operatingCosts }
-        let retailProfit = stats.reduce(0) { $0 + $1.netProfit }
+        let retailProfit = stats.reduce(0) { $0 + $1.actualNetProfit }
+        let retailActualReceived = stats.reduce(0) { $0 + $1.actualReceived }
+        let retailDebt = stats.reduce(0) { $0 + $1.debt }
         
         var wholesaleRevenue: Double = 0
         var wholesaleCosts: Double = 0
@@ -307,6 +334,8 @@ class FinancialReportService {
             retailRevenue: retailRevenue,
             retailCosts: retailCosts,
             retailProfit: retailProfit,
+            retailActualReceived: retailActualReceived,
+            retailDebt: retailDebt,
             wholesaleRevenue: wholesaleRevenue,
             wholesaleCosts: wholesaleCosts,
             wholesaleProfit: wholesaleProfit,
@@ -336,6 +365,8 @@ class FinancialReportService {
         
         var summaryRows: [(String, String, Bool)] = [
             ("I. DOANH THU BÁN LẺ", fmt(data.retailRevenue), false),
+            ("   - Thực thu", fmt(data.retailActualReceived), false),
+            ("   - Công nợ", fmt(data.retailDebt), false),
             ("   - Chi phí bán lẻ", fmt(data.retailCosts), false),
             ("   - Lợi nhuận bán lẻ", fmt(data.retailProfit), false),
         ]
@@ -400,15 +431,16 @@ class FinancialReportService {
         
         let rowHeight: CGFloat = 20
         let columnWidths: [CGFloat] = [
-            contentWidth * 0.06, // STT
-            contentWidth * 0.12, // Mã đơn
-            contentWidth * 0.12, // Nhân viên
-            contentWidth * 0.22, // Sản phẩm
-            contentWidth * 0.08, // Số lượng
+            contentWidth * 0.05, // STT
+            contentWidth * 0.10, // Mã đơn
+            contentWidth * 0.10, // Nhân viên
+            contentWidth * 0.20, // Sản phẩm
+            contentWidth * 0.07, // Số lượng
             contentWidth * 0.10, // Giá bán
             contentWidth * 0.12, // Thành tiền
-            contentWidth * 0.10, // Thời gian
-            contentWidth * 0.08  // Ghi chú
+            contentWidth * 0.12, // Công nợ
+            contentWidth * 0.09, // Thời gian
+            contentWidth * 0.05  // Ghi chú
         ]
         
         let headerAttributes: [NSAttributedString.Key: Any] = [
@@ -421,7 +453,7 @@ class FinancialReportService {
             .foregroundColor: UIColor.black
         ]
         
-        let headers = ["STT", "Mã đơn", "NV bán", "Sản phẩm", "SL", "Giá bán", "Thành tiền", "Thời gian", "Ghi chú"]
+        let headers = ["STT", "Mã đơn", "NV bán", "Sản phẩm", "SL", "Giá bán", "Thành tiền", "Công nợ", "Thời gian", "Ghi chú"]
         
         // Draw header
         context.setFillColor(UIColor.systemBlue.cgColor)
@@ -443,6 +475,7 @@ class FinancialReportService {
         
         var totalQuantity = 0
         var totalAmount = 0.0
+        var totalDebt = 0.0
         
         for (index, order) in sortedOrders.enumerated() {
             // Alternate row colors
@@ -464,12 +497,14 @@ class FinancialReportService {
             let orderQuantity = order.items.reduce(0) { $0 + $1.quantity }
             let unitPrice = order.items.count == 1 ? fmt(order.items[0].price) : "Nhiều"
             let totalPrice = fmt(order.total)
+            let debtAmount = fmt(order.debtAmount ?? 0)
             let timeString = dateFormatter.string(from: order.createdAt)
             let note = "" // Leave empty as requested
             
             // Add to totals
             totalQuantity += orderQuantity
             totalAmount += order.total
+            totalDebt += (order.debtAmount ?? 0)
             
             let rowData = [
                 "\(index + 1)",
@@ -479,6 +514,7 @@ class FinancialReportService {
                 "\(orderQuantity)",
                 unitPrice,
                 totalPrice,
+                debtAmount,
                 timeString,
                 note
             ]
@@ -523,6 +559,7 @@ class FinancialReportService {
             "\(totalQuantity)",
             "",
             fmt(totalAmount),
+            fmt(totalDebt),
             "",
             ""
         ]
@@ -1184,3 +1221,162 @@ class FinancialReportService {
         }
     }
 }
+    
+    private func drawDebtDetailsTable(orders: [Bill], context: CGContext, startY: inout CGFloat, margin: CGFloat, contentWidth: CGFloat) {
+        guard !orders.isEmpty else {
+            let noDataText = "Không có công nợ"
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.italicSystemFont(ofSize: 13),
+                .foregroundColor: UIColor.gray
+            ]
+            noDataText.draw(at: CGPoint(x: margin, y: startY), withAttributes: attributes)
+            startY += 25
+            return
+        }
+        
+        // Group orders by customer
+        var customerDebts: [String: (orders: [Bill], totalAmount: Double, totalPaid: Double, totalDebt: Double, phone: String)] = [:]
+        
+        for order in orders {
+            let customerName = (order.customerName?.isEmpty == false) ? order.customerName! : "Khách vãng lai"
+            let phone = order.customerPhone ?? ""
+            
+            if customerDebts[customerName] == nil {
+                customerDebts[customerName] = (orders: [], totalAmount: 0, totalPaid: 0, totalDebt: 0, phone: phone)
+            }
+            
+            var customer = customerDebts[customerName]!
+            customer.orders.append(order)
+            customer.totalAmount += order.total
+            customer.totalPaid += (order.paidAmount ?? 0)
+            customer.totalDebt += (order.debtAmount ?? 0)
+            if customer.phone.isEmpty && !phone.isEmpty {
+                customer.phone = phone
+            }
+            customerDebts[customerName] = customer
+        }
+        
+        // Sort customers by total debt (descending)
+        let sortedCustomers = customerDebts.sorted { $0.value.totalDebt > $1.value.totalDebt }
+        
+        let rowHeight: CGFloat = 20
+        let columnWidths: [CGFloat] = [
+            contentWidth * 0.05, // STT
+            contentWidth * 0.25, // Khách hàng
+            contentWidth * 0.15, // Điện thoại
+            contentWidth * 0.10, // Số đơn
+            contentWidth * 0.15, // Tổng tiền
+            contentWidth * 0.15, // Đã trả
+            contentWidth * 0.15  // Còn nợ
+        ]
+        
+        let headerAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 10),
+            .foregroundColor: UIColor.white
+        ]
+        
+        let cellAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 9),
+            .foregroundColor: UIColor.black
+        ]
+        
+        let headers = ["STT", "Khách hàng", "Điện thoại", "Số đơn", "Tổng tiền", "Đã trả", "Còn nợ"]
+        
+        // Draw header
+        context.setFillColor(UIColor.systemRed.cgColor)
+        context.fill(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+        
+        var currentX = margin
+        for (index, header) in headers.enumerated() {
+            header.draw(in: CGRect(x: currentX + 2, y: startY + 4, width: columnWidths[index] - 4, height: rowHeight - 8), withAttributes: headerAttributes)
+            currentX += columnWidths[index]
+        }
+        
+        startY += rowHeight
+        
+        // Track totals
+        var grandTotalAmount = 0.0
+        var grandTotalPaid = 0.0
+        var grandTotalDebt = 0.0
+        
+        // Draw customer debt rows
+        for (index, (customerName, customerData)) in sortedCustomers.enumerated() {
+            // Alternate row colors
+            if index % 2 == 1 {
+                context.setFillColor(UIColor.systemGray6.cgColor)
+                context.fill(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+            }
+            
+            // Draw border
+            context.setStrokeColor(UIColor.lightGray.cgColor)
+            context.setLineWidth(0.3)
+            context.stroke(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+            
+            // Prepare customer data
+            let displayName = customerName.count > 20 ? String(customerName.prefix(17)) + "..." : customerName
+            let displayPhone = customerData.phone.count > 12 ? String(customerData.phone.prefix(9)) + "..." : customerData.phone
+            let orderCount = "\(customerData.orders.count)"
+            let totalAmount = formatCurrency(customerData.totalAmount)
+            let totalPaid = formatCurrency(customerData.totalPaid)
+            let totalDebt = formatCurrency(customerData.totalDebt)
+            
+            // Add to grand totals
+            grandTotalAmount += customerData.totalAmount
+            grandTotalPaid += customerData.totalPaid
+            grandTotalDebt += customerData.totalDebt
+            
+            let rowData = [
+                "\(index + 1)",
+                displayName,
+                displayPhone,
+                orderCount,
+                totalAmount,
+                totalPaid,
+                totalDebt
+            ]
+            
+            currentX = margin
+            for (colIndex, data) in rowData.enumerated() {
+                let textColor = (colIndex == 6) ? UIColor.red : UIColor.black
+                var attributes = cellAttributes
+                attributes[.foregroundColor] = textColor
+                
+                data.draw(in: CGRect(x: currentX + 2, y: startY + 2, width: columnWidths[colIndex] - 4, height: rowHeight - 4), withAttributes: attributes)
+                currentX += columnWidths[colIndex]
+            }
+            
+            startY += rowHeight
+        }
+        
+        // Draw total row
+        context.setFillColor(UIColor.systemRed.withAlphaComponent(0.2).cgColor)
+        context.fill(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+        context.setStrokeColor(UIColor.darkGray.cgColor)
+        context.setLineWidth(0.5)
+        context.stroke(CGRect(x: margin, y: startY, width: contentWidth, height: rowHeight))
+        
+        let boldAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.boldSystemFont(ofSize: 9),
+            .foregroundColor: UIColor.red
+        ]
+        
+        let totalRowData = [
+            "",
+            "TỔNG CỘNG",
+            "",
+            "\(sortedCustomers.count) KH",
+            formatCurrency(grandTotalAmount),
+            formatCurrency(grandTotalPaid),
+            formatCurrency(grandTotalDebt)
+        ]
+        
+        currentX = margin
+        for (colIndex, data) in totalRowData.enumerated() {
+            data.draw(in: CGRect(x: currentX + 2, y: startY + 2, width: columnWidths[colIndex] - 4, height: rowHeight - 4), withAttributes: boldAttributes)
+            currentX += columnWidths[colIndex]
+        }
+        
+        startY += rowHeight
+    }
+
+
