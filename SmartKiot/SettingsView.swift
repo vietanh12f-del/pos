@@ -634,6 +634,9 @@ struct CustomizationSettingsView: View {
                 NavigationLink(destination: ProductionSettingsView()) {
                     Text("Tính năng sản xuất")
                 }
+                NavigationLink(destination: MultiBatchMarkSettingsView()) {
+                    Text("Đánh dấu nhiều đợt nhập")
+                }
             }
         }
         .navigationTitle("Tuỳ chỉnh")
@@ -949,6 +952,27 @@ struct ProductionSettingsView: View {
             }
         }
         .navigationTitle("Tính năng sản xuất")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Multi-Batch Import Mark Settings
+
+struct MultiBatchMarkSettingsView: View {
+    @AppStorage("multi_batch_mark_global") private var enabled: Bool = false
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Bật đánh dấu nhiều đợt nhập", isOn: $enabled)
+                Text("Khi bật, mỗi đợt nhập sản phẩm sẽ tự động đánh dấu \"Đợt n\" (n tăng dần theo lần nhập). Giá trị n được lưu trên CSDL và có thể chỉnh sửa trong Chi tiết hàng hoá.")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            } header: {
+                Text("Đánh dấu đợt nhập")
+            }
+        }
+        .navigationTitle("Đánh dấu nhiều đợt nhập")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -103,6 +103,18 @@ class StoreManager: ObservableObject {
         UserDefaults.standard.set(enabled, forKey: "production_enabled_global")
     }
 
+    // MARK: - Multi-Batch Import Mark Toggle
+
+    func currentStoreMultiBatchMarkEnabled() -> Bool {
+        let key = "multi_batch_mark_global"
+        if UserDefaults.standard.object(forKey: key) == nil { return false }
+        return UserDefaults.standard.bool(forKey: key)
+    }
+
+    func setMultiBatchMarkEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: "multi_batch_mark_global")
+    }
+
     func resetSessionState() {
         self.currentStore = nil
         self.currentMember = nil

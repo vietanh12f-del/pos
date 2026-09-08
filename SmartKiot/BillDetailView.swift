@@ -1014,7 +1014,7 @@ struct BillDetailView: View {
             bankName = String(cleanCode)
         }
         let finalBankAccount = bankAccount
-        let amount = Int(bill.total)
+        let amount = Int(bill.vietQRCollectAmount)
         let base = "https://img.vietqr.io/image/\(bankName)-\(finalBankAccount)-compact.png"
         let shortId = bill.id.uuidString.prefix(8)
         let infoBase = "SmartKiot \(shortId)"

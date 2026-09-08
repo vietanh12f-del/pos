@@ -99,6 +99,8 @@ struct ProductEditView: View {
     @State private var showMarkupPicker = false
     @State private var additionalInfo: String = ""
     @State private var isHidden: Bool = false
+    @State private var importBatchNumber: Int? = nil
+    @State private var importBatchText: String = ""
     
     // MARK: - Summary Section State for Finished Goods
     @State private var summaryStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
@@ -149,6 +151,8 @@ struct ProductEditView: View {
             _isFinishedGood = State(initialValue: false)
             _markupPercent = State(initialValue: 0)
             _additionalInfo = State(initialValue: "")
+            _importBatchNumber = State(initialValue: nil)
+            _importBatchText = State(initialValue: "")
         case .edit(let product):
             _name = State(initialValue: product.name)
             let initialPrice = Int(product.price)
@@ -181,6 +185,8 @@ struct ProductEditView: View {
             _hasVAT = State(initialValue: product.hasVAT)
             _isHidden = State(initialValue: product.isHidden)
             _additionalInfo = State(initialValue: product.additionalInfo ?? "")
+            _importBatchNumber = State(initialValue: product.importBatchNumber)
+            _importBatchText = State(initialValue: product.importBatchNumber != nil ? String(product.importBatchNumber!) : "")
             // markupPercent: tính ngược từ giá bán / giá vốn nếu có
             if product.costPrice > 0 {
                 if product.price > product.costPrice {
@@ -418,6 +424,44 @@ struct ProductEditView: View {
                             .foregroundColor(.gray)
                         TextEditor(text: $additionalInfo)
                             .frame(minHeight: 80)
+                    }
+                    
+                    if StoreManager.shared.currentStoreMultiBatchMarkEnabled() {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Đợt nhập")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            HStack(spacing: 8) {
+                                TextField("Để trống = không đánh dấu", text: Binding(
+                                    get: { importBatchText },
+                                    set: { newValue in
+                                        importBatchText = newValue
+                                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                                        if trimmed.isEmpty {
+                                            importBatchNumber = nil
+                                        } else if let v = Int(trimmed), v > 0 {
+                                            importBatchNumber = v
+                                        } else {
+                                            importBatchNumber = nil
+                                        }
+                                    }
+                                ))
+                                .keyboardType(.numberPad)
+                                .textFieldStyle(.roundedBorder)
+                                if importBatchNumber != nil {
+                                    Button(role: .destructive) {
+                                        importBatchNumber = nil
+                                        importBatchText = ""
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.gray)
+                                    }
+                                }
+                            }
+                            Text("Số thứ tự đợt nhập của sản phẩm này (tự động tăng khi bật đánh dấu nhiều đợt nhập).")
+                                .font(.caption2)
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
                 
@@ -1790,13 +1834,14 @@ struct ProductEditView: View {
         
         switch mode {
         case .add:
-            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: finalBarcode, isFinishedGood: isFinishedGood, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
+            viewModel.createProduct(name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: finalBarcode, isFinishedGood: isFinishedGood, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo, importBatchNumber: importBatchNumber)
         case .edit(let product):
             var updatedProduct = product
             updatedProduct.isFinishedGood = isFinishedGood
             updatedProduct.hasVAT = hasVAT
             updatedProduct.isHidden = isHidden
-            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: finalBarcode, imageURL: selectedImageURL, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo)
+            updatedProduct.importBatchNumber = importBatchNumber
+            viewModel.updateProduct(updatedProduct, name: name, price: priceValue, productPrice: productPriceValue, shippingCost: shippingCostValue, costPrice: finalCostPrice, category: selectedCategory, imageName: selectedIcon, color: selectedColor, quantity: quantityValue, imageData: selectedImageData, barcode: finalBarcode, imageURL: selectedImageURL, isHidden: isHidden, additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo, importBatchNumber: importBatchNumber)
         }
         dismiss()
     }

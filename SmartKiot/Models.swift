@@ -2,6 +2,34 @@ import Foundation
 
 import SwiftUI
 
+enum BillPaymentMath {
+    static func effectiveDebt(total: Double, isPaid: Bool, paidAmount: Double?, debtAmount: Double?) -> Double {
+        if let debt = debtAmount, debt > 0 {
+            return debt
+        }
+        if !isPaid {
+            return max(0, total - (paidAmount ?? 0))
+        }
+        return 0
+    }
+
+    static func vietQRCollectAmount(total: Double, isPaid: Bool, paidAmount: Double?, debtAmount: Double?) -> Double {
+        let remaining = effectiveDebt(total: total, isPaid: isPaid, paidAmount: paidAmount, debtAmount: debtAmount)
+        return remaining > 0 ? remaining : total
+    }
+}
+
+enum ImportBatchMark {
+    static func nextNumber(current: Int?, increment: Bool, quantity: Int, enabled: Bool) -> Int? {
+        guard increment, quantity > 0, enabled else { return current }
+        return (current ?? 0) + 1
+    }
+
+    static func initialNumber(increment: Bool, quantity: Int, enabled: Bool) -> Int? {
+        (increment && quantity > 0 && enabled) ? 1 : nil
+    }
+}
+
 struct OrderItem: Identifiable, Hashable, Codable {
     var id = UUID()
     var name: String
@@ -157,14 +185,22 @@ struct Bill: Identifiable, Codable, Equatable {
     /// Công nợ hiệu lực: ưu tiên debtAmount nếu có; nếu isPaid=false và không có debtAmount,
     /// tính bằng max(0, total - paidAmount).
     var effectiveDebt: Double {
-        if let debt = debtAmount, debt > 0 {
-            return debt
-        }
-        if !isPaid {
-            let paid = paidAmount ?? 0
-            return max(0, total - paid)
-        }
-        return 0
+        BillPaymentMath.effectiveDebt(
+            total: total,
+            isPaid: isPaid,
+            paidAmount: paidAmount,
+            debtAmount: debtAmount
+        )
+    }
+
+    /// Số tiền đưa vào VietQR khi thu trên hoá đơn đã lưu: phần còn nợ, hoặc tổng đơn nếu đã trả hết.
+    var vietQRCollectAmount: Double {
+        BillPaymentMath.vietQRCollectAmount(
+            total: total,
+            isPaid: isPaid,
+            paidAmount: paidAmount,
+            debtAmount: debtAmount
+        )
     }
     
     static func == (lhs: Bill, rhs: Bill) -> Bool {
@@ -557,8 +593,9 @@ struct Product: Identifiable, Codable, Hashable {
     var hasVAT: Bool = false // Hàng hoá nhập có VAT hay không
     var isHidden: Bool = false // Ẩn sản phẩm khỏi danh sách lên đơn
     var additionalInfo: String? // Thông tin thêm
+    var importBatchNumber: Int? // Số đợt nhập (nếu bật đánh dấu nhiều đợt nhập)
 
-    init(id: UUID = UUID(), name: String, price: Double, productPrice: Double = 0, shippingCost: Double = 0, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false, hasVAT: Bool = false, isHidden: Bool = false, additionalInfo: String? = nil) {
+    init(id: UUID = UUID(), name: String, price: Double, productPrice: Double = 0, shippingCost: Double = 0, costPrice: Double = 0, category: String, imageName: String, color: String, imageData: Data? = nil, imageURL: String? = nil, stockQuantity: Int = 0, barcode: String? = nil, isFinishedGood: Bool = false, hasVAT: Bool = false, isHidden: Bool = false, additionalInfo: String? = nil, importBatchNumber: Int? = nil) {
         self.id = id
         self.name = name
         self.price = price
@@ -576,6 +613,7 @@ struct Product: Identifiable, Codable, Hashable {
         self.hasVAT = hasVAT
         self.isHidden = isHidden
         self.additionalInfo = additionalInfo
+        self.importBatchNumber = importBatchNumber
     }
 }
 

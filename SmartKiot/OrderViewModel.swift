@@ -1787,7 +1787,8 @@ class OrderViewModel: ObservableObject {
                     await revertInventoryForRestockBill(original)
                 }
                 
-                await applyInventoryForRestockItems(restockItems)
+                // Chỉ tăng số đợt nhập khi tạo phiếu nhập mới, không tăng lại khi sửa phiếu.
+                await applyInventoryForRestockItems(restockItems, incrementImportBatch: original == nil)
                 
                 if let idx = restockHistory.firstIndex(where: { $0.id == bill.id }) {
                     restockHistory[idx] = bill
@@ -2111,7 +2112,7 @@ class OrderViewModel: ObservableObject {
     }
     
     @MainActor
-    private func applyInventoryForRestockItems(_ items: [RestockItem]) async {
+    private func applyInventoryForRestockItems(_ items: [RestockItem], incrementImportBatch: Bool = false) async {
         for item in items {
             let key = item.name.lowercased()
             
@@ -2180,9 +2181,17 @@ class OrderViewModel: ObservableObject {
                     self.productCategories.insert(newCat)
                 }
                 
+                // Đánh dấu đợt nhập: chỉ khi phiếu nhập mới và số lượng tăng
+                product.importBatchNumber = ImportBatchMark.nextNumber(
+                    current: product.importBatchNumber,
+                    increment: incrementImportBatch,
+                    quantity: item.quantity,
+                    enabled: StoreManager.shared.currentStoreMultiBatchMarkEnabled()
+                )
+                
                 products[index] = product
                 do {
-                    print("✅ [OrderViewModel] Updating target product: \(product.name), stock: \(product.stockQuantity), type: \(product.isFinishedGood ? "FG" : "Good")")
+                    print("✅ [OrderViewModel] Updating target product: \(product.name), stock: \(product.stockQuantity), type: \(product.isFinishedGood ? "FG" : "Good"), batch: \(String(describing: product.importBatchNumber))")
                     try await database.updateProduct(product)
                 } catch {
                     print("❌ Error updating product from restock: \(error)")
@@ -2198,6 +2207,13 @@ class OrderViewModel: ObservableObject {
                     return cat.rawValue
                 }()
                 
+                // Đợt nhập: sản phẩm mới chỉ gắn đợt 1 khi đây là phiếu nhập mới
+                let initialBatch = ImportBatchMark.initialNumber(
+                    increment: incrementImportBatch,
+                    quantity: item.quantity,
+                    enabled: StoreManager.shared.currentStoreMultiBatchMarkEnabled()
+                )
+                
                 let newProduct = Product(
                     id: UUID(),
                     name: item.name,
@@ -2210,12 +2226,13 @@ class OrderViewModel: ObservableObject {
                     color: "gray",
                     stockQuantity: newQuantity,
                     isFinishedGood: item.isFinishedGood,
-                    hasVAT: item.hasVAT
+                    hasVAT: item.hasVAT,
+                    importBatchNumber: initialBatch
                 )
                 products.append(newProduct)
                 self.productCategories.insert(catValue)
                 do {
-                    print("🆕 [OrderViewModel] Saving new product from restock: \(newProduct.name)")
+                    print("🆕 [OrderViewModel] Saving new product from restock: \(newProduct.name), batch: \(String(describing: newProduct.importBatchNumber))")
                     try await database.saveProduct(newProduct)
                 } catch {
                     print("❌ Error saving new product from restock: \(error)")
@@ -3113,7 +3130,7 @@ class OrderViewModel: ObservableObject {
     }
     // MARK: - Product Catalog Management
     
-    func createProduct(name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, isFinishedGood: Bool = false, isHidden: Bool = false, additionalInfo: String? = nil) {
+    func createProduct(name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, isFinishedGood: Bool = false, isHidden: Bool = false, additionalInfo: String? = nil, importBatchNumber: Int? = nil) {
         let tempId = UUID()
         var newProduct = Product(
             id: tempId,
@@ -3130,7 +3147,8 @@ class OrderViewModel: ObservableObject {
             barcode: barcode,
             isFinishedGood: isFinishedGood,
             isHidden: isHidden,
-            additionalInfo: additionalInfo
+            additionalInfo: additionalInfo,
+            importBatchNumber: importBatchNumber
         )
         products.append(newProduct)
         
@@ -3167,7 +3185,7 @@ class OrderViewModel: ObservableObject {
         }
     }
     
-    func updateProduct(_ product: Product, name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil, isHidden: Bool = false, additionalInfo: String? = nil) {
+    func updateProduct(_ product: Product, name: String, price: Double, productPrice: Double, shippingCost: Double, costPrice: Double, category: Category, imageName: String, color: String, quantity: Int, imageData: Data? = nil, barcode: String? = nil, imageURL: String? = nil, isHidden: Bool = false, additionalInfo: String? = nil, importBatchNumber: Int? = nil) {
         print("🔄 [OrderViewModel] updateProduct called for: \(product.name), isFinishedGood: \(product.isFinishedGood)")
         if let index = products.firstIndex(where: { $0.id == product.id }) {
             let originalProduct = products[index]
@@ -3200,7 +3218,8 @@ class OrderViewModel: ObservableObject {
                 isFinishedGood: product.isFinishedGood,
                 hasVAT: product.hasVAT, // Preserve hasVAT từ product đã được set trước khi gọi hàm này
                 isHidden: isHidden,
-                additionalInfo: additionalInfo
+                additionalInfo: additionalInfo,
+                importBatchNumber: importBatchNumber ?? product.importBatchNumber
             )
             print("📦 [OrderViewModel] Updated product: \(updatedProduct.name), isFinishedGood: \(updatedProduct.isFinishedGood)")
             products[index] = updatedProduct
@@ -3931,8 +3950,8 @@ class OrderViewModel: ObservableObject {
             bankName = String(cleanCode)
         }
         let finalBankAccount = bankAccount
-        // Dùng bill.total (tổng tiền đơn) cho QR — luôn hiển thị số tiền cần thanh toán
-        let amount = Int(bill.total)
+        let qrAmount: Double = paidAmount > 0 ? paidAmount : bill.total
+        let amount = Int(qrAmount)
         let base = "https://img.vietqr.io/image/\(bankName)-\(finalBankAccount)-compact.png"
         let infoBase: String
         let shortId = bill.id.uuidString.prefix(8)
