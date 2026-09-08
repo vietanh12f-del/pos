@@ -992,7 +992,7 @@ struct ContentView: View {
         @State private var isLookingUpBarcode = false
         @Namespace private var namespace
         @FocusState private var walkInFocused: Bool
-        @State private var keyboardHeight: CGFloat = 0
+        @FocusState private var productSearchFocused: Bool
         @State private var priceEditItem: OrderItem?
         @State private var priceInput: String = ""
         @State private var priceWheelSelection: Int = 0
@@ -1129,6 +1129,9 @@ struct ContentView: View {
                     .foregroundStyle(.gray)
                 TextField("Tìm kiếm sản phẩm...", text: $viewModel.searchText)
                     .textFieldStyle(.plain)
+                    .focused($productSearchFocused)
+                    .submitLabel(.done)
+                    .onSubmit { productSearchFocused = false }
                 if !viewModel.searchText.isEmpty {
                     Button(action: { viewModel.searchText = "" }) {
                         Image(systemName: "xmark.circle.fill")
@@ -1420,6 +1423,75 @@ struct ContentView: View {
             }
         }
         
+        private var compactOrderSummary: some View {
+            VStack(spacing: 0) {
+                Button {
+                    productSearchFocused = false
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Tóm tắt đơn hàng")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.themeTextDark)
+                            Text("\(viewModel.items.reduce(0) { $0 + $1.quantity }) sản phẩm · Xem chi tiết")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                        }
+                        Spacer(minLength: 8)
+                        Text(formatCurrency(viewModel.totalAmount))
+                            .font(.headline)
+                            .foregroundStyle(Color.themePrimary)
+                        Image(systemName: "chevron.up")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.gray)
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.white)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Đóng bàn phím và mở chi tiết đơn hàng")
+
+                if !viewModel.items.isEmpty {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            VStack(spacing: 8) {
+                                ForEach(viewModel.items) { item in
+                                    orderItemView(item)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 4)
+                        }
+                        .frame(height: 100)
+                        .onAppear {
+                            if let id = viewModel.lastFocusedItemId ?? viewModel.items.last?.id {
+                                proxy.scrollTo(id, anchor: .center)
+                            }
+                        }
+                        .onChange(of: viewModel.items.count) { _ in
+                            if let id = viewModel.lastFocusedItemId ?? viewModel.items.last?.id {
+                                withAnimation {
+                                    proxy.scrollTo(id, anchor: .center)
+                                }
+                            }
+                        }
+                        .onChange(of: viewModel.lastFocusedItemId) { id in
+                            if let id {
+                                withAnimation {
+                                    proxy.scrollTo(id, anchor: .center)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.bottom, 8)
+                }
+            }
+            .background(Color.white)
+        }
+
         var orderSummarySheetViewOrder: some View {
             VStack(spacing: 0) {
                 Capsule()
@@ -1560,7 +1632,7 @@ struct ContentView: View {
                     .opacity(viewModel.items.isEmpty ? 0.6 : 1)
                 }
                 .padding(.horizontal)
-                .padding(.bottom, 30 + (walkInFocused ? keyboardHeight : 0))
+                .padding(.bottom, 30)
             }
         }
         
@@ -1618,7 +1690,11 @@ struct ContentView: View {
                         browsingContentViewOrder
                     }
                     
-                    orderSummarySheetViewOrder
+                    if productSearchFocused {
+                        compactOrderSummary
+                    } else {
+                        orderSummarySheetViewOrder
+                    }
                 }
             .overlay(
                 voiceOverlayViewOrder
@@ -1636,7 +1712,8 @@ struct ContentView: View {
                     }
                 }
             )
-            .ignoresSafeArea(.all, edges: .bottom)
+            // Extend under the home indicator while still avoiding the keyboard.
+            .ignoresSafeArea(.container, edges: .bottom)
             .navigationTitle("Tạo đơn hàng")
             .navigationBarHidden(true)
             .sheet(isPresented: $viewModel.showPayment) {
@@ -2056,14 +2133,6 @@ struct ContentView: View {
                     email: $viewModel.walkInEmail
                 )
             }
-                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { output in
-                    if let value = output.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
-                        keyboardHeight = value.cgRectValue.height
-                    }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                    keyboardHeight = 0
-                }
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("DismissOrderEntry"))) { _ in
                     dismiss()
                 }
