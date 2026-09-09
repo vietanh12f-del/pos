@@ -1653,9 +1653,16 @@ struct ContentView: View {
                                     .foregroundStyle(Color.themeTextDark)
                             }
                             Spacer()
-                            Text(viewModel.editingBill != nil ? "Sửa đơn hàng" : "Tạo đơn mới")
-                                .font(.headline)
-                                .foregroundStyle(Color.themeTextDark)
+                            VStack(spacing: 2) {
+                                Text(viewModel.editingBill != nil ? "Sửa đơn hàng" : "Tạo đơn mới")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.themeTextDark)
+                                if let number = viewModel.selectedBillNumber {
+                                    Text("Số bill: \(number)")
+                                        .font(.caption)
+                                        .foregroundStyle(Color.themePrimary)
+                                }
+                            }
                             Spacer()
                             Button(action: {
                             withAnimation { showSearch.toggle() }
@@ -1949,6 +1956,9 @@ struct ContentView: View {
                     }
                 }
                 .presentationDetents([.height(300)])
+            }
+            .task {
+                await viewModel.selectAutomaticBillNumberIfNeeded()
             }
             .onAppear {
                 if viewModel.editingBill == nil {
@@ -3095,6 +3105,9 @@ struct ContentView: View {
                         Task { await printWithOptions() }
                     }
                 }
+            }
+            .task {
+                await viewModel.selectAutomaticBillNumberIfNeeded()
             }
             .onAppear {
                 // Init currentPaymentStatus: đơn mới = .unpaid, đang sửa = trạng thái bill gốc
@@ -4714,6 +4727,12 @@ struct ContentView: View {
                 • Số đã chọn sẽ bị khóa (màu xám) và không thể chọn lại
                 • Qua ngày mới, tất cả số sẽ được reset về trạng thái có thể chọn
                 
+                ⚙️ Bật / tắt tự động:
+                Vào Cài đặt → Tuỳ chỉnh → Tự động hiện số bill khi lên đơn để bật hoặc tắt (mặc định bật). Bật: tự chọn số tiếp theo cho đơn mới. Tắt: chọn số thủ công.
+
+                👆 Hiện / ẩn trên đơn hiện tại:
+                Mở menu số bill → chọn một số hoặc ‘Tự động chọn số tiếp theo’ để hiện. Chọn ‘Không chọn’ để ẩn số bill của riêng đơn này. Đơn cũ khi chỉnh sửa vẫn giữ số đã lưu.
+
                 ⚡ Lợi ích:
                 • Dễ dàng tra cứu hóa đơn theo số
                 • Tránh nhầm lẫn khi in nhiều hóa đơn

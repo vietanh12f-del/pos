@@ -34,6 +34,7 @@ class OrderViewModel: ObservableObject {
     @Published var partialAmount: Double = 0
     @Published var expectedPayDate: Date? = nil
     @Published var note: String = ""
+    private var didAutoSelectBillNumber = false
     @Published var selectedBillNumber: Int? = nil // nil = không hiển thị mã bill trên phiếu
     
     // Bill Usage Tracking
@@ -3499,6 +3500,7 @@ class OrderViewModel: ObservableObject {
         expectedPayDate = nil
         note = ""
         selectedBillNumber = nil
+        didAutoSelectBillNumber = false
         editingBillIsPaid = false
         isPaidConfirmedByUser = nil
         newOrderStatus = nil
@@ -3552,6 +3554,24 @@ class OrderViewModel: ObservableObject {
         return (1...upTo).filter { !usedBillNumbers.contains($0) }
     }
     
+    @MainActor
+    func selectAutomaticBillNumberIfNeeded() async {
+        guard (UserDefaults.standard.object(forKey: "auto_show_bill_number") as? Bool ?? true),
+              !didAutoSelectBillNumber, editingBill == nil, selectedBillNumber == nil,
+              let storeId = StoreManager.shared.currentStore?.id else { return }
+        do {
+            let number = try await database.getNextAvailableBillNumber(storeId: storeId, date: Date())
+            guard !Task.isCancelled,
+                  (UserDefaults.standard.object(forKey: "auto_show_bill_number") as? Bool ?? true),
+                  StoreManager.shared.currentStore?.id == storeId,
+                  !didAutoSelectBillNumber, editingBill == nil, selectedBillNumber == nil else { return }
+            selectedBillNumber = number
+            didAutoSelectBillNumber = number != nil
+        } catch {
+            print("❌ Error selecting automatic bill number: \(error)")
+        }
+    }
+
     func getNextAvailableBillNumber() {
         guard let storeId = StoreManager.shared.currentStore?.id else { return }
         

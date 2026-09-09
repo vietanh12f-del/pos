@@ -637,6 +637,9 @@ struct CustomizationSettingsView: View {
                 NavigationLink(destination: MultiBatchMarkSettingsView()) {
                     Text("Đánh dấu nhiều đợt nhập")
                 }
+                NavigationLink(destination: AutomaticBillNumberSettingsView()) {
+                    Text("Tự động hiện số bill khi lên đơn")
+                }
             }
         }
         .navigationTitle("Tuỳ chỉnh")
@@ -648,6 +651,23 @@ struct CustomizationSettingsView: View {
                 }
             }
         }
+    }
+}
+
+struct AutomaticBillNumberSettingsView: View {
+    @AppStorage("auto_show_bill_number") private var enabled = true
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Tự động hiện số bill khi lên đơn", isOn: $enabled)
+                Text("Mặc định bật. Khi bật, đơn mới tự chọn số bill còn trống tiếp theo trong ngày của cửa hàng và hiển thị trên đơn, phiếu in. Bạn vẫn có thể đổi số hoặc chọn ‘Không chọn’ để ẩn số bill của riêng đơn đó. Khi tắt, đơn mới không tự chọn số bill; bạn vẫn có thể chọn thủ công. Tuỳ chỉnh không thay đổi số bill của đơn cũ khi chỉnh sửa.")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+        }
+        .navigationTitle("Tự động hiện số bill")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

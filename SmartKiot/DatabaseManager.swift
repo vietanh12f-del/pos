@@ -1243,15 +1243,12 @@ class SupabaseDatabaseService: DatabaseService {
     }
     
     func getNextAvailableBillNumber(storeId: UUID, date: Date) async throws -> Int? {
-        struct NextBillResult: Codable {
-            let get_next_bill_number: Int?
-        }
-        
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
         let dateString = df.string(from: date)
         
-        let result: [NextBillResult] = try await client.database
+        // The SQL function RETURNS INTEGER, so PostgREST returns a scalar or null.
+        let result: Int? = try await client.database
             .rpc("get_next_bill_number", params: [
                 "store_uuid": storeId.uuidString,
                 "target_date": dateString
@@ -1259,7 +1256,7 @@ class SupabaseDatabaseService: DatabaseService {
             .execute()
             .value
         
-        return result.first?.get_next_bill_number
+        return result
     }
     
     func reserveBillNumber(storeId: UUID, billNumber: Int, date: Date) async throws -> Bool {
