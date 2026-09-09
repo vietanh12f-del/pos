@@ -207,7 +207,7 @@ struct StatisticsView: View {
                     sectionHeader("🛒 Bán lẻ (POS)")
 
                     HStack(spacing: 12) {
-                        StatCard(title: "Doanh thu", value: formatCurrency(totalRevenue), icon: "arrow.down.left", trend: "", isPositive: true,
+                        StatCard(title: "Doanh thu bán hàng", value: formatCurrency(totalRevenue), icon: "arrow.down.left", trend: "", isPositive: true,
                             info: "Tổng giá trị các đơn hàng bán lẻ trong kỳ (bao gồm cả phần chưa thu).")
                         
                         StatCard(title: "Thực thu", value: formatCurrency(totalActualReceived), icon: "checkmark.circle", trend: "", isPositive: true,
@@ -240,7 +240,7 @@ struct StatisticsView: View {
                     .padding(.horizontal)
                     
                     // Tính lợi nhuận ròng dựa trên thực thu
-                    let actualNetProfit = totalActualReceived - totalCOGS - totalOpEx
+                    let actualNetProfit = totalActualReceived - totalCOGS - totalOpEx - retailOrders.reduce(0) { $0 + $1.shopFeeTotal + $1.receivedCustomerFees }
                     
                     VStack(spacing: 12) {
                         HStack {
@@ -259,7 +259,7 @@ struct StatisticsView: View {
                                 .alert("Lợi nhuận ròng (Bán lẻ)", isPresented: $showRetailProfitInfo) {
                                     Button("Đã hiểu", role: .cancel) {}
                                 } message: {
-                                    Text("Lợi nhuận ròng = Thực thu − Giá vốn − Chi phí vận hành\n\nThực thu: số tiền thực tế đã nhận từ khách hàng.\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.\nChi phí vận hành (OPEX): các khoản chi phí nhập thủ công (thuê mặt bằng, lương, điện nước...).\n\nLưu ý: Công nợ chưa thu không được tính vào lợi nhuận ròng.")
+                                    Text("Lợi nhuận ròng = Thực thu − Phí thu hộ đã thu − Giá vốn − Phí shop chịu − Chi phí vận hành\n\nThực thu: số tiền thực tế đã nhận từ khách hàng. Phí thu hộ đã thu được phân bổ theo tỷ lệ thanh toán của đơn khi khách trả một phần.\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.\nChi phí vận hành (OPEX): các khoản chi phí nhập thủ công (thuê mặt bằng, lương, điện nước...).\n\nLưu ý: Công nợ chưa thu không được tính vào lợi nhuận ròng.")
                                 }
                             }
                             Spacer()

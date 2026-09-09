@@ -146,6 +146,7 @@ struct AllOrdersDetailView: View {
 }
 
 struct OrderDetailRow: View {
+    @ObservedObject private var authManager = AuthManager.shared
     let order: Bill
     
     var body: some View {
@@ -189,31 +190,26 @@ struct OrderDetailRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(order.items.indices, id: \.self) { index in
                     let item = order.items[index]
-                    HStack {
-                        Text("\(item.quantity)x")
-                            .font(.caption)
-                            .foregroundStyle(Color.themePrimary)
-                            .fontWeight(.medium)
-                            .frame(width: 30, alignment: .leading)
-                        
-                        Text(item.name)
-                            .font(.caption)
-                            .foregroundStyle(Color.themeTextDark)
-                            .lineLimit(1)
-                        
-                        Spacer()
-                        
-                        VStack(alignment: .trailing, spacing: 1) {
-                            Text(formatCurrency(item.price))
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                            
-                            Text(formatCurrency(Double(item.quantity) * item.price))
-                                .font(.caption)
-                                .fontWeight(.medium)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("\(item.quantity)x")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.themePrimary)
+                            Text(item.name)
+                                .font(.subheadline.weight(.medium))
                                 .foregroundStyle(Color.themeTextDark)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        HStack(alignment: .top, spacing: 12) {
+                            priceColumn("Giá bán / SP", amount: item.price)
+                            if authManager.canViewCostPrice {
+                                priceColumn("Giá vốn / SP", amount: item.costPrice)
+                            }
+                            priceColumn("Thành tiền", amount: item.total)
                         }
                     }
+                    .padding(.vertical, 6)
+                    if index < order.items.count - 1 { Divider() }
                 }
             }
             .padding(.leading, 8)
@@ -247,6 +243,17 @@ struct OrderDetailRow: View {
         .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
     }
     
+    private func priceColumn(_ title: String, amount: Double) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.caption2).foregroundStyle(.gray)
+            Text(formatCurrency(amount))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.themeTextDark)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func formatOrderTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")

@@ -13,12 +13,14 @@ struct DailyFinancialStats: Identifiable, Codable {
     var revenue: Double = 0 // Tổng doanh thu (bao gồm cả công nợ)
     var actualReceived: Double = 0 // Thực thu (đã nhận được)
     var debt: Double = 0 // Công nợ
+    var shopFees: Double = 0
+    var collectedCustomerFees: Double = 0
     var cogs: Double = 0
     var operatingCosts: Double = 0
     var incurredFees: Double = 0
     
     var grossProfit: Double {
-        revenue - cogs
+        revenue - cogs - shopFees
     }
     
     var netProfit: Double {
@@ -26,7 +28,7 @@ struct DailyFinancialStats: Identifiable, Codable {
     }
     
     var actualNetProfit: Double {
-        actualReceived - cogs - operatingCosts // Lợi nhuận dựa trên thực thu
+        actualReceived - collectedCustomerFees - cogs - shopFees - operatingCosts // Lợi nhuận dựa trên thực thu
     }
     
     var profitMargin: Double {
@@ -81,7 +83,9 @@ class FinancialReportService {
                 let dateKey = startOfDay(order.createdAt)
                 var stats = statsByDate[dateKey] ?? DailyFinancialStats(date: dateKey)
                 
-                stats.revenue += order.total
+                stats.revenue += order.salesRevenue
+                stats.shopFees += order.shopFeeTotal
+                stats.collectedCustomerFees += order.receivedCustomerFees
                 stats.cogs += order.totalCost
                 
                 // Tính thực thu và công nợ (bao gồm cả đơn chưa thanh toán)
@@ -153,7 +157,7 @@ class FinancialReportService {
         
         // Base content height estimation
         let baseHeight: CGFloat = 1200
-        let orderTableHeight: CGFloat = CGFloat(min(orders.count, 15)) * 20 + 100
+        let orderTableHeight: CGFloat = CGFloat(min(orders.count, 15) + orders.sorted { $0.createdAt > $1.createdAt }.prefix(15).reduce(0) { $0 + $1.fees.count }) * 20 + 100
         let inventoryHeight: CGFloat = CGFloat(min(products.count, 20)) * 20 + 150
         let debtTableHeight: CGFloat = CGFloat(customerCount) * 20 + 100 + 20 // +20 cho dòng ghi chú
         let productionHeight: CGFloat = productionEnabled ? 400 : 0
@@ -332,7 +336,7 @@ class FinancialReportService {
     
     private func calculateSummaryData(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats?, orders: [Bill], allOrdersForDebt: [Bill], allProductionTxs: [ProductionTransaction], products: [Product], productionEnabled: Bool) -> SummaryData {
         let retailRevenue = stats.reduce(0) { $0 + $1.revenue }
-        let retailCosts = stats.reduce(0) { $0 + $1.cogs + $1.operatingCosts }
+        let retailCosts = stats.reduce(0) { $0 + $1.cogs + $1.operatingCosts + $1.shopFees }
         let retailProfit = stats.reduce(0) { $0 + $1.actualNetProfit }
         let retailActualReceived = stats.reduce(0) { $0 + $1.actualReceived }
         let retailDebt = stats.reduce(0) { $0 + $1.debt }
@@ -542,7 +546,7 @@ class FinancialReportService {
             let totalPrice = fmt(order.total)
             let debtAmount = fmt(order.effectiveDebt)
             let timeString = dateFormatter.string(from: order.createdAt)
-            let note = "" // Leave empty as requested
+            let note = ""
             
             // Add to totals
             totalQuantity += orderQuantity
@@ -569,6 +573,12 @@ class FinancialReportService {
             }
             
             startY += rowHeight
+            for fee in order.fees {
+                let label = fee.bearer == "shop" ? "Shop chịu" : fee.funding == "customer" ? "Khách trả trực tiếp" : "Thu hộ"
+                let detail = "    • \(fee.name): \(fmt(fee.amount)) — \(label)"
+                detail.draw(in: CGRect(x: margin + 4, y: startY + 2, width: contentWidth - 8, height: rowHeight - 4), withAttributes: cellAttributes)
+                startY += rowHeight
+            }
         }
         
         // Add summary info if there are more orders
@@ -921,19 +931,20 @@ class FinancialReportService {
 
         // ── PHẦN 1: BÁN LẺ (POS) ──────────────────────────────────────
         csv += "=== BÁN LẺ (POS) ===\n"
-        csv += "Ngày,Doanh thu,Giá vốn,Chi phí VH,Lợi nhuận,Tỷ suất %\n"
+        csv += "Ngày,Doanh thu,Giá vốn,Chi phí VH,Phí shop chịu,Doanh thu sau phí,Lợi nhuận,Tỷ suất %\n"
 
         let sortedStats = stats.sorted { $0.date < $1.date }
         for s in sortedStats {
-            csv += "\(df.string(from: s.date)),\(fmt(s.revenue)),\(fmt(s.cogs)),\(fmt(s.operatingCosts)),\(fmt(s.netProfit)),\(String(format: "%.1f", s.profitMargin))\n"
+            csv += "\(df.string(from: s.date)),\(fmt(s.revenue)),\(fmt(s.cogs)),\(fmt(s.operatingCosts)),\(fmt(s.shopFees)),\(fmt(s.revenue - s.shopFees)),\(fmt(s.netProfit)),\(String(format: "%.1f", s.profitMargin))\n"
         }
 
         let totalRevenue = stats.reduce(0) { $0 + $1.revenue }
         let totalCOGS    = stats.reduce(0) { $0 + $1.cogs }
         let totalOpEx    = stats.reduce(0) { $0 + $1.operatingCosts }
+        let totalShopFees = stats.reduce(0) { $0 + $1.shopFees }
         let totalNet     = stats.reduce(0) { $0 + $1.netProfit }
         let totalMargin  = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0
-        csv += "TỔNG BÁN LẺ,\(fmt(totalRevenue)),\(fmt(totalCOGS)),\(fmt(totalOpEx)),\(fmt(totalNet)),\(String(format: "%.1f", totalMargin))\n"
+        csv += "TỔNG BÁN LẺ,\(fmt(totalRevenue)),\(fmt(totalCOGS)),\(fmt(totalOpEx)),\(fmt(totalShopFees)),\(fmt(totalRevenue - totalShopFees)),\(fmt(totalNet)),\(String(format: "%.1f", totalMargin))\n"
         csv += "=====================================\n"
         csv += "\n"
 

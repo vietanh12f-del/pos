@@ -2,6 +2,7 @@ import SwiftUI
 import PhotosUI
 
 struct BillDetailView: View {
+    @ObservedObject private var advances = EmployeeAdvanceStore.shared
     let bill: Bill
 
     // The sheet's input is a snapshot. Receipt edits are saved into pastOrders,
@@ -68,7 +69,7 @@ struct BillDetailView: View {
             ScrollView {
                 BillReceiptView(
                 items: bill.items,
-                totalAmount: bill.total,
+                totalAmount: bill.salesRevenue - bill.vatAmount, orderFees: bill.fees,
                 dateString: formatDate(bill.createdAt),
                 qrURL: generateQRURL(for: bill),
                 qrImage: nil,
@@ -181,6 +182,30 @@ struct BillDetailView: View {
                 .cornerRadius(12)
                 .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 3)
                 
+                if !currentBill.fees.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Chi phí đơn hàng").font(.headline)
+                        ForEach(currentBill.fees) { fee in
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack {
+                                    Text(fee.name)
+                                    Spacer()
+                                    Text(formatCurrency(fee.amount))
+                                }
+                                Text(fee.bearer == "shop" ? "Shop chịu" : fee.funding == "customer" ? "Khách trả trực tiếp" : "Khách chịu — thu hộ")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                if fee.funding == "employee" {
+                                    Text("Ứng trước: \(fee.employeeName ?? "Nhân viên")").font(.caption)
+                                    if let advance = advances.advances.first(where: { $0.id == fee.id }) {
+                                        Text(advance.settledAt == nil ? "Công ty chưa hoàn ứng" : "Công ty đã hoàn ứng")
+                                            .font(.caption).foregroundStyle(advance.settledAt == nil ? .orange : .green)
+                                    }
+                                }
+                            }
+                        }
+                    }.padding().background(Color.white).cornerRadius(12)
+                    .task { await advances.refresh() }
+                }
                 // Chụp hình chuyển khoản
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Chụp hình chuyển khoản")
@@ -623,7 +648,7 @@ struct BillDetailView: View {
             
             let renderView = BillReceiptView(
                 items: bill.items,
-                totalAmount: bill.total,
+                totalAmount: bill.salesRevenue - bill.vatAmount, orderFees: bill.fees,
                 dateString: formatDate(bill.createdAt),
                 qrURL: qrURL,
                 qrImage: loadedQR,
@@ -692,7 +717,8 @@ struct BillDetailView: View {
             customerAddress: resolvedCustomerAddress ?? bill.customerAddress,
             customerEmail: bill.customerEmail,
             note: bill.note,
-            grandTotal: bill.total,
+            orderFees: currentBill.fees,
+                grandTotal: bill.total,
             paidAmount: isPaid ? (localPaidAmount ?? bill.paidAmount ?? bill.total) : 0,
             debtAmount: localDebtAmount ?? bill.debtAmount,
             isPaid: isPaid,

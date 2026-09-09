@@ -518,6 +518,7 @@ class SupabaseDatabaseService: DatabaseService {
         
         // Dùng struct riêng để đảm bảo null fields được gửi lên DB (không bị skip bởi encodeIfPresent)
         struct OrderUpdatePayload: Encodable {
+            let order_fees: [OrderFee]
             let total_amount: Double
             let store_id: UUID
             let is_paid: Bool
@@ -537,6 +538,7 @@ class SupabaseDatabaseService: DatabaseService {
             
             func encode(to encoder: Encoder) throws {
                 var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(order_fees, forKey: .order_fees)
                 try container.encode(total_amount, forKey: .total_amount)
                 try container.encode(store_id, forKey: .store_id)
                 try container.encode(is_paid, forKey: .is_paid)
@@ -558,12 +560,14 @@ class SupabaseDatabaseService: DatabaseService {
             
             enum CodingKeys: String, CodingKey {
                 case total_amount, store_id, is_paid, customer_name, customer_phone
+                case order_fees
                 case customer_address, customer_email, receipt_image_url, vat_rate
                 case vat_amount, paid_amount, debt_amount, expected_pay_date, note, bill_number, order_status
             }
         }
         
         let payload = OrderUpdatePayload(
+            order_fees: bill.fees,
             total_amount: bill.total,
             store_id: storeId,
             is_paid: bill.isPaid,
@@ -1660,6 +1664,7 @@ struct OrderDTO: Codable {
     let customer_phone: String?
     let customer_address: String?
     let customer_email: String?
+    var order_fees: [OrderFee] = []
     let receipt_image_url: String?
     let sequence_number: String?
     let vat_rate: Double?
@@ -1675,6 +1680,7 @@ struct OrderDTO: Codable {
     let deleted_by: UUID?
     
     enum CodingKeys: String, CodingKey {
+        case order_fees
         case id, total_amount, created_at, order_items, store_id, is_paid, creator_id, creator_name, customer_name, customer_phone, customer_address, customer_email, receipt_image_url, sequence_number, vat_rate, vat_amount, paid_amount, debt_amount, expected_pay_date, note, bill_number, order_status, is_deleted, deleted_at, deleted_by
     }
     
@@ -1720,6 +1726,7 @@ struct OrderDTO: Codable {
         customer_phone = try container.decodeIfPresent(String.self, forKey: .customer_phone)
         customer_address = try container.decodeIfPresent(String.self, forKey: .customer_address)
         customer_email = try container.decodeIfPresent(String.self, forKey: .customer_email)
+        order_fees = try container.decodeIfPresent([OrderFee].self, forKey: .order_fees) ?? []
         receipt_image_url = try container.decodeIfPresent(String.self, forKey: .receipt_image_url)
         sequence_number = try container.decodeIfPresent(String.self, forKey: .sequence_number)
         vat_rate = try container.decodeIfPresent(Double.self, forKey: .vat_rate)
@@ -1749,6 +1756,7 @@ struct OrderDTO: Codable {
         try container.encodeIfPresent(customer_phone, forKey: .customer_phone)
         try container.encodeIfPresent(customer_address, forKey: .customer_address)
         try container.encodeIfPresent(customer_email, forKey: .customer_email)
+        try container.encode(order_fees, forKey: .order_fees)
         try container.encodeIfPresent(receipt_image_url, forKey: .receipt_image_url)
         try container.encodeIfPresent(sequence_number, forKey: .sequence_number)
         try container.encodeIfPresent(vat_rate, forKey: .vat_rate)
@@ -1777,6 +1785,7 @@ struct OrderDTO: Codable {
         self.customer_phone = domain.customerPhone
         self.customer_address = domain.customerAddress
         self.customer_email = domain.customerEmail
+        self.order_fees = domain.fees
         self.receipt_image_url = domain.paymentReceiptURL
         self.sequence_number = domain.sequenceNumber
         self.vat_rate = domain.vatRate
@@ -1805,6 +1814,7 @@ struct OrderDTO: Codable {
         bill.customerPhone = customer_phone
         bill.customerAddress = customer_address
         bill.customerEmail = customer_email
+        bill.orderFees = order_fees
         bill.paymentReceiptURL = receipt_image_url
         bill.sequenceNumber = sequence_number
         bill.vatRate = vat_rate
@@ -1822,7 +1832,9 @@ struct OrderDTO: Codable {
     }
     
     func withStore(_ storeId: UUID) -> OrderDTO {
-        return OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, customer_phone: customer_phone, customer_address: customer_address, customer_email: customer_email, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note, bill_number: bill_number, order_status: order_status, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
+        var copy = OrderDTO(id: id, total_amount: total_amount, created_at: created_at, order_items: order_items, store_id: storeId, is_paid: is_paid, creator_id: creator_id, creator_name: creator_name, customer_name: customer_name, customer_phone: customer_phone, customer_address: customer_address, customer_email: customer_email, receipt_image_url: receipt_image_url, sequence_number: sequence_number, vat_rate: vat_rate, vat_amount: vat_amount, paid_amount: paid_amount, debt_amount: debt_amount, expected_pay_date: expected_pay_date, note: note, bill_number: bill_number, order_status: order_status, is_deleted: is_deleted, deleted_at: deleted_at, deleted_by: deleted_by)
+        copy.order_fees = order_fees
+        return copy
     }
 }
 

@@ -10,6 +10,7 @@ class OrderViewModel: ObservableObject {
     }
     
     @Published var currentInput: String = ""
+    @Published var orderFees: [OrderFee] = []
     @Published var items: [OrderItem] = []
     @Published var lastFocusedItemId: UUID?
     @Published var showPayment: Bool = false {
@@ -45,9 +46,9 @@ class OrderViewModel: ObservableObject {
     var totalAmountWithVAT: Double {
         let baseTotal = items.reduce(0) { $0 + $1.total }
         if let vatRate = vatRate, StoreManager.shared.currentStoreVATEnabled() {
-            return baseTotal + (baseTotal * vatRate / 100)
+            return baseTotal + (baseTotal * vatRate / 100) + customerFeeTotal
         }
-        return baseTotal
+        return baseTotal + customerFeeTotal
     }
     
     var debtAmount: Double {
@@ -474,6 +475,12 @@ class OrderViewModel: ObservableObject {
             }
             lines.append("📅 Ngày trả: \(fmt(original.expectedPayDate)) → \(fmt(updated.expectedPayDate))")
         }
+        if original.fees != updated.fees {
+            let describe: ([OrderFee]) -> String = { fees in
+                fees.map { "\($0.name): \(String(format: "%.0fđ", $0.amount)) (\($0.bearer == "shop" ? "Shop chịu" : "Khách chịu"))" }.joined(separator: "; ")
+            }
+            lines.append("Chi phí đơn: \(describe(original.fees)) → \(describe(updated.fees))")
+        }
         if (original.note ?? "") != (updated.note ?? "") {
             let o = (original.note ?? "").isEmpty ? "—" : (original.note ?? "")
             let n = (updated.note ?? "").isEmpty ? "—" : (updated.note ?? "")
@@ -496,6 +503,7 @@ class OrderViewModel: ObservableObject {
         let newTotal = totalAmountWithVAT  // dùng total bao gồm VAT để nhất quán với paidAmount
         var updatedBill = Bill(id: original.id, createdAt: original.createdAt, items: items, total: newTotal)
         updatedBill.sequenceNumber = original.sequenceNumber
+        updatedBill.orderFees = orderFees
         updatedBill.customerName = walkInName
         updatedBill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
         updatedBill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
@@ -534,6 +542,7 @@ class OrderViewModel: ObservableObject {
                 // Mark locally edited để realtime update không overwrite items
                 locallyEditedOrderIds.insert(original.id)
                 try await database.updateOrder(updatedBill)
+                NotificationCenter.default.post(name: Notification.Name("OrderFeesChanged"), object: nil)
                 addEditHistory(for: original, updated: updatedBill)
                 // Clear flag sau 3s
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -1431,6 +1440,7 @@ class OrderViewModel: ObservableObject {
                 do {
                     print("🔍 [DEBUG] Saving order with billNumberToMark: \(billNumberToMark)")
                     try await database.saveOrder(bill)
+                    NotificationCenter.default.post(name: Notification.Name("OrderFeesChanged"), object: nil)
                     
                     // Mark bill number as used if bill has billNumber
                     if let billNumber = billNumberToMark {
@@ -3299,6 +3309,7 @@ class OrderViewModel: ObservableObject {
     
     func startEditing(_ bill: Bill) {
         editingBill = bill
+        orderFees = bill.fees
         items = bill.items
         currentInput = ""
         vatRate = bill.vatRate
@@ -3328,6 +3339,7 @@ class OrderViewModel: ObservableObject {
         // Create updated bill (keeping original ID and Date)
         let newTotal = totalAmountWithVAT  // dùng total bao gồm VAT để nhất quán với paidAmount
         var updatedBill = Bill(id: originalBill.id, createdAt: originalBill.createdAt, items: items, total: newTotal)
+        updatedBill.orderFees = orderFees
         updatedBill.customerName = walkInName
         updatedBill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
         updatedBill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
@@ -3360,6 +3372,7 @@ class OrderViewModel: ObservableObject {
                 do {
                     locallyEditedOrderIds.insert(originalBill.id)
                     try await database.updateOrder(updatedBill)
+                    NotificationCenter.default.post(name: Notification.Name("OrderFeesChanged"), object: nil)
                     addEditHistory(for: originalBill, updated: updatedBill)
                     try? await Task.sleep(nanoseconds: 3_000_000_000)
                     locallyEditedOrderIds.remove(originalBill.id)
@@ -3475,9 +3488,11 @@ class OrderViewModel: ObservableObject {
         
         // Update DB
         try await database.updateOrder(bill)
+        NotificationCenter.default.post(name: Notification.Name("OrderFeesChanged"), object: nil)
     }
     
     func reset() {
+        orderFees.removeAll()
         items.removeAll()
         currentInput = ""
         if !suppressPaymentDismissOnReset {
@@ -3649,7 +3664,7 @@ class OrderViewModel: ObservableObject {
         let calendar = Calendar.current
         return pastOrders
             .filter { !$0.isDeleted && calendar.isDate($0.createdAt, inSameDayAs: date) }
-            .reduce(0) { $0 + $1.total }
+            .reduce(0) { $0 + $1.salesRevenue }
     }
     
     func restockCost(for date: Date) -> Double {
@@ -3754,7 +3769,7 @@ class OrderViewModel: ObservableObject {
         let (start, end) = dateInterval(for: range)
         return pastOrders
             .filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
-            .reduce(0) { $0 + $1.total }
+            .reduce(0) { $0 + $1.salesRevenue }
     }
 
     func cogs(for range: ReportDateRange) -> Double {
@@ -3906,6 +3921,7 @@ class OrderViewModel: ObservableObject {
         // nếu không có thì dùng tham số isPaid được truyền vào từ caller.
         let effectiveIsPaid = isPaidConfirmedByUser ?? isPaid
         bill.isPaid = effectiveIsPaid
+        bill.orderFees = orderFees
         bill.customerName = walkInName
         bill.customerPhone = walkInPhone.isEmpty ? nil : walkInPhone
         bill.customerAddress = walkInAddress.isEmpty ? nil : walkInAddress
@@ -4071,5 +4087,12 @@ class OrderViewModel: ObservableObject {
         }
         result.sort { $0.quantity > $1.quantity }
         return result
+    }
+}
+
+extension OrderViewModel {
+    var customerFeeTotal: Double { orderFees.reduce(0) { $0 + $1.customerCharge } }
+    func shopFees(for range: ReportDateRange) -> Double {
+        orders(for: range).reduce(0) { $0 + $1.shopFeeTotal }
     }
 }

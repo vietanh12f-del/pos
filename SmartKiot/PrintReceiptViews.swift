@@ -121,6 +121,7 @@ struct PrintReceiptView: View {
     let customerAddress: String?
     let customerEmail: String?
     let note: String?
+    var orderFees: [OrderFee] = []
     let grandTotal: Double
     let paidAmount: Double?
     let debtAmount: Double?
@@ -332,6 +333,7 @@ struct PrintReceiptView: View {
                         Text("-\(fmt(discountVal))").fontWeight(.bold).foregroundStyle(.red)
                     }.font(.subheadline)
                 }
+                CustomerOrderFeeRows(fees: orderFees)
                 HStack {
                     Text("Tổng cộng").font(.title3).fontWeight(.bold).foregroundStyle(Color.themeTextDark)
                     Spacer()

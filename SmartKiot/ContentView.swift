@@ -614,10 +614,10 @@ struct ContentView: View {
                                 if StoreManager.shared.hasPermission(.viewReports) {
                                     VStack(spacing: 12) {
                                         HStack(spacing: 12) {
-                                            StatCard(title: "Doanh thu", value: formatCurrency(viewModel.revenue(for: activeRange)), icon: "arrow.down.left", trend: "", isPositive: true,
-                                                info: "Tổng tiền thu từ các đơn bán lẻ đã thanh toán trong khoảng thời gian đang xem.")
+                                            StatCard(title: "Doanh thu bán hàng", value: formatCurrency(viewModel.revenue(for: activeRange)), icon: "arrow.down.left", trend: "", isPositive: true,
+                                                info: "Tổng giá trị các đơn bán lẻ được tạo trong khoảng thời gian đang xem, gồm đơn đã thu đủ, thu một phần và chưa thu tiền. Không tính đơn đã xoá. Số tiền thực tế đã nhận được xem ở mục Thực thu.")
                                             StatCard(title: "Thực thu", value: formatCurrency(viewModel.actualReceived(for: activeRange)), icon: "banknote", trend: "", isPositive: true,
-                                                info: "Số tiền thực tế đã nhận được từ khách hàng trong khoảng thời gian đang xem.")
+                                                info: "Số tiền đã nhận trên các đơn trong kỳ, bao gồm phí thu hộ. Phí thu hộ không tính vào doanh thu bán hàng.")
                                         }
                                         
                                         HStack(spacing: 12) {
@@ -628,6 +628,16 @@ struct ContentView: View {
                                             StatCard(title: "Công nợ", value: formatCurrency(viewModel.debt(for: activeRange)), icon: "exclamationmark.triangle", trend: "", isPositive: false,
                                                 info: "Tổng số tiền khách hàng còn nợ từ các đơn hàng trong khoảng thời gian đang xem.")
                                         }
+                                        HStack(spacing: 12) {
+                                            StatCard(title: "Phí shop chịu", value: formatCurrency(viewModel.shopFees(for: activeRange)), icon: "truck.box", trend: "", isPositive: false,
+                                                info: "Phí shop chịu của các đơn trong kỳ. Không cộng vào tiền khách trả; được trừ một lần khi tính lợi nhuận.")
+                                            StatCard(title: "Doanh thu sau phí", value: formatCurrency(viewModel.revenue(for: activeRange) - viewModel.shopFees(for: activeRange)), icon: "banknote", trend: "", isPositive: true,
+                                                info: "Doanh thu bán hàng trừ phí shop chịu. Phí khách trả do shop thu hộ không tính vào doanh thu.")
+                                        }
+                                        if StoreManager.shared.currentMember?.role == .owner {
+                                            PendingEmployeeAdvanceCard(viewModel: viewModel)
+                                        }
+
 
                                         let profit = viewModel.grossProfit(for: activeRange)
                                         HStack(spacing: 12) {
@@ -670,7 +680,7 @@ struct ContentView: View {
                                         .alert("Lợi nhuận bán lẻ", isPresented: $showRetailProfitInfo) {
                                             Button("Đã hiểu", role: .cancel) {}
                                         } message: {
-                                            Text("Lợi nhuận bán lẻ = Doanh thu − Giá vốn\n\nDoanh thu: tổng đơn đã thanh toán (bán lẻ).\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.")
+                                            Text("Lợi nhuận bán lẻ = Doanh thu − Giá vốn − Phí shop chịu\n\nDoanh thu: tổng giá trị đơn bán lẻ trong kỳ, gồm đã thu đủ, thu một phần và chưa thu tiền; không tính đơn đã xoá.\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.")
                                         }
 
                                         // Ô lợi nhuận bán sỉ — chỉ hiện khi production enabled
@@ -980,6 +990,7 @@ struct ContentView: View {
         @ObservedObject var viewModel: OrderViewModel
         @Environment(\.dismiss) var dismiss
         @State private var showSummary = false
+        @State private var showOrderFees = false
         @State private var showManualInput = false
         @State private var editingItem: OrderItem?
         @State private var customizingProduct: Product?
@@ -1513,7 +1524,7 @@ struct ContentView: View {
                                 .cornerRadius(8)
                         }
                         Spacer()
-                        Text(formatCurrency(viewModel.totalAmount))
+                        Text(formatCurrency(viewModel.totalAmountWithVAT))
                             .font(.title3)
                             .fontWeight(.bold)
                             .foregroundStyle(Color.themePrimary)
@@ -1572,18 +1583,34 @@ struct ContentView: View {
                                 orderItemView(item)
                             }
                             
-                            Button(action: { showManualInput = true }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "plus")
-                                        .font(.caption)
-                                    Text("Thêm hàng")
-                                        .font(.caption)
+                            HStack {
+                                Button(action: { showManualInput = true }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "plus")
+                                            .font(.caption)
+                                        Text("Thêm hàng")
+                                            .font(.caption)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(Color.themePrimary.opacity(0.2))
+                                    .foregroundStyle(Color.themePrimary)
+                                    .cornerRadius(8)
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.themePrimary.opacity(0.2))
-                                .foregroundStyle(Color.themePrimary)
-                                .cornerRadius(8)
+                                Button { showOrderFees = true } label: {
+                                    Label("Thêm chi phí", systemImage: "plus")
+                                        .font(.caption).padding(.horizontal, 12).padding(.vertical, 8)
+                                        .background(Color.themePrimary.opacity(0.2)).cornerRadius(8)
+                                }
+                            }
+                            ForEach(viewModel.orderFees) { fee in
+                                Button { showOrderFees = true } label: {
+                                    HStack {
+                                        Text("\(fee.name) · \(fee.bearer == "shop" ? "Shop chịu" : fee.funding == "customer" ? "Khách trả trực tiếp" : "Thu hộ")")
+                                        Spacer()
+                                        Text(formatCurrency(fee.amount))
+                                    }.font(.caption).padding(.horizontal)
+                                }
                             }
                         }
                     }
@@ -1736,6 +1763,7 @@ struct ContentView: View {
             }
             .navigationTitle(viewModel.editingBill != nil ? "Sửa đơn hàng" : "Tạo đơn mới")
             .navigationBarHidden(true)
+            .sheet(isPresented: $showOrderFees) { OrderFeeEditor(fees: $viewModel.orderFees) }
             .sheet(isPresented: $showManualInput) {
                 ManualItemView(viewModel: viewModel)
             }
@@ -2828,7 +2856,7 @@ struct ContentView: View {
                         // Reuse the BillReceiptView for consistency
                         BillReceiptView(
                             items: viewModel.items,
-                            totalAmount: viewModel.totalAmount,
+                            totalAmount: viewModel.totalAmount, orderFees: viewModel.orderFees,
                             dateString: currentDateString(),
                             qrURL: viewModel.vietQRURL(),
                             qrImage: nil,
@@ -3142,7 +3170,7 @@ struct ContentView: View {
                 // Create a dedicated view for rendering (cleaner, no buttons)
                 let renderView = BillReceiptView(
                     items: viewModel.items,
-                    totalAmount: viewModel.totalAmount,
+                    totalAmount: viewModel.totalAmount, orderFees: viewModel.orderFees,
                     dateString: currentDateString(),
                     qrURL: viewModel.vietQRURL(),
                     qrImage: loadedQR,
@@ -3193,7 +3221,7 @@ struct ContentView: View {
             }
             let renderView = BillReceiptView(
                 items: viewModel.items,
-                totalAmount: viewModel.totalAmount,
+                totalAmount: viewModel.totalAmount, orderFees: viewModel.orderFees,
                 dateString: currentDateString(),
                 qrURL: viewModel.vietQRURL(),
                 qrImage: loadedQR,
@@ -3279,6 +3307,7 @@ struct ContentView: View {
                 customerAddress: viewModel.walkInAddress.isEmpty ? nil : viewModel.walkInAddress,
                 customerEmail: viewModel.walkInEmail.isEmpty ? nil : viewModel.walkInEmail,
                 note: viewModel.note.isEmpty ? nil : viewModel.note,
+                orderFees: viewModel.orderFees,
                 grandTotal: viewModel.totalAmountWithVAT,
                 paidAmount: currentPaymentStatus != .unpaid ? viewModel.paidAmount : 0,
                 debtAmount: currentPaymentStatus == .paidFull ? 0 : (currentPaymentStatus == .paidPartial ? viewModel.debtAmount : viewModel.totalAmountWithVAT),
@@ -3487,6 +3516,7 @@ struct ContentView: View {
     struct BillReceiptView: View {
         let items: [OrderItem]
         let totalAmount: Double
+        let orderFees: [OrderFee]
         let dateString: String
         let qrURL: URL?
         let qrImage: UIImage?
@@ -3582,8 +3612,9 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onRemoveReceiptImage: ((String) async throws -> Void)? = nil, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, selectedBillNumber: Binding<Int?> = .constant(nil), grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil, usedBillNumbers: [Int] = []) {
+        init(items: [OrderItem], totalAmount: Double, orderFees: [OrderFee] = [], dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onRemoveReceiptImage: ((String) async throws -> Void)? = nil, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, selectedBillNumber: Binding<Int?> = .constant(nil), grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil, usedBillNumbers: [Int] = []) {
             self.items = items
+            self.orderFees = orderFees
             self.totalAmount = totalAmount
             self.dateString = dateString
             self.qrURL = qrURL
@@ -3973,6 +4004,7 @@ struct ContentView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    CustomerOrderFeeRows(fees: orderFees)
                     HStack {
                         Text("Tổng cộng")
                             .font(.title3)
@@ -4909,7 +4941,7 @@ struct GuideView: View {
                                 .fontWeight(.semibold)
                             
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("1. Doanh thu = Tổng tiền các đơn đã thanh toán")
+                                Text("1. Doanh thu = Tổng giá trị các đơn trong kỳ (đã thu và chưa thu tiền, không tính đơn đã xoá)")
                                 Text("2. Giá vốn (COGS) = Tổng giá nhập của các sản phẩm đã bán (tính theo AVCO)")
                                 Text("3. Lợi nhuận gộp = Doanh thu − Giá vốn")
                                 Text("4. Lợi nhuận ròng = Lợi nhuận gộp − Chi phí vận hành")

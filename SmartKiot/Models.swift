@@ -151,6 +151,7 @@ struct Bill: Identifiable, Codable, Equatable {
     let createdAt: Date
     let items: [OrderItem]
     let total: Double
+    var orderFees: [OrderFee]? = nil
     var totalCost: Double = 0 // Total COGS
     var isPaid: Bool = true // Payment status
     var creatorId: UUID? = nil // ID of the user who created the order
@@ -174,7 +175,7 @@ struct Bill: Identifiable, Codable, Equatable {
     var deletedBy: UUID? = nil
     
     var profit: Double {
-        total - totalCost
+        salesRevenue - totalCost - shopFeeTotal
     }
 
     /// Trạng thái thanh toán 3 mức, suy ra từ isPaid + debtAmount
@@ -207,6 +208,7 @@ struct Bill: Identifiable, Codable, Equatable {
         return lhs.id == rhs.id
             && lhs.total == rhs.total
             && lhs.items == rhs.items
+            && lhs.orderFees == rhs.orderFees
             && lhs.isPaid == rhs.isPaid
             && lhs.isDeleted == rhs.isDeleted
             && lhs.paidAmount == rhs.paidAmount
@@ -1032,5 +1034,38 @@ enum PaymentReceiptImages {
         if images.count == 1 { return images[0] }
         // Encoding an array of strings cannot fail.
         return String(data: try! JSONEncoder().encode(images), encoding: .utf8)!
+    }
+}
+
+// Order fees are independent of inventory, discounts and merchandise VAT.
+struct OrderFee: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var name: String
+    var amount: Double = 0
+    var bearer: String = "shop"
+    var funding: String = "company"
+    var employeeID: UUID? = nil // store_members.id, retained even after employee leaves
+    var employeeName: String? = nil
+    var customerCharge: Double { bearer == "customer" && funding != "customer" ? amount : 0 }
+    var shopCost: Double { bearer == "shop" ? amount : 0 }
+    var isValid: Bool {
+        amount.isFinite && amount > 0 && !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && ["shop", "customer"].contains(bearer) && ["company", "employee", "customer"].contains(funding)
+        && !(bearer == "shop" && funding == "customer")
+        && (funding != "employee" || employeeID != nil)
+    }
+}
+
+extension Bill {
+    var fees: [OrderFee] { orderFees ?? [] }
+    var customerFeeTotal: Double { fees.reduce(0) { $0 + $1.customerCharge } }
+    var shopFeeTotal: Double { fees.reduce(0) { $0 + $1.shopCost } }
+    var salesRevenue: Double { total - customerFeeTotal }
+    var revenueAfterFees: Double { salesRevenue - shopFeeTotal }
+    // Allocate partial receipts proportionally between goods and fees collected for others.
+    var receivedCustomerFees: Double {
+        guard total > 0 else { return 0 }
+        let received = paidAmount ?? (isPaid ? total : 0)
+        return customerFeeTotal * min(1, max(0, received / total))
     }
 }
