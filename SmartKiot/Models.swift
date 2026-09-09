@@ -1006,3 +1006,31 @@ extension String {
         return matchedRatio >= requiredRatio
     }
 }
+// Single-image records remain plain URLs; multiple images use a JSON array in
+// the existing TEXT column so older saved orders need no data migration.
+enum PaymentReceiptImages {
+    static func urls(_ stored: String?) -> [String] {
+        guard let stored, !stored.isEmpty else { return [] }
+        if let data = stored.data(using: .utf8),
+           let urls = try? JSONDecoder().decode([String].self, from: data) {
+            return urls.filter { !$0.isEmpty }
+        }
+        return [stored]
+    }
+
+    static func removing(_ url: String, from stored: String?) -> String {
+        let remaining = urls(stored).filter { $0 != url }
+        // An explicit empty string also clears the persisted optional TEXT field.
+        if remaining.isEmpty { return "" }
+        if remaining.count == 1 { return remaining[0] }
+        return String(data: try! JSONEncoder().encode(remaining), encoding: .utf8)!
+    }
+
+    static func appending(_ url: String, to stored: String?) -> String {
+        var images = urls(stored)
+        if !images.contains(url) { images.append(url) }
+        if images.count == 1 { return images[0] }
+        // Encoding an array of strings cannot fail.
+        return String(data: try! JSONEncoder().encode(images), encoding: .utf8)!
+    }
+}

@@ -2777,6 +2777,7 @@ struct ContentView: View {
         @State private var showBankSettings = false
         @State private var showReceiptCamera = false
         @State private var receiptImage: UIImage?
+        @State private var receiptUploadError: String?
         @State private var isUploadingReceipt = false
         @State private var showDiscountSheet = false
         @State private var showVATRatePicker = false
@@ -2869,6 +2870,21 @@ struct ContentView: View {
                                 showReceiptCamera = true
                             },
                             receiptImageURL: viewModel.paymentReceiptImageURL,
+                            onRemoveReceiptImage: { url in
+                                let remaining = PaymentReceiptImages.removing(url, from: viewModel.paymentReceiptImageURL)
+                                if let original = viewModel.editingBill {
+                                    var updated = original
+                                    updated.paymentReceiptURL = remaining
+                                    do {
+                                        try await viewModel.updateOrder(updated)
+                                        viewModel.editingBill = updated
+                                    } catch {
+                                        viewModel.applyLocalUpdate(original)
+                                        throw error
+                                    }
+                                }
+                                viewModel.paymentReceiptImageURL = remaining
+                            },
                             onPickedReceiptImage: { img in
                                 receiptImage = img
                             },
@@ -2995,6 +3011,19 @@ struct ContentView: View {
                         .padding()
                 }
             }
+            .disabled(isUploadingReceipt)
+            .overlay {
+                if isUploadingReceipt {
+                    ProgressView("Đang lưu ảnh chuyển khoản…")
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+            .alert("Chưa lưu được ảnh", isPresented: Binding(get: { receiptUploadError != nil }, set: { if !$0 { receiptUploadError = nil } })) {
+                Button("Đóng", role: .cancel) { receiptUploadError = nil }
+            } message: {
+                Text(receiptUploadError ?? "")
+            }
             .fullScreenCover(isPresented: $showReceiptCamera) {
                 ImagePicker(image: $receiptImage)
                     .ignoresSafeArea()
@@ -3014,7 +3043,7 @@ struct ContentView: View {
                             let previewData = down.jpegData(compressionQuality: 0.8) ?? data
                             let previewURL = try await StorageManager.shared.uploadReceiptPreviewImage(data: previewData, fileName: fileName)
                             await MainActor.run {
-                                viewModel.paymentReceiptImageURL = url
+                                viewModel.paymentReceiptImageURL = PaymentReceiptImages.appending(url, to: viewModel.paymentReceiptImageURL)
                             }
                             if let u = URL(string: url) {
                                 BillReceiptView.ImageCache.shared.insert(img, for: u)
@@ -3024,17 +3053,17 @@ struct ContentView: View {
                             }
                             if let bill = viewModel.editingBill {
                                 var updated = bill
-                                updated.paymentReceiptURL = url
+                                updated.paymentReceiptURL = viewModel.paymentReceiptImageURL
                                 try await viewModel.updateOrder(updated)
                             }
                         } catch {
-                            print("❌ Error uploading receipt: \(error)")
+                            receiptUploadError = "Không thể lưu ảnh chuyển khoản. Vui lòng thử lại."
                         }
                     }
                 }
             }
             .onChange(of: viewModel.paymentReceiptImageURL) { urlString in
-                guard let urlString, let u = URL(string: urlString) else { return }
+                guard let latest = PaymentReceiptImages.urls(urlString).last, let u = URL(string: latest) else { return }
                 if BillReceiptView.ImageCache.shared.image(for: u) == nil {
                     Task {
                         if let (data, _) = try? await URLSession.shared.data(from: u) {
@@ -3218,7 +3247,7 @@ struct ContentView: View {
             // Load receipt image nếu có và option bật
             var loadedReceiptImage: UIImage? = nil
             if printOptions.showReceiptImage,
-               let urlStr = viewModel.paymentReceiptImageURL,
+               let urlStr = PaymentReceiptImages.urls(viewModel.paymentReceiptImageURL).last,
                let url = URL(string: urlStr),
                let (data, _) = try? await URLSession.shared.data(from: url) {
                 loadedReceiptImage = UIImage(data: data)
@@ -3459,6 +3488,7 @@ struct ContentView: View {
         let onOpenBankSettings: (() -> Void)?
         let onCaptureReceipt: (() -> Void)?
         let receiptImageURL: String?
+        let onRemoveReceiptImage: ((String) async throws -> Void)?
         let onPickedReceiptImage: ((UIImage) -> Void)?
         let onEditDiscount: (() -> Void)?
         let sequenceNumber: String?
@@ -3478,10 +3508,6 @@ struct ContentView: View {
         var usedBillNumbers: [Int]
         @Binding var orderStatus: String?
         @State private var receiptPickerItem: PhotosPickerItem?
-        @State private var showReceiptPreview = false
-        @State private var previewURL: URL?
-        @StateObject private var previewLoader = CachedImageLoader()
-        @StateObject private var originalLoader = CachedImageLoader()
         @State private var showPartialAmountWheel = false
         @State private var isPaidConfirmed: Bool = false
         @State private var showOrderStatusPicker = false
@@ -3543,7 +3569,7 @@ struct ContentView: View {
             return formatter.string(from: date)
         }
         
-        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, selectedBillNumber: Binding<Int?> = .constant(nil), grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil, usedBillNumbers: [Int] = []) {
+        init(items: [OrderItem], totalAmount: Double, dateString: String, qrURL: URL?, qrImage: UIImage?, billPayload: String?, showButtons: Bool, showPaymentInfo: Bool = true, onComplete: ((Bool) -> Void)?, customerName: String, customerPhone: String? = nil, customerAddress: String? = nil, customerEmail: String? = nil, onOpenBankSettings: (() -> Void)?, onCaptureReceipt: (() -> Void)?, receiptImageURL: String?, onRemoveReceiptImage: ((String) async throws -> Void)? = nil, onPickedReceiptImage: ((UIImage) -> Void)?, onEditDiscount: (() -> Void)?, sequenceNumber: String? = nil, customVATRate: Double? = nil, onEditVAT: (() -> Void)? = nil, payFullAmount: Binding<Bool>, partialAmount: Binding<Double>, expectedPayDate: Binding<Date?>, note: Binding<String>, selectedBillNumber: Binding<Int?> = .constant(nil), grandTotal: Double, initialIsPaid: Bool = false, orderStatus: Binding<String?> = .constant(nil), onIsPaidChanged: ((Bool) -> Void)? = nil, onCustomPrint: (() -> Void)? = nil, printOptions: PrintOptions? = nil, usedBillNumbers: [Int] = []) {
             self.items = items
             self.totalAmount = totalAmount
             self.dateString = dateString
@@ -3560,6 +3586,7 @@ struct ContentView: View {
             self.onOpenBankSettings = onOpenBankSettings
             self.onCaptureReceipt = onCaptureReceipt
             self.receiptImageURL = receiptImageURL
+            self.onRemoveReceiptImage = onRemoveReceiptImage
             self.onPickedReceiptImage = onPickedReceiptImage
             self.onEditDiscount = onEditDiscount
             self.sequenceNumber = sequenceNumber
@@ -4224,7 +4251,7 @@ struct ContentView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(Color.gray)
                                 if let url = receiptImageURL, !url.isEmpty {
-                                    Text("Đã lưu ảnh xác nhận")
+                                    Text("Đã lưu \(PaymentReceiptImages.urls(receiptImageURL).count) ảnh xác nhận")
                                         .font(.footnote)
                                         .fontWeight(.medium)
                                         .foregroundStyle(.green)
@@ -4235,47 +4262,6 @@ struct ContentView: View {
                                 }
                             }
                             Spacer()
-                            if let urlString = receiptImageURL,
-                               let original = URL(string: urlString) {
-                                let preview = URL(string: urlString.replacingOccurrences(of: ".jpg", with: "-preview.jpg")) ?? original
-                                Button {
-                                    previewURL = preview
-                                    showReceiptPreview = true
-                                } label: {
-                                    ZStack {
-                                        if let ui = previewLoader.image ?? originalLoader.image {
-                                            Image(uiImage: ui)
-                                                .resizable()
-                                                .scaledToFill()
-                                        } else {
-                                            ProgressView()
-                                        }
-                                    }
-                                    .frame(width: 64, height: 64)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                    )
-                                    .onAppear {
-                                        previewLoader.load(url: preview, targetSize: CGSize(width: 400, height: 400))
-                                        originalLoader.load(url: original, targetSize: CGSize(width: 400, height: 400))
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                            } else {
-                                ZStack {
-                                    Color.gray.opacity(0.08)
-                                    Image(systemName: "photo")
-                                        .foregroundStyle(Color.gray)
-                                }
-                                .frame(width: 64, height: 64)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                )
-                            }
                             Button {
                                 onCaptureReceipt?()
                             } label: {
@@ -4290,6 +4276,7 @@ struct ContentView: View {
                             .buttonStyle(.bordered)
                             .labelStyle(.iconOnly)
                         }
+                        PaymentReceiptGallery(storedImages: receiptImageURL, onRemove: onRemoveReceiptImage)
                     }
                     .padding()
                     .background(RoundedRectangle(cornerRadius: 12).strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4])).foregroundStyle(.gray.opacity(0.3)))
@@ -4304,48 +4291,7 @@ struct ContentView: View {
                             }
                         }
                     }
-                    .sheet(isPresented: $showReceiptPreview) {
-                        NavigationStack {
-                            ZStack {
-                                Color.black.opacity(0.9).ignoresSafeArea()
-                                if let preview = previewURL {
-                                    if let ui = previewLoader.image ?? originalLoader.image ?? BillReceiptView.ImageCache.shared.image(for: preview) {
-                                        Image(uiImage: ui)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                    } else {
-                                        ProgressView()
-                                            .tint(.white)
-                                            .task {
-                                                previewLoader.load(url: preview, targetSize: CGSize(width: 800, height: 800))
-                                                if let urlString = receiptImageURL, let original = URL(string: urlString) {
-                                                    originalLoader.load(url: original, targetSize: CGSize(width: 800, height: 800))
-                                                }
-                                            }
-                                    }
-                                }
-                            }
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button("Đóng") { showReceiptPreview = false }
-                                }
-                            }
-                        }
-                        .presentationDetents([.medium, .large])
-                        .presentationDragIndicator(.visible)
-                    }
-                    .task(id: receiptImageURL) {
-                        if let s = receiptImageURL {
-                            let previewString = s.replacingOccurrences(of: ".jpg", with: "-preview.jpg")
-                            if let pu = URL(string: previewString) {
-                                previewLoader.load(url: pu, targetSize: CGSize(width: 800, height: 800))
-                            }
-                            if let ou = URL(string: s) {
-                                originalLoader.load(url: ou, targetSize: CGSize(width: 800, height: 800))
-                            }
-                        }
-                    } // end receiptImageURL task
+
                     } // end showReceiptImgSection
                 }
                 
@@ -5285,3 +5231,87 @@ struct SectionButton<Content: View>: View {
             return Path(path.cgPath)
         }
     }
+
+struct PaymentReceiptGallery: View {
+    let storedImages: String?
+    var onRemove: ((String) async throws -> Void)? = nil
+    @State private var isRemoving = false
+    @State private var removalFailed = false
+    @State private var selectedURL: String?
+
+    var body: some View {
+        let urls = PaymentReceiptImages.urls(storedImages)
+        ScrollView(.horizontal) {
+            HStack(spacing: 12) {
+                ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
+                    Button {
+                        selectedURL = url
+                    } label: {
+                        VStack(spacing: 4) {
+                            AsyncImage(url: URL(string: url)) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Image(systemName: "photo").foregroundStyle(.gray)
+                            }
+                            .frame(width: 72, height: 72)
+                            .clipped()
+                            .cornerRadius(8)
+                            Text("Ảnh \(index + 1)").font(.caption)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .overlay(alignment: .topTrailing) {
+                        if let onRemove {
+                            Button(role: .destructive) {
+                                isRemoving = true
+                                Task { @MainActor in
+                                    defer { isRemoving = false }
+                                    do {
+                                        try await onRemove(url)
+                                    } catch {
+                                        removalFailed = true
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.title2)
+                                    .symbolRenderingMode(.palette)
+                                    .foregroundStyle(.white, .red)
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Xoá ảnh \(index + 1)")
+                        }
+                    }
+                }
+            }
+        }
+        .disabled(isRemoving)
+        .overlay { if isRemoving { ProgressView() } }
+        .alert("Chưa xoá được ảnh", isPresented: $removalFailed) {
+            Button("Đóng", role: .cancel) { }
+        } message: {
+            Text("Không thể lưu thay đổi. Vui lòng thử lại.")
+        }
+        .frame(height: urls.isEmpty ? 0 : 96)
+        .sheet(isPresented: Binding(get: { selectedURL != nil }, set: { if !$0 { selectedURL = nil } })) {
+            NavigationStack {
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    AsyncImage(url: selectedURL.flatMap(URL.init(string:))) { phase in
+                        switch phase {
+                        case .success(let image): image.resizable().scaledToFit()
+                        case .failure: Text("Không tải được ảnh").foregroundStyle(.white)
+                        default: ProgressView().tint(.white)
+                        }
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Đóng") { selectedURL = nil }
+                    }
+                }
+            }
+        }
+    }
+}

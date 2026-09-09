@@ -3,6 +3,13 @@ import PhotosUI
 
 struct BillDetailView: View {
     let bill: Bill
+
+    // The sheet's input is a snapshot. Receipt edits are saved into pastOrders,
+    // so subsequent saves must start from that updated order.
+    private var currentBill: Bill {
+        viewModel.pastOrders.first(where: { $0.id == bill.id }) ?? bill
+    }
+
     @ObservedObject var viewModel: OrderViewModel
     var onDeleted: (() -> Void)? = nil   // callback khi đơn bị xoá
     var showEditButton: Bool = true      // Điều khiển hiển thị nút Sửa
@@ -19,7 +26,6 @@ struct BillDetailView: View {
     @State private var isUploadingReceipt = false
     @State private var receiptImageURLString: String? = nil
     @State private var receiptPickerItem: PhotosPickerItem? = nil
-    @State private var showReceiptPreview = false
     @State private var showEditHistory = false
     @State private var dbEdits: [OrderEdit] = []
     @State private var resolvedCustomerAddress: String? = nil
@@ -46,7 +52,7 @@ struct BillDetailView: View {
                 
                 if showEditButton {
                     Button(action: {
-                        viewModel.startEditing(bill)
+                        viewModel.startEditing(currentBill)
                         dismiss()
                     }) {
                         Text("Sửa")
@@ -77,6 +83,7 @@ struct BillDetailView: View {
                 onOpenBankSettings: nil,
                 onCaptureReceipt: { showReceiptCamera = true },
                 receiptImageURL: receiptImageURLString,
+                onRemoveReceiptImage: removeReceiptImage,
                 onPickedReceiptImage: { img in receiptImage = img },
                 onEditDiscount: nil,
                 sequenceNumber: bill.sequenceNumber,
@@ -190,41 +197,13 @@ struct BillDetailView: View {
                             }
                             .frame(width: 72, height: 72)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                        } else if let urlStr = receiptImageURLString, let url = URL(string: urlStr) {
-                            Button {
-                                showReceiptPreview = true
-                            } label: {
-                                AsyncImage(url: url) { phase in
-                                    if case .success(let img) = phase {
-                                        img.resizable().scaledToFill()
-                                            .frame(width: 72, height: 72)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
-                                    } else {
-                                        ZStack {
-                                            Color.gray.opacity(0.08)
-                                            ProgressView()
-                                        }
-                                        .frame(width: 72, height: 72)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
                         } else {
-                            ZStack {
-                                Color.gray.opacity(0.08)
-                                Image(systemName: "photo")
-                                    .foregroundStyle(.gray)
-                            }
-                            .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                            PaymentReceiptGallery(storedImages: receiptImageURLString, onRemove: removeReceiptImage)
                         }
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            if let _ = receiptImageURLString {
-                                Text("Đã lưu ảnh xác nhận")
+                            if !PaymentReceiptImages.urls(receiptImageURLString).isEmpty {
+                                Text("Đã lưu \(PaymentReceiptImages.urls(receiptImageURLString).count) ảnh xác nhận")
                                     .font(.caption)
                                     .foregroundStyle(.green)
                             } else {
@@ -335,7 +314,7 @@ struct BillDetailView: View {
                 
                 Button(action: {
                     // Lưu trạng thái thanh toán + trạng thái đơn hàng hiện tại rồi thoát
-                    var updatedBill = bill
+                    var updatedBill = currentBill
                     updatedBill.isPaid = isPaid
                     updatedBill.orderStatus = orderStatus
                     // Dùng local state (đã cập nhật khi user chọn từ dialog) để tránh mất công nợ
@@ -433,7 +412,7 @@ struct BillDetailView: View {
             localPaidAmount = bill.paidAmount
             localDebtAmount = bill.debtAmount
             orderStatus = bill.orderStatus
-            receiptImageURLString = bill.paymentReceiptURL
+            receiptImageURLString = currentBill.paymentReceiptURL
             Task {
                 // Resolve customer address và phone từ TradingParty nếu không có trên bill
                 let db = SupabaseDatabaseService()
@@ -470,7 +449,7 @@ struct BillDetailView: View {
         .alert("Xóa đơn hàng?", isPresented: $showDeleteConfirmation) {
             Button("Hủy", role: .cancel) { }
             Button("Xóa", role: .destructive) {
-                viewModel.deleteOrder(bill)
+                viewModel.deleteOrder(currentBill)
                 onDeleted?()
                 dismiss()
             }
@@ -490,7 +469,7 @@ struct BillDetailView: View {
             Button("🔶 Đã thanh toán 1 phần") {
                 isPaid = true
                 debtCleared = false
-                var updatedBill = bill
+                var updatedBill = currentBill
                 updatedBill.isPaid = true
                 if (bill.debtAmount ?? 0) <= 0 {
                     localPaidAmount = 0
@@ -507,7 +486,7 @@ struct BillDetailView: View {
                 debtCleared = false
                 localPaidAmount = 0
                 localDebtAmount = bill.total
-                var updatedBill = bill
+                var updatedBill = currentBill
                 updatedBill.isPaid = false
                 updatedBill.paidAmount = 0
                 updatedBill.debtAmount = bill.total
@@ -590,11 +569,11 @@ struct BillDetailView: View {
                         if let pu = URL(string: previewURL) {
                             BillReceiptView.ImageCache.shared.insert(down, for: pu)
                         }
-                        var updated = bill
-                        updated.paymentReceiptURL = url
+                        var updated = currentBill
+                        updated.paymentReceiptURL = PaymentReceiptImages.appending(url, to: receiptImageURLString)
                         try await viewModel.updateOrder(updated)
                         await MainActor.run {
-                            receiptImageURLString = url
+                            receiptImageURLString = updated.paymentReceiptURL
                         }
                     } catch {
                         print("❌ Error uploading receipt: \(error)")
@@ -612,33 +591,22 @@ struct BillDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showReceiptPreview) {
-            NavigationStack {
-                ZStack {
-                    Color.black.opacity(0.9).ignoresSafeArea()
-                    if let urlStr = receiptImageURLString, let url = URL(string: urlStr) {
-                        AsyncImage(url: url) { phase in
-                            if case .success(let img) = phase {
-                                img.resizable().scaledToFit()
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            } else {
-                                ProgressView().tint(.white)
-                            }
-                        }
-                    }
-                }
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Đóng") { showReceiptPreview = false }
-                            .foregroundStyle(.white)
-                    }
-                }
-            }
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
     }
     
+    @MainActor
+    private func removeReceiptImage(_ url: String) async throws {
+        let original = viewModel.pastOrders.first(where: { $0.id == bill.id }) ?? bill
+        var updated = original
+        updated.paymentReceiptURL = PaymentReceiptImages.removing(url, from: receiptImageURLString)
+        do {
+            try await viewModel.updateOrder(updated)
+            receiptImageURLString = updated.paymentReceiptURL
+        } catch {
+            viewModel.applyLocalUpdate(original)
+            throw error
+        }
+    }
+
     @MainActor
     private func renderImage() {
         Task {
@@ -667,7 +635,7 @@ struct BillDetailView: View {
                 customerEmail: bill.customerEmail,
                 onOpenBankSettings: nil,
                 onCaptureReceipt: nil,
-                receiptImageURL: bill.paymentReceiptURL,
+                receiptImageURL: receiptImageURLString,
                 onPickedReceiptImage: nil,
                 onEditDiscount: nil,
                 sequenceNumber: bill.sequenceNumber,
@@ -707,7 +675,7 @@ struct BillDetailView: View {
         // Load receipt image nếu cần
         var loadedReceiptImage: UIImage? = nil
         if opts.showReceiptImage,
-           let urlStr = bill.paymentReceiptURL,
+           let urlStr = PaymentReceiptImages.urls(receiptImageURLString).last,
            let url = URL(string: urlStr),
            let (data, _) = try? await URLSession.shared.data(from: url) {
             loadedReceiptImage = UIImage(data: data)
@@ -944,7 +912,7 @@ struct BillDetailView: View {
         debtCleared = true
         localPaidAmount = bill.total
         localDebtAmount = nil
-        var updatedBill = bill
+        var updatedBill = currentBill
         updatedBill.isPaid = true
         updatedBill.paidAmount = bill.total
         updatedBill.debtAmount = nil
@@ -955,7 +923,7 @@ struct BillDetailView: View {
 
     private func updateOrderStatus(_ status: String?) {
         orderStatus = status
-        var updatedBill = bill
+        var updatedBill = currentBill
         updatedBill.orderStatus = status
         viewModel.applyLocalUpdate(updatedBill)
         viewModel.addQuickEditHistory(original: bill, updated: updatedBill)
@@ -968,7 +936,7 @@ struct BillDetailView: View {
                     print("❌ Error saving cancelled status: \(error)")
                 }
             }
-            viewModel.deleteOrder(bill) // soft delete + revert inventory
+            viewModel.deleteOrder(currentBill) // soft delete + revert inventory
         } else {
             Task {
                 do {
