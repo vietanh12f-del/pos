@@ -506,6 +506,7 @@ struct BillDetailView: View {
             Text("Xác nhận đã nhận đủ tiền và xoá công nợ \(formatCurrency(debt))?")
         }
         .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
+            Button("☑️ Xác nhận đơn") { updateOrderStatus("confirmed") }
             Button("🛍️ Chuẩn bị hàng")  { updateOrderStatus("preparing") }
             Button("📦 Đã soạn hàng")    { updateOrderStatus("prepared") }
             Button("🚴 Đang giao hàng")  { updateOrderStatus("delivering") }
@@ -897,6 +898,7 @@ struct BillDetailView: View {
 
     private func orderStatusInfo(_ status: String?) -> (label: String, icon: String, color: Color) {
         switch status {
+        case "confirmed": return ("Xác nhận đơn", "checkmark.circle.fill", .blue)
         case "preparing":  return ("Chuẩn bị hàng",  "bag.fill",              .purple)
         case "prepared":   return ("Đã soạn hàng",   "shippingbox.fill",      .orange)
         case "delivering": return ("Đang giao hàng", "figure.walk",           Color(red: 0.0, green: 0.6, blue: 1.0))

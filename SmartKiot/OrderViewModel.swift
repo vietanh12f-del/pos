@@ -30,7 +30,7 @@ class OrderViewModel: ObservableObject {
     @Published var payFullAmount: Bool = true
     @Published var editingBillIsPaid: Bool = false  // trạng thái isPaid của bill đang sửa
     @Published var isPaidConfirmedByUser: Bool? = nil  // override isPaid từ toggle UI
-    @Published var newOrderStatus: String? = nil    // trạng thái đơn hàng khi tạo/sửa
+    @Published var newOrderStatus: String? = "confirmed"    // trạng thái đơn hàng khi tạo/sửa
     @Published var partialAmount: Double = 0
     @Published var expectedPayDate: Date? = nil
     @Published var note: String = ""
@@ -455,6 +455,7 @@ class OrderViewModel: ObservableObject {
         if (original.orderStatus ?? "") != (updated.orderStatus ?? "") {
             let fmtStatus: (String?) -> String = { s in
                 switch s {
+                case "confirmed": return "Xác nhận đơn"
                 case "preparing":  return "Chuẩn bị hàng"
                 case "prepared":   return "Đã soạn hàng"
                 case "delivering": return "Đang giao hàng"
@@ -3503,7 +3504,7 @@ class OrderViewModel: ObservableObject {
         didAutoSelectBillNumber = false
         editingBillIsPaid = false
         isPaidConfirmedByUser = nil
-        newOrderStatus = nil
+        newOrderStatus = "confirmed"
         
         // Reload daily bill usage after reset
         loadDailyBillUsage()

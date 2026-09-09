@@ -4706,6 +4706,7 @@ struct ContentView: View {
                 Button("Hủy", role: .cancel) { }
             }
             .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
+                Button("☑️ Xác nhận đơn") { orderStatus = "confirmed" }
                 Button("🛍️ Chuẩn bị hàng")  { orderStatus = "preparing" }
                 Button("📦 Đã soạn hàng")    { orderStatus = "prepared" }
                 Button("🚴 Đang giao hàng")  { orderStatus = "delivering" }
@@ -4743,6 +4744,7 @@ struct ContentView: View {
         
         private func orderStatusDisplayInfo(_ status: String?) -> (label: String, icon: String, color: Color) {
             switch status {
+            case "confirmed": return ("Xác nhận đơn", "checkmark.circle.fill", .blue)
             case "preparing":  return ("Chuẩn bị hàng",  "bag.fill",              .purple)
             case "prepared":   return ("Đã soạn hàng",   "shippingbox.fill",      .orange)
             case "delivering": return ("Đang giao hàng", "figure.walk",           Color(red: 0.0, green: 0.6, blue: 1.0))

@@ -172,6 +172,7 @@ struct PrintReceiptView: View {
 
     private func orderStatusDisplayInfo(_ status: String?) -> (label: String, icon: String, color: Color) {
         switch status {
+        case "confirmed": return ("Xác nhận đơn", "checkmark.circle.fill", .blue)
         case "preparing":   return ("Chuẩn bị hàng",  "shippingbox",            .orange)
         case "prepared":    return ("Đã soạn hàng",   "checkmark.circle",       .blue)
         case "delivering":  return ("Đang giao hàng", "bicycle",                .purple)

@@ -59,6 +59,7 @@ enum PaymentStatusFilter: String, CaseIterable, Identifiable {
 
 enum OrderStatusFilter: String, CaseIterable, Identifiable {
     case all            = "Tất cả"
+    case confirmed      = "Xác nhận đơn"
     case preparing      = "Chuẩn bị hàng"
     case prepared       = "Đã soạn hàng"
     case delivering     = "Đang giao"
@@ -71,6 +72,7 @@ enum OrderStatusFilter: String, CaseIterable, Identifiable {
     func matches(_ bill: Bill) -> Bool {
         switch self {
         case .all:        return true
+        case .confirmed:  return bill.orderStatus == "confirmed"
         case .preparing:  return bill.orderStatus == "preparing"
         case .prepared:   return bill.orderStatus == "prepared"
         case .delivering: return bill.orderStatus == "delivering"
@@ -1445,6 +1447,7 @@ private struct OrderHistoryFilterSheet: View {
     private func orderStatusFilterIcon(_ s: OrderStatusFilter) -> String {
         switch s {
         case .all:        return "square.grid.2x2"
+        case .confirmed:  return "checkmark.circle.fill"
         case .preparing:  return "bag.fill"
         case .prepared:   return "shippingbox.fill"
         case .delivering: return "figure.walk"
@@ -1716,6 +1719,7 @@ private struct OrderHistoryRow: View {
     
     private func orderStatusInfo(_ status: String) -> (label: String, icon: String, color: Color) {
         switch status {
+        case "confirmed": return ("Xác nhận đơn", "checkmark.circle.fill", .blue)
         case "preparing":  return ("Chuẩn bị hàng",  "bag.fill",             .purple)
         case "prepared":   return ("Đã soạn hàng",   "shippingbox.fill",     .orange)
         case "delivering": return ("Đang giao hàng", "figure.walk",          Color(red: 0.0, green: 0.6, blue: 1.0))
