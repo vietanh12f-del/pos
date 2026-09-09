@@ -1759,15 +1759,13 @@ struct ManualRestockItemView: View {
                                 }
                                 
                                 let fgUnitCost = fgPVal + (fgQVal > 0 ? fgIncVal / Double(fgQVal) : 0)
-                                let fgDisplayedSuggestedPrice = userEditedSuggestedPrice
-                                    ? Double(suggestedPriceWheelSelection)
-                                    : fgUnitCost * (1 + markupPercent / 100)
+                                let fgDisplayedSuggestedPrice = resolvedSuggestedPrice(unitCost: fgUnitCost)
                                 
                                 HStack(spacing: 6) {
                                     Text("Giá bán dự kiến:")
                                         .foregroundStyle(.gray)
                                     Spacer()
-                                    if fgPVal != 0 {
+                                    if existingProduct == nil && fgPVal != 0 {
                                         Button {
                                             showMarkupPicker = true
                                         } label: {
@@ -1877,9 +1875,7 @@ struct ManualRestockItemView: View {
                                 // pVal là giá per đơn vị (cái hoặc kg tuỳ context)
                                 // incVal là chi phí tổng lô → chia đều cho số đơn vị
                                 let unitCost: Double = pVal + (qVal > 0 ? incVal / Double(qVal) : 0)
-                                let displayedSuggestedPrice = userEditedSuggestedPrice
-                                    ? Double(suggestedPriceWheelSelection)
-                                    : unitCost * (1 + markupPercent / 100)
+                                let displayedSuggestedPrice = resolvedSuggestedPrice(unitCost: unitCost)
                                 
                                 HStack(spacing: 6) {
                                     Text("Giá bán dự kiến:")
@@ -1887,7 +1883,7 @@ struct ManualRestockItemView: View {
                                     
                                     Spacer()
                                     
-                                    if pVal != 0 {
+                                    if existingProduct == nil && pVal != 0 {
                                         Button {
                                             showMarkupPicker = true
                                         } label: {
@@ -2018,21 +2014,19 @@ struct ManualRestockItemView: View {
                                 // Nếu nhập từ thành phẩm: giá vốn/cái lấy từ costPrice FG nguồn, không phải unitPrice
                                 let effectiveUnitCost: Double = fgSourceCostPricePerUnit ?? (q > 0 ? p + extra / Double(q) : p)
                                 let unitCost: Double = effectiveUnitCost
-                                let displayedSuggestedPrice = userEditedSuggestedPrice
-                                    ? Double(suggestedPriceWheelSelection)
-                                    : unitCost * (1 + markupPercent / 100)
+                                let displayedSuggestedPrice = resolvedSuggestedPrice(unitCost: unitCost)
                                 
                                 HStack(spacing: 6) {
                                     HStack(spacing: 4) {
                                         Text("Giá bán dự kiến:")
                                             .foregroundStyle(.gray)
-                                        InfoPopoverButton(text: "Giá bán đề xuất = Giá vốn/cái × (1 + Markup%).\nTap vào con số để chỉnh thủ công, tap vào badge % để đổi mức markup.\nGiá trị này sẽ được lưu làm price của hàng hoá.")
+                                        InfoPopoverButton(text: existingProduct != nil ? "Giữ giá bán đã thiết lập của sản phẩm. Chạm vào giá nếu muốn chỉnh thủ công." : "Giá bán đề xuất = Giá vốn/cái × (1 + Markup%).\nTap vào con số để chỉnh thủ công, tap vào badge % để đổi mức markup.\nGiá trị này sẽ được lưu làm price của hàng hoá.")
                                     }
                                     
                                     Spacer()
                                     
                                     // Button % — tap mở popup bánh xe
-                                    if effectiveUnitCost != 0 {
+                                    if existingProduct == nil && effectiveUnitCost != 0 {
                                         Button {
                                             showMarkupPicker = true
                                         } label: {
@@ -2990,12 +2984,8 @@ struct ManualRestockItemView: View {
                 let defaultCost = p.costPrice > 0 ? p.costPrice : p.price * 0.7
                 unitPriceWheelSelection = Int(defaultCost)
                 price = String(Int(defaultCost))
-                // Set giá bán dự kiến = giá bán hiện tại của sản phẩm nếu có, không thì 130% giá nhập gồm chi phí
-                if !isFinishedGoods && suggestedPriceWheelSelection == 0 {
-                    let extra = Double(additionalCostWheelSelection)
-                    let finalUnitCost = extra > 0 && Int(defaultCost) > 0 ? defaultCost + extra / 1.0 : defaultCost
-                    suggestedPriceWheelSelection = p.price > 0 ? Int(p.price) : Int(finalUnitCost * 1.3)
-                }
+                suggestedPriceWheelSelection = Int(p.price)
+                userEditedSuggestedPrice = false
             }
         }
         if sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -3099,16 +3089,14 @@ struct ManualRestockItemView: View {
             // Hàng hoá và thành phẩm: p per cái, q số cái
             finalUnitCost = q > 0 ? effectiveUnitPrice + extra / Double(q) : effectiveUnitPrice
         }
-        // Giá bán = (100 + markupPercent)% giá vốn gồm chi phí; chỉ dùng giá user nhập nếu user đã tự chỉnh
+        // Giữ giá bán hàng có sẵn; chỉ tính markup cho hàng mới nếu chưa chỉnh giá thủ công.
         // Áp dụng cho cả hàng hoá và thành phẩm (không áp dụng cho xuất)
         let isExportContext = addTitle.lowercased().contains("xuất")
         let suggested: Double?
         if isExportContext {
             suggested = nil
-        } else if userEditedSuggestedPrice {
-            suggested = Double(suggestedPriceWheelSelection)
         } else {
-            suggested = finalUnitCost * (1 + markupPercent / 100)
+            suggested = resolvedSuggestedPrice(unitCost: finalUnitCost)
         }
         let perUnitGrams: Int? = {
             guard treatFinishedGoodsAsUnits || importFromFinishedGood else { return nil }
@@ -3190,10 +3178,29 @@ struct ManualRestockItemView: View {
          showQuantityWheel = false
      }
 
+    private var existingProduct: Product? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return viewModel.products.first {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(trimmedName) == .orderedSame
+        }
+    }
+
+    private func resolvedSuggestedPrice(unitCost: Double) -> Double {
+        if userEditedSuggestedPrice {
+            return Double(suggestedPriceWheelSelection)
+        }
+        // Existing products retain their selling price, including a price of zero.
+        if let product = existingProduct {
+            return product.price
+        }
+        return unitCost * (1 + markupPercent / 100)
+    }
+
     private func handleSaveUnitPrice() {
         price = String(unitPriceWheelSelection)
         // Tự động set giá bán dự kiến = 130% giá nhập gồm chi phí
-        if !isFinishedGoods && suggestedPriceWheelSelection == 0 {
+        if !isFinishedGoods && existingProduct == nil && suggestedPriceWheelSelection == 0 {
             let q = useKgGram ? quantityWheelSelection : quantityWheelSelection
             let extra = Double(additionalCostWheelSelection)
             let finalUnitCost: Double
@@ -3288,6 +3295,9 @@ struct ManualRestockItemView: View {
                         let calculatedMarkup = ((sp / finalUnitCost) - 1) * 100
                         markupPercent = max(0, calculatedMarkup)
                     }
+                } else if let product = existingProduct {
+                    suggestedPriceWheelSelection = Int(product.price)
+                    userEditedSuggestedPrice = false
                 } else {
                     suggestedPriceWheelSelection = max(Int(item.finalUnitCost * 1.3), Int(item.unitPrice))
                     userEditedSuggestedPrice = false
