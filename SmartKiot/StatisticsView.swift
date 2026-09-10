@@ -93,6 +93,67 @@ struct StatisticsView: View {
         self._selectedTab = selectedTab
     }
     
+    private var timeRangeSelector: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                ForEach(QuickRange.allCases, id: \.self) { r in
+                    Button {
+                        quickRange = r
+                        if r == .custom { showCustomPicker = true }
+                    } label: {
+                        Text(r.rawValue)
+                            .font(.caption)
+                            .fontWeight(quickRange == r ? .bold : .regular)
+                            .foregroundStyle(quickRange == r ? .white : Color.themeTextDark)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(
+                                Capsule()
+                                    .fill(quickRange == r ? Color.themePrimary : Color.white)
+                            )
+                            .overlay(
+                                Capsule()
+                                    .stroke(quickRange == r ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 4)
+
+            HStack(spacing: 8) {
+                Image(systemName: "calendar")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                Text(rangeLabel)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.gray)
+                Spacer()
+                if quickRange == .custom {
+                    Button {
+                        showCustomPicker = true
+                    } label: {
+                        Text("Đổi ngày")
+                            .font(.caption)
+                            .foregroundStyle(Color.themePrimary)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .onChange(of: quickRange) { _ in regenerate() }
+            .onChange(of: customStart) { _ in
+                if quickRange == .custom { regenerate() }
+            }
+            .onChange(of: customEnd) { _ in
+                if quickRange == .custom { regenerate() }
+            }
+        }
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(Color.themeBackgroundLight)
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -125,63 +186,12 @@ struct StatisticsView: View {
                 .background(Color.white)
                 Divider()
                 
+                timeRangeSelector
+                Divider()
+
                 ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 16) {
-                    
-                    HStack(spacing: 8) {
-                                    ForEach(QuickRange.allCases, id: \.self) { r in
-                                        Button {
-                                            quickRange = r
-                                            if r == .custom { showCustomPicker = true }
-                                        } label: {
-                                            Text(r.rawValue)
-                                                .font(.caption)
-                                                .fontWeight(quickRange == r ? .bold : .regular)
-                                                .foregroundStyle(quickRange == r ? .white : Color.themeTextDark)
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 7)
-                                                .background(
-                                                    Capsule()
-                                                        .fill(quickRange == r ? Color.themePrimary : Color.white)
-                                                )
-                                                .overlay(
-                                                    Capsule()
-                                                        .stroke(quickRange == r ? Color.clear : Color.gray.opacity(0.2), lineWidth: 1)
-                                                )
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .padding(.horizontal, 4)
-                                
-                                HStack(spacing: 8) {
-                                    Image(systemName: "calendar")
-                                        .font(.caption)
-                                        .foregroundStyle(.gray)
-                                    Text(rangeLabel)
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.gray)
-                                    Spacer()
-                                    if quickRange == .custom {
-                                        Button {
-                                            showCustomPicker = true
-                                        } label: {
-                                            Text("Đổi ngày")
-                                                .font(.caption)
-                                                .foregroundStyle(Color.themePrimary)
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal, 16)
-                                .onChange(of: quickRange) { _ in regenerate() }
-                                .onChange(of: customStart) { _ in
-                                    if quickRange == .custom { regenerate() }
-                                }
-                                .onChange(of: customEnd) { _ in
-                                    if quickRange == .custom { regenerate() }
-                                }
                     
                     let totalRevenue = stats.reduce(0) { $0 + $1.revenue }
                     let totalCOGS = stats.reduce(0) { $0 + $1.cogs }
