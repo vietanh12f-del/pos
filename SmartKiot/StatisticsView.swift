@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct StatisticsExportItem: Identifiable {
     let id = UUID()
@@ -9,7 +10,7 @@ struct StatisticsView: View {
     @ObservedObject var viewModel: OrderViewModel
     @Binding var selectedTab: Int
     @ObservedObject private var storeManager = StoreManager.shared
-    @State private var quickRange: QuickRange = .today
+    @State private var quickRange: QuickRange = .thisMonth
     @State private var customStart: Date = Calendar.current.startOfDay(for: Date())
     @State private var customEnd: Date = Date()
     @State private var showCustomPicker = false
@@ -208,67 +209,88 @@ struct StatisticsView: View {
 
                     HStack(spacing: 12) {
                         StatCard(title: "Doanh thu bán hàng", value: formatCurrency(totalRevenue), icon: "arrow.down.left", trend: "", isPositive: true,
-                            info: "Tổng giá trị các đơn hàng bán lẻ trong kỳ (bao gồm cả phần chưa thu).")
+                            info: "Giá trị bán hàng trong kỳ, gồm cả phần chưa thu; không bao gồm phí thu hộ.")
                         
                         StatCard(title: "Thực thu", value: formatCurrency(totalActualReceived), icon: "checkmark.circle", trend: "", isPositive: true,
-                            info: "Tổng số tiền thực tế đã thu được từ khách hàng.")
+                            info: "Tổng tiền đã nhận trên các đơn trong kỳ, bao gồm phần phí thu hộ.")
                     }
                     .padding(.horizontal)
                     
                     HStack(spacing: 12) {
-                        if totalDebt > 0 {
-                            StatCard(title: "Công nợ", value: formatCurrency(totalDebt), icon: "clock", trend: "", isPositive: false,
-                                info: "Tổng số tiền khách hàng còn nợ chưa thanh toán.")
-                        }
-                        
                         if AuthManager.shared.canViewCostPrice {
                             StatCard(title: "Giá vốn", value: formatCurrency(totalCOGS), icon: "arrow.up.right", trend: "", isPositive: false,
-                                info: "Chi phí vốn hàng bán (COGS) — tính theo giá nhập bình quân (AVCO) của từng sản phẩm tại thời điểm bán.")
+                                     info: "Giá vốn hàng đã bán trong kỳ, theo giá lưu tại thời điểm bán.")
                         }
-                    }
-                    .padding(.horizontal)
+                        StatCard(title: "Công nợ", value: formatCurrency(totalDebt), icon: "clock", trend: "", isPositive: false,
+                                 info: "Số tiền còn phải thu trên các đơn trong kỳ.")
+                    }.padding(.horizontal)
                     
                     HStack(spacing: 12) {
-                        Button {
-                            selectedTab = 4
-                        } label: {
-                            StatCard(title: "Chi phí vận hành", value: formatCurrency(totalOpEx), icon: "arrow.up.right", trend: "", isPositive: false,
-                                info: "Tổng chi phí vận hành (OPEX) đã nhập thủ công: tiền thuê mặt bằng, lương, điện nước, v.v.")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal)
+                        let shopFees = retailOrders.reduce(0) { $0 + $1.shopFeeTotal }
+                        StatCard(title: "Phí shop chịu", value: formatCurrency(shopFees), icon: "truck.box", trend: "", isPositive: false,
+                                 info: "Phí shop chịu của các đơn trong kỳ, trừ một lần khỏi lợi nhuận; không cộng vào tiền khách trả.")
+                        StatCard(title: "Doanh thu sau phí", value: formatCurrency(totalRevenue - shopFees), icon: "banknote", trend: "", isPositive: true,
+                                 info: "Doanh thu bán hàng trừ phí shop chịu. Phí thu hộ không tính vào doanh thu bán hàng.")
+                    }.padding(.horizontal)
                     
                     // Tính lợi nhuận ròng dựa trên thực thu
                     let actualNetProfit = totalActualReceived - totalCOGS - totalOpEx - retailOrders.reduce(0) { $0 + $1.shopFeeTotal + $1.receivedCustomerFees }
                     
                     VStack(spacing: 12) {
-                        HStack {
-                            HStack(spacing: 6) {
-                                Text("Lợi nhuận ròng")
-                                    .font(.headline)
-                                    .foregroundStyle(Color.themeTextDark)
-                                Button {
-                                    showRetailProfitInfo = true
-                                } label: {
-                                    Image(systemName: "info.circle")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.gray.opacity(0.6))
-                                }
-                                .buttonStyle(.plain)
-                                .alert("Lợi nhuận ròng (Bán lẻ)", isPresented: $showRetailProfitInfo) {
-                                    Button("Đã hiểu", role: .cancel) {}
-                                } message: {
-                                    Text("Lợi nhuận ròng = Thực thu − Phí thu hộ đã thu − Giá vốn − Phí shop chịu − Chi phí vận hành\n\nThực thu: số tiền thực tế đã nhận từ khách hàng. Phí thu hộ đã thu được phân bổ theo tỷ lệ thanh toán của đơn khi khách trả một phần.\nGiá vốn (COGS): tính theo giá nhập bình quân AVCO tại thời điểm bán.\nChi phí vận hành (OPEX): các khoản chi phí nhập thủ công (thuê mặt bằng, lương, điện nước...).\n\nLưu ý: Công nợ chưa thu không được tính vào lợi nhuận ròng.")
-                                }
+                        HStack(spacing: 12) {
+                            Button { selectedTab = 4 } label: {
+                                StatCard(title: "Chi phí vận hành", value: formatCurrency(totalOpEx), icon: "arrow.up.right", trend: "", isPositive: false,
+                                         info: "Chi phí vận hành đã nhập trong kỳ; không tính lại phí shop chịu hoặc tiền hoàn ứng.")
+                            }.buttonStyle(.plain)
+                            if AuthManager.shared.canViewCostPrice {
+                                StatCard(title: "Lợi nhuận ròng", value: formatCurrency(actualNetProfit), icon: "chart.line.uptrend.xyaxis", trend: "", isPositive: actualNetProfit >= 0,
+                                         info: "Thực thu trừ phí thu hộ đã thu, giá vốn, phí shop chịu và chi phí vận hành. Phí thu hộ khi trả một phần được phân bổ theo tỷ lệ thanh toán.")
                             }
-                            Spacer()
-                            Text(formatCurrency(actualNetProfit))
-                                .font(.title3)
-                                .fontWeight(.bold)
-                                .foregroundStyle(actualNetProfit >= 0 ? .green : .red)
+                        }.padding(.horizontal)
+                        let chartRange = FinancialReportService.shared.getDateRange(activeRange)
+                        BusinessTrendChart(buckets: FinancialTrendBuilder.buckets(orders: viewModel.pastOrders, expenses: viewModel.operatingExpenses, start: chartRange.0, end: chartRange.1))
+                            .padding(.horizontal)
+                    if StoreManager.shared.currentMember?.role == .owner {
+                        PendingEmployeeAdvanceCard(viewModel: viewModel).padding(.horizontal)
+                    }
+                    // Button công nợ (nếu có)
+                    if totalDebt > 0 {
+                        let debtCustomers = Set(retailOrders.filter { $0.effectiveDebt > 0 }.compactMap { $0.customerName }).count
+                        let overdueOrders = retailOrders.filter { order in
+                            guard let expectedDate = order.expectedPayDate, order.effectiveDebt > 0 else { return false }
+                            return expectedDate < Date()
+                        }.count
+
+                        Button {
+                            showDebtDetail = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.text.rectangle")
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("Danh sách công nợ")
+                                    Text("\(debtCustomers) khách hàng\(overdueOrders > 0 ? " · \(overdueOrders) quá hạn" : "")")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(formatCurrency(totalDebt)).fontWeight(.semibold)
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Color.themePrimary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.themePrimary.opacity(0.07))
+                            .cornerRadius(10)
                         }
+                        .buttonStyle(.plain)
                         .padding(.horizontal)
+                        .sheet(isPresented: $showDebtDetail) {
+                            DebtListView(
+                                orders: getRetailOrdersInCurrentRange(),
+                                dateRange: getDateRangeString()
+                            )
+                        }
+                    }
 
                         if !stats.isEmpty {
                             VStack(spacing: 12) {
@@ -568,7 +590,7 @@ struct StatisticsView: View {
                                 .alert("Tổng lợi nhuận ròng", isPresented: $showTotalProfitInfo) {
                                     Button("Đã hiểu", role: .cancel) {}
                                 } message: {
-                                    Text("Tổng lợi nhuận ròng = Lợi nhuận bán lẻ + Lợi nhuận bán sỉ\n\nBán lẻ: Thực thu − Giá vốn − Chi phí vận hành\nBán sỉ: Đã thu − Chi phí nguyên liệu\n\nLưu ý: Công nợ chưa thu không được tính vào lợi nhuận ròng.")
+                                    Text("Tổng lợi nhuận ròng = Lợi nhuận bán lẻ + Lợi nhuận bán sỉ\n\nBán lẻ: Thực thu − Phí thu hộ đã thu − Giá vốn − Phí shop chịu − Chi phí vận hành\nBán sỉ: Đã thu − Chi phí nguyên liệu\n\nLưu ý: Công nợ chưa thu không được tính vào lợi nhuận ròng.")
                                 }
                             }
                             Spacer()
@@ -585,74 +607,6 @@ struct StatisticsView: View {
                     .padding(.horizontal)
 
                     } // end if productionEnabled
-
-                    // Button công nợ (nếu có)
-                    if totalDebt > 0 {
-                        let debtCustomers = Set(retailOrders.filter { $0.effectiveDebt > 0 }.compactMap { $0.customerName }).count
-                        let overdueOrders = retailOrders.filter { order in
-                            guard let expectedDate = order.expectedPayDate, order.effectiveDebt > 0 else { return false }
-                            return expectedDate < Date()
-                        }.count
-                        
-                        Button {
-                            showDebtDetail = true
-                        } label: {
-                            VStack(spacing: 8) {
-                                HStack {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(.red)
-                                    
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Danh sách công nợ")
-                                            .font(.headline)
-                                            .fontWeight(.semibold)
-                                            .foregroundStyle(Color.themeTextDark)
-                                        
-                                        HStack(spacing: 12) {
-                                            Text("\(debtCustomers) khách hàng")
-                                                .font(.caption)
-                                                .foregroundStyle(.gray)
-                                            
-                                            if overdueOrders > 0 {
-                                                Text("• \(overdueOrders) quá hạn")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.red)
-                                            }
-                                        }
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    VStack(alignment: .trailing, spacing: 2) {
-                                        Text(formatCurrency(totalDebt))
-                                            .font(.title3)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(.red)
-                                        
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption)
-                                            .foregroundStyle(.gray)
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color.red.opacity(0.03))
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.red.opacity(0.2), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal)
-                        .sheet(isPresented: $showDebtDetail) {
-                            DebtListView(
-                                orders: getRetailOrdersInCurrentRange(),
-                                dateRange: getDateRangeString()
-                            )
-                        }
-                    }
 
                     // Button cho danh sách tồn kho (luôn hiển thị)
                     Button {
@@ -678,7 +632,7 @@ struct StatisticsView: View {
                     
                     // Top sản phẩm bán chạy
                     let topProducts = getTopSellingProducts(orders: retailOrders, limit: 5)
-                    if !topProducts.isEmpty {
+                    Group {
                         VStack(spacing: 12) {
                             sectionHeader("🔥 Top sản phẩm bán chạy")
                             
@@ -711,8 +665,7 @@ struct StatisticsView: View {
                             .padding(.horizontal)
                             .sheet(isPresented: $showTopProductsDetail) {
                                 TopSellingProductsView(
-                                    orders: retailOrders,
-                                    dateRange: getDateRangeString()
+                                    orders: viewModel.pastOrders
                                 )
                             }
                         }
@@ -778,6 +731,9 @@ struct StatisticsView: View {
             regenerate()
             Task { await loadProductionTx() }
         }
+        .onChange(of: viewModel.pastOrders) { _ in regenerate() }
+        .onChange(of: viewModel.operatingExpenses) { _ in regenerate() }
+        .onChange(of: viewModel.restockHistory) { _ in regenerate() }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { output in
             if let value = output.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
                 keyboardHeight = value.cgRectValue.height
@@ -842,38 +798,7 @@ struct StatisticsView: View {
     }
     
     private func getTopSellingProducts(orders: [Bill], limit: Int) -> [TopSellingProduct] {
-        var productStats: [String: (quantity: Int, revenue: Double, prices: [Double])] = [:]
-        
-        // Tính toán thống kê cho từng sản phẩm
-        for order in orders {
-            if !order.isDeleted {
-                for item in order.items {
-                    let key = item.name
-                    let current = productStats[key] ?? (quantity: 0, revenue: 0, prices: [])
-                    
-                    productStats[key] = (
-                        quantity: current.quantity + item.quantity,
-                        revenue: current.revenue + (Double(item.quantity) * item.price),
-                        prices: current.prices + [item.price]
-                    )
-                }
-            }
-        }
-        
-        // Chuyển đổi thành TopSellingProduct và sắp xếp
-        let products = productStats.compactMap { (productName, stats) in
-            let avgPrice = stats.prices.isEmpty ? 0 : stats.prices.reduce(0, +) / Double(stats.prices.count)
-            
-            return TopSellingProduct(
-                name: productName,
-                quantitySold: stats.quantity,
-                revenue: stats.revenue,
-                category: "",
-                averagePrice: avgPrice
-            )
-        }
-        
-        return Array(products.sorted { $0.quantitySold > $1.quantitySold }.prefix(limit))
+        Array(TopSellingProduct.summarize(orders).prefix(limit))
     }
 }
 
@@ -896,7 +821,7 @@ struct StatisticsRow: View {
             VStack(spacing: 6) {
                 // Hàng đầu: Doanh thu và Thực thu
                 HStack(spacing: 12) {
-                    valueBox(title: "Doanh thu", value: stat.revenue, color: .blue)
+                    valueBox(title: "Doanh thu bán hàng", value: stat.revenue, color: .blue)
                     valueBox(title: "Thực thu", value: stat.actualReceived, color: .green)
                     if stat.debt > 0 {
                         valueBox(title: "Công nợ", value: stat.debt, color: .red)
@@ -913,6 +838,10 @@ struct StatisticsRow: View {
                         // Thêm spacer để cân bằng layout
                         Spacer()
                     }
+                }
+                HStack(spacing: 12) {
+                    valueBox(title: "Phí shop chịu", value: stat.shopFees, color: .orange)
+                    valueBox(title: "Doanh thu sau phí", value: stat.revenue - stat.shopFees, color: .blue)
                 }
             }
         }
@@ -1053,5 +982,122 @@ struct TopSellingProductMiniRow: View {
         .background(Color.white)
         .cornerRadius(8)
         .shadow(color: .black.opacity(0.02), radius: 2, x: 0, y: 1)
+    }
+}// Calendar-based buckets keep empty intervals and preserve the same totals as the cards.
+struct FinancialTrendBucket: Identifiable {
+    let start: Date
+    let end: Date
+    var id: Date { start }
+    var revenue = 0.0
+    var received = 0.0
+    var profit = 0.0
+}
+
+enum FinancialTrendBuilder {
+    static func buckets(orders: [Bill], expenses: [OperatingExpense], start: Date, end: Date, calendar: Calendar = .current) -> [FinancialTrendBucket] {
+        guard end >= start else { return [] }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 0
+        let component: Calendar.Component = days == 0 ? .hour : days <= 62 ? .day : days <= 366 ? .weekOfYear : .month
+        var result: [FinancialTrendBucket] = []
+        var cursor = start
+        while cursor <= end {
+            guard let interval = calendar.dateInterval(of: component, for: cursor), interval.end > cursor else { break }
+            result.append(FinancialTrendBucket(start: cursor, end: min(interval.end, end.addingTimeInterval(0.001))))
+            cursor = interval.end
+        }
+        for order in orders where !order.isDeleted && order.createdAt >= start && order.createdAt <= end {
+            guard let i = result.firstIndex(where: { order.createdAt >= $0.start && order.createdAt < $0.end }) else { continue }
+            let received = order.paidAmount ?? (order.isPaid ? order.total : 0)
+            result[i].revenue += order.salesRevenue
+            result[i].received += received
+            result[i].profit += received - order.receivedCustomerFees - order.totalCost - order.shopFeeTotal
+        }
+        for expense in expenses where expense.createdAt >= start && expense.createdAt <= end {
+            if let i = result.firstIndex(where: { expense.createdAt >= $0.start && expense.createdAt < $0.end }) {
+                result[i].profit -= expense.amount
+            }
+        }
+        return result
+    }
+}
+
+struct BusinessTrendChart: View {
+    let buckets: [FinancialTrendBucket]
+    @ObservedObject private var auth = AuthManager.shared
+    @State private var metric = Metric.revenue
+    @State private var selected: Date?
+    private enum Metric: String, CaseIterable {
+        case revenue = "Doanh thu", received = "Thực thu", profit = "Lợi nhuận"
+        func value(_ bucket: FinancialTrendBucket) -> Double {
+            switch self { case .revenue: return bucket.revenue; case .received: return bucket.received; case .profit: return bucket.profit }
+        }
+    }
+    private var selectedBucket: FinancialTrendBucket? { buckets.first { $0.start == selected } }
+    private var hours: Bool { guard let a = buckets.first, let b = buckets.last else { return false }; return Calendar.current.isDate(a.start, inSameDayAs: b.start) }
+    private func label(_ bucket: FinancialTrendBucket) -> String {
+        if hours { return bucket.start.formatted(.dateTime.hour().minute()) }
+        let date = bucket.start.formatted(.dateTime.day().month())
+        if bucket.end.timeIntervalSince(bucket.start) > 86401 {
+            return "\(date) – \(bucket.end.addingTimeInterval(-1).formatted(.dateTime.day().month()))"
+        }
+        return date
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Xu hướng kinh doanh").font(.headline)
+            Picker("Chỉ số", selection: $metric) {
+                ForEach(Metric.allCases.filter { $0 != .profit || auth.canViewCostPrice }, id: \.self) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented)
+            .onChange(of: metric) { _ in selected = nil }
+            if let bucket = selectedBucket {
+                Text("\(label(bucket)): \(formatCurrency(metric.value(bucket)))")
+                    .font(.subheadline.weight(.semibold))
+            } else {
+                Text("\(metric == .revenue ? "Doanh thu bán hàng" : metric.rawValue) · Chạm cột để xem số tiền")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Chart {
+                RuleMark(y: .value("Mốc 0", 0)).foregroundStyle(Color.gray.opacity(0.4))
+                ForEach(buckets) { bucket in
+                    BarMark(xStart: .value("Từ", bucket.start), xEnd: .value("Đến", bucket.end), y: .value("Số tiền", metric.value(bucket)))
+                        .foregroundStyle(metric.value(bucket) < 0 ? Color.red : Color.themePrimary)
+                        .opacity(selected == nil || selected == bucket.start ? 1 : 0.35)
+                        .accessibilityLabel(label(bucket))
+                        .accessibilityValue(formatCurrency(metric.value(bucket)))
+                }
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 5)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(hours ? date.formatted(.dateTime.hour()) : date.formatted(.dateTime.day().month()))
+                        }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                    AxisGridLine()
+                    AxisValueLabel { if let n = value.as(Double.self) { Text(n.formatted(.number.notation(.compactName))) } }
+                }
+            }
+            .chartOverlay { proxy in
+                GeometryReader { geometry in
+                    Rectangle().fill(.clear).contentShape(Rectangle())
+                        .gesture(SpatialTapGesture().onEnded { event in
+                            let frame = geometry[proxy.plotAreaFrame]
+                            guard frame.contains(event.location), let date: Date = proxy.value(atX: event.location.x - frame.minX) else { return }
+                            selected = buckets.first(where: { date >= $0.start && date < $0.end })?.start
+                        })
+                }
+            }
+            .frame(height: 220)
+            Text("Đơn vị: đồng. Theo ngày tạo đơn; lợi nhuận tính theo thực thu, đã trừ giá vốn, phí shop chịu, phần phí thu hộ đã thu và chi phí vận hành.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+        .padding().background(Color.white).cornerRadius(12)
+        .onChange(of: buckets.map(\.start)) { _ in selected = nil }
+        .onChange(of: auth.canViewCostPrice) { allowed in if !allowed { metric = .revenue } }
     }
 }

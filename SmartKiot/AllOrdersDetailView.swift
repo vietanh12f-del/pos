@@ -42,10 +42,10 @@ struct AllOrdersDetailView: View {
                         Spacer()
                         
                         VStack(alignment: .trailing, spacing: 4) {
-                            Text("Tổng doanh thu")
+                            Text("Doanh thu bán hàng")
                                 .font(.caption)
                                 .foregroundStyle(.gray)
-                            Text(formatCurrency(orders.reduce(0) { $0 + $1.total }))
+                            Text(formatCurrency(orders.reduce(0) { $0 + $1.salesRevenue }))
                                 .font(.title2)
                                 .fontWeight(.bold)
                                 .foregroundStyle(.green)

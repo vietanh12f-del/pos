@@ -15,7 +15,29 @@ struct TopSellingProduct: Identifiable {
 
 struct TopSellingProductsView: View {
     let orders: [Bill]
-    let dateRange: String
+    @State private var period = Period.month
+    @State private var customStart = Calendar.current.startOfDay(for: Date())
+    @State private var customEnd = Date()
+    private enum Period: String, CaseIterable {
+        case today = "Hôm nay", week = "Tuần này", month = "Tháng này", custom = "Tuỳ chọn"
+    }
+    private var selectedRange: ReportDateRange {
+        switch period {
+        case .today: return .today
+        case .week: return .thisWeek
+        case .month: return .thisMonth
+        case .custom: return .custom(start: customStart, end: customEnd)
+        }
+    }
+    private var interval: (Date, Date) { FinancialReportService.shared.getDateRange(selectedRange) }
+    private var dateRange: String {
+        let (start, end) = interval
+        return "\(start.formatted(date: .numeric, time: .omitted)) – \(end.formatted(date: .numeric, time: .omitted))"
+    }
+    private var periodOrders: [Bill] {
+        let (start, end) = interval
+        return orders.filter { !$0.isDeleted && $0.createdAt >= start && $0.createdAt <= end }
+    }
     
     @State private var searchText = ""
     @State private var sortOption: ProductSortOption = .quantitySold
@@ -30,36 +52,7 @@ struct TopSellingProductsView: View {
     }
     
     private var topSellingProducts: [TopSellingProduct] {
-        var productStats: [String: (quantity: Int, revenue: Double, prices: [Double])] = [:]
-        
-        // Tính toán thống kê cho từng sản phẩm
-        for order in orders {
-            if order.isPaid && !order.isDeleted {
-                for item in order.items {
-                    let key = item.name
-                    let current = productStats[key] ?? (quantity: 0, revenue: 0, prices: [])
-                    
-                    productStats[key] = (
-                        quantity: current.quantity + item.quantity,
-                        revenue: current.revenue + (Double(item.quantity) * item.price),
-                        prices: current.prices + [item.price]
-                    )
-                }
-            }
-        }
-        
-        // Chuyển đổi thành TopSellingProduct
-        return productStats.compactMap { (productName, stats) in
-            let avgPrice = stats.prices.isEmpty ? 0 : stats.prices.reduce(0, +) / Double(stats.prices.count)
-            
-            return TopSellingProduct(
-                name: productName,
-                quantitySold: stats.quantity,
-                revenue: stats.revenue,
-                category: "", // Không có thông tin category từ OrderItem
-                averagePrice: avgPrice
-            )
-        }
+        TopSellingProduct.summarize(periodOrders)
     }
     
     private var filteredProducts: [TopSellingProduct] {
@@ -72,21 +65,18 @@ struct TopSellingProductsView: View {
             }
         }
         
-        // Lọc top products nếu được bật
         if showOnlyTopProducts {
-            filtered = Array(filtered.prefix(10))
+            filtered = Array(filtered.sorted {
+                $0.quantitySold == $1.quantitySold ? $0.name < $1.name : $0.quantitySold > $1.quantitySold
+            }.prefix(10))
         }
-        
-        // Sắp xếp
-        switch sortOption {
-        case .quantitySold:
-            return filtered.sorted { $0.quantitySold > $1.quantitySold }
-        case .revenue:
-            return filtered.sorted { $0.revenue > $1.revenue }
-        case .name:
-            return filtered.sorted { $0.name < $1.name }
-        case .averagePrice:
-            return filtered.sorted { $0.averagePrice > $1.averagePrice }
+        return filtered.sorted {
+            switch sortOption {
+            case .quantitySold: return $0.quantitySold == $1.quantitySold ? $0.name < $1.name : $0.quantitySold > $1.quantitySold
+            case .revenue: return $0.revenue == $1.revenue ? $0.name < $1.name : $0.revenue > $1.revenue
+            case .name: return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            case .averagePrice: return $0.averagePrice == $1.averagePrice ? $0.name < $1.name : $0.averagePrice > $1.averagePrice
+            }
         }
     }
     
@@ -101,6 +91,16 @@ struct TopSellingProductsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                Picker("Khoảng thời gian", selection: $period) {
+                    ForEach(Period.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.pickerStyle(.segmented).padding(.horizontal)
+                if period == .custom {
+                    VStack {
+                        DatePicker("Từ ngày", selection: $customStart, displayedComponents: .date)
+                            .onChange(of: customStart) { date in if customEnd < date { customEnd = date } }
+                        DatePicker("Đến ngày", selection: $customEnd, in: customStart..., displayedComponents: .date)
+                    }.padding(.horizontal)
+                }
                 // Header thống kê tóm tắt
                 VStack(spacing: 12) {
                     HStack {
@@ -157,6 +157,8 @@ struct TopSellingProductsView: View {
                 .shadow(color: .black.opacity(0.05), radius: 3, x: 0, y: 1)
                 .padding()
                 
+                Text("Tính cả đơn đã thu và chưa thu, không tính đơn đã xoá. Doanh thu sản phẩm sau giảm giá từng dòng, chưa gồm VAT và phí thu hộ.")
+                    .font(.caption2).foregroundStyle(.secondary).padding(.horizontal).padding(.bottom, 8)
                 // Bộ lọc và tìm kiếm
                 VStack(spacing: 12) {
                     // Thanh tìm kiếm
@@ -256,7 +258,7 @@ struct TopSellingProductsView: View {
                 } else {
                     List {
                         ForEach(Array(filteredProducts.enumerated()), id: \.element.id) { index, product in
-                            TopSellingProductRow(product: product, rank: index + 1)
+                            TopSellingProductMiniRow(product: product, rank: index + 1)
                                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                                 .listRowBackground(Color.themeBackgroundLight)
                                 .listRowSeparator(.hidden)
@@ -278,119 +280,23 @@ struct TopSellingProductsView: View {
     }
 }
 
-struct TopSellingProductRow: View {
-    let product: TopSellingProduct
-    let rank: Int
-    
-    private var rankColor: Color {
-        switch rank {
-        case 1: return .yellow
-        case 2: return .gray
-        case 3: return .orange
-        default: return .blue
-        }
-    }
-    
-    private var rankIcon: String {
-        switch rank {
-        case 1: return "1.circle.fill"
-        case 2: return "2.circle.fill"  
-        case 3: return "3.circle.fill"
-        default: return "\(rank).circle"
-        }
-    }
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header với ranking và tên sản phẩm
-            HStack {
-                // Ranking
-                Image(systemName: rankIcon)
-                    .font(.title2)
-                    .foregroundStyle(rankColor)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(product.name)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.themeTextDark)
-                        .lineLimit(2)
-                    
-                    if !product.category.isEmpty {
-                        Text(product.category)
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(product.quantitySold)")
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
-                    
-                    Text("đã bán")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                }
-            }
-            
-            // Thông tin chi tiết
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Image(systemName: "dollarsign.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(.green)
-                        Text("Doanh thu:")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Text(formatCurrency(product.revenue))
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.green)
-                    }
-                    
-                    HStack {
-                        Image(systemName: "tag.fill")
-                            .font(.caption)
-                            .foregroundStyle(.blue)
-                        Text("Giá TB:")
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Text(formatCurrency(product.averagePrice))
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.themeTextDark)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("Doanh thu/SP")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                    
-                    Text(formatCurrency(product.revenuePerItem))
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.themePrimary)
-                }
-            }
-        }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.03), radius: 3, x: 0, y: 1)
-    }
-}
-
 #Preview {
     TopSellingProductsView(
-        orders: [],
-        dateRange: "01/01/2024 - 31/01/2024"
+        orders: []
     )
+}
+extension TopSellingProduct {
+    static func summarize(_ orders: [Bill]) -> [TopSellingProduct] {
+        var totals: [String: (quantity: Int, revenue: Double)] = [:]
+        for order in orders where !order.isDeleted {
+            for item in order.items {
+                let old = totals[item.name] ?? (0, 0)
+                totals[item.name] = (old.quantity + item.quantity, old.revenue + item.total)
+            }
+        }
+        return totals.map { name, values in
+            TopSellingProduct(name: name, quantitySold: values.quantity, revenue: values.revenue,
+                              category: "", averagePrice: values.quantity > 0 ? values.revenue / Double(values.quantity) : 0)
+        }.sorted { $0.quantitySold == $1.quantitySold ? $0.name < $1.name : $0.quantitySold > $1.quantitySold }
+    }
 }
