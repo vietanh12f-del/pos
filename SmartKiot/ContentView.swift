@@ -296,6 +296,7 @@ struct ContentView: View {
         @State private var showGuide = false
         @State private var showRetailProfitInfo = false
         @State private var showWholesaleProfitInfo = false
+        @State private var selectedFeeStatBearer = "shop"
 
         // MARK: - Date range selection
         enum QuickRange: String, CaseIterable {
@@ -629,8 +630,11 @@ struct ContentView: View {
                                                 info: "Tổng số tiền khách hàng còn nợ từ các đơn hàng trong khoảng thời gian đang xem.")
                                         }
                                         HStack(spacing: 12) {
-                                            StatCard(title: "Phí shop chịu", value: formatCurrency(viewModel.shopFees(for: activeRange)), icon: "truck.box", trend: "", isPositive: false,
-                                                info: "Phí shop chịu của các đơn trong kỳ. Không cộng vào tiền khách trả; được trừ một lần khi tính lợi nhuận.")
+                                            ToggleableFeeStatCard(
+                                                selectedBearer: $selectedFeeStatBearer,
+                                                shopValue: formatCurrency(viewModel.shopFees(for: activeRange)),
+                                                customerValue: formatCurrency(viewModel.customerFees(for: activeRange))
+                                            )
                                             StatCard(title: "Doanh thu sau phí", value: formatCurrency(viewModel.revenue(for: activeRange) - viewModel.shopFees(for: activeRange)), icon: "banknote", trend: "", isPositive: true,
                                                 info: "Doanh thu bán hàng trừ phí shop chịu. Phí khách trả do shop thu hộ không tính vào doanh thu.")
                                         }

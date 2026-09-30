@@ -4095,4 +4095,7 @@ extension OrderViewModel {
     func shopFees(for range: ReportDateRange) -> Double {
         orders(for: range).reduce(0) { $0 + $1.shopFeeTotal }
     }
+    func customerFees(for range: ReportDateRange) -> Double {
+        orders(for: range).reduce(0) { $0 + $1.customerFeeTotal }
+    }
 }

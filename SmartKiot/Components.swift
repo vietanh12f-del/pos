@@ -157,6 +157,83 @@ struct StatCard: View {
     }
 }
 
+struct ToggleableFeeStatCard: View {
+    @Binding var selectedBearer: String
+    let shopValue: String
+    let customerValue: String
+    @State private var showInfo = false
+
+    private var isShopSelected: Bool { selectedBearer == "shop" }
+    private var title: String { isShopSelected ? "Phí shop chịu" : "Phí khách chịu" }
+    private var value: String { isShopSelected ? shopValue : customerValue }
+    private var icon: String { isShopSelected ? "truck.box" : "person.fill" }
+    private var info: String {
+        isShopSelected
+        ? "Phí shop chịu của các đơn trong kỳ. Không cộng vào tiền khách trả; được trừ một lần khi tính lợi nhuận."
+        : "Phí khách chịu của các đơn trong kỳ. Đây là khoản khách trả hoặc shop thu hộ; không trừ vào lợi nhuận như phí shop chịu."
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 6) {
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.gray)
+                    .textCase(.uppercase)
+                Menu {
+                    Button {
+                        selectedBearer = "shop"
+                    } label: {
+                        Label("Phí shop chịu", systemImage: isShopSelected ? "checkmark" : "truck.box")
+                    }
+                    Button {
+                        selectedBearer = "customer"
+                    } label: {
+                        Label("Phí khách chịu", systemImage: !isShopSelected ? "checkmark" : "person")
+                    }
+                } label: {
+                    Image(systemName: "chevron.down.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(Color.themePrimary)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Button {
+                    showInfo = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.gray.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+                .alert(title, isPresented: $showInfo) {
+                    Button("Đã hiểu", role: .cancel) {}
+                } message: {
+                    Text(info)
+                }
+            }
+
+            Text(value)
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundStyle(Color.themeTextDark)
+
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .fontWeight(.bold)
+            }
+            .foregroundStyle(isShopSelected ? Color.red : Color.green)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, minHeight: 100, alignment: .leading)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+    }
+}
+
 struct QuickActionButton: View {
     let icon: String
     let title: String
