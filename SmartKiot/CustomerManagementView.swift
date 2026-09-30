@@ -549,6 +549,9 @@ struct PartyDetailView: View {
     @State private var allPartyTxs: [ProductionTransaction] = [] // All transactions for the party (all time)
     @State private var allRetailOrders: [Bill] = [] // All retail orders for the party (all time)
     @State private var retailOrders: [Bill] = [] // Last 30 days retail orders (for list UI)
+    @State private var showAllRetailHistory = false
+    @State private var selectedRetailMonth: Int? = Calendar.current.component(.month, from: Date())
+    @State private var selectedRetailYear: Int = Calendar.current.component(.year, from: Date())
     @State private var isLoading = false
     @State private var showEdit = false
     @State private var currentParty: TradingParty
@@ -574,6 +577,43 @@ struct PartyDetailView: View {
     }
 
     private var isSupplier: Bool { currentParty.partyType == "supplier" }
+
+    private var retailYears: [Int] {
+        let years = Set(allRetailOrders.map { Calendar.current.component(.year, from: $0.createdAt) })
+        let currentYear = Calendar.current.component(.year, from: Date())
+        return Array(years.union([currentYear])).sorted(by: >)
+    }
+
+    private var filteredRetailOrders: [Bill] {
+        guard !showAllRetailHistory else {
+            return allRetailOrders.sorted { $0.createdAt > $1.createdAt }
+        }
+        let calendar = Calendar.current
+        return allRetailOrders
+            .filter { bill in
+                guard calendar.component(.year, from: bill.createdAt) == selectedRetailYear else { return false }
+                if let month = selectedRetailMonth {
+                    return calendar.component(.month, from: bill.createdAt) == month
+                }
+                return true
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var filteredRetailTotal: Double {
+        filteredRetailOrders.reduce(0) { $0 + $1.total }
+    }
+
+    private var filteredRetailPaid: Double {
+        filteredRetailOrders.reduce(0) { sum, bill in
+            if bill.paymentStatus == .paidFull { return sum + bill.total }
+            return sum + (bill.paidAmount ?? 0)
+        }
+    }
+
+    private var filteredRetailDebt: Double {
+        filteredRetailOrders.reduce(0) { $0 + $1.effectiveDebt }
+    }
     
     private enum DebtStatus {
         case onTime
@@ -677,13 +717,23 @@ struct PartyDetailView: View {
                         ProgressView().padding()
                     } else {
                         // Đơn bán lẻ
-                        if !retailOrders.isEmpty {
+                        if !allRetailOrders.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
+                                retailPurchaseSummaryCard
+
                                 Text("Đơn bán lẻ")
                                     .font(.headline)
                                     .padding(.horizontal)
 
-                                ForEach(retailOrders.prefix(30)) { bill in
+                                if filteredRetailOrders.isEmpty {
+                                    Text("Không có đơn bán lẻ trong kỳ đã chọn")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.gray)
+                                        .padding(.horizontal)
+                                        .padding(.vertical, 8)
+                                }
+
+                                ForEach(filteredRetailOrders) { bill in
                                     Button {
                                         selectedBillForDetail = bill
                                         showBillDetail = true
@@ -696,7 +746,7 @@ struct PartyDetailView: View {
                         }
 
                         // Giao dịch sản xuất
-                        if groupedByDay.isEmpty && retailOrders.isEmpty {
+                        if groupedByDay.isEmpty && allRetailOrders.isEmpty {
                             Text("Không có giao dịch trong 30 ngày gần nhất")
                                 .font(.subheadline)
                                 .foregroundStyle(.gray)
@@ -752,6 +802,7 @@ struct PartyDetailView: View {
                         BillDetailView(bill: bill, viewModel: orderViewModel, onDeleted: {
                             // Xoá ngay lập tức khỏi list để UX tức thì, không cần chờ reload
                             retailOrders.removeAll { $0.id == bill.id }
+                            allRetailOrders.removeAll { $0.id == bill.id }
                         }, showEditButton: false)
                     }
                 }
@@ -1247,6 +1298,106 @@ struct PartyDetailView: View {
         .background(totalDebt > 0 ? Color.red.opacity(0.06) : Color.green.opacity(0.06))
         .cornerRadius(14)
         .padding(.horizontal)
+    }
+
+    private var retailPurchaseSummaryCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Thống kê mua hàng")
+                        .font(.headline)
+                        .foregroundStyle(Color.themeTextDark)
+                    Text(retailFilterLabel)
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+                Spacer()
+                Menu {
+                    Button("Từ trước đến nay") { showAllRetailHistory = true }
+                    Divider()
+                    Button("Tất cả tháng") {
+                        showAllRetailHistory = false
+                        selectedRetailMonth = nil
+                    }
+                    Divider()
+                    ForEach(1...12, id: \.self) { month in
+                        Button("Tháng \(month)") {
+                            showAllRetailHistory = false
+                            selectedRetailMonth = month
+                        }
+                    }
+                } label: {
+                    Label(retailMonthMenuTitle, systemImage: "calendar")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                .buttonStyle(.bordered)
+
+                Menu {
+                    ForEach(retailYears, id: \.self) { year in
+                        Button("\(year)") {
+                            showAllRetailHistory = false
+                            selectedRetailYear = year
+                        }
+                    }
+                } label: {
+                    Text(showAllRetailHistory ? "Tất cả" : "\(selectedRetailYear)")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                .buttonStyle(.bordered)
+                .disabled(showAllRetailHistory)
+            }
+
+            HStack(spacing: 10) {
+                retailMetric("Tổng đã mua", formatCurrency(filteredRetailTotal), .themePrimary)
+                retailMetric("Số đơn", "\(filteredRetailOrders.count)", .gray)
+            }
+            HStack(spacing: 10) {
+                retailMetric("Đã trả", formatCurrency(filteredRetailPaid), .green)
+                retailMetric("Công nợ", formatCurrency(filteredRetailDebt), filteredRetailDebt > 0 ? .red : .green)
+            }
+        }
+        .padding(14)
+        .background(Color.white)
+        .cornerRadius(14)
+        .shadow(color: .black.opacity(0.04), radius: 5, x: 0, y: 2)
+        .padding(.horizontal)
+    }
+
+    private var retailMonthMenuTitle: String {
+        if showAllRetailHistory {
+            return "Từ trước đến nay"
+        }
+        return selectedRetailMonth.map { "Tháng \($0)" } ?? "Tất cả tháng"
+    }
+
+    private var retailFilterLabel: String {
+        if showAllRetailHistory {
+            return "Toàn bộ lịch sử"
+        }
+        if let month = selectedRetailMonth {
+            return "Tháng \(month)/\(selectedRetailYear)"
+        }
+        return "Cả năm \(selectedRetailYear)"
+    }
+
+    private func retailMetric(_ title: String, _ value: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.gray)
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.bold)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(color.opacity(0.08))
+        .cornerRadius(10)
     }
 
     // MARK: - Day section
