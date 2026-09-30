@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import UIKit
 
 struct BillDetailView: View {
     @ObservedObject private var advances = EmployeeAdvanceStore.shared
@@ -39,6 +40,7 @@ struct BillDetailView: View {
     @State private var showPrintOptionsSheet = false
     @State private var renderedCustomImages: [UIImage] = []
     @State private var showPaymentStatusPicker = false
+    @State private var showCopiedAlert = false
     
     var body: some View {
         VStack {
@@ -50,7 +52,17 @@ struct BillDetailView: View {
                 }
                 
                 Spacer()
-                
+
+                Button(action: copyBillSummary) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                        Text("Copy")
+                    }
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(Color.themePrimary)
+                }
+
                 if showEditButton {
                     Button(action: {
                         viewModel.startEditing(currentBill)
@@ -481,6 +493,11 @@ struct BillDetailView: View {
         } message: {
             Text("Bạn có chắc muốn xóa đơn hàng này? Hành động này không thể hoàn tác.")
         }
+        .alert("Đã copy đơn hàng", isPresented: $showCopiedAlert) {
+            Button("Đã hiểu", role: .cancel) { }
+        } message: {
+            Text("Bạn có thể dán nội dung vào Zalo, tin nhắn hoặc ghi chú.")
+        }
         .confirmationDialog("Chọn trạng thái thanh toán", isPresented: $showPaymentStatusPicker, titleVisibility: .visible) {
             Button("✅ Đã thanh toán đủ") {
                 let hasDebt = !debtCleared && (localDebtAmount ?? bill.effectiveDebt) > 0
@@ -631,6 +648,48 @@ struct BillDetailView: View {
             viewModel.applyLocalUpdate(original)
             throw error
         }
+    }
+
+    private func copyBillSummary() {
+        UIPasteboard.general.string = billSummaryText()
+        showCopiedAlert = true
+    }
+
+    private func billSummaryText() -> String {
+        let target = currentBill
+        let customerName = target.customerName ?? "Khách lẻ"
+        let customerPhone = resolvedCustomerPhone ?? target.customerPhone
+        let customerAddress = resolvedCustomerAddress ?? target.customerAddress
+        let itemLines = target.items.map {
+            "- \($0.name): \($0.quantity) x \(formatCurrency($0.price)) = \(formatCurrency($0.total))"
+        }.joined(separator: "\n")
+
+        var lines: [String] = [customerName]
+        if let phone = customerPhone, !phone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("SĐT: \(phone)")
+        }
+        if let address = customerAddress, !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            lines.append("Địa chỉ: \(address)")
+        }
+        if let sequence = target.sequenceNumber, !sequence.isEmpty {
+            lines.append("STT: \(sequence)")
+        }
+        if let billNumber = target.billNumber {
+            lines.append("Mã bill: \(billNumber)")
+        }
+
+        lines.append("")
+        lines.append("Đơn hàng:")
+        lines.append(itemLines)
+        lines.append("")
+        lines.append("Tổng cộng: \(formatCurrency(target.total))")
+
+        let effectiveDebt = debtCleared ? 0 : (localDebtAmount ?? target.debtAmount ?? target.effectiveDebt)
+        if effectiveDebt > 0 {
+            lines.append("Công nợ: \(formatCurrency(effectiveDebt))")
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     @MainActor

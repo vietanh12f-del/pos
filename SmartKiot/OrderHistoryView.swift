@@ -1529,134 +1529,111 @@ private struct OrderHistoryRow: View {
     let viewModel: OrderViewModel
     @Binding var highlightedBillId: UUID?
     @Binding var selectedBill: Bill?
+    @State private var showPaymentPicker = false
+    @State private var showOrderStatusPicker = false
     
     var body: some View {
-        Button(action: { selectedBill = bill }) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(formatTime(bill.createdAt))
-                            .font(.caption)
-                            .foregroundStyle(Color.gray)
-                        
-                        if let stt = bill.sequenceNumber {
-                            Text("• \(stt)")
-                                .font(.caption)
-                                .fontWeight(.bold)
-                                .foregroundStyle(Color.themePrimary)
-                        }
-                    }
-                    
-                    Text(billItemsSummary(bill))
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color.themeTextDark)
-                        .lineLimit(1)
-                    
-                    if let creator = bill.creatorName {
-                        Text("Người tạo: \(creator)")
-                            .font(.caption2)
-                            .foregroundStyle(Color.gray)
-                    }
-                    if let customer = bill.customerName, !customer.isEmpty {
-                        Text("Khách: \(customer)")
-                            .font(.caption2)
-                            .foregroundStyle(Color.gray)
-                    }
-                    if viewModel.hasHistory(for: bill.id) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                            Text("Đã chỉnh sửa")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.orange)
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.08))
-                        .cornerRadius(6)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 4) {
-                    if bill.isDeleted {
-                        Text("Đã xoá")
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(formatTime(bill.createdAt))
+                        .font(.caption)
+                        .foregroundStyle(Color.gray)
+
+                    if let stt = bill.sequenceNumber {
+                        Text("• \(stt)")
                             .font(.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.red)
-                            .cornerRadius(6)
-                    }
-                    Text(formatCurrency(bill.total))
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundStyle(bill.paymentStatus == .unpaid ? Color.red : Color.themePrimary)
-                    
-                    // Badge trạng thái thanh toán 3 mức
-                    let ps = bill.paymentStatus
-                    switch ps {
-                    case .paidFull:
-                        // Không hiện badge — màu xanh của tổng tiền đã đủ
-                        EmptyView()
-                    case .paidPartial:
-                        HStack(spacing: 3) {
-                            Image(systemName: ps.icon).font(.caption2)
-                            Text(ps.label).font(.caption2).fontWeight(.bold)
-                        }
-                        .foregroundStyle(ps.color)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(ps.color.opacity(0.12))
-                        .cornerRadius(4)
-                        if let debt = bill.debtAmount, debt > 0 {
-                            Text("Còn: \(formatCurrency(debt))")
-                                .font(.caption2).fontWeight(.bold)
-                                .foregroundStyle(.red)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(4)
-                        }
-                    case .unpaid:
-                        HStack(spacing: 3) {
-                            Image(systemName: ps.icon).font(.caption2)
-                            Text(ps.label).font(.caption2).fontWeight(.bold)
-                        }
-                        .foregroundStyle(ps.color)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(ps.color.opacity(0.12))
-                        .cornerRadius(4)
-                    }
-                    if let expectedDate = bill.expectedPayDate {
-                        Text("Đến hạn: \(formatDateOnly(expectedDate))")
-                            .font(.caption2)
-                            .foregroundStyle(.gray)
-                    }
-                    if let status = bill.orderStatus {
-                        let info = orderStatusInfo(status)
-                        HStack(spacing: 3) {
-                            Image(systemName: info.icon)
-                                .font(.caption2)
-                            Text(info.label)
-                                .font(.caption2)
-                                .fontWeight(.semibold)
-                        }
-                        .foregroundStyle(info.color)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(info.color.opacity(0.1))
-                        .cornerRadius(4)
+                            .foregroundStyle(Color.themePrimary)
                     }
                 }
+
+                Text(billItemsSummary(bill))
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(Color.themeTextDark)
+                    .lineLimit(1)
+
+                if let creator = bill.creatorName {
+                    Text("Người tạo: \(creator)")
+                        .font(.caption2)
+                        .foregroundStyle(Color.gray)
+                }
+                if let customer = bill.customerName, !customer.isEmpty {
+                    Text("Khách: \(customer)")
+                        .font(.caption2)
+                        .foregroundStyle(Color.gray)
+                }
+                if viewModel.hasHistory(for: bill.id) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text("Đã chỉnh sửa")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(.orange)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.08))
+                    .cornerRadius(6)
+                }
             }
-            .padding(.vertical, 8)
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                if bill.isDeleted {
+                    Text("Đã xoá")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.red)
+                        .cornerRadius(6)
+                }
+                Text(formatCurrency(bill.total))
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundStyle(bill.paymentStatus == .unpaid ? Color.red : Color.themePrimary)
+
+                paymentStatusButton
+
+                if let expectedDate = bill.expectedPayDate {
+                    Text("Đến hạn: \(formatDateOnly(expectedDate))")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+
+                orderStatusButton
+            }
         }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture { selectedBill = bill }
         .listRowBackground(rowBackground)
         .opacity(bill.isDeleted ? 0.6 : 1)
+        .confirmationDialog("Chọn trạng thái thanh toán", isPresented: $showPaymentPicker, titleVisibility: .visible) {
+            Button("Đã thanh toán đủ") { updatePaymentStatus(.paidFull) }
+            if bill.paymentStatus == .paidPartial {
+                Button("Giữ thanh toán 1 phần") { }
+            }
+            Button("Chưa thanh toán") { updatePaymentStatus(.unpaid) }
+            Button("Hủy", role: .cancel) { }
+        }
+        .confirmationDialog("Chọn trạng thái đơn hàng", isPresented: $showOrderStatusPicker, titleVisibility: .visible) {
+            Button("Xác nhận đơn") { updateOrderStatus("confirmed") }
+            Button("Chuẩn bị hàng") { updateOrderStatus("preparing") }
+            Button("Đã soạn hàng") { updateOrderStatus("prepared") }
+            Button("Đang giao hàng") { updateOrderStatus("delivering") }
+            Button("Đã giao hàng") { updateOrderStatus("delivered") }
+            Button("Hoàn thành") { updateOrderStatus("completed") }
+            Button("Đã Huỷ", role: .destructive) { updateOrderStatus("cancelled") }
+            Button("Bỏ chọn") { updateOrderStatus(nil) }
+            Button("Hủy", role: .cancel) { }
+        }
         .contextMenu {
             Button {
                 viewModel.startEditing(bill)
@@ -1683,6 +1660,87 @@ private struct OrderHistoryRow: View {
         highlightedBillId == bill.id
             ? Color.themePrimary.opacity(0.08)
             : Color.white
+    }
+
+    @ViewBuilder
+    private var paymentStatusButton: some View {
+        let ps = bill.paymentStatus
+        Button {
+            if !bill.isDeleted { showPaymentPicker = true }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: ps.icon).font(.caption2)
+                Text(ps.label).font(.caption2).fontWeight(.bold)
+            }
+            .foregroundStyle(ps.color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(ps.color.opacity(0.12))
+            .cornerRadius(4)
+        }
+        .buttonStyle(.plain)
+        .disabled(bill.isDeleted)
+
+        if ps == .paidPartial, let debt = bill.debtAmount, debt > 0 {
+            Text("Còn: \(formatCurrency(debt))")
+                .font(.caption2).fontWeight(.bold)
+                .foregroundStyle(.red)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(4)
+        }
+    }
+
+    @ViewBuilder
+    private var orderStatusButton: some View {
+        let info = orderStatusInfo(bill.orderStatus ?? "confirmed")
+        Button {
+            if !bill.isDeleted { showOrderStatusPicker = true }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: info.icon)
+                    .font(.caption2)
+                Text(info.label)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+            }
+            .foregroundStyle(info.color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(info.color.opacity(0.1))
+            .cornerRadius(4)
+        }
+        .buttonStyle(.plain)
+        .disabled(bill.isDeleted)
+    }
+
+    private func updatePaymentStatus(_ status: PaymentStatus) {
+        var updated = bill
+        switch status {
+        case .paidFull:
+            updated.isPaid = true
+            updated.paidAmount = bill.total
+            updated.debtAmount = nil
+        case .unpaid:
+            updated.isPaid = false
+            updated.paidAmount = 0
+            updated.debtAmount = bill.total
+        case .paidPartial:
+            return
+        }
+        saveQuickUpdate(updated)
+    }
+
+    private func updateOrderStatus(_ status: String?) {
+        var updated = bill
+        updated.orderStatus = status
+        saveQuickUpdate(updated)
+    }
+
+    private func saveQuickUpdate(_ updated: Bill) {
+        viewModel.applyLocalUpdate(updated)
+        viewModel.addQuickEditHistory(original: bill, updated: updated)
+        Task { try? await viewModel.updateOrder(updated) }
     }
     
     private func formatTime(_ date: Date) -> String {
