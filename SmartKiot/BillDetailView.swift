@@ -658,19 +658,11 @@ struct BillDetailView: View {
     private func billSummaryText() -> String {
         let target = currentBill
         let customerName = target.customerName ?? "Khách lẻ"
-        let customerPhone = resolvedCustomerPhone ?? target.customerPhone
-        let customerAddress = resolvedCustomerAddress ?? target.customerAddress
         let itemLines = target.items.map {
             "- \($0.name): \($0.quantity) x \(formatCurrency($0.price)) = \(formatCurrency($0.total))"
         }.joined(separator: "\n")
 
         var lines: [String] = [customerName]
-        if let phone = customerPhone, !phone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            lines.append("SĐT: \(phone)")
-        }
-        if let address = customerAddress, !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            lines.append("Địa chỉ: \(address)")
-        }
         if let sequence = target.sequenceNumber, !sequence.isEmpty {
             lines.append("STT: \(sequence)")
         }
