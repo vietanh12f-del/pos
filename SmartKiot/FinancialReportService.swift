@@ -1273,7 +1273,9 @@ class FinancialReportService {
             return (start, end)
             
         case .custom(let start, let end):
-            return (start, end)
+            let normalizedStart = calendar.startOfDay(for: start)
+            let normalizedEnd = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: end) ?? end
+            return (normalizedStart, normalizedEnd)
         }
     }
 }
