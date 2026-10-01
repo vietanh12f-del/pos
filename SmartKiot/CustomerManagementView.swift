@@ -577,7 +577,8 @@ struct PartyDetailView: View {
     private var retailYears: [Int] {
         let years = Set(allRetailOrders.map { Calendar.current.component(.year, from: $0.createdAt) })
         let currentYear = Calendar.current.component(.year, from: Date())
-        return Array(years.union([currentYear])).sorted(by: >)
+        let selectableYears = Set((currentYear - 5)...(currentYear + 1))
+        return Array(years.union(selectableYears)).sorted(by: >)
     }
 
     private var filteredRetailOrders: [Bill] {
@@ -778,8 +779,9 @@ struct PartyDetailView: View {
                 }
             }
             .task { 
-                await loadTransactions()
-                await orderViewModel.loadEditedProductionTxIds()
+                async let transactions: Void = loadTransactions()
+                async let editedIds: Void = orderViewModel.loadEditedProductionTxIds()
+                _ = await (transactions, editedIds)
             }
             .sheet(isPresented: $showEdit) {
                 PartyEditSheet(party: currentParty, onSaved: { updated in
@@ -1331,13 +1333,13 @@ struct PartyDetailView: View {
 
                 Menu {
                     ForEach(retailYears, id: \.self) { year in
-                        Button("\(year)") {
+                        Button(String(year)) {
                             showAllRetailHistory = false
                             selectedRetailYear = year
                         }
                     }
                 } label: {
-                    Text(showAllRetailHistory ? "Tất cả" : "\(selectedRetailYear)")
+                    Text(verbatim: showAllRetailHistory ? "Tất cả" : String(selectedRetailYear))
                         .font(.caption)
                         .fontWeight(.semibold)
                 }
@@ -1684,20 +1686,13 @@ struct PartyDetailView: View {
         let since = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
         let db = SupabaseDatabaseService()
 
-        // Fetch đơn bán lẻ theo tên khách
         async let retailTask = db.fetchOrdersByCustomerName(currentParty.name)
-
-        // Fetch production transactions
-        let modes = ["Nhập Nguyên liệu", "Xuất Nguyên liệu", "Nhập Thành Phẩm", "Xuất Thành Phẩm"]
-        var all: [ProductionTransaction] = []
-        for mode in modes {
-            let txs = (try? await db.fetchProductionTransactions(mode: mode)) ?? []
-            all += txs
-        }
+        async let productionTask = db.fetchProductionTransactions(mode: nil)
 
         // Filter production by party name + phone, exclude deleted — for total debt (all time)
         let name = currentParty.name.lowercased()
         let phone = currentParty.phone
+        let all = (try? await productionTask) ?? []
         let allPartyTxsFiltered = all.filter { tx in
             guard !tx.isDeleted else { return false }
             let matchName = tx.buyerName?.lowercased() == name
