@@ -425,29 +425,23 @@ struct CustomerManagementView: View {
 
     private func loadAll() async {
         isLoading = true
-        defer { isLoading = false }
-        
-        // Fetch all production transactions first
+
         let db = SupabaseDatabaseService()
-        let modes = ["Nhập Nguyên liệu", "Xuất Nguyên liệu", "Nhập Thành Phẩm", "Xuất Thành Phẩm"]
-        var allProductionTxs: [ProductionTransaction] = []
-        for mode in modes {
-            let txs = (try? await db.fetchProductionTransactions(mode: mode)) ?? []
-            allProductionTxs += txs
-        }
-        
-        await MainActor.run {
-            self.allProductionTransactions = allProductionTxs
-        }
-        
-        // Then fetch buyers and suppliers
+
         async let buyers = (try? db.fetchTradingParties(type: "buyer")) ?? []
         async let suppliers = (try? db.fetchTradingParties(type: "supplier")) ?? []
         async let fetchedLeads = (try? db.fetchWebsiteLeads()) ?? []
+        async let productionTransactions = (try? db.fetchProductionTransactions(mode: nil)) ?? []
         async let allRetailOrders = (try? db.fetchOrders()) ?? []
-        let (b, s, l, retailOrders) = await (buyers, suppliers, fetchedLeads, allRetailOrders)
-        
-        // Calculate total debt for each party (including retail orders)
+
+        let (b, s, l) = await (buyers, suppliers, fetchedLeads)
+        parties = deduplicatedParties(b + s)
+        leads = l
+        isLoading = false
+
+        let (allProductionTxs, retailOrders) = await (productionTransactions, allRetailOrders)
+        allProductionTransactions = allProductionTxs
+
         var updatedParties: [TradingParty] = []
         for party in b + s {
             var updated = party
@@ -465,10 +459,13 @@ struct CustomerManagementView: View {
             
             updatedParties.append(updated)
         }
-        
-        // Deduplicate parties by name + phone, keep the one with latest updatedAt
+
+        parties = deduplicatedParties(updatedParties)
+    }
+
+    private func deduplicatedParties(_ source: [TradingParty]) -> [TradingParty] {
         var uniquePartiesDict: [String: TradingParty] = [:]
-        for party in updatedParties {
+        for party in source {
             let key = "\(party.name.lowercased())|\(party.phone.lowercased())"
             if let existing = uniquePartiesDict[key] {
                 if party.updatedAt > existing.updatedAt {
@@ -478,9 +475,8 @@ struct CustomerManagementView: View {
                 uniquePartiesDict[key] = party
             }
         }
-        
-        parties = Array(uniquePartiesDict.values)
-        leads = l
+
+        return Array(uniquePartiesDict.values)
     }
 }
 
