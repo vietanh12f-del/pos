@@ -21,6 +21,8 @@ struct StatisticsView: View {
     @State private var showExportSheet: Bool = false
     @State private var exportURL: URL?
     @State private var exportItem: StatisticsExportItem?
+    @State private var showExportOptions = false
+    @State private var exportOptions = FinancialReportExportOptions()
     @State private var allProductionTx: [ProductionTransaction] = []
     @State private var showRetailDetail = false
     @State private var showWholesaleDetail = false
@@ -166,12 +168,7 @@ struct StatisticsView: View {
                     // Chỉ owner mới được xuất báo cáo
                     if StoreManager.shared.currentMember?.role == .owner {
                         Button {
-                            let range = currentRange()
-                            let url = viewModel.exportFinancialReport(range: range, allProductionTx: allProductionTx)
-                            if let url = url {
-                                exportURL = url
-                                exportItem = StatisticsExportItem(url: url)
-                            }
+                            showExportOptions = true
                         } label: {
                             Text("Xuất báo cáo (Ảnh)")
                                 .font(.body)
@@ -712,6 +709,24 @@ struct StatisticsView: View {
             .sheet(item: $exportItem) { item in
                 ShareSheet(items: [item.url])
             }
+            .sheet(isPresented: $showExportOptions) {
+                ExportReportOptionsSheet(
+                    options: $exportOptions,
+                    productionEnabled: storeManager.currentStoreProductionEnabled(),
+                    onExport: {
+                        let range = currentRange()
+                        let url = viewModel.exportFinancialReport(range: range, allProductionTx: allProductionTx, options: exportOptions)
+                        showExportOptions = false
+                        if let url = url {
+                            exportURL = url
+                            exportItem = StatisticsExportItem(url: url)
+                        }
+                    },
+                    onCancel: {
+                        showExportOptions = false
+                    }
+                )
+            }
             .sheet(isPresented: $showCustomPicker) {
                 NavigationStack {
                     Form {
@@ -809,6 +824,46 @@ struct StatisticsView: View {
     
     private func getTopSellingProducts(orders: [Bill], limit: Int) -> [TopSellingProduct] {
         Array(TopSellingProduct.summarize(orders).prefix(limit))
+    }
+}
+
+private struct ExportReportOptionsSheet: View {
+    @Binding var options: FinancialReportExportOptions
+    let productionEnabled: Bool
+    let onExport: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Nội dung báo cáo")) {
+                    Toggle("Kết quả đối soát", isOn: .constant(true))
+                        .disabled(true)
+                    Toggle("Chi tiết công nợ", isOn: $options.includeDebtDetails)
+                    Toggle("Sản phẩm bán chạy", isOn: $options.includeTopProducts)
+                    if productionEnabled {
+                        Toggle("Báo cáo bán sỉ / sản xuất", isOn: $options.includeWholesale)
+                    }
+                    Toggle("Tóm tắt tồn kho", isOn: $options.includeInventorySummary)
+                }
+
+                Section(header: Text("Phần dễ làm báo cáo dài")) {
+                    Toggle("Chi tiết các đơn hàng", isOn: $options.includeOrderDetails)
+                    Toggle("Chi tiết tồn kho", isOn: $options.includeDetailedInventory)
+                }
+            }
+            .navigationTitle("Xuất báo cáo")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Huỷ", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Xuất", action: onExport)
+                        .fontWeight(.bold)
+                }
+            }
+        }
     }
 }
 

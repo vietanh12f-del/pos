@@ -58,6 +58,15 @@ enum ReportDateRange: Hashable {
     }
 }
 
+struct FinancialReportExportOptions {
+    var includeOrderDetails = false
+    var includeDebtDetails = true
+    var includeTopProducts = true
+    var includeWholesale = true
+    var includeInventorySummary = true
+    var includeDetailedInventory = false
+}
+
 // MARK: - Financial Report Service
 
 class FinancialReportService {
@@ -133,7 +142,7 @@ class FinancialReportService {
     }
     
     // Generate Comprehensive Image Report - Enhanced Version
-    func exportToImage(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats? = nil, orders: [Bill] = [], allOrdersForDebt: [Bill] = [], allProductionTxs: [ProductionTransaction] = [], products: [Product] = []) -> URL? {
+    func exportToImage(stats: [DailyFinancialStats], wholesale: OrderViewModel.WholesaleStats? = nil, orders: [Bill] = [], allOrdersForDebt: [Bill] = [], allProductionTxs: [ProductionTransaction] = [], products: [Product] = [], options: FinancialReportExportOptions = FinancialReportExportOptions()) -> URL? {
         
         let fileName = "BaoCaoTaiChinh_\(Int(Date().timeIntervalSince1970)).png"
         let path = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
@@ -155,21 +164,25 @@ class FinancialReportService {
         for t in allDebtTx { totalDebtCustomers.insert(customerKey(t.buyerName, t.buyerPhone)) }
         let customerCount = totalDebtCustomers.count
         
+        let retailOrdersForReport = getRetailOrdersInRange(orders, stats: stats)
+
         // Base content height estimation
         let baseHeight: CGFloat = 1200
-        let orderTableHeight: CGFloat = CGFloat(min(orders.count, 15) + orders.sorted { $0.createdAt > $1.createdAt }.prefix(15).reduce(0) { $0 + $1.fees.count }) * 20 + 100
-        let inventoryHeight: CGFloat = CGFloat(min(products.count, 20)) * 20 + 150
-        let debtTableHeight: CGFloat = CGFloat(customerCount) * 20 + 100 + 20 // +20 cho dòng ghi chú
-        let productionHeight: CGFloat = productionEnabled ? 400 : 0
+        let orderTableRows = retailOrdersForReport.count + retailOrdersForReport.reduce(0) { $0 + $1.fees.count }
+        let orderTableHeight: CGFloat = options.includeOrderDetails ? CGFloat(orderTableRows) * 20 + 100 : 0
+        let inventorySummaryHeight: CGFloat = options.includeInventorySummary ? 180 : 0
+        let detailedInventoryHeight: CGFloat = options.includeDetailedInventory ? CGFloat(min(products.count, 20)) * 20 + 150 : 0
+        let debtTableHeight: CGFloat = options.includeDebtDetails ? CGFloat(customerCount) * 20 + 100 + 20 : 0 // +20 cho dòng ghi chú
+        let productionHeight: CGFloat = productionEnabled && options.includeWholesale ? 400 : 0
         
-        let totalEstimatedHeight = baseHeight + orderTableHeight + inventoryHeight + debtTableHeight + productionHeight
+        let totalEstimatedHeight = baseHeight + orderTableHeight + inventorySummaryHeight + detailedInventoryHeight + debtTableHeight + productionHeight
         
         // Use multiple pages if content is too long
         let _: CGFloat = 2000 // Will be used for multi-page in future
         let pageWidth: CGFloat = 850
         
-        // Use dynamic page height without multi-page for now
-        let pageSize = CGSize(width: pageWidth, height: min(totalEstimatedHeight + 500, 3000))
+        // Use dynamic page height so large order lists are included in the exported image.
+        let pageSize = CGSize(width: pageWidth, height: max(totalEstimatedHeight + 500, 2000))
         let renderer = UIGraphicsImageRenderer(size: pageSize)
         
         let image = renderer.image { context in
@@ -229,18 +242,18 @@ class FinancialReportService {
             
             currentY += 30
             
-            // MARK: - Order List
             let retailOrders = getRetailOrdersInRange(orders, stats: stats)
-            drawSectionTitle("CHI TIẾT CÁC ĐơN HÀNG", at: &currentY, pageWidth: pageSize.width, margin: margin)
-            drawOrderList(orders: retailOrders, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
-            
-            currentY += 30
+            if options.includeOrderDetails {
+                drawSectionTitle("CHI TIẾT CÁC ĐƠN HÀNG", at: &currentY, pageWidth: pageSize.width, margin: margin)
+                drawOrderList(orders: retailOrders, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
+                currentY += 30
+            }
             
             // MARK: - Debt Details (if any) - Moved up to be right after order list
             let allDebtBillsSource = allOrdersForDebt.isEmpty ? orders : allOrdersForDebt
             let debtBills = allDebtBillsSource.filter { !$0.isDeleted && $0.effectiveDebt > 0 }
             let debtTx = allProductionTxs.filter { !$0.isDeleted && $0.effectiveDebt > 0 && $0.mode.contains("Xuất") }
-            if !debtBills.isEmpty || !debtTx.isEmpty {
+            if options.includeDebtDetails && (!debtBills.isEmpty || !debtTx.isEmpty) {
                 drawSectionTitle("CHI TIẾT CÔNG NỢ THEO KHÁCH HÀNG", at: &currentY, pageWidth: pageSize.width, margin: margin)
                 // Ghi chú: danh sách công nợ là từ trước đến nay (toàn bộ đơn hàng còn nợ, không lọc theo khoảng thời gian)
                 let noteAttributes: [NSAttributedString.Key: Any] = [
@@ -256,31 +269,31 @@ class FinancialReportService {
             
             // MARK: - Top Selling Products
             let topProducts = getTopSellingProducts(orders: retailOrders, limit: 5)
-            if !topProducts.isEmpty {
+            if options.includeTopProducts && !topProducts.isEmpty {
                 drawSectionTitle("SẢN PHẨM BÁN CHẠY", at: &currentY, pageWidth: pageSize.width, margin: margin)
                 drawTopProducts(topProducts, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
                 currentY += 30
             }
             
             // MARK: - Wholesale Section (only if production enabled)
-            if productionEnabled, let ws = wholesale {
+            if options.includeWholesale, productionEnabled, let ws = wholesale {
                 drawSectionTitle("BÁO CÁO BÁN SỈ / SẢN XUẤT", at: &currentY, pageWidth: pageSize.width, margin: margin)
                 drawWholesaleSection(ws, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
                 currentY += 30
             }
             
-            // MARK: - Inventory Summary
-            drawSectionTitle("TÓM TẮT TỒN KHO", at: &currentY, pageWidth: pageSize.width, margin: margin)
-            drawInventorySummary(products: products, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
-            
-            currentY += 30
+            if options.includeInventorySummary {
+                drawSectionTitle("TÓM TẮT TỒN KHO", at: &currentY, pageWidth: pageSize.width, margin: margin)
+                drawInventorySummary(products: products, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
+                currentY += 30
+            }
 
             
-            // MARK: - Detailed Inventory List
-            drawSectionTitle("CHI TIẾT TỒN KHO", at: &currentY, pageWidth: pageSize.width, margin: margin)
-            drawDetailedInventory(products: products, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
-            
-            currentY += 40
+            if options.includeDetailedInventory {
+                drawSectionTitle("CHI TIẾT TỒN KHO", at: &currentY, pageWidth: pageSize.width, margin: margin)
+                drawDetailedInventory(products: products, context: cgContext, startY: &currentY, margin: margin, contentWidth: contentWidth)
+                currentY += 40
+            }
             
             // MARK: - Footer
             let footerText = "Báo cáo được tạo tự động bởi SmartKiot POS System"
@@ -514,8 +527,8 @@ class FinancialReportService {
         
         startY += rowHeight
         
-        // Draw data rows (limit to 15 most recent orders for better readability)
-        let sortedOrders = orders.sorted { $0.createdAt > $1.createdAt }.prefix(15)
+        // Draw all order rows in the selected report range.
+        let sortedOrders = orders.sorted { $0.createdAt > $1.createdAt }
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "vi_VN")
         dateFormatter.dateFormat = "dd/MM HH:mm"
@@ -579,17 +592,6 @@ class FinancialReportService {
                 detail.draw(in: CGRect(x: margin + 4, y: startY + 2, width: contentWidth - 8, height: rowHeight - 4), withAttributes: cellAttributes)
                 startY += rowHeight
             }
-        }
-        
-        // Add summary info if there are more orders
-        if orders.count > 15 {
-            let moreOrdersText = "... và \(orders.count - 15) đơn hàng khác"
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.italicSystemFont(ofSize: 10),
-                .foregroundColor: UIColor.gray
-            ]
-            moreOrdersText.draw(at: CGPoint(x: margin, y: startY + 5), withAttributes: attributes)
-            startY += 20
         }
         
         // Draw total row
@@ -1460,5 +1462,3 @@ class FinancialReportService {
         
         startY += rowHeight
     }
-
-

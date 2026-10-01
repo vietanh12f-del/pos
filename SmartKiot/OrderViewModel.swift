@@ -1597,7 +1597,7 @@ class OrderViewModel: ObservableObject {
         self.todayStats = todayStatsList.first
     }
     
-    func exportFinancialReport(range: ReportDateRange, allProductionTx: [ProductionTransaction] = []) -> URL? {
+    func exportFinancialReport(range: ReportDateRange, allProductionTx: [ProductionTransaction] = [], options: FinancialReportExportOptions = FinancialReportExportOptions()) -> URL? {
         let service = FinancialReportService.shared
         let stats = service.generateReport(
             orders: pastOrders,
@@ -1606,7 +1606,7 @@ class OrderViewModel: ObservableObject {
             range: range
         )
         let ws = wholesaleStats(for: range, allTransactions: allProductionTx)
-        return service.exportToImage(stats: stats, wholesale: ws, orders: pastOrders, allOrdersForDebt: pastOrders, allProductionTxs: allProductionTx, products: products)
+        return service.exportToImage(stats: stats, wholesale: ws, orders: pastOrders, allOrdersForDebt: pastOrders, allProductionTxs: allProductionTx, products: products, options: options)
     }
     
     // MARK: - Operating Expenses
